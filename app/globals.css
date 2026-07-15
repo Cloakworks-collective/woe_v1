@@ -2440,3 +2440,540 @@ select:focus-visible {
   from { background-position: 120% 0; }
   to { background-position: -100% 0; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   The Muster at First Dawn — the landing / login composition.
+   One art-directed frame: a grainy painted dawn war-field, a heraldic sigil
+   watermark, a muster of race champions (the picker), and a founding charter.
+   Namespaced .mst-* so it touches nothing else.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.mst-page {
+  /* The dawn splash is theme-independent — pin the light parchment palette so a
+     returning visitor's dark cookie can't wash out the ink on the warm field. */
+  --panel: #f8eed2;
+  --panel-alt: #f1e3bd;
+  --border: #9c7c46;
+  --border-light: #c3a468;
+  --input-bg: #fffbe9;
+  --ink: #3d2b12;
+  --ink-soft: #6b5636;
+  --heading: #5a3b1c;
+  --wood-light: #7c5426;
+  --gold: #f0c75e;
+  --panelhead-grad: linear-gradient(#dcbc7c, #c9a25c);
+
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  isolation: isolate;
+  /* The painted dawn: a pre-dawn wood vault up top, a warm amber sun-wash, a
+     gold horizon settling onto parchment, then the earth the champions stand on. */
+  background:
+    radial-gradient(130% 78% at 50% -8%, rgba(38, 24, 9, 0.62), transparent 52%),
+    radial-gradient(74% 48% at 50% 20%, rgba(240, 199, 94, 0.34), transparent 64%),
+    linear-gradient(
+      180deg,
+      #341f0b 0%,
+      #5f3915 12%,
+      #9c6128 26%,
+      #c98e42 40%,
+      #e3c98f 58%,
+      #ead7a4 74%,
+      #ddc389 90%,
+      #c8a969 100%
+    );
+  color: var(--ink);
+}
+
+/* Fine film grain over the whole field so the dawn gradient never bands. */
+.mst-grain {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Faint campaign-map registration marks — corner brackets + a meridian. */
+.mst-ticks {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  color: rgba(60, 37, 14, 0.16);
+}
+
+/* The heraldic sigil watermark — sits above the field, below the champions,
+   and bleeds off the top edge. */
+.mst-sigil {
+  position: absolute;
+  top: -6%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(940px, 128vw);
+  height: auto;
+  z-index: 1;
+  color: rgba(246, 221, 147, 0.16);
+  pointer-events: none;
+}
+
+/* ── The fold ─────────────────────────────────────────────────────────────*/
+.mst-hero {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 2.4vh, 30px);
+  padding: clamp(28px, 6vh, 64px) 20px clamp(24px, 5vh, 54px);
+}
+
+.mst-flash {
+  width: min(560px, 92vw);
+}
+
+/* Dateline ribbon — real world state, illuminated. */
+.mst-dateline {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 16px;
+  background: linear-gradient(#4a3117, #2f1e0c);
+  border: 1px solid var(--wood-light);
+  border-radius: 2px;
+  box-shadow: 0 2px 6px rgba(20, 12, 4, 0.45), inset 0 1px 0 rgba(246, 221, 147, 0.18);
+  font: 700 11.5px/1 Verdana, sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #f3d488;
+}
+.mst-dateline b {
+  color: #fff2c4;
+  letter-spacing: 0.14em;
+}
+.mst-dateline i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--gold);
+  opacity: 0.8;
+  flex: none;
+}
+
+/* The wordmark — Cinzel, gold-leaf, with a slow sheen sweep. */
+.mst-title {
+  margin: 2px 0 0;
+  font-family: var(--font-heading), Georgia, serif;
+  font-weight: 700;
+  line-height: 0.92;
+  letter-spacing: 0.03em;
+  font-size: clamp(38px, 8.4vw, 104px);
+  text-align: center;
+  background: linear-gradient(180deg, #fff4cb 0%, #f4cd6b 38%, #b9832b 58%, #f6dd93 82%, #d7a63f 100%);
+  background-size: 100% 240%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(60, 37, 14, 0.55))
+    drop-shadow(0 4px 10px rgba(30, 18, 4, 0.5));
+  animation: mst-sheen 7s ease-in-out infinite;
+}
+.mst-title .amp {
+  display: inline-block;
+  font-size: 0.52em;
+  font-weight: 600;
+  font-style: italic;
+  vertical-align: 0.14em;
+  margin: 0 0.14em;
+  opacity: 0.92;
+}
+@keyframes mst-sheen {
+  0%, 100% { background-position: 50% 12%; }
+  50% { background-position: 50% 92%; }
+}
+
+.mst-tagline {
+  margin: -4px 0 0;
+  font: italic 400 clamp(13px, 1.7vw, 16.5px) Georgia, serif;
+  letter-spacing: 0.02em;
+  color: #513711;
+  text-shadow: 0 1px 0 rgba(255, 250, 230, 0.45);
+  text-align: center;
+}
+
+/* ── The Muster — the six champions (the race picker) ─────────────────────*/
+.mst-muster {
+  margin: clamp(4px, 1vh, 14px) 0 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(6px, 1.4vw, 20px);
+  flex-wrap: wrap;
+  max-width: 1060px;
+}
+
+.mst-champ {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  width: clamp(118px, 14vw, 156px);
+  padding-top: 26px; /* headroom for the raised state */
+  cursor: pointer;
+  transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.mst-champ input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* The standard: a wood pole with a swallowtail pennant in the race tincture. */
+.mst-standard {
+  position: relative;
+  height: 52px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  transition: transform 0.3s ease;
+}
+.mst-pole {
+  position: absolute;
+  top: 0;
+  bottom: -6px;
+  left: 50%;
+  width: 3px;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, #3c250e, #6b4622 40%, #3c250e);
+  border-radius: 2px;
+}
+.mst-pole::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--gold);
+  box-shadow: inset 0 0 0 1px rgba(60, 37, 14, 0.4);
+}
+.mst-pennant {
+  position: relative;
+  margin-left: 3px;
+  width: 40px;
+  height: 40px;
+  background: var(--tone);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 74%, 0 100%);
+  box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.28), inset 0 -4px 8px rgba(0, 0, 0, 0.3);
+  transform-origin: top left;
+  animation: mst-sway 4.5s ease-in-out infinite;
+}
+.mst-pennant::after {
+  content: "";
+  position: absolute;
+  inset: 4px 5px auto 5px;
+  height: 8px;
+  background: repeating-linear-gradient(90deg, var(--gold) 0 5px, transparent 5px 10px);
+  opacity: 0.85;
+}
+@keyframes mst-sway {
+  0%, 100% { transform: rotate(-1.5deg); }
+  50% { transform: rotate(2.5deg); }
+}
+
+/* The portrait roundel — a gold-rimmed seal holding the pixel champion. */
+.mst-roundel {
+  position: relative;
+  width: clamp(96px, 11vw, 120px);
+  height: clamp(96px, 11vw, 120px);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 32%, var(--panel), var(--panel-alt) 78%);
+  border: 3px solid var(--border-light);
+  box-shadow:
+    inset 0 3px 5px rgba(255, 250, 230, 0.5),
+    inset 0 -5px 10px rgba(60, 37, 14, 0.32),
+    0 6px 14px rgba(30, 18, 4, 0.4);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease;
+  filter: saturate(0.72) brightness(0.94);
+}
+.mst-roundel img {
+  width: 86%;
+  height: 86%;
+  image-rendering: pixelated;
+}
+
+/* The nameplate + the boon line. */
+.mst-plate {
+  font: 700 12px Georgia, serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #4a3117;
+  text-shadow: 0 1px 0 rgba(255, 250, 230, 0.5);
+}
+.mst-boon {
+  margin-top: -3px;
+  font: 400 11px/1.3 Georgia, serif;
+  color: #7a5a2e;
+  text-align: center;
+  max-width: 15ch;
+  min-height: 2.6em; /* two lines, so every champion shares a baseline */
+  opacity: 0.85;
+}
+
+/* Soft ground shadow so each champion stands on the field. */
+.mst-champ::after {
+  content: "";
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 78%;
+  height: 14px;
+  background: radial-gradient(ellipse at center, rgba(30, 18, 4, 0.4), transparent 72%);
+  z-index: -1;
+  transition: opacity 0.25s ease, width 0.25s ease;
+  opacity: 0.55;
+}
+
+/* ── The chosen champion: raised, lit, unfurled ───────────────────────────*/
+.mst-champ:has(input:checked) {
+  transform: translateY(-16px);
+}
+.mst-champ:has(input:checked) .mst-roundel {
+  filter: none;
+  border-color: var(--gold);
+  box-shadow:
+    inset 0 3px 6px rgba(255, 250, 230, 0.6),
+    inset 0 -5px 10px rgba(60, 37, 14, 0.3),
+    0 0 0 4px rgba(240, 199, 94, 0.28),
+    0 10px 22px rgba(30, 18, 4, 0.48);
+}
+.mst-champ:has(input:checked) .mst-standard {
+  transform: translateY(-8px) scale(1.06);
+}
+.mst-champ:has(input:checked) .mst-plate {
+  color: #7a2318;
+}
+.mst-champ:has(input:checked) .mst-boon {
+  opacity: 1;
+  color: #5a3b1c;
+  font-weight: 700;
+}
+.mst-champ:has(input:checked)::after {
+  opacity: 0.85;
+  width: 88%;
+}
+/* Keyboard focus ring on the roundel. */
+.mst-champ:has(input:focus-visible) .mst-roundel {
+  outline: 3px solid var(--warn);
+  outline-offset: 3px;
+}
+
+/* ── The Charter — the founding action ────────────────────────────────────*/
+.mst-charter {
+  position: relative;
+  z-index: 2;
+  width: min(620px, 94vw);
+  margin: clamp(8px, 1.4vh, 20px) 0 0;
+  padding: 26px 26px 20px;
+  background:
+    linear-gradient(#f9efd6, #efdfb4);
+  border: 2px solid var(--border);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 250, 230, 0.55),
+    inset 0 0 40px rgba(180, 140, 70, 0.14),
+    0 12px 30px rgba(30, 18, 4, 0.45);
+}
+
+/* The wax founding-seal, stamped over the charter's top edge (crosses layers). */
+.mst-seal {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-7deg);
+  width: 62px;
+  height: 62px;
+  z-index: 3;
+  filter: drop-shadow(0 4px 7px rgba(30, 12, 6, 0.5));
+}
+
+.mst-charter-eyebrow {
+  text-align: center;
+  margin: 4px 0 12px;
+  font: 700 10.5px Verdana, sans-serif;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #9a7038;
+}
+
+.mst-charter form {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.mst-charter form input[name="name"] {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* The primary action — a struck gold banner-button. */
+.mst-raise {
+  border: 1px solid #7a531c;
+  background: linear-gradient(#f0c75e, #cf9a34);
+  color: #3a2205;
+  font: 700 13.5px var(--font-heading, Georgia), Georgia, serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 7px 20px;
+  cursor: pointer;
+  text-shadow: 0 1px 0 rgba(255, 250, 230, 0.5);
+  box-shadow: inset 0 1px 0 rgba(255, 250, 230, 0.6), inset 0 -2px 4px rgba(120, 83, 28, 0.4), 0 2px 4px rgba(30, 18, 4, 0.3);
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.mst-raise:hover {
+  filter: brightness(1.05);
+}
+.mst-raise:active {
+  transform: translateY(1px);
+}
+
+.mst-fineprint {
+  margin: 12px 0 0;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #7a5a2e;
+}
+
+/* ── Below the fold: return to the throne (quiet secondary) ────────────────*/
+.mst-return {
+  position: relative;
+  z-index: 2;
+  margin: 0 auto;
+  padding: 30px 20px 20px;
+  width: min(620px, 94vw);
+  text-align: center;
+  border-top: 1px solid rgba(60, 37, 14, 0.22);
+}
+.mst-return h2 {
+  font: 700 15px var(--font-heading, Georgia), Georgia, serif;
+  letter-spacing: 0.04em;
+  color: #4a3117;
+  margin-bottom: 10px;
+}
+.mst-return form.mst-token {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.mst-token input {
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  font: 13px monospace;
+  min-width: 240px;
+}
+.mst-devlist {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(60, 37, 14, 0.25);
+}
+.mst-devlist-head {
+  font: 700 10px Verdana, sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #9a7038;
+  margin-bottom: 8px;
+}
+.mst-devlist-empires {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.mst-devlist form {
+  display: inline-block;
+}
+.mst-throne-chip {
+  border: 1px solid var(--border);
+  background: var(--panel-alt);
+  color: var(--ink);
+  font: 700 12px Verdana, sans-serif;
+  padding: 4px 11px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.mst-throne-chip:hover {
+  background: var(--panelhead-grad);
+  color: var(--heading);
+}
+.mst-colophon {
+  margin-top: 18px;
+  font: italic 12px Georgia, serif;
+  color: #5a3b12;
+}
+
+@media (max-width: 560px) {
+  .mst-muster {
+    gap: 4px;
+  }
+  .mst-champ {
+    width: 30vw;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mst-title,
+  .mst-pennant {
+    animation: none;
+  }
+  .mst-champ,
+  .mst-standard,
+  .mst-roundel {
+    transition: none;
+  }
+}
+
+/* Campaign-map crop marks + guide lines inside .mst-ticks. */
+.mst-crop {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 0 solid currentColor;
+}
+.mst-crop.tl { top: 20px; left: 20px; border-top-width: 1.5px; border-left-width: 1.5px; }
+.mst-crop.tr { top: 20px; right: 20px; border-top-width: 1.5px; border-right-width: 1.5px; }
+.mst-crop.bl { bottom: 20px; left: 20px; border-bottom-width: 1.5px; border-left-width: 1.5px; }
+.mst-crop.br { bottom: 20px; right: 20px; border-bottom-width: 1.5px; border-right-width: 1.5px; }
+.mst-guide-v {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  border-left: 1px dashed currentColor;
+  opacity: 0.6;
+}
+.mst-guide-h {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 62%;
+  height: 0;
+  border-top: 1px dashed currentColor;
+  opacity: 0.6;
+}
