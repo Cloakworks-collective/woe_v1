@@ -1,0 +1,2442 @@
+/* War of Empires — classic browser-strategy look (Travian / Tribal Wars).
+   Parchment, wood, gold; dense tables; small type. Hand-rolled on purpose. */
+
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --parchment: #ecd9ab;
+  --parchment-dark: #e0c88f;
+  --panel: #f8eed2;
+  --panel-alt: #f1e3bd;
+  --wood: #5a3b1c;
+  --wood-dark: #3c250e;
+  --wood-light: #7c5426;
+  --border: #9c7c46;
+  --border-light: #c3a468;
+  --ink: #3d2b12;
+  --ink-soft: #6b5636;
+  --gold: #f0c75e;
+  --green: #5c7a1e;
+  --green-dark: #3c5010;
+  --red: #a03325;
+  --warn: #7a2318;
+  --input-bg: #fffbe9;
+  --heading: #5a3b1c;
+  --link: #6b3f10;
+
+  /* Chrome gradients (routed through vars so dark can restyle them). */
+  --body-bg: var(--parchment);
+  --topbar-grad: linear-gradient(#7c5426, #4e3113 60%, #3c250e);
+  --navhead-grad: linear-gradient(#8a5f2b, #5a3b1c);
+  --panelhead-grad: linear-gradient(#dcbc7c, #c9a25c);
+  --tab-grad: linear-gradient(#cbb075, #b1945a);
+  --tab-on-grad: linear-gradient(#f8eed2, #f1e3bd);
+  --nav-active-grad: linear-gradient(#e6c987, #d3ae62);
+  --btn-grad: linear-gradient(#8fae3c, #5c7a1e);
+  --btn-grad-hover: linear-gradient(#9dbd48, #688a24);
+  --th-bg: #e0c690;
+  --bar-track: #cbb075;
+  --panel-inset: rgba(255, 250, 230, 0.55);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --parchment: #221c15;
+  --parchment-dark: #2c251c;
+  --panel: #26201a;
+  --panel-alt: #2f2820;
+  --wood: #c9a25c;
+  --wood-dark: #100b06;
+  --wood-light: #d8b878;
+  --border: #4a3d29;
+  --border-light: #5c4c33;
+  --ink: #ecdfc4;
+  --ink-soft: #b7a884;
+  --gold: #f3ce6a;
+  --green: #7ba32e;
+  --green-dark: #4d6a18;
+  --red: #d0674f;
+  --warn: #c65a45;
+  --input-bg: #191410;
+  --heading: #f3ce6a;
+  --link: #e0b25a;
+
+  --body-bg: #17130e;
+  --topbar-grad: linear-gradient(#3a2913, #241708 60%, #150d04);
+  --navhead-grad: linear-gradient(#4a341a, #2c1d0d);
+  --panelhead-grad: linear-gradient(#3a3024, #2b231a);
+  --tab-grad: linear-gradient(#332a1f, #2a221a);
+  --tab-on-grad: linear-gradient(#2f2820, #26201a);
+  --nav-active-grad: linear-gradient(#42351f, #332818);
+  --btn-grad: linear-gradient(#6f9430, #4d6a18);
+  --btn-grad-hover: linear-gradient(#7ea53a, #587a20);
+  --th-bg: #33291d;
+  --bar-track: #17120d;
+  --panel-inset: rgba(240, 220, 170, 0.05);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font: 15px/1.55 Verdana, Geneva, Arial, sans-serif;
+  color: var(--ink);
+  background: var(--body-bg);
+  background-image:
+    radial-gradient(ellipse at 20% 0%, rgba(255, 248, 220, 0.1), transparent 55%),
+    radial-gradient(ellipse at 90% 100%, rgba(120, 84, 38, 0.16), transparent 60%);
+  min-height: 100vh;
+}
+
+a {
+  color: var(--link);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading, Georgia), Georgia, "Times New Roman", serif;
+}
+
+/* ── Top bar ─────────────────────────────────────────────── */
+
+.topbar {
+  background: var(--topbar-grad);
+  border-bottom: 3px solid var(--wood-dark);
+  box-shadow: 0 2px 6px rgba(40, 24, 6, 0.5);
+  color: #f4e2b8;
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.topbar .title {
+  font: 700 21px var(--font-heading, Georgia), Georgia, serif;
+  letter-spacing: 1.5px;
+  color: var(--gold);
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+}
+
+.topbar .title small {
+  display: block;
+  font: italic 11px Georgia, serif;
+  color: #d8c08a;
+  letter-spacing: 0.5px;
+}
+
+.res-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.res {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #a8853f;
+  border-radius: 3px;
+  padding: 2px 9px;
+  font: 700 14px Verdana, sans-serif;
+  color: #ffe9b0;
+  white-space: nowrap;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
+}
+
+.res span {
+  font-weight: 400;
+  color: #cdb379;
+  margin-right: 4px;
+}
+
+.whoami {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f4e2b8;
+  font: 700 14px Georgia, serif;
+}
+
+.whoami button {
+  background: none;
+  border: 1px solid #a8853f;
+  border-radius: 3px;
+  color: #d8c08a;
+  font: italic 10px Georgia, serif;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.whoami button:hover {
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--gold);
+}
+
+/* Resource cells that are running low. */
+.res.res-low {
+  border-color: #d9a441;
+  color: #ffe3a6;
+}
+
+.res.res-crit {
+  background: rgba(138, 35, 24, 0.6);
+  border-color: #e07a5f;
+  color: #ffd9cf;
+  animation: res-pulse 1.6s ease-in-out infinite;
+}
+
+.res.res-crit span {
+  color: #ffb3a3;
+}
+
+@keyframes res-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(224, 122, 95, 0);
+  }
+  50% {
+    box-shadow: 0 0 6px 1px rgba(224, 122, 95, 0.6);
+  }
+}
+
+/* ── Horizontal top nav — 3 intent groups: you · world · help ─ */
+
+.topnav {
+  background: var(--panelhead-grad);
+  border-bottom: 2px solid var(--border);
+  box-shadow: 0 1px 4px rgba(40, 24, 6, 0.3);
+}
+
+.topnav-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 12px;
+  display: flex;
+  justify-content: flex-start;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.topnav-group {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+/* A clear divider between the intent groups. */
+.topnav-group + .topnav-group {
+  border-left: 2px solid rgba(0, 0, 0, 0.22);
+}
+
+/* Push help & account to the far right. */
+.topnav-meta {
+  margin-left: auto;
+}
+
+.topnav a {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  font: 700 13px Verdana, sans-serif;
+  color: var(--heading);
+  text-decoration: none;
+  border-right: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.topnav-group:first-child a:first-child {
+  border-left: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.topnav a:hover {
+  background: rgba(255, 250, 230, 0.28);
+}
+
+.topnav a.active {
+  background: var(--wood-dark);
+  color: var(--gold);
+}
+
+/* The premium item (last in the meta group) keeps its distinctive charter hue. */
+.topnav-meta a:last-child {
+  color: #7a4e12;
+}
+
+.topnav-meta a:last-child.active {
+  color: var(--gold);
+}
+
+/* Annals dropdown — a click-to-open <details> menu (this age + elder eras). */
+.topnav-dd {
+  position: relative;
+}
+
+.topnav-dd > summary {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  font: 700 13px Verdana, sans-serif;
+  color: var(--heading);
+  cursor: pointer;
+  list-style: none;
+  border-right: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.topnav-dd > summary::-webkit-details-marker {
+  display: none;
+}
+
+.topnav-dd > summary:hover {
+  background: rgba(255, 250, 230, 0.28);
+}
+
+.topnav-dd > summary.active {
+  background: var(--wood-dark);
+  color: var(--gold);
+}
+
+.topnav-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 60;
+  min-width: 250px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 2px solid var(--border);
+  border-radius: 0 0 5px 5px;
+  box-shadow: 0 6px 16px rgba(40, 24, 6, 0.35);
+  padding: 4px;
+}
+
+.topnav-menu a {
+  border: 0;
+  padding: 6px 10px;
+  border-radius: 3px;
+  font: 600 12.5px Verdana, sans-serif;
+  color: var(--heading);
+  white-space: nowrap;
+}
+
+.topnav-menu a:hover {
+  background: rgba(255, 250, 230, 0.5);
+}
+
+.topnav-menu-head {
+  padding: 6px 10px 2px;
+  margin-top: 2px;
+  border-top: 1px solid var(--border-light);
+  font: 700 10px Verdana, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ink-soft);
+}
+
+.topnav-menu-sub {
+  margin-left: 8px;
+  color: var(--ink-soft);
+  font-weight: 400;
+  font-size: 11px;
+}
+
+/* ── The Chronicle (tone-coloured tidings) ────────────────── */
+
+.chron {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.chron-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 11px;
+  border-left: 3px solid var(--border);
+  background: var(--panel-alt);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.chron-line {
+  flex: 1;
+  min-width: 0;
+}
+
+.chron-when {
+  color: var(--ink-soft);
+  font: 700 11.5px Verdana, sans-serif;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* A pixel-art tone glyph at the head of a chronicle/news row. */
+.chron-glyph {
+  flex: none;
+  align-self: center;
+  display: inline-flex;
+  line-height: 0;
+}
+
+/* A race portrait beside a name in ladders and target lists. */
+.race-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.race-avatar {
+  flex: none;
+  display: inline-flex;
+  line-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-alt);
+  padding: 1px;
+  box-shadow: 0 1px 2px rgba(40, 24, 6, 0.18);
+}
+
+/* Clan banner beside a combatant's name in the World News feed. */
+.clan-tag {
+  font: italic 11.5px Georgia, serif;
+  color: var(--ink-soft);
+}
+
+/* "clan war" flag on a battle row. */
+.chron-badge {
+  display: inline-block;
+  margin-left: 6px;
+  font: 700 10px Verdana, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  background: #b3441f;
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+/* Muted losses/damage summary trailing a battle line. */
+.chron-sub {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.chron-row.tone-war {
+  border-left-color: #b3441f;
+  background: color-mix(in srgb, #b3441f 12%, var(--panel-alt));
+}
+.chron-row.tone-shadow {
+  border-left-color: #8a63c4;
+  background: color-mix(in srgb, #8a63c4 12%, var(--panel-alt));
+}
+.chron-row.tone-danger {
+  border-left-color: #c0392b;
+  background: color-mix(in srgb, #c0392b 14%, var(--panel-alt));
+}
+.chron-row.tone-growth {
+  border-left-color: var(--green);
+  background: color-mix(in srgb, var(--green) 12%, var(--panel-alt));
+}
+.chron-row.tone-trade {
+  border-left-color: #b8860b;
+  background: color-mix(in srgb, #b8860b 13%, var(--panel-alt));
+}
+.chron-row.tone-clan {
+  border-left-color: #3a6ea5;
+  background: color-mix(in srgb, #3a6ea5 12%, var(--panel-alt));
+}
+.chron-row.tone-crown {
+  border-left-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 16%, var(--panel-alt));
+}
+
+/* Sealed-age accordions in the Annals. */
+.age-book {
+  border: 1px solid var(--border-light);
+  background: var(--panel-alt);
+}
+
+.age-book > summary {
+  cursor: pointer;
+  padding: 8px 11px;
+  font: 400 13.5px Georgia, serif;
+  color: var(--heading);
+  list-style-position: inside;
+}
+
+.age-book > summary:hover {
+  background: var(--panelhead-grad);
+}
+
+.age-crown {
+  color: var(--green-dark);
+  font-weight: 700;
+}
+
+.age-count {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.age-body {
+  padding: 4px 11px 11px;
+}
+
+/* The Elder Ages — legendary tomes of the old realm. */
+.age-book.elder > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.elder-num {
+  font: 700 10.5px Verdana, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #f6ead0;
+  background: var(--border);
+  padding: 1px 7px;
+  border-radius: 3px;
+}
+
+.elder-span {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.elder-victor {
+  margin-left: auto;
+  font: 700 13px Georgia, serif;
+  color: var(--green-dark);
+}
+
+.elder-lore {
+  font: italic 13.5px/1.6 Georgia, serif;
+  margin: 0 0 8px;
+}
+
+.elder-crown,
+.elder-banners {
+  font-size: 13px;
+  margin: 0 0 4px;
+}
+
+.elder-block {
+  margin-top: 8px;
+}
+
+.elder-block-head {
+  font: 700 12.5px Georgia, serif;
+  color: var(--heading);
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 2px;
+  margin-bottom: 4px;
+}
+
+.elder-champs,
+.elder-deeds {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.elder-champs li,
+.elder-deeds li {
+  margin-bottom: 2px;
+}
+
+.elder-champs b {
+  color: var(--heading);
+}
+
+/* Elder-age era groupings. */
+.elder-group {
+  margin-top: 14px;
+}
+
+.elder-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 3px;
+}
+
+.elder-group-title {
+  font: 700 16px Georgia, serif;
+  color: var(--heading);
+}
+
+.elder-group-ages {
+  margin-left: auto;
+  font: 700 11px Verdana, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ink-soft);
+}
+
+.elder-group-rule {
+  font: italic 12.5px Georgia, serif;
+  color: var(--ink-soft);
+  margin: 4px 0 8px;
+}
+
+.elder-empty {
+  font: italic 13px Georgia, serif;
+  color: var(--ink-soft);
+  padding: 4px 0 8px;
+}
+
+.elder-tomes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Full leaderboard tables inside a tome. */
+.elder-table-wrap {
+  margin-top: 12px;
+  overflow-x: auto;
+}
+
+.elder-table-title {
+  font: 700 13px Georgia, serif;
+  color: var(--heading);
+  margin-bottom: 3px;
+}
+
+.elder-table-note {
+  font: italic 11.5px Georgia, serif;
+  color: var(--ink-soft);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.elder-tbl {
+  font-size: 12px;
+}
+
+.elder-tbl th,
+.elder-tbl td {
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+/* Elder-age index — a grid of link-cards, one per age. */
+.elder-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+}
+
+.elder-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border-light);
+  border-left: 3px solid var(--border);
+  border-radius: 4px;
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s,
+    transform 0.12s;
+}
+
+.elder-card:hover {
+  border-left-color: var(--gold);
+  box-shadow: 0 2px 8px rgba(40, 24, 6, 0.22);
+  transform: translateY(-1px);
+}
+
+.elder-card .elder-num {
+  align-self: flex-start;
+}
+
+.elder-card-name {
+  font: 700 13.5px Georgia, serif;
+  color: var(--heading);
+}
+
+.elder-card-victor {
+  font: 700 12.5px Georgia, serif;
+  color: var(--green-dark);
+}
+
+/* Per-age detail subpage. */
+.elder-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 6px;
+  margin: 0 0 8px;
+}
+
+.elder-pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+
+.elder-pager-link {
+  font: 700 12.5px Verdana, sans-serif;
+  padding: 6px 12px;
+  background: var(--panelhead-grad);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--heading);
+  text-decoration: none;
+}
+
+.elder-pager-link:hover {
+  background: var(--wood-dark);
+  color: var(--gold);
+}
+
+/* ── Frame ───────────────────────────────────────────────── */
+
+.frame {
+  display: flex;
+  gap: 14px;
+  max-width: 1280px;
+  margin: 14px auto;
+  padding: 0 12px;
+  align-items: flex-start;
+}
+
+/* ── Side navigation ─────────────────────────────────────── */
+
+.nav {
+  width: 200px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border: 2px solid var(--border);
+  box-shadow: 0 2px 5px rgba(70, 45, 12, 0.35);
+}
+
+.nav .nav-head {
+  background: var(--navhead-grad);
+  color: var(--gold);
+  font: 700 12px var(--font-heading, Georgia), Georgia, serif;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  border-bottom: 2px solid var(--border);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.nav-head-sub {
+  font: italic 400 10px Georgia, serif;
+  color: #e7cf9a;
+  letter-spacing: 0.3px;
+  text-transform: none;
+}
+
+.nav a {
+  display: block;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--ink);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+}
+
+.nav a .nav-label {
+  display: block;
+  font-size: 14px;
+}
+
+.nav a .nav-desc {
+  display: block;
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: var(--ink-soft);
+  margin-top: 1px;
+}
+
+.nav a:hover {
+  background: var(--parchment-dark);
+}
+
+.nav a:hover .nav-label {
+  color: var(--heading);
+}
+
+.nav a.active {
+  background: var(--nav-active-grad);
+  border-left-color: var(--warn);
+}
+
+.nav a.active .nav-label {
+  font-weight: 700;
+}
+
+.nav a.active .nav-desc {
+  color: var(--wood);
+}
+
+.dev-clock {
+  margin-top: 10px;
+  border: 2px dashed var(--border);
+  background: var(--panel-alt);
+  padding: 8px;
+  text-align: center;
+}
+
+.dev-clock-head {
+  font: 700 10px Verdana, sans-serif;
+  letter-spacing: 1px;
+  color: var(--wood-light);
+  margin-bottom: 6px;
+}
+
+.dev-clock-note {
+  font: italic 9px Georgia, serif;
+  color: var(--ink-soft);
+  margin-top: 6px;
+  max-width: 170px;
+}
+
+/* Link-tabs (buildings, forum) */
+.tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.tabs a {
+  display: inline-block;
+  padding: 5px 16px;
+  border: 2px solid var(--border);
+  border-bottom: none;
+  background: var(--tab-grad);
+  color: var(--ink);
+  font: 700 14px Georgia, serif;
+  text-decoration: none;
+}
+
+.tabs a.on {
+  background: var(--tab-on-grad);
+  box-shadow: 0 -2px 3px rgba(70, 45, 12, 0.15);
+}
+
+/* Audit fixes: keyboard focus + dense tables on small screens */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #7a2318;
+  outline-offset: 1px;
+}
+
+/* Tooltips must be free to escape the panel, so the body no longer clips.
+   Wrap a genuinely-too-wide table in <div class="scroll-x"> if needed. */
+.scroll-x {
+  overflow-x: auto;
+}
+
+/* ── Panels ──────────────────────────────────────────────── */
+
+.content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 2px solid var(--border);
+  box-shadow:
+    inset 0 0 0 1px var(--panel-inset),
+    0 2px 5px rgba(20, 12, 4, 0.35);
+}
+
+.panel > h3 {
+  background: var(--panelhead-grad);
+  border-bottom: 2px solid var(--border);
+  padding: 5px 12px;
+  font: 700 14px var(--font-heading, Georgia), Georgia, serif;
+  letter-spacing: 0.6px;
+  color: var(--heading);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+}
+
+.panel .body {
+  padding: 10px 12px;
+}
+
+.panel-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 800px) {
+  .panel-row {
+    grid-template-columns: 1fr;
+  }
+  .frame {
+    flex-direction: column;
+  }
+  .nav {
+    width: 100%;
+  }
+}
+
+/* ── Tables ──────────────────────────────────────────────── */
+
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.tbl th {
+  background: var(--th-bg);
+  font: 700 12.5px Verdana, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--heading);
+  text-align: left;
+}
+
+.tbl th,
+.tbl td {
+  border: 1px solid var(--border-light);
+  padding: 6px 9px;
+}
+
+.tbl tbody tr:nth-child(even) td {
+  background: var(--panel-alt);
+}
+
+.tbl .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Build cards — classic 2-up card layout (buildings, units).
+   Framed sprite left, stacked icon costs right, action button in the
+   title row, "next gain" footer. Replaces dense tables on those pages. */
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 26px;
+}
+
+@media (max-width: 900px) {
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.bcard {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bcard-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.bcard-name {
+  font: 700 14px Georgia, serif;
+  color: var(--red);
+}
+
+.bcard-sub {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+.bcard-btns {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.bcard-desc {
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin: 2px 0 0;
+}
+
+.bcard-main {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-top: 7px;
+}
+
+.bcard-art {
+  flex: none;
+  border: 2px solid var(--border);
+  background: var(--panel-alt);
+  padding: 4px;
+  line-height: 0;
+  box-shadow: 0 1px 3px rgba(40, 24, 6, 0.25);
+}
+
+.bcard-costs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bcard-costs li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.bcard-body {
+  flex: 1;
+  min-width: 150px;
+  font-size: 13px;
+}
+
+.bcard-gain {
+  margin-top: 7px;
+  font-size: 12.5px;
+}
+
+.bcard-gain b {
+  color: var(--heading);
+}
+
+.bcard-zenith {
+  font: italic 13px Georgia, serif;
+  color: var(--ink-soft);
+  align-self: center;
+}
+
+/* ── Level track — a segmented pip ladder under a building name.
+   Owned levels fill solid, the next level glows gold, the rest sit empty.
+   Counted (unbounded) buildings show a tally badge instead. */
+
+.lvltrack {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  vertical-align: middle;
+}
+
+.lvltrack-segs {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.lvlseg {
+  width: 9px;
+  height: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 2px;
+  background: var(--input-bg);
+}
+
+.lvlseg.on {
+  background: linear-gradient(var(--green), var(--green-dark));
+  border-color: var(--green-dark);
+}
+
+.lvlseg.next {
+  border-color: var(--gold);
+  box-shadow: inset 0 0 0 1px var(--gold);
+}
+
+.lvltrack-num {
+  font: 700 11.5px Verdana, sans-serif;
+  color: var(--heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.lvltrack-num span {
+  color: var(--ink-soft);
+  font-weight: 400;
+}
+
+.lvltrack-max {
+  font: italic 700 11px Georgia, serif;
+  color: var(--green-dark);
+}
+
+.lvl-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 700 11.5px Verdana, sans-serif;
+  color: var(--heading);
+  vertical-align: middle;
+}
+
+.lvl-count b {
+  background: var(--green);
+  color: #fff;
+  border-radius: 3px;
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Siege crew / fielded — graphical readouts on engine cards ── */
+
+/* A cluster of engineer sprites = how many crew one engine. */
+.crew-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.crew-cost img {
+  border: 1px solid var(--border-light);
+  border-radius: 3px;
+  background: var(--panel);
+}
+
+.crew-cost-note {
+  margin-left: 6px;
+  font: 700 11.5px Verdana, sans-serif;
+  color: var(--ink-soft);
+}
+
+/* Fielded meter: how much owned gear is actually crewed. */
+.fielded {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
+}
+
+.fielded-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.fielded-label {
+  font: 700 10.5px Verdana, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--ink-soft);
+}
+
+.fielded-num {
+  font: 700 11.5px Verdana, sans-serif;
+  color: var(--heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.fielded .bar {
+  height: 14px;
+}
+
+/* Lock / installed status chips on a siege card. */
+.siege-chip {
+  display: inline-block;
+  font: 700 11px Verdana, sans-serif;
+  padding: 2px 8px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+.siege-chip.on {
+  background: var(--green);
+  color: #fff;
+}
+
+.siege-chip.off {
+  background: var(--panel-alt);
+  border: 1px solid var(--warn);
+  color: var(--warn);
+}
+
+.bcard.locked {
+  opacity: 0.62;
+}
+
+/* ── Engineer corps — graphical overview in the Siege Works header ── */
+.corps {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.corps-art {
+  flex: none;
+  border: 2px solid var(--border);
+  background: var(--panel-alt);
+  padding: 5px;
+  line-height: 0;
+  box-shadow: 0 1px 3px rgba(40, 24, 6, 0.25);
+}
+
+.corps-body {
+  flex: 1;
+  min-width: 220px;
+}
+
+.corps-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 7px;
+}
+
+.corps-stat {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 12px 4px 10px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border-light);
+  border-left: 3px solid var(--border);
+  border-radius: 4px;
+}
+
+.corps-stat.busy {
+  border-left-color: var(--green);
+}
+
+.corps-stat.idle {
+  border-left-color: #c8901f;
+}
+
+.corps-stat-num {
+  font: 700 17px Georgia, serif;
+  color: var(--heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.corps-stat-label {
+  font: 700 10px Verdana, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--ink-soft);
+}
+
+/* ── Price charts (market) ────────────────────────────────── */
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 720px) {
+  .chart-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pricechart {
+  border: 1px solid var(--border-light);
+  background: var(--input-bg);
+  border-radius: 4px;
+  padding: 6px 8px 4px;
+  box-shadow: inset 0 0 0 1px var(--panel-inset);
+}
+
+.pricechart-title {
+  font: 700 13.5px Georgia, serif;
+  color: var(--heading);
+  padding: 0 2px 2px;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 2px;
+}
+
+/* ── Bits ────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-block;
+  background: var(--btn-grad);
+  color: #fff;
+  border: 1px solid var(--green-dark);
+  border-radius: 3px;
+  padding: 5px 13px;
+  font: 700 12.5px Verdana, sans-serif;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: var(--btn-grad-hover);
+}
+
+.btn[disabled] {
+  background: linear-gradient(#b0a88f, #8d8570);
+  border-color: #6f6852;
+  cursor: not-allowed;
+}
+
+.bar {
+  background: var(--bar-track);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  height: 12px;
+  overflow: hidden;
+}
+
+.bar > i {
+  display: block;
+  height: 100%;
+  background: var(--btn-grad);
+}
+
+.bar.warn > i {
+  background: linear-gradient(#d9a13c, #a06f1e);
+}
+
+.advisor {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-light);
+  background: var(--panel-alt);
+  margin-bottom: 8px;
+}
+
+.advisor:last-child {
+  margin-bottom: 0;
+}
+
+.advisor .icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.advisor b {
+  display: block;
+  font: 700 12.5px Georgia, serif;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--wood-light);
+  margin-bottom: 2px;
+}
+
+.advisor p {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.kv {
+  font-size: 14px;
+}
+
+.kv dt {
+  float: left;
+  clear: left;
+  width: 45%;
+  color: var(--ink-soft);
+  padding: 2px 0;
+}
+
+.kv dd {
+  padding: 2px 0;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stub {
+  text-align: center;
+  padding: 48px 20px;
+  font: italic 16px Georgia, serif;
+  color: var(--ink-soft);
+}
+
+.stub .sigil {
+  font-size: 40px;
+  margin-bottom: 10px;
+}
+
+.footer {
+  text-align: center;
+  font: italic 13px Georgia, serif;
+  color: var(--ink-soft);
+  padding: 18px 0 26px;
+}
+
+/* ── Building health bars ─────────────────────────────────── */
+
+.hp {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.hp .hp-track {
+  display: inline-block;
+  width: 52px;
+  height: 9px;
+  vertical-align: middle;
+}
+
+.hp .hp-track.full > i {
+  background: linear-gradient(#8fae3c, #5c7a1e);
+}
+
+.hp .hp-track.warn > i {
+  background: linear-gradient(#e0b53a, #b3831c);
+}
+
+.hp .hp-track.crit > i {
+  background: linear-gradient(#d66a3c, #a33320);
+}
+
+.hp small {
+  font: 700 10px Verdana, sans-serif;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Stat tiles — iconized replacement for dl.kv text lists ─ */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.stat-tile {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border-light);
+  border-left: 3px solid var(--border);
+  border-radius: 4px;
+}
+
+.stat-tile.good {
+  border-left-color: var(--green);
+}
+.stat-tile.warn {
+  border-left-color: #c8901f;
+}
+.stat-tile.bad {
+  border-left-color: var(--warn);
+}
+
+.stat-icon {
+  flex: none;
+  display: inline-flex;
+  line-height: 0;
+  font-size: 20px;
+}
+
+.stat-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stat-label {
+  font: 700 10.5px Verdana, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--ink-soft);
+}
+
+.stat-value {
+  font: 700 15px Georgia, serif;
+  color: var(--heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-sub {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+/* ── Meters — labeled pixel-fill bars ─────────────────────── */
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.meter-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.meter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 700;
+  color: var(--heading);
+}
+
+.meter-icon {
+  display: inline-flex;
+  line-height: 0;
+}
+
+.meter-num {
+  color: var(--ink-soft);
+  font: 700 11.5px Verdana, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.meter-track {
+  height: 13px;
+}
+.meter-track > i {
+  display: block;
+  height: 100%;
+}
+.meter-track.good > i {
+  background: linear-gradient(#8fae3c, #5c7a1e);
+}
+.meter-track.warn > i {
+  background: linear-gradient(#e0b53a, #b3831c);
+}
+.meter-track.bad > i {
+  background: linear-gradient(#d66a3c, #a33320);
+}
+
+/* Resource tokens sitting inline in the top bar / tables. */
+.res {
+  display: inline-flex;
+  align-items: center;
+}
+.res img {
+  margin-right: 5px;
+}
+.res-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.res-cost + .res-cost {
+  margin-left: 9px;
+}
+
+/* A framed pixel illustration heading a guide chapter or panel. */
+.guide-illo {
+  float: right;
+  margin: 0 0 8px 12px;
+  border: 2px solid var(--border);
+  border-radius: 5px;
+  background: var(--panel-alt);
+  padding: 4px;
+  box-shadow: 0 2px 6px rgba(40, 24, 6, 0.25);
+  line-height: 0;
+}
+
+/* Advisor council — four framed portraits. */
+.council {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.council-card {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding: 8px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border-light);
+  border-radius: 5px;
+}
+.council-card .portrait-frame {
+  margin: 0;
+  flex: none;
+}
+
+/* Clan crest header. */
+.crest-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.crest-head .portrait-frame {
+  margin: 0;
+  flex: none;
+}
+
+/* ── Theme toggle (top bar) ───────────────────────────────── */
+
+.theme-toggle {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #a8853f;
+  border-radius: 3px;
+  color: #f4e2b8;
+  font-size: 13px;
+  line-height: 1;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  color: var(--gold);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+/* ── Tooltips (hover / focus) ─────────────────────────────── */
+
+.tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tip-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--panel-alt);
+  color: var(--ink-soft);
+  font: 700 11px Georgia, serif;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.tip-under {
+  border-bottom: 1px dotted var(--border);
+  cursor: help;
+}
+
+.tip-pop {
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  z-index: 60;
+  width: max-content;
+  max-width: min(340px, 78vw);
+  background: var(--wood-dark);
+  color: #f6ead0;
+  border: 1px solid var(--gold);
+  border-radius: 5px;
+  padding: 9px 12px;
+  font: 400 13px/1.5 Verdana, sans-serif;
+  text-align: left;
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s, transform 0.12s;
+}
+
+/* Keep edge tooltips on-screen: first-in-row anchors left, last anchors right. */
+.tip:first-child .tip-pop {
+  left: 0;
+  transform: translateX(0) translateY(4px);
+}
+
+.tip:last-child .tip-pop {
+  left: auto;
+  right: 0;
+  transform: translateX(0) translateY(4px);
+}
+
+.tip-pop::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 7px solid transparent;
+  border-top-color: var(--gold);
+}
+
+.tip:first-child .tip-pop::after {
+  left: 16px;
+  transform: none;
+}
+
+.tip:last-child .tip-pop::after {
+  left: auto;
+  right: 16px;
+  transform: none;
+}
+
+/* Invisible bridge across the 9px gap so the mouse can travel into the popover
+   (to click the guide link) without the CSS-hover popover closing. */
+.tip-pop::before {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 11px;
+}
+
+.tip:hover .tip-pop,
+.tip:focus-within .tip-pop {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+.tip:first-child:hover .tip-pop,
+.tip:first-child:focus-within .tip-pop,
+.tip:last-child:hover .tip-pop,
+.tip:last-child:focus-within .tip-pop {
+  transform: translateX(0) translateY(0);
+}
+
+.tip-pop b {
+  color: var(--gold);
+}
+
+.tip-guide {
+  display: block;
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(240, 199, 94, 0.35);
+  font: 700 12px Verdana, sans-serif;
+  color: var(--gold);
+  text-decoration: none;
+}
+
+.tip-guide:hover {
+  text-decoration: underline;
+}
+
+/* ── Segmented pill controls (radio groups) ───────────────── */
+
+.pills {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--panel-alt);
+  vertical-align: middle;
+}
+
+.pill {
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pill input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.pill span {
+  display: block;
+  padding: 5px 12px;
+  font: 700 12.5px Verdana, sans-serif;
+  color: var(--ink-soft);
+  border-right: 1px solid var(--border-light);
+  white-space: nowrap;
+}
+
+.pill:last-child span {
+  border-right: none;
+}
+
+.pill:hover span {
+  background: var(--parchment-dark);
+  color: var(--ink);
+}
+
+.pill:has(input:checked) span {
+  background: var(--btn-grad);
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
+}
+
+.pill:has(input:focus-visible) span {
+  outline: 2px solid var(--warn);
+  outline-offset: -2px;
+}
+
+/* ── Alerts / banners ─────────────────────────────────────── */
+
+.alert {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 16px;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.3);
+}
+
+.alert .alert-icon {
+  font-size: 26px;
+  line-height: 1.1;
+  flex-shrink: 0;
+}
+
+.alert .alert-title {
+  font: 700 15px Georgia, serif;
+  letter-spacing: 0.3px;
+}
+
+.alert .alert-body {
+  font-size: 13px;
+  margin-top: 1px;
+}
+
+.alert .alert-actions {
+  margin-top: 6px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.alert-danger {
+  background: linear-gradient(#8a2318, #6a180f);
+  color: #ffe0d8;
+}
+
+.alert-danger .alert-title {
+  color: #ffd9cf;
+}
+
+/* Shared CTA chip; per-variant colours below. Ghost = outlined secondary. */
+.alert .alert-cta {
+  display: inline-block;
+  font: 700 12px Verdana, sans-serif;
+  padding: 3px 11px;
+  border-radius: 3px;
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+
+.alert-danger .alert-cta {
+  background: #ffd9cf;
+  color: #6a180f;
+}
+
+.alert-danger .alert-cta-ghost {
+  background: transparent;
+  color: #ffd9cf;
+  border-color: rgba(255, 217, 207, 0.6);
+}
+
+.alert-warn {
+  background: linear-gradient(#8a5a12, #6a4109);
+  color: #ffedcf;
+}
+
+.alert-warn .alert-title {
+  color: #ffe4b0;
+}
+
+.alert-warn .alert-cta {
+  background: #ffe4b0;
+  color: #6a4109;
+}
+
+.alert-warn .alert-cta-ghost {
+  background: transparent;
+  color: #ffedcf;
+  border-color: rgba(255, 237, 207, 0.6);
+}
+
+.alert-cta-ghost:hover {
+  text-decoration: underline;
+}
+
+.alert-win {
+  background: linear-gradient(#5a3f12, #3c2a0c);
+  color: #f6e3ad;
+}
+
+.alert-win .alert-title {
+  color: var(--gold);
+}
+
+/* ── Range slider (tax) ───────────────────────────────────── */
+
+.slider-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 240px;
+}
+
+.slider-wrap input[type="range"] {
+  width: 100%;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+
+.slider-readout {
+  font: 700 13px Verdana, sans-serif;
+}
+
+.slider-readout .muted {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+/* ── Portrait / image framing ─────────────────────────────── */
+
+/* A framed pixel-art portrait that floats beside body text with breathing room. */
+.portrait-frame {
+  float: right;
+  border: 2px solid var(--border);
+  background: var(--panel-alt);
+  padding: 6px;
+  margin: 2px 2px 14px 18px;
+  box-shadow: inset 0 0 0 1px var(--panel-inset);
+  line-height: 0;
+}
+
+.portrait-frame .cap {
+  display: block;
+  text-align: center;
+  font: 700 11px Verdana, sans-serif;
+  color: var(--ink-soft);
+  letter-spacing: 0.4px;
+  margin-top: 5px;
+  line-height: 1.2;
+}
+
+/* ── The Race to the Throne (VictoryTracker) ──────────────── */
+
+.vt > h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.vt-learn {
+  margin-left: auto;
+  font: 400 12px Verdana, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.vt-intro {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+}
+
+.vt-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 700px) {
+  .vt-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.vt-card {
+  border: 1px solid var(--border-light);
+  background: var(--panel-alt);
+  padding: 9px 11px;
+}
+
+.vt-card-head {
+  font: 700 14px Georgia, serif;
+  color: var(--heading);
+  margin-bottom: 5px;
+}
+
+.vt-badge {
+  display: inline-block;
+  font: 700 10px Verdana, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--border);
+  color: var(--panel);
+  padding: 1px 6px;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.vt-rule {
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.vt-leader {
+  font-size: 12.5px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.vt-frozen {
+  color: #b3441f;
+  font-weight: 400;
+  font-style: italic;
+}
+
+.vt-clocks {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  align-items: center;
+  margin: 0;
+}
+
+.vt-clocks dt {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+.vt-clocks dd {
+  margin: 0;
+}
+
+.vt-clock {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.vt-track {
+  flex: 1;
+  height: 9px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+
+.vt-track i {
+  display: block;
+  height: 100%;
+  background: var(--green);
+}
+
+.vt-clock small {
+  font: 700 11px Verdana, sans-serif;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.vt-you {
+  margin-top: 11px;
+  padding: 8px 11px;
+  background: var(--panelhead-grad);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── The Field Manual (guide page) ────────────────────────── */
+
+.guide-sec {
+  scroll-margin-top: 12px;
+}
+
+.guide-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.guide-toc a {
+  display: inline-block;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  padding: 5px 11px;
+  font: 700 12.5px Verdana, sans-serif;
+  text-decoration: none;
+  color: var(--heading);
+}
+
+.guide-toc a:hover {
+  background: var(--panelhead-grad);
+}
+
+.guide-sec .body {
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.guide-sec .body h4 {
+  font: 700 14px Georgia, serif;
+  color: var(--heading);
+  margin: 14px 0 5px;
+}
+
+.guide-sec .body p {
+  margin: 0 0 9px;
+}
+
+.guide-sec .body ul {
+  margin: 0 0 9px;
+  padding-left: 20px;
+}
+
+.guide-sec .body li {
+  margin-bottom: 5px;
+}
+
+.guide-tip {
+  background: var(--panel-alt);
+  border-left: 3px solid var(--gold);
+  padding: 7px 11px;
+  font-size: 13px;
+}
+
+/* A small "how this works →" deep-link used at the top of pages. */
+.learn-link {
+  display: inline-block;
+  font: 400 12px Verdana, sans-serif;
+  color: var(--ink-soft);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--border);
+}
+
+.learn-link:hover {
+  color: var(--heading);
+}
+
+.learn-bar {
+  text-align: right;
+  margin: -4px 0 -6px;
+}
+
+/* ── The Research Tree ────────────────────────────────────── */
+
+/* Trunk: the Collegium tier ladder (which field level each Collegium unlocks). */
+.rtier-ladder {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rtier {
+  flex: 1;
+  min-width: 96px;
+  border: 1px solid var(--border-light);
+  padding: 5px 8px;
+  text-align: center;
+}
+
+.rtier.on {
+  background: var(--panel-alt);
+  border-color: var(--green);
+}
+
+.rtier.off {
+  opacity: 0.6;
+}
+
+.rtier-lvl {
+  font: 700 12.5px Verdana, sans-serif;
+  color: var(--heading);
+}
+
+.rtier-need {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+/* Branches. */
+.rtree {
+  position: relative;
+}
+
+.rtree-branches {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 12px;
+  position: relative;
+  margin-top: 20px;
+}
+
+/* The horizontal rail joining the three branches, dropping from the trunk. */
+.rtree-branches::before {
+  content: "";
+  position: absolute;
+  top: -11px;
+  left: 25%;
+  right: 20%;
+  height: 2px;
+  background: var(--border);
+}
+
+.rtree-branches::after {
+  content: "";
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  width: 2px;
+  height: 9px;
+  background: var(--border);
+  transform: translateX(-50%);
+}
+
+.rtree-branch {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Short vertical dropping from the rail into each branch header. */
+.rtree-branch::before {
+  content: "";
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  width: 2px;
+  height: 11px;
+  background: var(--border);
+  transform: translateX(-50%);
+}
+
+.rtree-branch-head {
+  background: var(--panelhead-grad);
+  border: 2px solid var(--border);
+  padding: 6px 10px;
+  text-align: center;
+}
+
+.rtree-branch-name {
+  font: 700 15px Georgia, serif;
+  color: var(--heading);
+}
+
+.rtree-branch-blurb {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 800px) {
+  .rtree-branches {
+    grid-template-columns: 1fr;
+  }
+  .rtree-branches::before,
+  .rtree-branches::after,
+  .rtree-branch::before {
+    display: none;
+  }
+}
+
+/* A field node. */
+.rnode {
+  background: var(--panel);
+  border: 2px solid var(--border);
+  box-shadow:
+    inset 0 0 0 1px var(--panel-inset),
+    0 2px 5px rgba(20, 12, 4, 0.28);
+  padding: 9px 10px;
+}
+
+.rnode.active {
+  border-color: var(--green);
+  box-shadow:
+    inset 0 0 0 1px var(--panel-inset),
+    0 0 0 2px rgba(123, 163, 46, 0.35);
+}
+
+.rnode-top {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+}
+
+.rnode-emblem {
+  border: 1px solid var(--border-light);
+  background: var(--panel-alt);
+  padding: 2px;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.rnode-headings {
+  flex: 1;
+  min-width: 0;
+}
+
+.rnode-name {
+  font: 700 14px Georgia, serif;
+  color: var(--heading);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rnode-shadow-tag {
+  font: 700 9.5px Verdana, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--wood-dark);
+  color: var(--gold);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* Level pip track. */
+.rpips {
+  display: inline-flex;
+  gap: 3px;
+  margin-top: 5px;
+}
+
+.rpip {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 11px Verdana, sans-serif;
+  border: 1px solid var(--border-light);
+  border-radius: 3px;
+  background: var(--input-bg);
+  color: var(--ink-soft);
+}
+
+.rpip.owned {
+  background: var(--green);
+  border-color: var(--green-dark);
+  color: #fff;
+}
+
+.rpip.next {
+  border-color: var(--gold);
+  color: var(--heading);
+  box-shadow: inset 0 0 0 1px var(--gold);
+}
+
+.rpip.gated {
+  opacity: 0.55;
+  font-size: 9px;
+}
+
+.rnode-effect {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--green-dark);
+  margin: 7px 0 0;
+}
+
+.rnode-mastered {
+  display: block;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--green-dark);
+}
+
+.rnode-progress {
+  margin-top: 6px;
+}
+
+.rnode-cost {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+.rnode-gate {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.rnode-actions {
+  margin-top: 7px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.rnode-laboring {
+  font-size: 12px;
+  color: var(--green-dark);
+}
+
+/* ── Loading skeleton (app/(game)/loading.tsx) ─────────────── */
+
+.skel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.skel-panel {
+  background: var(--panel);
+  border: 2px solid var(--border);
+  box-shadow:
+    inset 0 0 0 1px var(--panel-inset),
+    0 2px 5px rgba(20, 12, 4, 0.35);
+}
+
+.skel-head {
+  height: 28px;
+  background: var(--panelhead-grad);
+  border-bottom: 2px solid var(--border);
+}
+
+.skel-body {
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skel-line {
+  height: 13px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--border-light) 25%, var(--panel-inset) 45%, var(--border-light) 65%);
+  background-size: 220% 100%;
+  animation: skel-shimmer 1.1s ease-in-out infinite;
+}
+
+.skel-line.w60 { width: 60%; }
+.skel-line.w75 { width: 75%; }
+.skel-line.w80 { width: 80%; }
+.skel-line.w85 { width: 85%; }
+.skel-line.w90 { width: 90%; }
+
+@keyframes skel-shimmer {
+  from { background-position: 120% 0; }
+  to { background-position: -100% 0; }
+}

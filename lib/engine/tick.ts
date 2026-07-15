@@ -1,0 +1,163 @@
+// The 10-minute turn tick (spec/architecture.md, spec/economy.md).
+// Order matters: food upkeep is deducted BEFORE production is added, so a
+// starving empire can't feed itself with the same tick's harvest.
+
+import {
+  ACTION_TURNS,
+  FOOD_UPKEEP_PER_PERSON,
+  GOLD_PER_CIVILIAN_AT_FULL_TAX,
+  MERC_UPKEEP_GOLD_PER_TURN,
+  OUTPUT_PER_PRODUCER_AT_ZERO_TAX,
+  RACES,
+  SLOTS_PER_BUILDING_LEVEL,
+  STAMINA,
+  SURRENDER_TAX_FACTOR,
+  collegiumRequired,
+  rpCost,
+  EFFECT_PER_LEVEL,
+  MAX_FIELD_LEVEL,
+} from "../constants";
+import type { ResearchField } from "../constants/research";
+import type { BuildingId } from "../constants/buildings";
+import {
+  buildingIntegrity,
+  civilians,
+  level,
+  military,
+  researchLevel,
+  type EngineResult,
+  type Player,
+  type Resource,
+  type WorkerRole,
+} from "./types";
+
+const PRODUCTION: {
+  role: WorkerRole;
+  building: BuildingId;
+  resource: Resource;
+  field: ResearchField;
+}[] = [
+  { role: "farmers", building: "grange", resource: "food", field: "crop_rotation" },
+  { role: "quarrymen", building: "masons_quarry", resource: "stone", field: "masonry" },
+  { role: "miners", building: "deepvein_mine", resource: "ore", field: "deep_smelting" },
+  { role: "lumberjacks", building: "sawyers_mill", resource: "wood", field: "forestry" },
+];
+
+/**
+ * Output per producer per turn, before per-resource research and race bonuses:
+ * 20 × (1 − taxRate × hallPenaltyFactor) × statecraft multiplier.
+ */
+export function baseOutputPerProducer(p: Player, hallPenaltyFactor = 1): number {
+  const statecraft = 1 + researchLevel(p, "statecraft") * EFFECT_PER_LEVEL;
+  return (
+    OUTPUT_PER_PRODUCER_AT_ZERO_TAX * (1 - p.taxRate * hallPenaltyFactor) * statecraft
+  );
+}
+
+/** Tax income per turn: every civilian pays 40 × taxRate (halved surrendered). */
+export function taxIncomePerTurn(p: Player): number {
+  let income = civilians(p) * GOLD_PER_CIVILIAN_AT_FULL_TAX * p.taxRate;
+  if (p.surrendered) income *= SURRENDER_TAX_FACTOR;
+  return income;
+}
+
+/** Food upkeep per turn: 0.1 × (civilians + regular troops). Mercs feed themselves. */
+export function foodUpkeepPerTurn(p: Player): number {
+  return FOOD_UPKEEP_PER_PERSON * (civilians(p) + military(p));
+}
+
+/** Effective producers of a role: capped by building slots (20 × level). */
+export function effectiveProducers(p: Player, role: WorkerRole, building: BuildingId): number {
+  return Math.min(p.workers[role], SLOTS_PER_BUILDING_LEVEL * level(p, building));
+}
+
+export interface TickOptions {
+  hallPenaltyFactor?: number; // from the Clan Hall (clans.md)
+  currentTick?: number; // for unrest expiry checks
+}
+
+export function unrestActive(p: Player, currentTick: number): boolean {
+  return (p.unrestUntilTick ?? 0) > currentTick;
+}
+
+export function processTurnTick(input: Player, opts: TickOptions = {}): EngineResult {
+  const hallPenaltyFactor = opts.hallPenaltyFactor ?? 1;
+  const currentTick = opts.currentTick ?? 0;
+  const p = structuredClone(input);
+  const events: EngineResult["events"] = [];
+  // Incite Unrest (espionage.md): tax and production −25% while it lasts.
+  const unrestMult = unrestActive(p, currentTick) ? 0.75 : 1;
+
+  // 1. Food upkeep — before production, always.
+  const upkeep = foodUpkeepPerTurn(p);
+  if (p.resources.food >= upkeep) {
+    p.resources.food -= upkeep;
+    if (p.starving) {
+      p.starving = false;
+      events.push({ type: "fed" });
+    }
+  } else {
+    p.resources.food = 0;
+    if (!p.starving) {
+      p.starving = true;
+      events.push({ type: "starvation" });
+    }
+  }
+
+  // 2–4. Tax, upkeep, production, research, stamina — all frozen while starving.
+  if (!p.starving) {
+    // 2. Tax income, then mercenary upkeep.
+    p.gold += taxIncomePerTurn(p) * unrestMult;
+    const mercBill = p.army.mercenaries * MERC_UPKEEP_GOLD_PER_TURN;
+    if (mercBill > 0) {
+      if (p.gold >= mercBill) {
+        p.gold -= mercBill;
+      } else {
+        events.push({ type: "mercsDefected", count: p.army.mercenaries });
+        p.army.mercenaries = 0; // unpaid professionals leave at once
+      }
+    }
+
+    // 3. Production.
+    const race = RACES[p.race];
+    const base = baseOutputPerProducer(p, hallPenaltyFactor) * unrestMult;
+    for (const { role, building, resource, field } of PRODUCTION) {
+      const n = effectiveProducers(p, role, building);
+      if (n === 0) continue;
+      const fieldMult = 1 + researchLevel(p, field) * EFFECT_PER_LEVEL;
+      // A bombarded production building yields proportionally less.
+      p.resources[resource] += n * base * race.production[resource] * fieldMult * buildingIntegrity(p, building);
+    }
+
+    // Research points → active field; levels complete when cost is paid
+    // and the Collegium gate (level ≥ 2N − 1) is met.
+    const researchers = effectiveProducers(p, "researchers", "collegium");
+    const field = p.research.activeField;
+    if (researchers > 0 && field) {
+      // A cracked Collegium slows the scholars.
+      p.research.banked[field] =
+        (p.research.banked[field] ?? 0) + researchers * base * buildingIntegrity(p, "collegium");
+    }
+    if (field) {
+      let lvl = researchLevel(p, field);
+      while (
+        lvl < MAX_FIELD_LEVEL &&
+        (p.research.banked[field] ?? 0) >= rpCost(lvl + 1) &&
+        level(p, "collegium") >= collegiumRequired(lvl + 1)
+      ) {
+        p.research.banked[field]! -= rpCost(lvl + 1);
+        lvl += 1;
+        p.research.levels[field] = lvl;
+        events.push({ type: "researchComplete", field, level: lvl });
+      }
+    }
+
+    // 4. Stamina recovery (passive).
+    p.army.stamina = Math.min(STAMINA.MAX, p.army.stamina + STAMINA.PASSIVE_RECOVERY_PER_TURN);
+  }
+
+  // Action turns accrue regardless (armies idle, the calendar doesn't).
+  p.turnsAvailable = Math.min(ACTION_TURNS.CAP, p.turnsAvailable + ACTION_TURNS.PER_GAME_TURN);
+
+  return { player: p, events };
+}

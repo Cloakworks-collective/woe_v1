@@ -1,0 +1,6 @@
+{
+  "name": "woe",
+  "description": "Play War of Empires — a persistent multiplayer strategy game — from inside Claude Code. /woe is the court; Claude is your herald.",
+  "version": "0.1.0",
+  "author": { "name": "Saurav Dhar" }
+}

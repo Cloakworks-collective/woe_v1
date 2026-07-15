@@ -1,0 +1,113 @@
+import { CmdForm } from "@/components/CmdForm";
+import { Flash } from "@/components/Flash";
+import { Panel } from "@/components/Panel";
+import { dmChannel } from "@/lib/server/store";
+import { getGame } from "@/lib/server/session";
+
+export const dynamic = "force-dynamic";
+
+export default async function ForumPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ err?: string; ok?: string; tab?: string; with?: string }>;
+}) {
+  const { err, ok, tab = "era", with: dmWith } = await searchParams;
+  const { world, player: p } = await getGame();
+  const clan = p.clanId ? world.clans[p.clanId] : undefined;
+
+  const channel =
+    tab === "clan" && clan ? `clan:${clan.id}` : tab === "dm" && dmWith ? dmChannel(p.id, dmWith) : "era";
+  const messages = world.messages.filter((m) => m.channel === channel).slice(-40);
+  const others = Object.values(world.players).filter((t) => t.id !== p.id);
+
+  const tabs = [
+    { id: "era", label: "🕯 Era Chat (wiped each era)" },
+    ...(clan ? [{ id: "clan", label: `🛡 ${clan.name}` }] : []),
+    { id: "dm", label: "✉ Letters (permanent)" },
+  ];
+
+  return (
+    <>
+      <Flash err={err} ok={ok} />
+      <Panel
+        title="The Forum"
+        info="Era and clan chat are wiped when the era ends; letters persist forever."
+      >
+        <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+          {tabs.map((t) => (
+            <a
+              key={t.id}
+              href={`/forum?tab=${t.id}`}
+              className="btn"
+              style={
+                tab === t.id
+                  ? undefined
+                  : { background: "linear-gradient(#cbb075,#a8853f)", borderColor: "#7c5426" }
+              }
+            >
+              {t.label}
+            </a>
+          ))}
+          {tab === "dm" && (
+            <form style={{ display: "inline-flex", gap: 4 }}>
+              <input type="hidden" name="tab" value="dm" />
+              <select name="with" defaultValue={dmWith} aria-label="Correspondent" style={{ font: "13.5px Verdana" }}>
+                <option value="">— choose a correspondent —</option>
+                {others.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <button className="btn">Open letters</button>
+            </form>
+          )}
+        </div>
+
+        {(tab !== "dm" || dmWith) && (
+          <>
+            <div
+              style={{
+                border: "1px solid var(--border-light)",
+                background: "var(--input-bg)",
+                padding: 8,
+                maxHeight: 340,
+                overflowY: "auto",
+                fontSize: 13.5,
+              }}
+            >
+              {messages.length === 0 ? (
+                <i>Silence. Be the first voice.</i>
+              ) : (
+                messages.map((m) => (
+                  <div key={m.id} style={{ marginBottom: 6 }}>
+                    <b style={{ color: m.authorId === p.id ? "var(--warn)" : "#5a3b1c" }}>{m.authorName}</b>
+                    <span style={{ color: "var(--border)", fontSize: 11.5 }}> · turn {m.tick}</span>
+                    <div>{m.body}</div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <CmdForm name="chat" path={`/forum?tab=${tab}${dmWith ? `&with=${dmWith}` : ""}`}>
+                <input
+                  type="hidden"
+                  name="channel"
+                  value={tab === "clan" ? "clan" : tab === "dm" ? `dm:${dmWith}` : "era"}
+                />
+                <input
+                  name="body"
+                  placeholder="Speak…"
+                  aria-label="Message"
+                  maxLength={800}
+                  style={{ font: "13.5px Verdana", padding: 3, width: 320 }}
+                />
+                <button className="btn">Post</button>
+              </CmdForm>
+            </div>
+          </>
+        )}
+      </Panel>
+    </>
+  );
+}

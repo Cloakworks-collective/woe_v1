@@ -1,0 +1,12 @@
+{
+  "name": "war-of-empires",
+  "description": "War of Empires — play the persistent multiplayer strategy game from Claude Code.",
+  "owner": { "name": "Saurav Dhar" },
+  "plugins": [
+    {
+      "name": "woe",
+      "source": "./claude-plugin",
+      "description": "Play War of Empires from Claude Code — /woe founds an empire, shows your court in ASCII, and wages war over the same backend as the web UI."
+    }
+  ]
+}
