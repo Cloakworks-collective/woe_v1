@@ -1,4 +1,4 @@
-import { civilians, military, totalPopulation, troopTotal, type Player } from "@/lib/engine";
+import { civilians, mercTotal, military, totalPopulation, troopTotal, type Player } from "@/lib/engine";
 import { Art } from "./Art";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
@@ -24,14 +24,19 @@ export function Census({ player: p }: { player: Player }) {
   ];
 
   const armyRows: Row[] = [
-    { key: "warriors", glyph: "🗡️", label: "Warriors (unequipped)", count: p.warriors },
     { key: "footmen", art: "units/footman", label: "Footmen", count: troopTotal(p.army.footmen) },
     { key: "archers", art: "units/archer", label: "Archers", count: troopTotal(p.army.archers) },
     { key: "cavalry", art: "units/cavalry", label: "Cavalry", count: troopTotal(p.army.cavalry) },
     { key: "engineers", art: "units/engineer", label: "Siege engineers", count: p.army.siegeEngineers },
   ];
 
-  const mercs = p.army.mercenaries;
+  const m = p.army.mercenaries;
+  const mercs = mercTotal(m);
+  const mercRows: Row[] = [
+    { key: "merc-foot", art: "units/footman", label: "Hired footmen", count: troopTotal(m.footmen), muted: troopTotal(m.footmen) === 0 },
+    { key: "merc-arch", art: "units/archer", label: "Hired archers", count: troopTotal(m.archers), muted: troopTotal(m.archers) === 0 },
+    { key: "merc-cav", art: "units/cavalry", label: "Hired cavalry", count: troopTotal(m.cavalry), muted: troopTotal(m.cavalry) === 0 },
+  ];
 
   const col = (rows: Row[]) => (
     <ul className="census-list">
@@ -70,7 +75,7 @@ export function Census({ player: p }: { player: Player }) {
           <span>🛡 Mercenaries</span>
           <span className="census-col-total">{fmt(mercs)}</span>
         </div>
-        {col([{ key: "mercs", art: "units/mercenary", label: "Hired swords", count: mercs, muted: mercs === 0 }])}
+        {col(mercRows)}
         <div className="census-merc-note">
           Sellswords, not subjects: they <b>die first</b> in battle, shielding your regulars — but
           they draw gold upkeep every turn and <b>count as neither population nor ranking</b>.

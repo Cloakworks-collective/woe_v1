@@ -7,6 +7,17 @@ spy-vs-spy sweeps. Rejected: caravan raiding. Decided: scattering exemption
 departures per era. Open proposals awaiting confirmation:
 shield-drop-on-attack, spy-block vs protected players.
 
+## Military model — DONE (this pass)
+- [x] Removed the "warrior" middle step: peasants train straight into
+      footmen/archers/cavalry by tier (`trainTroops`), discharge straight home
+      (`dischargeTroops`). `Player.warriors` + equip/disband/discharge-warrior
+      commands deleted; muster levy folded into troop gold cost.
+- [x] Mercenaries are now typed/tiered (`MercForce`): `buyMercs(type,tier,count)`,
+      gold-only, require the same buildings as regulars, tier-scaled price, still
+      25%-cap + upkeep + zero-ranking. Combat: mercs fight in their arm's phase
+      at tier but die before matching regulars (die-first per arm). Legacy saves
+      migrated (`normalizePlayer`). Specs + CLI + plugin + tests updated (110 pass).
+
 ## UI & combat polish — DONE (this pass)
 - [x] Visual pass I: race portraits on Rankings + Attack; pixel tone-emblems
       (7 glyphs in public/art/tones/, <ToneGlyph>) on Chronicle/World News/Annals.

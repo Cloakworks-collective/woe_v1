@@ -72,8 +72,8 @@ export function MobileNav({ premium }: { premium: boolean }) {
       items: [
         { href: "/guide", label: "📜 Field Manual" },
         premium
-          ? { href: "/steward", label: "🪶 The Steward" }
-          : { href: "/premium", label: "👑 Buy Premium" },
+          ? { href: "/steward", label: "👑 Premium" }
+          : { href: "/premium", label: "👑 Premium" },
       ],
     },
   ];

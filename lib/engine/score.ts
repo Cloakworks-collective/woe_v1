@@ -27,13 +27,13 @@ export function rankingScore(p: Player): number {
   const workers = Object.values(p.workers).reduce((a, b) => a + b, 0);
   score += (p.idlePeasants + workers) * SCORE.PER_CIVILIAN;
 
-  // Troops by tier power; warriors count at base; engineers are siege → zero.
+  // Regular troops by tier power; engineers are siege → zero; mercenaries are
+  // hired blades and count for nothing (power in coin brings no prestige).
   for (const corps of [p.army.footmen, p.army.archers, p.army.cavalry]) {
     score += corps.light * SCORE.PER_TROOP_BASE * TIER_POWER.light;
     score += corps.medium * SCORE.PER_TROOP_BASE * TIER_POWER.medium;
     score += corps.heavy * SCORE.PER_TROOP_BASE * TIER_POWER.heavy;
   }
-  score += p.warriors * SCORE.PER_TROOP_BASE;
 
   // Walls & buildings.
   score += SCORE.WALLS(level(p, "walls"), p.wallIntegrity);

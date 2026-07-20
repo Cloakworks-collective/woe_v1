@@ -28,7 +28,9 @@ import {
   bankedRes,
   buildingIntegrity,
   civilians,
+  emptyMercForce,
   level,
+  mercTotal,
   military,
   researchLevel,
   type EngineResult,
@@ -129,13 +131,14 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
   if (!p.starving) {
     // 2. Tax income, then mercenary upkeep.
     p.gold += taxIncomePerTurn(p) * unrestMult;
-    const mercBill = p.army.mercenaries * MERC_UPKEEP_GOLD_PER_TURN;
+    const mercCount = mercTotal(p.army.mercenaries);
+    const mercBill = mercCount * MERC_UPKEEP_GOLD_PER_TURN;
     if (mercBill > 0) {
       if (p.gold >= mercBill) {
         p.gold -= mercBill;
       } else {
-        events.push({ type: "mercsDefected", count: p.army.mercenaries });
-        p.army.mercenaries = 0; // unpaid professionals leave at once
+        events.push({ type: "mercsDefected", count: mercCount });
+        p.army.mercenaries = emptyMercForce(); // unpaid professionals leave at once
       }
     }
 

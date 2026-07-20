@@ -1182,6 +1182,70 @@ select:focus-visible {
   font-size: 13.5px;
 }
 
+/* Per-tier cost list (Army page): real bullets, pixel resource icons, no "g". */
+.cost-list {
+  list-style: disc;
+  margin: 6px 0 0;
+  padding-left: 20px;
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+.cost-list > li {
+  margin: 3px 0;
+}
+.cost-list > li::marker {
+  color: var(--red);
+}
+.cost-tier {
+  display: inline-block;
+  min-width: 56px;
+  margin-right: 8px;
+  text-transform: capitalize;
+  font-weight: 700;
+}
+.cost-have {
+  color: var(--ink-soft);
+  margin-right: 8px;
+}
+.cost-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  vertical-align: middle;
+}
+.cost-bit {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+/* Train / discharge / hire forms — a labelled block per action. */
+.troop-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+.troop-form-block {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.troop-form-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.troop-form-line {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .bcard-gain b {
   color: var(--heading);
 }

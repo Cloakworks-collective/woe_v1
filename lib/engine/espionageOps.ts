@@ -21,6 +21,7 @@ import { luck, type Rng } from "./rng";
 import {
   EngineError,
   level,
+  mercTotal,
   military,
   researchLevel,
   troopTotal,
@@ -117,7 +118,7 @@ export function runSpyMission(
         `${defender.name}: walls level ${level(defender, "walls")} at ${Math.round(defender.wallIntegrity * 100)}%, ` +
         `War Foundry ${level(defender, "war_foundry")}. Army: ` +
         `${troopTotal(a.footmen)} footmen, ${troopTotal(a.archers)} archers, ${troopTotal(a.cavalry)} cavalry, ` +
-        `${a.siegeEngineers} engineers, ${a.mercenaries} mercenaries. Stamina ${a.stamina}.`;
+        `${a.siegeEngineers} engineers, ${mercTotal(a.mercenaries)} mercenaries. Stamina ${a.stamina}.`;
       break;
     }
     case "sabotage_engines": {
@@ -187,7 +188,7 @@ export function runScoutRecon(
     troopTotal(defender.army.footmen) +
     troopTotal(defender.army.archers) +
     troopTotal(defender.army.cavalry) +
-    defender.army.mercenaries;
+    mercTotal(defender.army.mercenaries);
   const detail =
     `${defender.name}: roughly ${est(army)} troops under arms` +
     ` (± the haze of distance), walls level ${level(defender, "walls")},` +

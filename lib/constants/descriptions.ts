@@ -17,10 +17,6 @@ export const UNIT_INFO: Record<string, { title: string; tip: string }> = {
     title: "Cavalry",
     tip: "Mounted shock troops that charge early, riding down enemy cavalry then footmen. They deal the most damage per soldier of any unit — but the horse is the gold, so a cavalry army is an expensive one.",
   },
-  warrior: {
-    title: "Warrior (unequipped)",
-    tip: "A peasant handed a spear — the raw recruit every real soldier starts as. Weak on their own, they become footmen, archers, or cavalry once you equip them with gear in The Army.",
-  },
   spy: {
     title: "Spy",
     tip: "Cloak-and-dagger agents run from the Shadow Guild: steal an enemy's ledger, sabotage their siege engines, torch their stores, or stir up unrest. Send more for a bigger blow — but caught spies are executed, a permanent loss of population, and they name you to your victim.",
@@ -35,7 +31,7 @@ export const UNIT_INFO: Record<string, { title: string; tip: string }> = {
   },
   mercenary: {
     title: "Mercenary",
-    tip: "Rented sellswords, tough as veteran footmen, who stand in front of your own troops and die first — a bought shield for your real soldiers. They cost gold every single turn (skip the wage and they all desert at once) and can never outnumber a quarter of your regular army.",
+    tip: "Rented sellswords — hired in the same arms and tiers as your own troops (a heavy-cavalry sellsword needs Knights' Stables 3 + Forge 3, just like the real thing). They cost only gold, no peasants, and stand in front of your regulars of that arm to die first — a bought shield. But they draw gold every single turn (skip the wage and they all desert at once), can never outnumber a quarter of your regular army, and count for nothing on the ranking ladder.",
   },
 };
 
@@ -70,10 +66,9 @@ export const ACTION_INFO: Record<string, string> = {
     "Raise the white flag to become untouchable by everything except revenge — a shelter for when you're outmatched, not a habit. The cost is steep: you cannot attack, and BOTH your tax income and your production fall by half while it flies. You may spend at most 20 days surrendered per era, total. You cannot raise it while a revenge hangs over you — it queues instead, and rises on its own once every revenge window against you has closed. Lower it whenever you like, but your army then stands down: no fresh attacks for 18 hours (revenge excepted), so you can't duck a siege and immediately swing back.",
   bank: "Move gold in or out of the Counting House vault. Gold locked in the vault (up to its capacity) is safe when raiders storm your castle; loose gold on the table is theirs to take. Type a negative number to withdraw.",
   rest: "Stand the army down to recover: 5 action turns and a little food buy back 20 stamina for every soldier. Tired troops swing weaker and guard worse, so rest before a hard fight — you can't rest while starving.",
-  equip: "Hand a warrior weapons and armour to make them a footman, archer, or cavalryman at the tier you choose. You'll need the right trainer and a Forge at that same tier level.",
-  disband: "Melt down a troop's gear (the equipment is lost for good) and return the soldier to the warrior pool, ready to be re-equipped as something else.",
-  discharge: "Send a warrior back to peaceful civilian life — but only if a Hearthstead bed stands empty for them. No spare housing, no discharge.",
-  hireMercs: "Buy sellswords from the Black Market. They shield your real troops by dying first, but drain gold every turn and can't outnumber a quarter of your regular army.",
+  trainTroops: "Raise idle peasants straight into footmen, archers, or cavalry at the tier you choose — no warrior middle step. Tier needs the matching trainer AND a Forge at that same level, plus a free Muster Hall bed. Instant.",
+  discharge: "Send a soldier back to peaceful civilian life — their gear is lost, and it only works if a Hearthstead bed stands empty and you'd stay above the 30% guard line. No spare housing, no discharge.",
+  hireMercs: "Hire sellswords from the Black Market in the arms and tiers you can already field (they need the same trainer + Forge as your regulars). Gold only, no peasants — they shield the matching regulars by dying first, but drain gold every turn and can't outnumber a quarter of your regular army.",
   train: "Turn idle peasants into this role. It happens instantly — the only limits are your gold and a free slot in the right building.",
   assign: "Put idle peasants to work in a trade (or type a negative number to call them home). Free and reversible, but every building holds only 20 workers per level.",
   buildQueue: "Hand this to the Steward (a Royal Charter perk): it will be raised automatically the very moment your treasury can afford it, even while you sleep.",
@@ -127,7 +122,6 @@ export const UNIT_GUIDE: Record<string, string> = {
   footman: "/guide#army",
   archer: "/guide#army",
   cavalry: "/guide#army",
-  warrior: "/guide#army",
   engineer: "/guide#battle",
   mercenary: "/guide#army",
   spy: "/guide#shadows",
@@ -146,8 +140,7 @@ export const ACTION_GUIDE: Record<string, string> = {
   surrender: "/guide#defense",
   bank: "/guide#grow",
   rest: "/guide#army",
-  equip: "/guide#army",
-  disband: "/guide#army",
+  trainTroops: "/guide#army",
   discharge: "/guide#grow",
   hireMercs: "/guide#army",
   train: "/guide#army",

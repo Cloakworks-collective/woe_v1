@@ -74,18 +74,18 @@ condition holds *and* the action is payable.
 
 | Conditions (X)                       | Actions (Y)                          |
 |--------------------------------------|--------------------------------------|
-| a building reaches a level/count     | train warriors / spies / scouts / engineers (count) |
-| a research field reaches a level     | equip troops (type, tier, count)     |
-| gold on hand reaches an amount       | raise a building (one-shot)          |
-| a resource stock reaches an amount   | set the tax rate (one-shot)          |
+| a building reaches a level/count     | train troops (type, tier, count) / spies / scouts / engineers |
+| a research field reaches a level     | raise a building (one-shot)          |
+| gold on hand reaches an amount       | set the tax rate (one-shot)          |
+| a resource stock reaches an amount   | …                                    |
 
 - **Count-based actions fulfill partially**: the Steward does as many as
   resources/slots allow each tick and keeps the order alive until the full
-  count is reached ("train 1,000 warriors" trickles in as gold and Muster
-  Hall slots appear). One-shot actions retry until they succeed once.
+  count is reached ("train 1,000 light footmen" trickles in as gold, ore, and
+  Muster Hall slots appear). One-shot actions retry until they succeed once.
 - Orders whose condition is already true fire on the next tick.
 - Queues feed orders within the same pass: a queued Drill Yard completing
-  can trigger "once Drill Yard is built, train 1,000 warriors" that tick.
+  can trigger "once Drill Yard is built, train 1,000 light footmen" that tick.
 
 ### Chronicle
 

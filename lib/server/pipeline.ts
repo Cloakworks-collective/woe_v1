@@ -17,7 +17,7 @@ import {
   queueResearch,
   removeStandingOrder,
   buildClanBuilding,
-  buyMercenaries,
+  hireMercenaries,
   buySiegeGear,
   canJoin,
   clanBuildingLabel,
@@ -25,9 +25,8 @@ import {
   declareWar,
   departClan,
   depositToClan,
-  disbandTroops,
-  dischargeWarriors,
-  equipTroops,
+  dischargeTroops,
+  trainTroops,
   joinClan,
   military,
   newClan,
@@ -52,7 +51,6 @@ import {
   trainScouts,
   trainSiegeEngineers,
   trainSpies,
-  trainWarriors,
   validateAttack,
   withdrawFromClan,
   wonderDiscount,
@@ -78,7 +76,7 @@ export interface CommandResult {
 }
 
 function regularKills(l: UnitLosses): number {
-  return l.footmen + l.archers + l.cavalry + l.engineers + l.warriors;
+  return l.footmen + l.archers + l.cavalry + l.engineers;
 }
 
 /** Execute one command for one player. Catches EngineError into {ok:false}. */
@@ -127,26 +125,22 @@ function dispatch(
       return put(assignWorkers(player, args.role as never, num(args.count)).player), undefined;
     case "recallWorkers":
       return put(assignWorkers(player, args.role as never, -num(args.count)).player), undefined;
-    case "trainWarriors":
-      return put(trainWarriors(player, num(args.count)).player), undefined;
     case "trainSpies":
       return put(trainSpies(player, num(args.count)).player), undefined;
     case "trainScouts":
       return put(trainScouts(player, num(args.count)).player), undefined;
     case "trainEngineers":
       return put(trainSiegeEngineers(player, num(args.count)).player), undefined;
-    case "equipTroops":
+    case "trainTroops":
       return (
-        put(equipTroops(player, args.type as never, args.tier as never, num(args.count)).player),
+        put(trainTroops(player, args.type as never, args.tier as never, num(args.count)).player),
         undefined
       );
-    case "disbandTroops":
+    case "dischargeTroops":
       return (
-        put(disbandTroops(player, args.type as never, args.tier as never, num(args.count)).player),
+        put(dischargeTroops(player, args.type as never, args.tier as never, num(args.count)).player),
         undefined
       );
-    case "dischargeWarriors":
-      return put(dischargeWarriors(player, num(args.count)).player), undefined;
     case "build": {
       const r = build(player, args.id as never);
       put(r.player);
@@ -172,7 +166,18 @@ function dispatch(
       return put(bankResource(player, what as never, num(args.amount)).player), undefined;
     }
     case "buyMercs":
-      return put(buyMercenaries(player, num(args.count), wonderDiscount(clan)).player), undefined;
+      return (
+        put(
+          hireMercenaries(
+            player,
+            args.type as never,
+            args.tier as never,
+            num(args.count),
+            wonderDiscount(clan),
+          ).player,
+        ),
+        undefined
+      );
     case "buySiegeGear":
       return (
         put(buySiegeGear(player, args.type as never, num(args.count), wonderDiscount(clan)).player),
@@ -402,14 +407,13 @@ function parseCondition(args: Record<string, unknown>): OrderCondition {
 function parseAction(args: Record<string, unknown>): OrderAction {
   const count = num(args.thenCount);
   switch (str(args.thenKind)) {
-    case "trainWarriors":
     case "trainSpies":
     case "trainScouts":
     case "trainEngineers":
       return { kind: str(args.thenKind) as never, count, remaining: count };
-    case "equip":
+    case "trainTroops":
       return {
-        kind: "equip",
+        kind: "trainTroops",
         type: args.thenType as never,
         tier: args.thenTier as never,
         count,

@@ -180,11 +180,13 @@ function showStatus(st) {
   console.log("");
   console.log(head("The People"));
   console.log(
-    `  ${green(fmt(pop.civilians))} civilians ${dim("·")} ${red(fmt(pop.military))} under arms ${dim("·")} ${yellow(fmt(pop.idlePeasants))} idle ${dim("·")} ${cyan(fmt(pop.warriors))} unequipped warriors`,
+    `  ${green(fmt(pop.civilians))} civilians ${dim("·")} ${red(fmt(pop.military))} under arms ${dim("·")} ${yellow(fmt(pop.idlePeasants))} idle`,
   );
-  const corps = (c) => c.light + c.medium + c.heavy;
+  const corps = (c) => (c?.light ?? 0) + (c?.medium ?? 0) + (c?.heavy ?? 0);
+  const m = a.mercenaries ?? {};
+  const mercCount = corps(m.footmen) + corps(m.archers) + corps(m.cavalry);
   console.log(
-    `  ⚔ ${red(fmt(corps(a.footmen)))} footmen ${dim("·")} 🏹 ${green(fmt(corps(a.archers)))} archers ${dim("·")} 🐎 ${yellow(fmt(corps(a.cavalry)))} cavalry ${dim("·")} 🛠 ${cyan(fmt(a.siegeEngineers))} engineers ${dim("·")} 💰 ${magenta(fmt(a.mercenaries))} mercs`,
+    `  ⚔ ${red(fmt(corps(a.footmen)))} footmen ${dim("·")} 🏹 ${green(fmt(corps(a.archers)))} archers ${dim("·")} 🐎 ${yellow(fmt(corps(a.cavalry)))} cavalry ${dim("·")} 🛠 ${cyan(fmt(a.siegeEngineers))} engineers ${dim("·")} 💰 ${magenta(fmt(mercCount))} mercs`,
   );
   console.log(
     `  stamina ${bar(a.stamina / 100)} ${a.stamina} ${dim("·")} experience ${bar(a.experience / 100, 20, brightMagenta)} ${a.experience}`,
@@ -300,7 +302,7 @@ function showBattle(rep, myId) {
     console.log("   " + l);
   }
   // The butcher's bill — per-class losses, both sides.
-  const CLASSES = ["footmen", "archers", "cavalry", "engineers", "warriors", "mercenaries"];
+  const CLASSES = ["footmen", "archers", "cavalry", "engineers", "mercenaries"];
   const anyLosses = CLASSES.some((k) => (rep.attackerLosses?.[k] ?? 0) + (rep.defenderLosses?.[k] ?? 0) > 0);
   if (anyLosses) {
     console.log("");
@@ -435,8 +437,9 @@ const HELP = `
   ${bold("buildings")} ${dim("(b)")}                  levels & next costs
   ${bold("build <id>")} ${dim("/")} ${bold("queue <id>")}        raise a building (queue = Steward ✦)
   ${bold("repair <id|walls>")}             mend a bombarded building
-  ${bold("train <what> <n>")}              warriors | spies | scouts | engineers
-  ${bold("equip <type> <tier> <n>")}       footman|archer|cavalry × light|medium|heavy
+  ${bold("troop <type> <tier> <n>")}       train footman|archer|cavalry × light|medium|heavy
+  ${bold("discharge <type> <tier> <n>")}   send soldiers home (gear lost)
+  ${bold("train <what> <n>")}              spies | scouts | engineers
   ${bold("tax <pct>")} ${dim("·")} ${bold("rest")} ${dim("·")} ${bold("bank <n>")}     decrees (negative n withdraws)
   ${bold("research [field]")}              show fields / direct the scholars
   ${bold("rankings")} ${dim("(r)")}                   the ladder — your hunting ground
@@ -444,7 +447,7 @@ const HELP = `
   ${bold("attack <who> <mode>")}           raid | siege | revenge | bombard
   ${bold("spy <who> <op> <n>")} ${dim("·")} ${bold("scout <who>")}   ops: coffers|defences|sabotage|torch|unrest
   ${bold("market")} ${dim("·")} ${bold("buy <res> <n>")} ${dim("·")} ${bold("sell <res> <n> <price>")}
-  ${bold("mercs <n>")} ${dim("·")} ${bold("gear <type> <n>")}      black market · siege works
+  ${bold("mercs <type> <tier> <n>")} ${dim("·")} ${bold("gear <type> <n>")}   black market · siege works
   ${bold("token")} ${dim("·")} ${bold("link <token> [url]")} ${dim("·")} ${bold("join")}
   ${bold("quit")} ${dim("(q)")}
 `;
@@ -499,18 +502,26 @@ async function dispatch(rl, line) {
       break;
     }
     case "train": {
-      const kinds = { warriors: "trainWarriors", spies: "trainSpies", scouts: "trainScouts", engineers: "trainEngineers" };
+      const kinds = { spies: "trainSpies", scouts: "trainScouts", engineers: "trainEngineers" };
       const k = kinds[args[0]];
-      if (!k || !args[1]) throw new Error("train <warriors|spies|scouts|engineers> <n>");
+      if (!k || !args[1]) throw new Error("train <spies|scouts|engineers> <n>");
       await cmd(k, { count: Number(args[1]) });
       console.log(brightGreen(`  👥 ${args[1]} ${args[0]} trained.`));
       break;
     }
+    case "troop":
     case "equip": {
-      if (args.length < 3) throw new Error("equip <footman|archer|cavalry> <light|medium|heavy> <n>");
-      await cmd("equipTroops", { type: args[0], tier: args[1], count: Number(args[2]) });
+      if (args.length < 3) throw new Error("troop <footman|archer|cavalry> <light|medium|heavy> <n>");
+      await cmd("trainTroops", { type: args[0], tier: args[1], count: Number(args[2]) });
       const plural = { footman: "footmen", archer: "archers", cavalry: "cavalry" }[args[0]] ?? args[0];
-      console.log(brightGreen(`  ⚔ ${args[2]} ${args[1]} ${plural} stand ready.`));
+      console.log(brightGreen(`  ⚔ ${args[2]} ${args[1]} ${plural} raised from the peasantry.`));
+      break;
+    }
+    case "discharge": {
+      if (args.length < 3) throw new Error("discharge <footman|archer|cavalry> <light|medium|heavy> <n>");
+      await cmd("dischargeTroops", { type: args[0], tier: args[1], count: Number(args[2]) });
+      const plural = { footman: "footmen", archer: "archers", cavalry: "cavalry" }[args[0]] ?? args[0];
+      console.log(brightGreen(`  🏡 ${args[2]} ${args[1]} ${plural} sent home to civilian life.`));
       break;
     }
     case "tax": {
@@ -597,8 +608,9 @@ async function dispatch(rl, line) {
       break;
     }
     case "mercs": {
-      await cmd("buyMercs", { count: Number(args[0]) });
-      console.log(magenta(`  💰 ${args[0]} sellswords join (they die first; feed them gold).`));
+      if (args.length < 3) throw new Error("mercs <footman|archer|cavalry> <light|medium|heavy> <n>");
+      await cmd("buyMercs", { type: args[0], tier: args[1], count: Number(args[2]) });
+      console.log(magenta(`  💰 ${args[2]} ${args[1]} ${args[0]} sellswords join (they die first; feed them gold).`));
       break;
     }
     case "gear": {

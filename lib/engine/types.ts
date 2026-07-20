@@ -25,6 +25,15 @@ export interface TroopCounts {
   heavy: number;
 }
 
+/** Hired sellswords, now raised by type and tier just like regulars (they need
+ *  the same trainer/Forge buildings to hire). They die before your matching
+ *  regulars, cost gold upkeep or defect, and count zero toward ranking. */
+export interface MercForce {
+  footmen: TroopCounts;
+  archers: TroopCounts;
+  cavalry: TroopCounts;
+}
+
 export interface ArmyState {
   footmen: TroopCounts;
   archers: TroopCounts;
@@ -33,7 +42,7 @@ export interface ArmyState {
   siegeGear: Record<SiegeGearType, number>;
   spies: number;
   scouts: number;
-  mercenaries: number; // die first; max 25% of regular army
+  mercenaries: MercForce; // die first; max 25% of regular army headcount
   stamina: number; // 0–100
   experience: number; // 0–100, global army stat
 }
@@ -53,11 +62,10 @@ export type OrderCondition =
   | { kind: "resource"; resource: Resource; amount: number };
 
 export type OrderAction =
-  | { kind: "trainWarriors"; count: number; remaining: number }
+  | { kind: "trainTroops"; type: TroopType; tier: Tier; count: number; remaining: number }
   | { kind: "trainSpies"; count: number; remaining: number }
   | { kind: "trainScouts"; count: number; remaining: number }
   | { kind: "trainEngineers"; count: number; remaining: number }
-  | { kind: "equip"; type: TroopType; tier: Tier; count: number; remaining: number }
   | { kind: "build"; building: BuildingId }
   | { kind: "setTax"; rate: number };
 
@@ -94,7 +102,6 @@ export interface Player {
   // Population
   idlePeasants: number;
   workers: Record<WorkerRole, number>;
-  warriors: number; // trained but unequipped
   army: ArmyState;
 
   // Economy
@@ -200,8 +207,7 @@ export interface UnitLosses {
   archers: number;
   cavalry: number;
   engineers: number;
-  warriors: number;
-  mercenaries: number;
+  mercenaries: number; // aggregate across merc type/tier — they fall as one line
 }
 
 export interface BattleReport {
@@ -278,16 +284,46 @@ export function troopTotal(c: TroopCounts): number {
   return c.light + c.medium + c.heavy;
 }
 
+export function emptyTroopCounts(): TroopCounts {
+  return { light: 0, medium: 0, heavy: 0 };
+}
+
+export function emptyMercForce(): MercForce {
+  return { footmen: emptyTroopCounts(), archers: emptyTroopCounts(), cavalry: emptyTroopCounts() };
+}
+
+/** Total hired sellswords across every type and tier. */
+export function mercTotal(m: MercForce): number {
+  return troopTotal(m.footmen) + troopTotal(m.archers) + troopTotal(m.cavalry);
+}
+
+/** Bring a possibly-legacy save into the current shape: mercenaries used to be
+ *  a flat count and there was a separate `warriors` pool. Legacy mercs become
+ *  light-footman sellswords; legacy warriors return to the idle pool (their
+ *  gear was never forged). Idempotent — safe on every load. */
+export function normalizePlayer(p: Player): Player {
+  const legacyWarriors = (p as unknown as { warriors?: number }).warriors;
+  if (typeof legacyWarriors === "number") {
+    p.idlePeasants += legacyWarriors;
+    delete (p as unknown as { warriors?: number }).warriors;
+  }
+  const m = p.army.mercenaries as unknown;
+  if (typeof m === "number") {
+    p.army.mercenaries = emptyMercForce();
+    p.army.mercenaries.footmen.light = m;
+  }
+  return p;
+}
+
 /** Civilians: idle + workers + spies + scouts (all pay tax, all eat). */
 export function civilians(p: Player): number {
   const workers = Object.values(p.workers).reduce((a, b) => a + b, 0);
   return p.idlePeasants + workers + p.army.spies + p.army.scouts;
 }
 
-/** Regular military: warriors + equipped troops + engineers (no mercs). */
+/** Regular military: equipped troops + engineers (no mercs). */
 export function military(p: Player): number {
   return (
-    p.warriors +
     troopTotal(p.army.footmen) +
     troopTotal(p.army.archers) +
     troopTotal(p.army.cavalry) +

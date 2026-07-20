@@ -116,7 +116,7 @@ export interface PublicBattle {
 
 export function publicBattle(r: import("./types").BattleReport): PublicBattle {
   const total = (l: import("./types").UnitLosses) =>
-    l.footmen + l.archers + l.cavalry + l.engineers + l.warriors + l.mercenaries;
+    l.footmen + l.archers + l.cavalry + l.engineers + l.mercenaries;
   const gear = Object.values(r.siegeGearLost).reduce((a, b) => a + (b ?? 0), 0);
   return {
     id: r.id,
@@ -178,7 +178,7 @@ export function advisorReport(p: Player): AdvisorReport {
       `The army is spent — stamina ${p.army.stamina}/100 drags down both attack and defence. Rest them (The Army → Rest: 5 turns + food for +20) before you march, or you'll bleed men in a fight you should win.`;
   } else if (mil < scatterLine && p.idlePeasants + civ >= 500) {
     military_ =
-      `Danger: only ${mil} soldiers guard ${civ} civilians — below the ${scatterLine} needed to hold the 30% line. At the next dawn our unprotected peasants will scatter and walk away. Train warriors NOW to climb back above the line.`;
+      `Danger: only ${mil} soldiers guard ${civ} civilians — below the ${scatterLine} needed to hold the 30% line. At the next dawn our unprotected peasants will scatter and walk away. Raise troops NOW to climb back above the line.`;
   } else {
     military_ =
       `${mil} under arms, stamina ${p.army.stamina}/100, and ${xpNote}. A sound force — pick fights within ±20% of your ranking score for the best experience; punching far below you costs XP and loot.`;

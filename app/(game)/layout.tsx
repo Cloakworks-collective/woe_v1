@@ -6,13 +6,11 @@ import { TopNav } from "@/components/TopNav";
 import { TourGuide } from "@/components/TourGuide";
 import { isOnboardingActive } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
-import { devAdvance } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function GameLayout({ children }: { children: React.ReactNode }) {
   const { world, player } = await getGame();
-  const devTools = !process.env.CRON_SECRET;
 
   return (
     <>
@@ -35,23 +33,6 @@ export default async function GameLayout({ children }: { children: React.ReactNo
       <div className="frame">
         <div className="nav-col">
           <SideNav />
-          {devTools && (
-            <div className="dev-clock">
-              <div className="dev-clock-head">⚙ DEV CLOCK</div>
-              <form action={devAdvance} style={{ display: "flex", gap: 4, justifyContent: "center" }}>
-                <button className="btn" name="ticks" value="1" title="Advance one 10-minute turn">
-                  +1 turn
-                </button>
-                <button className="btn" name="ticks" value="144" title="Advance a full day">
-                  +1 day
-                </button>
-              </form>
-              <div className="dev-clock-note">
-                Testing only — in production the world ticks itself every 10 minutes and these
-                controls disappear.
-              </div>
-            </div>
-          )}
         </div>
         <main className="content">{children}</main>
       </div>

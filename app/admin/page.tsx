@@ -1,3 +1,4 @@
+import { AdminLoginForm } from "@/components/AdminLoginForm";
 import { Flash } from "@/components/Flash";
 import { Panel } from "@/components/Panel";
 import { RACE_NAMES } from "@/lib/constants";
@@ -5,11 +6,13 @@ import { rankingScore, settlementTitle, totalPopulation } from "@/lib/engine";
 import { adminEnabled, isAdmin } from "@/lib/server/admin";
 import { getWorld } from "@/lib/server/world";
 import {
+  adminBackfillStorage,
   adminCloseAge,
   adminForceTicks,
   adminGrant,
   adminLogin,
   adminLogout,
+  adminSeed,
   adminSetBan,
   adminSetPremium,
 } from "./actions";
@@ -42,17 +45,7 @@ export default async function AdminPage({
       <div className="frame" style={{ maxWidth: 560, flexDirection: "column", paddingTop: 40 }}>
         <Flash err={err} />
         <Panel title="🔒 The Crown Chamber">
-          <form action={adminLogin} style={{ display: "flex", gap: 8 }}>
-            <input
-              type="password"
-              name="password"
-              placeholder="the crown's password"
-              aria-label="Admin password"
-              autoFocus
-              style={{ padding: "4px 8px", border: "1px solid var(--border)", background: "var(--input-bg)", font: "15px Verdana", flex: 1 }}
-            />
-            <button className="btn">Enter</button>
-          </form>
+          <AdminLoginForm action={adminLogin} />
         </Panel>
       </div>
     );
@@ -184,6 +177,32 @@ export default async function AdminPage({
         <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 6 }}>
           Banishment blocks the session cookie, the realm token, and every command — the empire
           stays in the world (still attackable, still ticks) until pardoned.
+        </p>
+      </Panel>
+
+      <Panel title="🔧 Dev Tools — testing shortcuts">
+        <form action={adminSeed} style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", fontSize: 14.5 }}>
+          <select name="playerId" aria-label="Empire to seed">
+            {players.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {p.isBot ? " 🤖" : ""}
+              </option>
+            ))}
+          </select>
+          <button className="btn">🌱 Seed rich data</button>
+          <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>
+            Overwrites the chosen empire with a full, screenshot-ready state (buildings, army,
+            research, coffers, premium) and refills the market book + price charts.
+          </span>
+        </form>
+        <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "10px 0" }} />
+        <form action={adminBackfillStorage} style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+          <button className="btn">🏦 Backfill storage</button>
+        </form>
+        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 4 }}>
+          Grants level-1 banking (Counting House + the four resource stores) to any empire missing
+          it, and vaults their loose goods up to capacity. Idempotent — fills gaps, never lowers.
         </p>
       </Panel>
     </div>

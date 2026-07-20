@@ -70,7 +70,6 @@ export async function GET(req: NextRequest) {
       military: military(p),
       idlePeasants: p.idlePeasants,
       workers: p.workers,
-      warriors: p.warriors,
     },
     economy: {
       gold: Math.floor(p.gold),

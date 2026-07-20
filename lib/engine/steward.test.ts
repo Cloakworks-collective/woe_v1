@@ -117,6 +117,7 @@ describe("standing orders", () => {
   it("'once this building is built, train N troops' — waits, then fulfills partially", () => {
     let p = charterHolder();
     p.gold = 100_000;
+    p.resources = { food: 9000, wood: 9000, stone: 9000, ore: 9000 };
     p.idlePeasants = 500;
     p.buildings.hearthstead = 60;
     p.buildings.muster_hall = 2; // 20 slots, all taken by starting footmen
@@ -124,26 +125,27 @@ describe("standing orders", () => {
       p,
       "o1",
       { kind: "building", building: "drill_yard", level: 1 },
-      { kind: "trainWarriors", count: 40, remaining: 40 },
+      { kind: "trainTroops", type: "footman", tier: "light", count: 40, remaining: 40 },
     ).player;
 
     // Condition not met — nothing happens.
     p = processSteward(p).player;
-    expect(p.warriors).toBe(0);
+    expect(p.army.footmen.light).toBe(20); // just the 20 starters
     expect(p.standingOrders!.length).toBe(1);
 
-    // Drill Yard rises; 3 more halls open 30 free slots — 40 wanted, 30 fit.
+    // Drill Yard + Forge rise; 3 more halls open 30 free slots — 40 wanted, 30 fit.
     p.buildings.drill_yard = 1;
+    p.buildings.forge = 1;
     p.buildings.muster_hall = 5;
     p = processSteward(p).player;
-    expect(p.warriors).toBe(30); // partial fulfillment (halving search: 40→20, +10…)
+    expect(p.army.footmen.light).toBe(50); // 20 + 30 (partial: 40→20, +10…)
     const order = p.standingOrders![0];
-    expect(order.then).toMatchObject({ kind: "trainWarriors", remaining: 10 });
+    expect(order.then).toMatchObject({ kind: "trainTroops", remaining: 10 });
 
     // More barracks → the remainder trains and the order retires.
     p.buildings.muster_hall = 7;
     p = processSteward(p).player;
-    expect(p.warriors).toBe(40);
+    expect(p.army.footmen.light).toBe(60); // 20 + 40
     expect(p.standingOrders).toEqual([]);
   });
 
@@ -190,24 +192,25 @@ describe("standing orders", () => {
     expect(p.standingOrders!.length).toBe(9);
   });
 
-  it("equip orders respect tier gates by retrying, not crashing", () => {
+  it("train-troops orders respect tier gates by retrying, not crashing", () => {
     let p = charterHolder();
     p.gold = 100_000;
-    p.resources = { food: 5000, wood: 5000, stone: 5000, ore: 5000 };
-    p.warriors = 50;
+    p.resources = { food: 9000, wood: 9000, stone: 9000, ore: 9000 };
+    p.idlePeasants = 80;
+    p.buildings.muster_hall = 8; // 80 slots, 20 used → 60 free
     p = addStandingOrder(
       p,
       "o1",
       { kind: "gold", amount: 1 },
-      { kind: "equip", type: "footman", tier: "light", count: 50, remaining: 50 },
+      { kind: "trainTroops", type: "footman", tier: "light", count: 50, remaining: 50 },
     ).player;
-    // No Drill Yard yet: the order stays pending.
+    // No Drill Yard/Forge yet: the order stays pending.
     p = processSteward(p).player;
     expect(p.standingOrders!.length).toBe(1);
     p.buildings.drill_yard = 1;
     p.buildings.forge = 1;
     p = processSteward(p).player;
-    expect(p.army.footmen.light).toBe(20 + 50); // 20 starting + 50 equipped
+    expect(p.army.footmen.light).toBe(20 + 50); // 20 starting + 50 trained
     expect(p.standingOrders).toEqual([]);
   });
 });
@@ -218,16 +221,17 @@ describe("integration: queue feeds orders in the same pass", () => {
     p.gold = 50_000;
     p.resources = { food: 5000, wood: 5000, stone: 5000, ore: 5000 };
     p.buildings.muster_hall = 5; // room for 30 more troops
+    p.buildings.forge = 1; // the Forge is already up; the queue raises the yard
     p = queueBuild(p, "drill_yard").player;
     p = addStandingOrder(
       p,
       "o1",
       { kind: "building", building: "drill_yard", level: 1 },
-      { kind: "trainWarriors", count: 10, remaining: 10 },
+      { kind: "trainTroops", type: "footman", tier: "light", count: 10, remaining: 10 },
     ).player;
     p = processSteward(p).player; // builds the yard, then the order fires
     expect(level(p, "drill_yard")).toBe(1);
-    expect(p.warriors).toBe(10);
+    expect(p.army.footmen.light).toBe(30); // 20 starters + 10 trained
     expect(p.standingOrders).toEqual([]);
   });
 });

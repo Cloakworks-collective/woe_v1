@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { newEmpire } from "./newEmpire";
 import { processTurnTick } from "./tick";
-import type { Player } from "./types";
+import { mercTotal, type Player } from "./types";
 
 function fresh(): Player {
   return newEmpire({ id: "t", name: "Test", race: "human" });
@@ -107,11 +107,12 @@ describe("turn tick", () => {
 
   it("unpaid mercenaries all defect at once", () => {
     const p = fresh();
-    p.army.mercenaries = 5; // 50 g due
+    p.army.mercenaries.footmen.light = 3;
+    p.army.mercenaries.cavalry.heavy = 2; // 5 mercs, 5 g due
     p.gold = 0;
     p.taxRate = 0; // no income this tick
     const { player, events } = processTurnTick(p);
-    expect(player.army.mercenaries).toBe(0);
+    expect(mercTotal(player.army.mercenaries)).toBe(0);
     expect(events).toContainEqual({ type: "mercsDefected", count: 5 });
   });
 

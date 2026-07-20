@@ -20,6 +20,7 @@ import {
   military,
   newClan,
   newEmpire,
+  normalizePlayer,
   processDailyReset,
   processSteward,
   processTurnTick,
@@ -130,11 +131,10 @@ function bot(id: string, name: string, race: Race, pop: number): Player {
   p.army.scouts = scouts;
   p.idlePeasants = Math.max(0, civ - farmers - each * 3 - p.workers.merchants - researchers - spies - scouts);
 
-  const foot = Math.round(mil * 0.55);
   const arch = Math.round(mil * 0.2);
   const cav = Math.round(mil * 0.12);
   const eng = Math.round(mil * 0.05);
-  p.warriors = Math.max(0, mil - foot - arch - cav - eng);
+  const foot = Math.max(0, mil - arch - cav - eng); // the balance are footmen
   const tiered = (n: number) =>
     L >= 6
       ? { light: Math.round(n * 0.4), medium: Math.round(n * 0.45), heavy: Math.round(n * 0.15) }
@@ -238,6 +238,9 @@ export async function getWorld(): Promise<World> {
     world = seedWorld();
     await saveWorld(world);
   }
+  // Bring legacy saves into the current shape (typed mercenaries; no warrior
+  // pool). Idempotent, so it's safe to run on every load.
+  for (const p of Object.values(world.players)) normalizePlayer(p);
   return world;
 }
 

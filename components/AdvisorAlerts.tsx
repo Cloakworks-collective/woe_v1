@@ -58,12 +58,12 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
         <>
           Only <b>{mil}</b> soldiers guard <b>{civ}</b> civilians — below the <b>{scatterLine}</b>{" "}
           needed to hold the 30% line. At the next dawn, unprotected peasants will walk away for
-          good, and lost population drags your ranking down hard. Train warriors back above the line
+          good, and lost population drags your ranking down hard. Raise more troops above the line
           before then.
         </>
       ),
       ctas: [
-        { href: "/train", label: "⚔ Train warriors", primary: true },
+        { href: "/troops", label: "⚔ Raise troops", primary: true },
         { href: "/advisors#military", label: "Ask General Vosk →" },
         { href: "/guide#battle", label: "📜 Field Manual" },
       ],

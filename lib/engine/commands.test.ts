@@ -4,16 +4,15 @@ import {
   bankGold,
   bankResource,
   build,
-  buyMercenaries,
-  disbandTroops,
-  equipTroops,
+  dischargeTroops,
+  hireMercenaries,
   restTroops,
   setTax,
-  trainWarriors,
+  trainTroops,
 } from "./commands";
 import { buildingCost } from "./costs";
 import { newEmpire } from "./newEmpire";
-import type { Player } from "./types";
+import { mercTotal, normalizePlayer, type Player } from "./types";
 
 function fresh(): Player {
   return newEmpire({ id: "t", name: "Test", race: "human" });
@@ -70,54 +69,73 @@ describe("build command", () => {
 
 describe("training & army", () => {
   it("fresh empire's Muster Halls are exactly full — training throws", () => {
-    expect(() => trainWarriors(fresh(), 1)).toThrowError(/muster/i);
+    expect(() => trainTroops(fresh(), "footman", "light", 1)).toThrowError(/muster/i);
   });
 
-  it("a new Muster Hall opens 10 slots", () => {
+  it("training goes peasant → footman directly (no warrior step); needs trainer AND forge", () => {
     let p = fresh();
-    p = build(p, "muster_hall").player; // 3rd hall → 30 slots, 20 used
-    const { player } = trainWarriors(p, 5);
-    expect(player.warriors).toBe(5);
-    expect(player.idlePeasants).toBe(75);
-  });
-
-  it("equipping needs trainer AND forge at the tier level", () => {
-    let p = fresh();
-    p = build(p, "muster_hall").player;
-    p = trainWarriors(p, 5).player;
-    expect(() => equipTroops(p, "footman", "light", 5)).toThrowError(/drill_yard/i);
+    p = build(p, "muster_hall").player; // 3rd hall → 30 slots, 20 used → 10 free
+    expect(() => trainTroops(p, "footman", "light", 5)).toThrowError(/drill_yard/i);
     p.buildings.drill_yard = 1;
-    expect(() => equipTroops(p, "footman", "light", 5)).toThrowError(/forge/i);
+    expect(() => trainTroops(p, "footman", "light", 5)).toThrowError(/forge/i);
     p.buildings.forge = 1;
-    const { player } = equipTroops(p, "footman", "light", 5);
-    expect(player.army.footmen.light).toBe(25);
-    expect(player.warriors).toBe(0);
+    const { player } = trainTroops(p, "footman", "light", 5);
+    expect(player.army.footmen.light).toBe(25); // 20 starter + 5
+    expect(player.idlePeasants).toBe(75); // peasants spent directly
+  });
+
+  it("light footman folds the muster levy into its gold cost (150g)", () => {
+    const p = fresh();
+    p.buildings = { ...p.buildings, muster_hall: 5, drill_yard: 1, forge: 1 };
+    const before = p.gold;
+    const { player } = trainTroops(p, "footman", "light", 1);
+    expect(before - player.gold).toBe(150); // 50 levy + 100 kit
   });
 
   it("medium tier costs ×2 and needs level 2", () => {
     const p = fresh();
     p.buildings = { ...p.buildings, muster_hall: 5, drill_yard: 2, forge: 2 };
-    p.warriors = 1;
     const before = p.gold;
-    const { player } = equipTroops(p, "footman", "medium", 1);
-    expect(before - player.gold).toBe(200); // 100 × 2
+    const { player } = trainTroops(p, "footman", "medium", 1);
+    expect(before - player.gold).toBe(300); // 150 × 2
   });
 
-  it("disband strips equipment and returns warriors", () => {
+  it("discharge sends troops home directly (gear lost)", () => {
     const p = fresh();
-    const { player } = disbandTroops(p, "footman", "light", 10);
+    const { player } = dischargeTroops(p, "footman", "light", 10);
     expect(player.army.footmen.light).toBe(10);
-    expect(player.warriors).toBe(10);
+    expect(player.idlePeasants).toBe(90); // straight back to civilian life
   });
 
-  it("mercenaries cap at 25% of the regular army", () => {
+  it("mercenaries are typed, building-gated, and cap at 25% of the regular army", () => {
     const p = fresh();
     p.gold = 100000;
+    p.buildings = { ...p.buildings, drill_yard: 1, forge: 1 };
     // regular army = 20 → cap 5
-    expect(() => buyMercenaries(p, 6)).toThrowError(/capped/i);
-    const { player } = buyMercenaries(p, 5);
-    expect(player.army.mercenaries).toBe(5);
-    expect(player.gold).toBe(100000 - 5 * 500);
+    expect(() => hireMercenaries(p, "footman", "light", 6)).toThrowError(/capped/i);
+    const { player } = hireMercenaries(p, "footman", "light", 5);
+    expect(player.army.mercenaries.footmen.light).toBe(5);
+    expect(player.gold).toBe(100000 - 5 * 500); // 500 × race × light tier
+  });
+
+  it("hiring a merc tier needs the matching trainer + Forge", () => {
+    const p = fresh();
+    p.gold = 100000;
+    expect(() => hireMercenaries(p, "cavalry", "heavy", 1)).toThrowError(/knights_stables/i);
+  });
+
+  it("normalizePlayer migrates legacy saves (flat mercs, warrior pool)", () => {
+    const p = fresh() as Player & { warriors?: number };
+    p.warriors = 7; // legacy unequipped pool
+    (p.army as unknown as { mercenaries: number }).mercenaries = 4; // legacy flat count
+    normalizePlayer(p);
+    expect(p.warriors).toBeUndefined(); // warriors return to the idle pool
+    expect(p.idlePeasants).toBe(80 + 7);
+    expect(p.army.mercenaries.footmen.light).toBe(4); // flat mercs → light footmen
+    expect(mercTotal(p.army.mercenaries)).toBe(4);
+    // idempotent — a second pass is a no-op
+    normalizePlayer(p);
+    expect(mercTotal(p.army.mercenaries)).toBe(4);
   });
 
   it("rest costs 5 turns + 0.2 food per troop, +20 stamina", () => {

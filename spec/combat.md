@@ -11,9 +11,12 @@ How a battle actually resolves, end to end. All constants are tunable.
 | Footman            | 10 / 10                  | 18 / 18        | 30 / 30     |
 | Archer             | 12 / 6                   | 22 / 11        | 36 / 18     |
 | Cavalry            | 15 / 8                   | 27 / 14        | 45 / 24     |
-| Warrior (unequipped)| 3 / 3                   | —              | —           |
 | Siege engineer     | 0 / 5                    | —              | — (crew only)|
-| Mercenary          | 18 / 18 (fixed, medium-footman equivalent) |  |             |
+
+**Mercenaries** now fight as their **hired type and tier** (a heavy-cavalry
+sellsword uses the heavy-cavalry stats above). They carry only the shared
+stamina modifier — no race, veterancy, or research bonus — since they are hired
+blades, not your citizens.
 
 Siege weapon fire (per crewed engine, per round):
 
@@ -60,9 +63,11 @@ Every attack serves one of three goals: **take stuff** (raid, siege),
 | **Revenge** | full 4-phase assault           | yes           | none — the payment is regular kills         |
 | **Bombard** | engines only, no troop battle  | trebuchets vs Counter-Engine | none — wrecks the **walls first**, then the town's buildings (max 50% damage each) |
 
-Killing regulars is **hard by design** — mercenaries absorb all casualties
-first, so you must chew through the merc buffer before touching real troops —
-and it's the worst thing you can do to an enemy: every dead regular is dead
+Killing regulars is **hard by design** — within each arm the hired sellswords
+form the front line and die before the matching regulars (merc footmen shield
+your footmen, merc cavalry shield your cavalry), so you must chew through the
+merc buffer of that arm before touching real troops — and it's the worst thing
+you can do to an enemy: every dead regular is dead
 *population*, and heavy losses trigger peasant scattering (below). Losing
 100–200 population sets an empire's ranking back hard.
 
@@ -171,9 +176,13 @@ unitsKilled   = floor(groupDamage / (k × effectiveDefencePerUnit))    // k = 2,
 ```
 
 - Defender's `effectiveDefence` includes `effectiveWall` in siege/revenge.
-- **Mercenaries die first**: casualties assigned to mercs until none remain,
-  then regulars. (Engineers die only via proportional damage or targeted
-  spill-through.)
+- **Mercenaries fight in their own arm's phase** (merc archers loose with the
+  archers, merc cavalry charge with the cavalry) at their hired tier.
+- **Mercenaries die first within their arm**: in a targeted phase, the merc
+  units of the struck category take casualties before the regulars of that
+  category — the sellswords are the front line. (Proportional phases — siege,
+  archers — spread damage across everyone by headcount, mercs included.)
+  Engineers die only via proportional damage or targeted spill-through.
 
 ### 3. Breaking & victory
 After each round, compare each side's **remaining strength** (Σ attack power)

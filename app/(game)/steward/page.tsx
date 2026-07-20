@@ -42,11 +42,10 @@ function describeCondition(c: OrderCondition): string {
 
 function describeAction(a: OrderAction): string {
   switch (a.kind) {
-    case "trainWarriors": return `train ${fmt(a.count)} warriors (${fmt(a.remaining)} to go)`;
+    case "trainTroops": return `train ${fmt(a.count)} ${a.tier} ${a.type} (${fmt(a.remaining)} to go)`;
     case "trainSpies": return `train ${fmt(a.count)} spies (${fmt(a.remaining)} to go)`;
     case "trainScouts": return `train ${fmt(a.count)} scouts (${fmt(a.remaining)} to go)`;
     case "trainEngineers": return `train ${fmt(a.count)} siege engineers (${fmt(a.remaining)} to go)`;
-    case "equip": return `equip ${fmt(a.count)} ${a.tier} ${a.type} (${fmt(a.remaining)} to go)`;
     case "build": return `raise the ${buildingName(a.building)}`;
     case "setTax": return `set the tax rate to ${Math.round(a.rate * 100)}%`;
   }
@@ -73,11 +72,12 @@ export default async function StewardPage({
     return (
       <>
         <Flash err={err} ok={ok} />
-        <Panel title="🪶 The Steward — a locked chamber">
+        <Panel title="👑 The Royal Charter — a locked chamber">
           <p style={{ fontSize: 14.5 }}>
-            An empty desk gathers dust. The Steward serves only empires that hold{" "}
-            <a href="/premium">the Royal Charter</a> — build queues, research queues, and standing
-            orders like <i>“once the Drill Yard is built, train 1,000 warriors.”</i>
+            An empty desk gathers dust. The Steward — the automation you unlock with the{" "}
+            <a href="/premium">Royal Charter (premium)</a> — serves only empires that hold it: build
+            queues, research queues, and standing orders like{" "}
+            <i>“once the Drill Yard is built, train 1,000 light footmen.”</i>
           </p>
         </Panel>
       </>
@@ -91,12 +91,13 @@ export default async function StewardPage({
   return (
     <>
       <Flash err={err} ok={ok} />
-      <Panel title="🪶 The Steward">
+      <Panel title="👑 The Royal Charter — the Steward at work">
         <p style={{ fontSize: 14.5 }}>
-          The Steward works every turn: he raises queued buildings as soon as the treasury allows,
-          keeps the scholars on course, and executes standing orders the moment their conditions
-          are met. Queue buildings from the <a href="/buildings">Buildings</a> page and research
-          from <a href="/research">the Collegium</a>.
+          Your Royal Charter (premium) is sealed for this age. Its <b>Steward</b> works every turn:
+          he raises queued buildings as soon as the treasury allows, keeps the scholars on course,
+          and executes standing orders the moment their conditions are met. Queue buildings from the{" "}
+          <a href="/buildings">Buildings</a> page and research from <a href="/research">the
+          Collegium</a>.
         </p>
       </Panel>
 
@@ -219,9 +220,8 @@ export default async function StewardPage({
           <fieldset style={{ border: "1px solid var(--border-light)", padding: 8, marginBottom: 6 }}>
             <legend style={{ fontSize: 13.5, fontWeight: 700 }}>…do (action)</legend>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", fontSize: 14.5 }}>
-              <select name="thenKind" aria-label="Action type" defaultValue="trainWarriors">
-                <option value="trainWarriors">train warriors</option>
-                <option value="equip">equip troops</option>
+              <select name="thenKind" aria-label="Action type" defaultValue="trainTroops">
+                <option value="trainTroops">train troops</option>
                 <option value="trainEngineers">train siege engineers</option>
                 <option value="trainSpies">train spies</option>
                 <option value="trainScouts">train scouts</option>
@@ -231,12 +231,12 @@ export default async function StewardPage({
               <label style={{ fontSize: 13.5 }}>
                 count <input name="thenCount" type="number" defaultValue={100} min={1} size={6} aria-label="Action count" />
               </label>
-              <select name="thenType" aria-label="Troop type (equip)">
+              <select name="thenType" aria-label="Troop type (train troops)">
                 <option value="footman">footmen</option>
                 <option value="archer">archers</option>
                 <option value="cavalry">cavalry</option>
               </select>
-              <select name="thenTier" aria-label="Troop tier (equip)">
+              <select name="thenTier" aria-label="Troop tier (train troops)">
                 <option value="light">light</option>
                 <option value="medium">medium</option>
                 <option value="heavy">heavy</option>

@@ -93,7 +93,7 @@ export default async function ChroniclePage({
                   const mine = b.attackerId === p.id ? b.attackerLosses : b.defenderLosses;
                   const theirs = b.attackerId === p.id ? b.defenderLosses : b.attackerLosses;
                   const sum = (l: typeof mine) =>
-                    l.footmen + l.archers + l.cavalry + l.engineers + l.warriors + l.mercenaries;
+                    l.footmen + l.archers + l.cavalry + l.engineers + l.mercenaries;
                   const won = b.victor === (b.attackerId === p.id ? "attacker" : "defender");
                   return (
                     <tr key={b.id}>

@@ -111,11 +111,11 @@ describe("mercenaries die first", () => {
     });
     const defender = empire("D", (p) => {
       p.army.footmen.light = 40;
-      p.army.mercenaries = 10;
+      p.army.mercenaries.footmen.light = 10;
       p.buildings.muster_hall = 6;
     });
     const { report } = resolveBattle(attacker, defender, "raid", { ...OPTS, rng: seededRng(1) });
-    expect(report.defenderLosses.mercenaries).toBe(10); // all mercs dead first
+    expect(report.defenderLosses.mercenaries).toBe(10); // all merc footmen dead first
   });
 });
 

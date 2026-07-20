@@ -157,9 +157,10 @@ export default function GuidePage() {
 
       <Guide id="army" title="⚔️ Building an Army — troops, tiers, mercenaries" illo="units/footman">
         <p>
-          Train warriors on <Link href="/train">Workers &amp; Levy</Link>, then <b>equip</b> them on{" "}
-          <Link href="/troops">The Army</Link> into the three combat classes, each at light → medium
-          → heavy tiers (heavier = more power, more resources &amp; ore):
+          Raise soldiers straight from idle peasants on <Link href="/troops">The Army</Link> — there
+          is no warrior middle step. Pick one of the three combat classes at a light → medium → heavy
+          tier (heavier = more power, more resources &amp; ore). Each tier needs its trainer{" "}
+          <i>and</i> the Forge at that same level, plus a free Muster Hall bed:
         </p>
         <ul>
           <li>
@@ -178,10 +179,12 @@ export default function GuidePage() {
         </ul>
         <h4>Mercenaries — rented muscle</h4>
         <p>
-          Hire mercs on <Link href="/troops">The Army</Link> for instant strength. They{" "}
-          <b>die before your regulars</b> (a shield for your veterans) but cost <b>gold every turn</b>{" "}
-          or they defect, and are capped at <b>25% of your regular army</b>. They never count toward
-          your score or the population floors.
+          Hire mercs on <Link href="/troops">The Army</Link> in the same arms and tiers as your own
+          troops — a heavy-cavalry sellsword needs Knights&rsquo; Stables 3 + Forge 3, just like the
+          real thing. They cost <b>only gold</b> (no peasants) and{" "}
+          <b>die before your matching regulars</b> (a shield for your veterans), but cost{" "}
+          <b>gold every turn</b> or they defect, and are capped at <b>25% of your regular army</b>.
+          They never count toward your score or the population floors.
         </p>
         <h4>Experience &amp; stamina</h4>
         <ul>

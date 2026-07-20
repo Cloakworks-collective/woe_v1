@@ -261,9 +261,13 @@ ratio, level 2 = the 4–6 ratio, level 3 = the 9–10 ratio (stone-heavy, no or
 | 9     | **Concentric Walls**  | A second inner circuit — walls within walls         |
 | 10    | **The Citadel**       | A mountain of stone; armies break upon it           |
 
-Training pipeline: peasant → **Muster Hall** (warrior) → equipped from
-**Forge** stock → specialized at Drill Yard / Fletcher's Range /
-Knights' Stables / War Foundry.
+Training pipeline: peasant → **footman / archer / cavalry** in a single step,
+trained at the Drill Yard / Fletcher's Range / Knights' Stables. You pick the
+class *and* tier up front; each tier draws matching **Forge** stock (tier N
+needs trainer N **and** Forge N) and consumes a free **Muster Hall** bed. There
+is **no intermediate "warrior" step** — peasants are armed directly.
+Sellswords are hired the same way (same buildings), and siege engineers are
+trained at the War Foundry.
 
 ---
 
@@ -282,18 +286,19 @@ Idle Peasant ──(free, reversible)──────────► Worker (f
      ├──(gold cost)───────────────────────► Spy / Scout
      │                                        capped 20/lvl of guild/lodge
      │
-     └──(50 gold, needs Muster Hall slot)──► Warrior
-                                               │
-              (equipment cost + trainer lvl)   ▼
-             Footman / Archer / Cavalry / Siege Engineer
+     ├──(gold + ore; trainer lvl = tier, ──► Footman / Archer / Cavalry
+     │   Forge lvl = tier; Muster Hall slot)  at light / medium / heavy
+     │
+     └──(gold; needs War Foundry) ─────────► Siege Engineer
 ```
 
 - **Troop cap = Muster Halls × 10.** That IS the population-to-military
   allocation limit — no separate percentage rule.
 - Worker assignment is free and freely reversible (it's just labor allocation).
-- **Disband** a troop → equipment is lost, warrior returns.
-- **Discharge** a warrior → peasant returns to civilian life, but only if
-  there's a vacant Hearthstead slot (no housing, no discharge).
+- **Discharge** a troop → the soldier returns straight to civilian life and its
+  equipment is lost, but only if there's a vacant Hearthstead slot **and** the
+  guard stays above the 30% scatter line (no housing, or would-scatter → no
+  discharge). There is no separate warrior pool to disband into.
 
 ### Training costs (base = light tier; tunable)
 
@@ -301,15 +306,21 @@ Idle Peasant ──(free, reversible)──────────► Worker (f
 goes into blades, arrowheads, and barding — troop ore costs are steep to
 match, and a strong army is now the main reason to mine ore at all.
 
+Peasants train **directly** into footmen/archers/cavalry — there is no warrior
+step. The old 50-gold muster levy is folded into each troop's gold cost. Costs
+below are the **per-light** figure; medium ×2, heavy ×4 (equipment multiplier).
+
 | Unit           | Trained at        | Gold | Wood | Stone | Ore | Notes                        |
 |----------------|-------------------|------|------|-------|-----|------------------------------|
-| Warrior        | Muster Hall       | 50   | —    | —     | —   | Prerequisite for all troops  |
-| Footman        | Drill Yard        | 100  | 20   | —     | 90  | Sword, shield, mail — ore-hungry |
-| Archer         | Fletcher's Range  | 100  | 40   | —     | 55  | Wood bow, ore arrowheads     |
-| Cavalry        | Knights' Stables  | 300  | 20   | —     | 130 | Barding, lance, and blade — the hungriest for ore |
+| Footman        | Drill Yard        | 150  | 20   | —     | 90  | Muster levy + sword, shield, mail |
+| Archer         | Fletcher's Range  | 150  | 40   | —     | 55  | Muster levy + bow, ore arrowheads |
+| Cavalry        | Knights' Stables  | 350  | 20   | —     | 130 | Muster levy + barding, lance, blade — hungriest for ore |
 | Siege Engineer | War Foundry       | 200  | —    | —     | —   | Crews weapons (below)        |
 | Spy            | Shadow Guild      | 300  | —    | —     | —   | Gold buys silence            |
 | Scout          | Ranger's Lodge    | 200  | —    | —     | —   | —                            |
+
+Tier N (medium/heavy) needs the trainer **and** the Forge at level N; the cost
+multiplier (×1 / ×2 / ×4) applies to the whole row above.
 
 ### Tier multiplier (equipment cost)
 

@@ -6,8 +6,8 @@ import { LearnLink } from "@/components/LearnLink";
 import { Info } from "@/components/Info";
 import { Panel } from "@/components/Panel";
 import { ResIcon } from "@/components/ResIcon";
-import { SLOTS_PER_BUILDING_LEVEL, TRAINING_COSTS, TROOPS_PER_MUSTER_HALL, UNIT_GUIDE, UNIT_INFO } from "@/lib/constants";
-import { civilians, level, military, safeDischargeCount, type Player, type WorkerRole } from "@/lib/engine";
+import { SLOTS_PER_BUILDING_LEVEL, TRAINING_COSTS, UNIT_GUIDE, UNIT_INFO } from "@/lib/constants";
+import { level, type Player, type WorkerRole } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
@@ -50,16 +50,8 @@ function CountForm({ name, path, label, extra }: { name: string; path: string; l
   );
 }
 
-const MUSTER = (p: Player, musterFree: number) =>
+const MUSTER = (p: Player) =>
   [
-    {
-      unit: "warrior" as const,
-      art: "units/footman",
-      cmd: "trainWarriors",
-      current: p.warriors,
-      cost: TRAINING_COSTS.warrior.gold,
-      capacity: `${musterFree} Muster Hall slots free`,
-    },
     {
       unit: "spy" as const,
       art: "units/spy",
@@ -85,9 +77,6 @@ export default async function TrainPage({
 }) {
   const { err, ok } = await searchParams;
   const { player: p } = await getGame();
-  const musterFree = level(p, "muster_hall") * TROOPS_PER_MUSTER_HALL - military(p);
-  const housingFree = level(p, "hearthstead") * 10 - civilians(p);
-  const safeDischarge = safeDischargeCount(p);
 
   return (
     <>
@@ -143,9 +132,9 @@ export default async function TrainPage({
         </div>
       </Panel>
 
-      <Panel title="The Muster — peasants to soldiers">
+      <Panel title="The Muster — spies &amp; scouts">
         <div className="card-grid">
-          {MUSTER(p, musterFree).map(({ unit, art, cmd, current, cost, capacity }) => (
+          {MUSTER(p).map(({ unit, art, cmd, current, cost, capacity }) => (
             <div className="bcard" key={unit}>
               <div className="bcard-head">
                 <div>
@@ -173,31 +162,11 @@ export default async function TrainPage({
               </div>
             </div>
           ))}
-
-          <div className="bcard">
-            <div className="bcard-head">
-              <div>
-                <span className="bcard-name">Discharge warriors</span>
-                <div className="bcard-sub">back to civilian life</div>
-              </div>
-            </div>
-            <div className="bcard-main">
-              <div className="bcard-body">
-                <p style={{ margin: "0 0 7px" }}>
-                  <b>{p.warriors}</b> warriors under arms
-                </p>
-                <CountForm name="dischargeWarriors" path="/train" label="Discharge" />
-              </div>
-            </div>
-            <div className="bcard-gain">
-              <b>Safe to discharge</b>: {safeDischarge} — capped by {housingFree} free bed
-              {housingFree === 1 ? "" : "s"} and the 30% guard line.
-            </div>
-          </div>
         </div>
         <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 10 }}>
-          Siege engineers are trained at the <a href="/siege">Siege Works</a>; footmen, archers and
-          cavalry are equipped in <a href="/troops">The Army</a>.
+          Footmen, archers, cavalry, and siege engineers are all raised straight from idle peasants
+          in <a href="/troops">The Army</a> (and discharged there too); the siege engines they crew
+          live at the <a href="/siege">Siege Works</a>.
         </p>
       </Panel>
     </>

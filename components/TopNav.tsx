@@ -11,8 +11,9 @@ type Item = { href: string; label: string; title: string };
  * The desktop top bar of secondary destinations. Kept to a handful of entries —
  * four direct links plus three themed dropdowns (Rankings, World, Court) — so
  * the row always fits on one line and never wraps. On mobile it's hidden and
- * MobileNav's burger takes over. The premium entry is contextual: "Royal
- * Charter" (buy) until owned, then "The Steward" (manager).
+ * MobileNav's burger takes over. The premium entry always reads "Premium"; it
+ * routes to the Royal Charter buy page until owned, then to the Steward manager
+ * (the Charter's automation) — one product, one nav label.
  */
 export function TopNav({ premium }: { premium: boolean }) {
   const pathname = usePathname();
@@ -45,8 +46,8 @@ export function TopNav({ premium }: { premium: boolean }) {
   const worldItem: Item = { href: "/battles", label: "🌍 World", title: "The living age — clan wars, the latest battles, and the grand chronicle" };
   const guide: Item = { href: "/guide", label: "📜 Field Manual", title: "How to win: growth, battle strategy, the whole game" };
   const premiumItem: Item = premium
-    ? { href: "/steward", label: "🪶 The Steward", title: "Your build/research queues & standing orders" }
-    : { href: "/premium", label: "👑 Buy Premium", title: "The Royal Charter — queues, standing orders & auto-banking while you're away" };
+    ? { href: "/steward", label: "👑 Premium", title: "Your Royal Charter — the Steward's build/research queues, standing orders & auto-banking" }
+    : { href: "/premium", label: "👑 Premium", title: "The Royal Charter (premium) — the Steward: queues, standing orders & auto-banking while you're away" };
 
   const active = (href: string) =>
     href === "/"

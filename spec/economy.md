@@ -103,9 +103,13 @@ weapons pay no tax and cost no upkeep — keeping the economy simple.
   once, they're professionals (implemented).
 - Capped at **25% of your regular army's headcount** — sellswords supplement
   an army, they never become one.
-- Bought with gold from the Black Market at **500 gold each (placeholder)**,
-  scaled by the race's `mercCost` factor and Clan Wonder discounts; die
-  before regular troops in combat.
+- Hired from the Black Market in the same **arms and tiers** as your regulars
+  (footman/archer/cavalry × light/medium/heavy) — and needing the **same
+  buildings** to raise (a heavy-cavalry sellsword needs Knights' Stables 3 +
+  Forge 3). Bought with **gold only**, no peasants: **500 gold each
+  (placeholder)** × tier multiplier (×1 / ×2 / ×4) × the race's `mercCost`
+  factor × Clan Wonder discount. They fight as their type/tier but **die before
+  your matching regulars** in combat.
 
 ## Worked example (50% tax)
 

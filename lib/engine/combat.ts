@@ -35,6 +35,7 @@ import {
   buildingIntegrity,
   civilians,
   level,
+  mercTotal,
   military,
   researchLevel,
   type ArmyState,
@@ -52,7 +53,7 @@ import { rankingScore } from "./score";
 
 // ── Internal battle model ───────────────────────────────────────────────────
 
-type Category = "footman" | "archer" | "cavalry" | "engineer" | "warrior";
+type Category = "footman" | "archer" | "cavalry" | "engineer";
 
 interface Group {
   cat: Category;
@@ -60,15 +61,15 @@ interface Group {
   count: number;
   atk: number; // per unit, all static multipliers applied (no luck)
   def: number;
+  /** Hired sellswords: fight in their type's phase at their tier, but die
+   *  before the matching regulars of their arm (they are the front line). */
+  isMerc: boolean;
 }
 
 interface Side {
   p: Player;
   home: boolean;
-  groups: Group[];
-  mercs: number; // the shield pool — dies before everything
-  mercAtk: number;
-  mercDef: number;
+  groups: Group[]; // regulars and mercs together (merc groups flagged isMerc)
   gear: Record<SiegeGearType, number>; // attacker's committed gear
   engineers: number;
   wallBonus: number; // effective, already × integrity × (1 − escalade)
@@ -132,16 +133,23 @@ function buildSide(p: Player, opts: { home: boolean; walls: boolean; warBonus: b
       ? wallLvl * WALL_BONUS_PER_LEVEL * p.wallIntegrity * RACES[p.race].walls
       : 0;
 
-  const push = (cat: Category, type: TroopType | null, tier: Tier, count: number) => {
+  // Regulars carry the empire's race/veterancy/research bonuses; mercs are
+  // hired professionals — they fight at their type/tier but earn none of your
+  // veterancy or race edge (only the shared stamina modifier applies).
+  const mercMod = STAMINA.MOD_BASE + STAMINA.MOD_PER_POINT * p.army.stamina;
+  const push = (cat: Category, type: TroopType | null, tier: Tier, count: number, isMerc = false) => {
     if (count <= 0) return;
-    const base = type ? UNIT_STATS[type] : cat === "engineer" ? UNIT_STATS.siegeEngineer : UNIT_STATS.warrior;
+    const base = type ? UNIT_STATS[type] : UNIT_STATS.siegeEngineer;
     const power = type ? TIER_POWER[tier] : 1;
+    const atkMult = isMerc ? mercMod : statMults(p, "attack", type ?? undefined);
+    const defMult = isMerc ? mercMod : statMults(p, "defence", type ?? undefined);
     groups.push({
       cat,
       tier,
       count,
-      atk: base.attack * power * statMults(p, "attack", type ?? undefined),
-      def: base.defence * power * statMults(p, "defence", type ?? undefined),
+      atk: base.attack * power * atkMult,
+      def: base.defence * power * defMult,
+      isMerc,
     });
   };
 
@@ -149,22 +157,21 @@ function buildSide(p: Player, opts: { home: boolean; walls: boolean; warBonus: b
     push("footman", "footman", tier, p.army.footmen[tier]);
     push("archer", "archer", tier, p.army.archers[tier]);
     push("cavalry", "cavalry", tier, p.army.cavalry[tier]);
+    // Sellswords — same arms, flagged as the front line (they fall first).
+    push("footman", "footman", tier, p.army.mercenaries.footmen[tier], true);
+    push("archer", "archer", tier, p.army.mercenaries.archers[tier], true);
+    push("cavalry", "cavalry", tier, p.army.mercenaries.cavalry[tier], true);
   }
   push("engineer", null, "light", p.army.siegeEngineers);
-  if (opts.home) push("warrior", null, "light", p.warriors); // warriors defend home
 
-  const staminaMod = STAMINA.MOD_BASE + STAMINA.MOD_PER_POINT * p.army.stamina;
   const side: Side = {
     p,
     home: opts.home,
     groups,
-    mercs: p.army.mercenaries,
-    mercAtk: UNIT_STATS.mercenary.attack * staminaMod,
-    mercDef: UNIT_STATS.mercenary.defence * staminaMod,
     gear: { ...p.army.siegeGear },
     engineers: p.army.siegeEngineers,
     wallBonus, // escalade applied by caller (needs the other side)
-    losses: { footmen: 0, archers: 0, cavalry: 0, engineers: 0, warriors: 0, mercenaries: 0 },
+    losses: { footmen: 0, archers: 0, cavalry: 0, engineers: 0, mercenaries: 0 },
     startStrength: 0,
     warBonus: opts.warBonus ? 2 : 1,
     siegeMult:
@@ -180,16 +187,16 @@ function attackerEscalade(attacker: Player, defender: Player): number {
   const ropesEff = crewed.ropes * (defCounters.has("ropes") ? 1 - COUNTER_REDUCTION : 1);
   const laddersEff = crewed.ladders * (defCounters.has("ladders") ? 1 - COUNTER_REDUCTION : 1);
   const covered = ropesEff * ESCALADE_COVERAGE.ropes + laddersEff * ESCALADE_COVERAGE.ladders;
-  const troops = military(attacker) - attacker.army.siegeEngineers + attacker.army.mercenaries;
+  const troops = military(attacker) - attacker.army.siegeEngineers + mercTotal(attacker.army.mercenaries);
   return troops > 0 ? Math.min(1, covered / troops) : 0;
 }
 
 function strength(s: Side): number {
-  return s.groups.reduce((sum, g) => sum + g.count * g.atk, 0) + s.mercs * s.mercAtk;
+  return s.groups.reduce((sum, g) => sum + g.count * g.atk, 0);
 }
 
 function headcount(s: Side): number {
-  return s.groups.reduce((sum, g) => sum + g.count, 0) + s.mercs;
+  return s.groups.reduce((sum, g) => sum + g.count, 0);
 }
 
 const LOSS_KEY: Record<Category, keyof UnitLosses> = {
@@ -197,52 +204,48 @@ const LOSS_KEY: Record<Category, keyof UnitLosses> = {
   archer: "archers",
   cavalry: "cavalry",
   engineer: "engineers",
-  warrior: "warriors",
 };
 
-/** Kill units in a group, mercs stepping in front first (they die first). */
-function applyKills(side: Side, group: Group, kills: number) {
-  const fromMercs = Math.min(side.mercs, kills);
-  side.mercs -= fromMercs;
-  side.losses.mercenaries += fromMercs;
-  const rest = Math.min(group.count, kills - fromMercs);
-  group.count -= rest;
-  side.losses[LOSS_KEY[group.cat]] += rest;
+/** Kill units in a group; merc groups fall onto the aggregate merc line. */
+function killGroup(side: Side, group: Group, kills: number) {
+  const k = Math.max(0, Math.min(group.count, kills));
+  group.count -= k;
+  side.losses[group.isMerc ? "mercenaries" : LOSS_KEY[group.cat]] += k;
 }
 
-/** Proportional damage across all enemy groups (siege fire, archers). */
+/** Proportional damage across all enemy groups — siege fire, archers. Mercs
+ *  are part of the line and take their proportional share like everyone. */
 function dealProportional(target: Side, damage: number, defBonus: number) {
   const total = headcount(target);
   if (total === 0 || damage <= 0) return;
-  // Merc share — mercs are part of the line and the first to fall anywhere.
-  const mercShare = (target.mercs / total) * damage;
-  const mercKills = Math.floor(mercShare / (K_LETHALITY * target.mercDef * (1 + defBonus)));
-  const killedMercs = Math.min(target.mercs, mercKills);
-  target.mercs -= killedMercs;
-  target.losses.mercenaries += killedMercs;
   for (const g of target.groups) {
     if (g.count === 0) continue;
     const share = (g.count / total) * damage;
     const kills = Math.floor(share / (K_LETHALITY * g.def * (1 + defBonus)));
-    applyKills(target, g, kills);
+    killGroup(target, g, kills);
   }
 }
 
-/** Targeted damage with spill-through (cavalry, footmen charges). */
+const TIERS_ORDER = ["light", "medium", "heavy"] as const;
+
+/** Targeted damage with spill-through (cavalry, footmen charges). Within each
+ *  category the hired sellswords (isMerc) take the blow before the regulars —
+ *  the mercs are the front line and die first. */
 function dealTargeted(target: Side, damage: number, order: Category[], defBonus: number) {
   let dmg = damage;
   for (const cat of order) {
-    for (const tier of ["light", "medium", "heavy"] as const) {
-      const g = target.groups.find((x) => x.cat === cat && x.tier === tier);
-      if (!g || g.count === 0) continue;
-      if (dmg <= 0) return;
-      const perUnit = K_LETHALITY * g.def * (1 + defBonus);
-      const kills = Math.min(g.count + Math.min(target.mercs, 1e9), Math.floor(dmg / perUnit));
-      const before = g.count + target.mercs;
-      applyKills(target, g, kills);
-      const killed = before - (g.count + target.mercs);
-      dmg -= killed * perUnit;
-      if (g.count > 0) return; // group held — no spill
+    // mercs of this arm first (all tiers), then the regulars of this arm.
+    for (const isMerc of [true, false]) {
+      for (const tier of TIERS_ORDER) {
+        const g = target.groups.find((x) => x.cat === cat && x.tier === tier && x.isMerc === isMerc);
+        if (!g || g.count === 0) continue;
+        if (dmg <= 0) return;
+        const perUnit = K_LETHALITY * g.def * (1 + defBonus);
+        const kills = Math.min(g.count, Math.floor(dmg / perUnit));
+        killGroup(target, g, kills);
+        dmg -= kills * perUnit;
+        if (g.count > 0) return; // group held — no spill
+      }
     }
   }
 }
@@ -273,10 +276,10 @@ function sideLossPhrase(who: string, k: { total: number; parts: string }): strin
 function phaseDamage(s: Side, cats: Category[], roundLuck: number): number {
   let dmg = 0;
   for (const g of s.groups) {
+    // Sellswords fight in their own arm's phase (merc archers with the archers,
+    // etc.) — no special footman-phase pooling any more.
     if (cats.includes(g.cat)) dmg += g.count * g.atk;
   }
-  // Mercs fight as medium footmen in the footman phase.
-  if (cats.includes("footman")) dmg += s.mercs * s.mercAtk;
   return dmg * roundLuck * s.warBonus;
 }
 
@@ -428,7 +431,7 @@ export function resolveBattle(
     const dCav = phaseDamage(def, ["cavalry"], dLuck);
     const preCavDef = lossSnapshot(def);
     const preCavAtk = lossSnapshot(atk);
-    dealTargeted(def, aCav, ["cavalry", "footman", "warrior", "engineer", "archer"], def.wallBonus);
+    dealTargeted(def, aCav, ["cavalry", "footman", "engineer", "archer"], def.wallBonus);
     dealTargeted(atk, dCav, ["cavalry", "footman", "engineer", "archer"], 0);
     const cavDef = killsSince(def, preCavDef);
     const cavAtk = killsSince(atk, preCavAtk);
@@ -438,12 +441,12 @@ export function resolveBattle(
       );
     }
 
-    // Phase 4 — footmen charge (warriors and mercs fight here), targeted.
+    // Phase 4 — footmen charge (merc footmen fight here too), targeted.
     const aFoot = phaseDamage(atk, ["footman"], aLuck);
-    const dFoot = phaseDamage(def, ["footman", "warrior"], dLuck);
+    const dFoot = phaseDamage(def, ["footman"], dLuck);
     const preFootDef = lossSnapshot(def);
     const preFootAtk = lossSnapshot(atk);
-    dealTargeted(def, aFoot, ["footman", "warrior", "archer", "cavalry", "engineer"], def.wallBonus);
+    dealTargeted(def, aFoot, ["footman", "archer", "cavalry", "engineer"], def.wallBonus);
     dealTargeted(atk, dFoot, ["footman", "archer", "cavalry", "engineer"], 0);
     const footDef = killsSince(def, preFootDef);
     const footAtk = killsSince(atk, preFootAtk);
@@ -693,7 +696,7 @@ export function resolveBombard(
       (trebsLost ? `; ${trebsLost} trebuchets lost to the Counter-Engine.` : "."),
   );
 
-  const empty: UnitLosses = { footmen: 0, archers: 0, cavalry: 0, engineers: 0, warriors: 0, mercenaries: 0 };
+  const empty: UnitLosses = { footmen: 0, archers: 0, cavalry: 0, engineers: 0, mercenaries: 0 };
   const report: BattleReport = {
     id: opts.battleId,
     tick: opts.tick,
@@ -836,28 +839,28 @@ function regularsOf(p: Player): number {
 }
 
 function totalRegularLosses(l: UnitLosses): number {
-  return l.footmen + l.archers + l.cavalry + l.engineers + l.warriors;
+  return l.footmen + l.archers + l.cavalry + l.engineers;
 }
 
 function clampXp(x: number): number {
   return Math.max(0, Math.min(XP.MAX, x));
 }
 
+const CORPS_OF: Record<"footman" | "archer" | "cavalry", "footmen" | "archers" | "cavalry"> = {
+  footman: "footmen",
+  archer: "archers",
+  cavalry: "cavalry",
+};
+
 function applyLossesToPlayer(p: Player, s: Side) {
   for (const g of s.groups) {
-    const orig =
-      g.cat === "footman"
-        ? p.army.footmen
-        : g.cat === "archer"
-          ? p.army.archers
-          : g.cat === "cavalry"
-            ? p.army.cavalry
-            : null;
-    if (orig) orig[g.tier] = g.count;
-    else if (g.cat === "engineer") p.army.siegeEngineers = g.count;
-    else if (g.cat === "warrior") p.warriors = g.count;
+    if (g.cat === "engineer") {
+      p.army.siegeEngineers = g.count;
+      continue;
+    }
+    const store = g.isMerc ? p.army.mercenaries : p.army;
+    store[CORPS_OF[g.cat]][g.tier] = g.count;
   }
-  p.army.mercenaries = s.mercs;
 }
 
 // ── Attack validation (spec/combat.md rules; pure — caller supplies context) ─

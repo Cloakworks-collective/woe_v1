@@ -134,21 +134,11 @@ export default async function SiegePage({
                 <span className="corps-stat-label">Idle</span>
               </div>
             </div>
-            <CmdForm name="trainEngineers" path={path}>
-              <span style={{ fontSize: 13.5, color: "var(--ink-soft)", marginRight: 4 }}>
-                {TRAINING_COSTS.siegeEngineer.gold}
-                <ResIcon kind="gold" size={13} /> each · needs a Muster Hall slot
-              </span>
-              <input name="count" placeholder="#" size={4} aria-label="Engineers to train" style={{ padding: 3 }} />
-              <button className="btn" disabled={foundry < 1}>
-                Train
-              </button>
-            </CmdForm>
-            {foundry < 1 && (
-              <p style={{ fontSize: 13.5, color: "var(--warn)", marginTop: 4 }}>
-                Found the War Foundry first (Buildings → Military).
-              </p>
-            )}
+            <p style={{ fontSize: 13.5, color: "var(--ink-soft)", margin: 0 }}>
+              Engineers are recruited in <a href="/troops">The Army</a>, alongside your footmen,
+              archers, and cavalry ({TRAINING_COSTS.siegeEngineer.gold}
+              <ResIcon kind="gold" size={13} /> each). Here they take up the engines below.
+            </p>
           </div>
         </div>
       </Panel>

@@ -14,7 +14,7 @@ const SECTIONS: { head: string; sub: string; items: Item[] }[] = [
     sub: "economy",
     items: [
       { href: "/buildings", label: "🏗️ Buildings", desc: "Construct & upgrade; repair bombard damage" },
-      { href: "/train", label: "👥 Workers & Levy", desc: "Assign peasants to jobs; train spies, scouts, warriors" },
+      { href: "/train", label: "👥 Workers & Levy", desc: "Assign peasants to jobs; train spies & scouts" },
       { href: "/research", label: "📚 Research", desc: "The Collegium — 10 fields of technology" },
       { href: "/market", label: "⚖️ Market", desc: "The Grand Bazaar — buy & sell resources" },
     ],
@@ -23,7 +23,7 @@ const SECTIONS: { head: string; sub: string; items: Item[] }[] = [
     head: "The War",
     sub: "military",
     items: [
-      { href: "/troops", label: "⚔️ The Army", desc: "Equip warriors into footmen/archers/cavalry; hire mercs" },
+      { href: "/troops", label: "⚔️ The Army", desc: "Raise footmen/archers/cavalry; hire mercenaries" },
       { href: "/siege", label: "🏹 Siege Works", desc: "Build engines & see your defensive counters" },
     ],
   },

@@ -46,11 +46,14 @@ Build: `build {id}` · `repairWalls` · `repairBuilding {id}` (restores a
 bombarded building's integrity). Building ids + their `integrity` are in
 `/api/state` buildings.
 
-Military: `trainWarriors {count}` · `trainSpies/trainScouts/trainEngineers
-{count}` · `equipTroops {type: footman|archer|cavalry, tier: light|medium|
-heavy, count}` · `disbandTroops {type, tier, count}` · `dischargeWarriors
-{count}` · `buyMercs {count}` · `buySiegeGear {type: ropes|ladders|rams|
-ballistae|trebuchets, count}`
+Military: `trainTroops {type: footman|archer|cavalry, tier: light|medium|
+heavy, count}` trains peasants straight into the unit (no warrior step; tier N
+needs trainer N + Forge N + a free Muster Hall slot) · `dischargeTroops {type,
+tier, count}` sends them home (gear lost; needs a free Hearthstead bed) ·
+`trainSpies/trainScouts/trainEngineers {count}` · `buyMercs {type, tier,
+count}` hires typed/tiered sellswords (same buildings as regulars; gold only;
+die first; ≤25% of the regular army) · `buySiegeGear {type: ropes|ladders|
+rams|ballistae|trebuchets, count}`
 
 War: `attack {targetId, mode: raid|siege|revenge|bombard}` (response carries
 `battleId`) · `spy {targetId, op, spies}` (ops: survey_coffers, map_defences,
@@ -66,8 +69,8 @@ price}` · `marketCancel {orderId}`
 Steward (premium only): `queueBuild {id}` · `queueBuildCancel {index}` ·
 `queueResearch {field}` · `queueResearchCancel {index}` · `orderAdd
 {whenKind: building|research|gold|resource, whenBuilding?, whenField?,
-whenResource?, whenLevel?, whenAmount?, thenKind: trainWarriors|trainSpies|
-trainScouts|trainEngineers|equip|build|setTax, thenCount?, thenType?,
+whenResource?, whenLevel?, whenAmount?, thenKind: trainTroops|trainSpies|
+trainScouts|trainEngineers|build|setTax, thenCount?, thenType?,
 thenTier?, thenBuilding?, thenRate?}` · `orderRemove {orderId}`
 
 Errors come back as `{ok:false, message}` (HTTP 400) — relay the message,

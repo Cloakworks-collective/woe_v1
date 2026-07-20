@@ -66,7 +66,7 @@ describe("clan-bombardment revenge authorization", () => {
     const defender = newEmpire({ id: "D", name: "D", race: "human" });
     defender.surrendered = true;
     defender.buildings.walls = 10;
-    defender.warriors = 100000; // dwarfs the attacker's score
+    defender.army.footmen.heavy = 100000; // dwarfs the attacker's score
 
     const blocked = validateAttack(attacker, defender, "revenge", base);
     expect(blocked).toMatch(/no revenge window/i);

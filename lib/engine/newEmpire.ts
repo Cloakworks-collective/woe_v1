@@ -2,7 +2,7 @@
 
 import { ACTION_TURNS, DEFAULT_TAX_RATE, NEWCOMER_SHIELD_HOURS, TICKS_PER_HOUR } from "../constants";
 import type { Race } from "../constants/races";
-import type { Player } from "./types";
+import { emptyMercForce, type Player } from "./types";
 
 export function newEmpire(opts: {
   id: string;
@@ -28,7 +28,6 @@ export function newEmpire(opts: {
       merchants: 0,
       researchers: 0,
     },
-    warriors: 0,
     army: {
       footmen: { light: 20, medium: 0, heavy: 0 },
       archers: { light: 0, medium: 0, heavy: 0 },
@@ -37,7 +36,7 @@ export function newEmpire(opts: {
       siegeGear: { ropes: 0, ladders: 0, rams: 0, ballistae: 0, trebuchets: 0 },
       spies: 0,
       scouts: 0,
-      mercenaries: 0,
+      mercenaries: emptyMercForce(),
       stamina: 100,
       experience: 0,
     },

@@ -23,8 +23,8 @@ There are 6 playable races, each with distinct bonuses and penalties:
 ## Core Loop
 
 1. **Recruit** — Receive peasants daily (base 1/day, up to 100/day via civilian buildings; damaged walls cut growth up to 50% — see `buildings.md`).
-2. **Train** — Assign peasants as workers (gold + resources per turn) or military (warriors, engineers, spies, scouts).
-3. **Equip** — Arm warriors with weapons and armour to create footmen, archers, or cavalry at various strength levels.
+2. **Train** — Assign peasants as workers (gold + resources per turn) or raise them **directly** into soldiers — footmen, archers, or cavalry at light/medium/heavy tiers — plus engineers, spies, and scouts. There is no separate "warrior" step; the tier you can field is gated by your trainer and Forge levels.
+3. **Reinforce** — Tier up (each tier needs its trainer *and* the Forge at that level) and hire **mercenaries** — sellswords in the same arms and tiers, bought for gold to bolster the host quickly.
 4. **Build** — Construct defences, peasant buildings, and military/specialty buildings to unlock capabilities.
 5. **Attack** — Launch raids, sieges, revenge attacks, or bombardments against other players (10 action turns each).
 6. **Manage** — Monitor stamina, food, experience, and use advisors to guide strategy.
@@ -47,7 +47,7 @@ There are 6 playable races, each with distinct bonuses and penalties:
 - **Siege Engineers** — Operate siege weapons; target walls and all troops proportionally. Fire first in battle.
 - **Spies** — Espionage: intel, sabotage, arson, unrest (op list by Tradecraft research, `espionage.md`). More spies sent = more damage but higher catch risk; caught spies are executed (population loss).
 - **Scouts** — Reconnaissance on opponents + counter-espionage at home: Ranger's Lodge level determines what level of enemy spies they can catch.
-- **Mercenaries** — Purchased from the Black Market; die before regular troops. Require per-turn gold upkeep or they defect; capped at 25% of regular army size.
+- **Mercenaries** — Hired from the Black Market in the same arms and tiers as your regulars (heavy cavalry needs Knights' Stables 3 + Forge 3, just like the real thing), for gold alone — no peasants spent. They fight as their type/tier but **die before your matching regulars** (the front line of their arm). Require per-turn gold upkeep or they defect; capped at 25% of regular army size; count zero toward ranking.
 
 ### Combat Phases (in order, per round; full math in `combat.md`)
 1. Siege weapons fire (proportional damage to all troops; rams/trebuchets grind wall integrity; defender's War Foundry counters reduce paired weapons by 75%)
@@ -139,7 +139,7 @@ Ranking measures the visible empire: population, troops, walls, buildings, treas
 
 A one-time Stripe purchase ($4.99, tunable) that hires **the Steward**:
 build queues, research queues, and standing orders ("once the Drill Yard is
-built, train 1,000 warriors"), executed automatically each tick. Fairness
+built, train 1,000 light footmen"), executed automatically each tick. Fairness
 pillar: **the Charter buys attention, never power** — every Steward action
 is an ordinary instant command at ordinary cost; no stat or resource
 advantage, ever.

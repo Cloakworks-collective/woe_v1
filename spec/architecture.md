@@ -69,16 +69,15 @@ recency). The ladder is the world; the XP bands (`combat.md`) make your
 Peasant lifecycle:
   [New Recruit] → [Idle Peasant]
                       │
-          ┌───────────┼───────────────┬──────────────┐
-          ▼           ▼               ▼              ▼
-      [Worker]    [Warrior]    [Spy/Scout]    [Siege Engineer]
+          ┌───────────┼──────────────────┬──────────────┐
+          ▼           ▼                  ▼              ▼
+      [Worker]  [Footman/Archer/Cavalry] [Spy/Scout] [Siege Engineer]
+          │      (trained directly at a  │
+          │       tier; trainer & Forge  │
+          │       level = tier)          │
           │           │
-          │     ┌─────┼──────┐
-          │     ▼     ▼      ▼
-          │  [Footman][Archer][Cavalry]   ← equipped with weapons/armour
-          │     │
-          │     ▼
-          │  [Disband] → back to [Warrior] (lose equipment cost)
+          │     [Discharge] → back to [Idle Peasant] (lose equipment,
+          │                            needs a free bed, stay ≥30% guard)
           │
     ┌─────┼──────┬────────┐
     ▼     ▼      ▼        ▼
@@ -145,13 +144,18 @@ frail: defence −5).
 
 ### Troop & Equipment System
 
-Warriors are peasants trained for combat. They must then be **equipped** with weapons and armour (costing gold + resources) to become a specific unit type.
+Peasants are trained **directly** into a specific unit type at a chosen tier
+(costing gold + resources, mostly ore) — there is no intermediate "warrior"
+step. Tier N requires the trainer *and* the Forge at level N, plus a free Muster
+Hall bed. Mercenaries are hired the same way (same building gates), for gold.
 
 **Equipment tiers** unlock via military building upgrades:
 - Light → Medium → Heavy (progressively stronger, more expensive)
 - "One heavy troop ≈ three light troops" in combat effectiveness.
 
-**Disband:** strips equipment (resources lost), returns the warrior for re-equipping.
+**Discharge:** returns a trained soldier straight to the idle-peasant pool
+(equipment lost); needs a free Hearthstead bed and must keep the guard above the
+30% scatter line.
 
 ```ts
 interface TroopUnit {
@@ -418,8 +422,8 @@ interface Player {
     merchants: number      // capped by Market Square level × 20
     researchers: number    // capped by Collegium level × 20
   }
-  warriors: number          // trained but unequipped
-  army: ArmyState
+  army: ArmyState           // troops trained directly by type/tier; mercenaries
+                            // are a parallel typed force (ArmyState.mercenaries)
 
   // Economy
   gold: number
@@ -532,9 +536,8 @@ Every read runs due wall-clock ticks first, like every page and command.
 |----------------------|----------------------------------------------|
 | `cmd:setTax`         | Set tax rate (0–100%)                        |
 | `cmd:trainWorker`    | Train peasant as a worker type               |
-| `cmd:trainWarrior`   | Train peasant as warrior                     |
-| `cmd:equipTroop`     | Equip warrior as footman/archer/cavalry      |
-| `cmd:disbandTroop`   | Strip equipment, return to warrior           |
+| `cmd:trainTroops`    | Train peasants directly as footman/archer/cavalry at a tier |
+| `cmd:dischargeTroops`| Return trained troops to the idle-peasant pool (gear lost)  |
 | `cmd:restTroops`     | Spend turns + food to restore stamina        |
 | `cmd:build`          | Start or upgrade a building                  |
 | `cmd:research`       | Set the active research project (field)      |
@@ -544,7 +547,7 @@ Every read runs due wall-clock ticks first, like every page and command.
 | `cmd:scout`          | Scout recon against target — 2 action turns  |
 | `cmd:trade`          | Post or accept marketplace trade             |
 | `cmd:bankDeposit`    | Deposit gold in bank                         |
-| `cmd:buyMercenary`   | Purchase mercenaries from black market       |
+| `cmd:buyMercs`       | Hire mercenaries (type + tier) from the black market |
 | `cmd:clanDeposit`    | Deposit gold/resources into clan storage     |
 | `cmd:clanWithdraw`   | Withdraw from clan storage (≤ 3× lifetime deposits) |
 | `cmd:clanManage`     | Leadership: build, appoint, invite/kick, declare war, set diplomacy |
@@ -603,7 +606,7 @@ CSS (no UI framework) — the retro look *is* the design system.
 
 - **Home / Command View** — Empire overview, historical stats, advisor panel.
 - **Train** — Assign peasants to worker classes or military roles.
-- **Troops** — Equip warriors, manage army composition, disband, rest.
+- **Troops** — Train footmen/archers/cavalry directly by tier, discharge, hire mercenaries, rest.
 - **Rankings** — Browsable ladder with search/filters; the primary target-discovery surface (no world map).
 - **Attack** — Select target, choose mode and turns, view battle results.
 - **Buildings** — Construct and upgrade defences, peasant, and military buildings.

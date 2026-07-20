@@ -7,7 +7,6 @@ const noLoss: UnitLosses = {
   archers: 0,
   cavalry: 0,
   engineers: 0,
-  warriors: 0,
   mercenaries: 0,
 };
 

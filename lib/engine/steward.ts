@@ -8,12 +8,11 @@ import type { BuildingId } from "../constants/buildings";
 import type { ResearchField } from "../constants/research";
 import {
   build,
-  equipTroops,
   setTax,
   trainScouts,
   trainSiegeEngineers,
   trainSpies,
-  trainWarriors,
+  trainTroops,
 } from "./commands";
 import {
   EngineError,
@@ -137,11 +136,10 @@ function validateCondition(c: OrderCondition): void {
 function validateAction(a: OrderAction): void {
   const bad = (m: string) => new EngineError("action", m);
   switch (a.kind) {
-    case "trainWarriors":
+    case "trainTroops":
     case "trainSpies":
     case "trainScouts":
     case "trainEngineers":
-    case "equip":
       if (!Number.isInteger(a.count) || a.count < 1) throw bad("Invalid count");
       a.remaining = a.count;
       return;
@@ -171,7 +169,6 @@ export function conditionMet(p: Player, c: OrderCondition): boolean {
 type CountedTrainer = (p: Player, n: number) => EngineResult;
 
 const TRAINERS: Record<string, CountedTrainer> = {
-  trainWarriors: (p, n) => trainWarriors(p, n),
   trainSpies: (p, n) => trainSpies(p, n),
   trainScouts: (p, n) => trainScouts(p, n),
   trainEngineers: (p, n) => trainSiegeEngineers(p, n),
@@ -265,12 +262,12 @@ export function processSteward(input: Player): EngineResult {
       p = setTax(p, a.rate).player;
       say(`standing order done — tax set to ${Math.round(a.rate * 100)}%.`);
       fulfilled.push(order.id);
-    } else if (a.kind === "equip") {
-      const r = trainPartial(p, (pl, n) => equipTroops(pl, a.type as TroopType, a.tier as Tier, n), a.remaining);
+    } else if (a.kind === "trainTroops") {
+      const r = trainPartial(p, (pl, n) => trainTroops(pl, a.type as TroopType, a.tier as Tier, n), a.remaining);
       if (r.done > 0) {
         p = r.player;
         a.remaining -= r.done;
-        say(`equipped ${r.done} ${a.tier} ${a.type}${a.remaining > 0 ? ` (${a.remaining} of ${a.count} still to arm)` : ` — order of ${a.count} complete`}.`);
+        say(`trained ${r.done} ${a.tier} ${a.type}${a.remaining > 0 ? ` (${a.remaining} of ${a.count} still to raise)` : ` — order of ${a.count} complete`}.`);
         if (a.remaining <= 0) fulfilled.push(order.id);
       }
     } else {

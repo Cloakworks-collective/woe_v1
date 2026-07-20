@@ -122,11 +122,11 @@ export const CHARGES: Charge[] = [
   },
   {
     id: "muster",
-    title: "Train your first warriors",
+    title: "Raise your first soldiers",
     why: (p) =>
-      `Go to the Muster (on the Workers page) and train a few warriors beyond your ${military(p)} — unguarded peasants scatter at dawn.`,
-    href: "/train",
-    cta: "To the Muster →",
+      `Go to The Army and train a few light footmen beyond your ${military(p)} — peasants become soldiers straight away now, and unguarded peasants scatter at dawn.`,
+    href: "/troops",
+    cta: "To The Army →",
     reward: { gold: 800 },
     done: (p) => military(p) > 20,
   },

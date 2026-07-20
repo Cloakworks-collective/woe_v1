@@ -24,14 +24,14 @@ export const STAMINA = {
   MERCY_FLOOR: 25,
 };
 
-/** Unit base stats (light tier): attack / defence. */
+/** Unit base stats (light tier): attack / defence. Mercenaries now fight as
+ *  their hired type/tier (a heavy-cavalry sellsword charges as heavy cavalry),
+ *  so there is no separate mercenary stat — see combat.ts. */
 export const UNIT_STATS = {
   footman: { attack: 10, defence: 10 },
   archer: { attack: 12, defence: 6 },
   cavalry: { attack: 15, defence: 8 },
-  warrior: { attack: 3, defence: 3 }, // unequipped
   siegeEngineer: { attack: 0, defence: 5 }, // crew only
-  mercenary: { attack: 18, defence: 18 }, // fixed, medium-footman equivalent
 };
 
 /** Combat power per tier (heavy ≈ 3 lights; costs ×1/×2/×4). */

@@ -67,7 +67,7 @@ const STEPS: Step[] = [
     path: "/train",
     sel: ".card-grid",
     title: "The Assignment Hall",
-    text: "Assign idle peasants to a trade — or recall them with a click. Below, muster peasants into warriors, spies, and scouts.",
+    text: "Assign idle peasants to a trade — or recall them with a click. Below, muster spies and scouts; footmen, archers, and cavalry are raised in The Army.",
   },
   {
     path: "/research",

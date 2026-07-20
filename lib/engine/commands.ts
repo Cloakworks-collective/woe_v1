@@ -28,6 +28,7 @@ import {
   bankedRes,
   civilians,
   level,
+  mercTotal,
   military,
   totalPopulation,
   type EngineResult,
@@ -118,24 +119,9 @@ export function assignWorkers(input: Player, role: WorkerRole, count: number): E
   return { player: p, events: [] };
 }
 
-export function trainWarriors(input: Player, count: number): EngineResult {
-  const p = structuredClone(input);
-  if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
-  if (p.idlePeasants < count) throw new EngineError("peasants", "Not enough idle peasants");
-  if (musterVacancy(p) < count) {
-    throw new EngineError("muster", "No free Muster Hall slots — build barracks first");
-  }
-  pay(p, scale(TRAINING_COSTS.warrior, count));
-  p.idlePeasants -= count;
-  p.warriors += count;
-  return { player: p, events: [] };
-}
-
-/** Equip warriors as footmen/archers/cavalry. Tier N needs trainer N AND Forge N. */
-export function equipTroops(input: Player, type: TroopType, tier: Tier, count: number): EngineResult {
-  const p = structuredClone(input);
-  if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
-  if (p.warriors < count) throw new EngineError("warriors", "Not enough warriors");
+/** Assert the trainer + Forge levels a tier requires (shared by regulars and
+ *  the sellswords hired at the Black Market). Tier N needs trainer N AND Forge N. */
+function requireTierBuildings(p: Player, type: TroopType, tier: Tier): void {
   const need = TIER_INDEX[tier];
   if (level(p, TRAINER[type]) < need) {
     throw new EngineError("trainer", `${TRAINER[type]} level ${need} required`);
@@ -143,27 +129,31 @@ export function equipTroops(input: Player, type: TroopType, tier: Tier, count: n
   if (level(p, "forge") < need) {
     throw new EngineError("forge", `The Forge level ${need} required`);
   }
+}
+
+/** Train idle peasants straight into footmen/archers/cavalry at a tier — no
+ *  intermediate warrior step. Tier N needs trainer N AND Forge N, a free Muster
+ *  Hall slot per troop, and the gold/ore to arm them. Instant. */
+export function trainTroops(input: Player, type: TroopType, tier: Tier, count: number): EngineResult {
+  const p = structuredClone(input);
+  if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
+  if (p.idlePeasants < count) throw new EngineError("peasants", "Not enough idle peasants");
+  if (musterVacancy(p) < count) {
+    throw new EngineError("muster", "No free Muster Hall slots — build barracks first");
+  }
+  requireTierBuildings(p, type, tier);
   pay(p, scale(TRAINING_COSTS[type], count * TIER_COST_MULT[tier]));
-  p.warriors -= count;
+  p.idlePeasants -= count;
   p.army[ARMY_KEY[type]][tier] += count;
   return { player: p, events: [] };
 }
 
-/** Strip equipment (lost), return warriors. */
-export function disbandTroops(input: Player, type: TroopType, tier: Tier, count: number): EngineResult {
-  const p = structuredClone(input);
-  if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
-  if (p.army[ARMY_KEY[type]][tier] < count) throw new EngineError("troops", "Not that many troops");
-  p.army[ARMY_KEY[type]][tier] -= count;
-  p.warriors += count;
-  return { player: p, events: [] };
-}
-
-/** The most warriors that can be discharged without dropping the guard below the
- *  30% scatter line (empires under the exempt-population floor have no limit). */
+/** The most troops that can be discharged without dropping the guard below the
+ *  30% scatter line (empires under the exempt-population floor have no limit),
+ *  also capped by vacant Hearthstead space. */
 export function safeDischargeCount(p: Player): number {
   const vacant = level(p, "hearthstead") * HOUSING_PER_HEARTHSTEAD - civilians(p);
-  let cap = Math.min(p.warriors, Math.max(0, vacant));
+  let cap = Math.min(military(p), Math.max(0, vacant));
   if (totalPopulation(p) >= SCATTERING.EXEMPT_BELOW_POPULATION) {
     // Keep mil − x ≥ ratio·(civ + x)  ⇒  x ≤ (mil − ratio·civ) / (1 + ratio).
     const r = SCATTERING.TROOP_RATIO;
@@ -173,12 +163,13 @@ export function safeDischargeCount(p: Player): number {
   return cap;
 }
 
-/** Return warriors to civilian life — needs vacant Hearthstead space, and may
- *  not drop the guard below the 30% line (or the realm scatters at dawn). */
-export function dischargeWarriors(input: Player, count: number): EngineResult {
+/** Discharge equipped troops straight back to civilian life (their gear is
+ *  lost). Needs vacant Hearthstead space, and may not drop the guard below the
+ *  30% line (or the realm scatters at dawn). */
+export function dischargeTroops(input: Player, type: TroopType, tier: Tier, count: number): EngineResult {
   const p = structuredClone(input);
   if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
-  if (p.warriors < count) throw new EngineError("warriors", "Not enough warriors");
+  if (p.army[ARMY_KEY[type]][tier] < count) throw new EngineError("troops", "Not that many troops");
   const vacant = level(p, "hearthstead") * HOUSING_PER_HEARTHSTEAD - civilians(p);
   if (vacant < count) throw new EngineError("housing", "No vacant Hearthstead space");
   if (
@@ -190,7 +181,7 @@ export function dischargeWarriors(input: Player, count: number): EngineResult {
       `That would drop your guard below the 30% line — at most ${safeDischargeCount(p)} can be discharged safely.`,
     );
   }
-  p.warriors -= count;
+  p.army[ARMY_KEY[type]][tier] -= count;
   p.idlePeasants += count;
   return { player: p, events: [] };
 }
@@ -310,20 +301,34 @@ export function bankResource(input: Player, r: Resource, amount: number): Engine
 }
 
 /**
- * Buy mercenaries: 500g each × race factor × (1 − Clan Wonder discount);
- * capped at 25% of the regular army.
+ * Hire mercenaries of a given type and tier straight from the Black Market —
+ * footmen/archers/cavalry at light/medium/heavy, no peasants spent. Sellswords
+ * still need the matching buildings (heavy cavalry needs Knights' Stables 3 +
+ * Forge 3) — they skip the training, not the tech. Gold only, scaled by tier:
+ * MERC_PRICE_GOLD × race factor × tier multiplier × (1 − Clan Wonder discount).
+ * Capped at 25% of the regular army headcount.
  */
-export function buyMercenaries(input: Player, count: number, wonderDiscount = 0): EngineResult {
+export function hireMercenaries(
+  input: Player,
+  type: TroopType,
+  tier: Tier,
+  count: number,
+  wonderDiscount = 0,
+): EngineResult {
   const p = structuredClone(input);
   if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
+  requireTierBuildings(p, type, tier);
   const cap = Math.floor(MERC_CAP_RATIO * military(p));
-  if (p.army.mercenaries + count > cap) {
+  if (mercTotal(p.army.mercenaries) + count > cap) {
     throw new EngineError("merc_cap", "Mercenaries capped at 25% of your regular army");
   }
-  const price = Math.round(MERC_PRICE_GOLD * RACES[p.race].mercCost * (1 - wonderDiscount)) * count;
+  const price =
+    Math.round(
+      MERC_PRICE_GOLD * RACES[p.race].mercCost * TIER_COST_MULT[tier] * (1 - wonderDiscount),
+    ) * count;
   if (p.gold < price) throw new EngineError("gold", "Not enough gold");
   p.gold -= price;
-  p.army.mercenaries += count;
+  p.army.mercenaries[ARMY_KEY[type]][tier] += count;
   return { player: p, events: [] };
 }
 

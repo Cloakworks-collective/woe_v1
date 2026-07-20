@@ -40,7 +40,6 @@ export function BattleReportPanel({ report }: { report: BattleReport }) {
                 ["Archers", "archers"],
                 ["Cavalry", "cavalry"],
                 ["Engineers", "engineers"],
-                ["Warriors", "warriors"],
                 ["Mercenaries", "mercenaries"],
               ] as const
             ).map(([label, key]) => (

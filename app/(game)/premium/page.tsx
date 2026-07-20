@@ -70,7 +70,7 @@ export default async function PremiumPage({
           </li>
           <li>
             <b>Standing orders</b> — intelligent commands: <i>“once the Drill Yard is built, train
-            1,000 warriors”</i>, <i>“when gold reaches 50,000, raise the walls”</i>. The Steward
+            1,000 light footmen”</i>, <i>“when gold reaches 50,000, raise the walls”</i>. The Steward
             executes them the moment conditions are met, paying as resources allow.
           </li>
           <li>

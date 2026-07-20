@@ -49,12 +49,12 @@ export function newEraRecords(): EraRecords {
 }
 
 export function totalLosses(l: UnitLosses): number {
-  return l.footmen + l.archers + l.cavalry + l.engineers + l.warriors + l.mercenaries;
+  return l.footmen + l.archers + l.cavalry + l.engineers + l.mercenaries;
 }
 
 /** Regular troops only — mercenaries don't count toward war kills (see combat). */
 export function regularLosses(l: UnitLosses): number {
-  return l.footmen + l.archers + l.cavalry + l.engineers + l.warriors;
+  return l.footmen + l.archers + l.cavalry + l.engineers;
 }
 
 /** A short banner code derived from a clan name (live clans have no explicit tag). */

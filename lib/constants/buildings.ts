@@ -142,11 +142,15 @@ export const SETTLEMENT_TITLES = [
 
 // Ore is the war-metal: buildings need none, so every scrap of it goes into
 // blades, arrowheads, and barding. Troop ore costs are correspondingly steep.
+//
+// Peasants are trained straight into footmen/archers/cavalry — there is no
+// intermediate "warrior" step. The old 50-gold muster levy is folded into each
+// troop's gold cost (light footman = 50 levy + 100 kit = 150g). Costs are the
+// per-light figure; medium ×2, heavy ×4 (TIER_COST_MULT).
 export const TRAINING_COSTS = {
-  warrior: { gold: 50, wood: 0, stone: 0, ore: 0 },
-  footman: { gold: 100, wood: 20, stone: 0, ore: 90 }, // sword, shield, mail
-  archer: { gold: 100, wood: 40, stone: 0, ore: 55 }, // arrowheads + bow
-  cavalry: { gold: 300, wood: 20, stone: 0, ore: 130 }, // barding, lance, blade
+  footman: { gold: 150, wood: 20, stone: 0, ore: 90 }, // muster + sword, shield, mail
+  archer: { gold: 150, wood: 40, stone: 0, ore: 55 }, // muster + arrowheads + bow
+  cavalry: { gold: 350, wood: 20, stone: 0, ore: 130 }, // muster + barding, lance, blade
   siegeEngineer: { gold: 200, wood: 0, stone: 0, ore: 0 },
   spy: { gold: 300, wood: 0, stone: 0, ore: 0 },
   scout: { gold: 200, wood: 0, stone: 0, ore: 0 },

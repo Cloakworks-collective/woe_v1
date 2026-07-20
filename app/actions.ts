@@ -19,7 +19,7 @@ import {
 import { emulatedCardOutcome, grantCharter, paymentMode } from "@/lib/server/premium";
 import { runCommand } from "@/lib/server/pipeline";
 import { saveWorld } from "@/lib/server/store";
-import { getWorld, runDueTicks, runOneTick } from "@/lib/server/world";
+import { getWorld, runDueTicks } from "@/lib/server/world";
 
 async function exec(path: string, name: string, args: Record<string, unknown>): Promise<never> {
   const playerId = await currentPlayerId();
@@ -162,18 +162,4 @@ export async function emulatorPurchase(formData: FormData): Promise<void> {
   await grantCharter(playerId);
   revalidatePath("/", "layout");
   redirect(`/premium?ok=${encodeURIComponent("Payment accepted (test mode) — the Royal Charter is sealed!")}`);
-}
-
-// ── Dev time controls (disabled when a CRON_SECRET runs the real clock) ────
-
-const devToolsEnabled = () => !process.env.CRON_SECRET;
-
-export async function devAdvance(formData: FormData): Promise<void> {
-  if (!devToolsEnabled()) redirect("/");
-  const ticks = Math.min(288, Math.max(1, Math.floor(Number(formData.get("ticks") ?? 1))));
-  const world = await getWorld();
-  for (let i = 0; i < ticks; i++) runOneTick(world);
-  await saveWorld(world);
-  revalidatePath("/", "layout");
-  redirect("/");
 }

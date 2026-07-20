@@ -5,8 +5,9 @@ import { it } from "vitest";
 import {
   build,
   assignWorkers,
-  trainWarriors,
+  trainTroops,
   civilians,
+  level,
   military,
   newEmpire,
   processDailyReset,
@@ -59,10 +60,13 @@ it("economy pacing — greedy builder, 60 days", () => {
       p = processTurnTick(p, { currentTick: day * TURNS_PER_DAY + t }).player;
     }
 
-    // Keep the garrison at 35% of civilians (scatter-safe with margin).
+    // The garrison is now trained straight into light footmen — ensure the
+    // Drill Yard and Forge exist first, then keep at 35% of civilians.
+    if (level(p, "drill_yard") < 1) p = attempt(() => build(p, "drill_yard"), p);
+    if (level(p, "forge") < 1) p = attempt(() => build(p, "forge"), p);
     while (military(p) < 0.35 * civilians(p)) {
       const before = p;
-      p = attempt(() => trainWarriors(p, 1), p);
+      p = attempt(() => trainTroops(p, "footman", "light", 1), p);
       if (p === before) {
         p = attempt(() => build(p, "muster_hall"), p);
         if (p === before) break; // can't afford either — wait for income
