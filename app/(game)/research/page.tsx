@@ -101,7 +101,7 @@ export default async function ResearchPage({
       <Panel
         title={`The Collegium — level ${collegium} · ${p.workers.researchers} scholars · +${fmt(rate)} research points / turn`}
       >
-        <p style={{ fontSize: 13.5, marginBottom: 8 }}>
+        <p style={{ fontSize: 14.5, marginBottom: 8 }}>
           Every field grows through five levels, but the <b>Collegium gates how far you can climb</b>{" "}
           — each higher tier of research needs a taller library. Scholars study one field at a time
           (progress is saved when you switch), so you can never master everything. Choose an
@@ -121,7 +121,7 @@ export default async function ResearchPage({
           })}
         </div>
         {rate === 0 && (
-          <p style={{ fontSize: 13.5, color: "var(--warn)", fontWeight: 700, marginTop: 8 }}>
+          <p style={{ fontSize: 14.5, color: "var(--warn)", fontWeight: 700, marginTop: 8 }}>
             No scholars at work — assign researchers on the Workers page (they need Collegium slots).
           </p>
         )}

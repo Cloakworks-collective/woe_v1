@@ -93,7 +93,9 @@ shield-drop-on-attack, spy-block vs protected players.
 - [x] Dual-mode store: Supabase versioned JSONB world doc when env keys
       exist (verified end-to-end), JSON file fallback otherwise
 - [ ] Decompose world doc into the normalized 0001 tables (players/market/
-      battles/clans/messages per row + optimistic per-player versions)
+      battles/clans/messages per row + optimistic per-player versions) —
+      scope refined in §14: logs/reads decompose, the live world stays with
+      the single writer
 - [x] Seed script — `seedWorld()` (8 bots + a clan + opening Bazaar asks)
 
 ### 3. Auth + onboarding — DEV VERSION DONE
@@ -118,7 +120,8 @@ shield-drop-on-attack, spy-block vs protected players.
 - [x] One pipeline (`lib/server/pipeline.ts`): validate → pure engine →
       persist → inbox events; used by BOTH `POST /api/cmd/[name]` (the
       cmd:* protocol) and UI server actions
-- [ ] Optimistic version check — meaningful once SupabaseStore lands
+- [ ] Optimistic version check — see §14.1 (CAS in saveWorld; the version
+      column exists but is never compared today)
 
 ### 6. Realtime events — DEFERRED to Supabase wiring
 - [x] Per-player inbox (Chronicle feed) + battle reports persisted
@@ -216,3 +219,47 @@ shield-drop-on-attack, spy-block vs protected players.
 - [ ] Publish: push repo to GitHub → `/plugin marketplace add <user>/woe`
 - [ ] MCP server at /api/mcp — optional later (skill+curl covers v1)
 - [ ] Decide: is headless/CLI play a Royal Charter perk?
+
+### 14. Scale & concurrency — survive 100s of simultaneous players (analysis 2026-07-19)
+
+Today every command does getWorld (10s per-process cache) → mutate → save the
+ENTIRE world blob. One Node process mostly merges concurrent mutations by
+accident (shared in-memory object), but two commands on the SAME player race
+(second `put` discards the first), and across serverless instances it's
+last-write-wins with no detection — a stale instance's save can silently
+revert a resolved battle (loot reverted, casualties resurrected, report gone).
+The end-of-era attack storm is the guaranteed-failure scenario. Plan, in order:
+
+- [ ] **14.1 CAS now (~1h):** compare-and-swap in `saveWorld` — upsert guarded
+      by `eq("version", loadedVersion)`; on conflict reload + replay + retry.
+      Turns silent world corruption into detectable retries. Does NOT scale
+      (one row = one global write lock) but stops data loss the day two
+      serverless instances exist.
+- [ ] **14.2 Single-writer world service (the real fix):** one always-on
+      process (Fly/Railway) owns the world in memory and serializes ALL
+      commands through a queue — the classic MUD/browser-game model. Engine
+      code unchanged; Next.js routes become thin forwarders. A single Node
+      process serializing in-memory commands handles thousands/sec —
+      hundreds of players is nowhere near the limit. Persistence moves off
+      the request path: snapshot every few seconds + append-only command log
+      for replay. The 10-minute tick stays trivial (world already in RAM).
+- [ ] **14.3 Event-driven crown clocks:** overlord/clan clocks currently
+      accrue by sampling #1 once per 10-min tick — in the endgame the crown
+      can flip 5× inside a tick and only the boundary holder gets credit.
+      Fix without polling: store `crownHolderId` + `crownSinceMs`; whenever a
+      state change reorders the ladder top (every change passes through the
+      single writer), close the previous holder's interval and credit exact
+      elapsed ms. Millisecond-accurate, zero timers. (`crownHolderId` already
+      exists in meta — half-built.)
+- [ ] **14.4 Decompose the durable/read-heavy edges** into the normalized
+      0001 tables: battle_reports as append-only log, ranking_snapshots
+      (engine inserts top-N each tick; rankings page reads one indexed row),
+      messages. The LIVE world stays in the writer's memory — do not re-plumb
+      the engine through row transactions. Rank itself needs no infra: it's a
+      pure function of current state, correct on every read by construction.
+- [ ] **14.5 Live spectator reads:** endgame ladder churn for viewers via
+      short polling of /api/rankings or Supabase Realtime push on crown
+      changes, reading tick snapshots (14.4) — never recomputing per viewer.
+- [ ] Perf guardrails while still on the blob: keep saves off hot read paths,
+      watch blob size as player count grows (every save rewrites everything —
+      write amplification is the quiet killer).

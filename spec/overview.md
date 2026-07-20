@@ -8,16 +8,17 @@ War of Empires is a persistent, turn-based multiplayer strategy game where playe
 
 There are 6 playable races, each with distinct bonuses and penalties:
 
-| Race     | Strengths                                         | Weaknesses                              |
-|----------|---------------------------------------------------|------------------------------------------|
-| Humans   | Okay at everything (the baseline)                 | Bad at nothing                           |
-| Elves    | Best archers, wood production                     | Poor cavalry and siege                   |
-| Orcs     | Best cavalry, strong attack, ore mining           | Poor wood/stone, spying, siege           |
-| Trolls   | Best siege, stone production, strong footmen      | Poor cavalry, archers, wood/ore          |
-| Dwarves  | Strong siege, footmen, ore mining, best defence   | Weak attack, poor food/wood              |
-| Gnolls   | Best spies & scouts, cheap mercenaries, foraging  | Poor siege, defence, archers, builders   |
+| Race     | Strengths                                          | Weaknesses                               |
+|----------|----------------------------------------------------|------------------------------------------|
+| Humans   | +25% all production, best spies, solid troops      | No specialty; average walls and siege    |
+| Elves    | Best archers, wood production                      | Poor stone/ore, frail, weak siege        |
+| Orcs     | Best cavalry, food & ore production                | Poor wood, weak siege, soft walls        |
+| Trolls   | Best siege, stone production, strong footmen       | Poor cavalry, archers, food              |
+| Dwarves  | Best footmen & walls, stone/ore mining             | Very poor wood, poor food, slow cavalry  |
+| Gnolls   | Skirmisher archers, best counter-intel, wood       | Poor stone, frail                        |
 
-(Exact multipliers — all sum-zero balanced — in `architecture.md`.)
+(Exact multipliers — balanced by equal-cost army power, not sum-zero — in
+`architecture.md`; ported from the original 2006 balance workbook.)
 
 ## Core Loop
 

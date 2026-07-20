@@ -9,10 +9,11 @@ function fresh(): Player {
 }
 
 describe("daily reset — recruitment", () => {
-  it("fresh empire gets exactly 1 peasant/day", () => {
+  it("fresh empire gets 4 peasants/day (5 starting storage levels)", () => {
+    // 1 + 99 × (5/130) = 4.8 → floor 4
     const { player, events } = processDailyReset(fresh());
-    expect(player.idlePeasants).toBe(81);
-    expect(events).toContainEqual({ type: "dailyRecruitment", arrived: 1, turnedAway: 0 });
+    expect(player.idlePeasants).toBe(84);
+    expect(events).toContainEqual({ type: "dailyRecruitment", arrived: 4, turnedAway: 0 });
   });
 
   it("all 13 civilian buildings at 10 → 100/day", () => {
@@ -51,13 +52,13 @@ describe("daily reset — scattering", () => {
     const p = fresh();
     p.buildings.hearthstead = 200;
     p.idlePeasants = 500;
-    p.workers.farmers = 499; // civilians = 999 + 1 arrival = 1,000
+    p.workers.farmers = 496; // civilians = 996 + 4 arrivals = 1,000
     p.army.footmen.light = 100; // military 100 < 0.3 × 1,000
     const { player, events } = processDailyReset(p);
     // keep = floor(100 / 0.3) = 333 civilians
     const scattered = events.find((e) => e.type === "scattering");
     expect(scattered).toEqual({ type: "scattering", lost: 667 });
-    expect(player.idlePeasants).toBe(0); // idle bled first (501 incl. arrival)
+    expect(player.idlePeasants).toBe(0); // idle bled first (504 incl. arrivals)
     expect(player.workers.farmers).toBe(333);
   });
 

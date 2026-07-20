@@ -16,7 +16,7 @@ import {
   UNREST,
   catchableOpLevel,
 } from "../constants";
-import { unbankedGold, unstored } from "./combat";
+import { plunderResource, unbankedGold, unstored } from "./combat";
 import { luck, type Rng } from "./rng";
 import {
   EngineError,
@@ -143,7 +143,7 @@ export function runSpyMission(
       const burned: string[] = [];
       for (const r of ["food", "wood", "stone", "ore"] as Resource[]) {
         const amt = Math.floor(unstored(defender, r) * pct);
-        defender.resources[r] -= amt;
+        plunderResource(defender, r, amt);
         if (amt > 0) burned.push(`${amt} ${r}`);
       }
       detail = burned.length

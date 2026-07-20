@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assignWorkers,
   bankGold,
+  bankResource,
   build,
   buyMercenaries,
   disbandTroops,
@@ -145,13 +146,29 @@ describe("economy commands", () => {
   });
 
   it("banking respects Counting House capacity", () => {
-    const p = fresh();
-    expect(() => bankGold(p, 1000)).toThrowError(/full/i); // no Counting House
-    p.buildings.counting_house = 1; // 20k capacity
+    const p = fresh(); // starts with Counting House 1 → 20k capacity
+    p.bankedGold = 19500;
+    expect(() => bankGold(p, 1000)).toThrowError(/full/i); // would breach 20k
+    p.bankedGold = 0;
     const { player } = bankGold(p, 3000);
     expect(player.bankedGold).toBe(3000);
     expect(player.gold).toBe(2000);
     const back = bankGold(player, -3000).player;
     expect(back.gold).toBe(5000);
+  });
+
+  it("vaults and withdraws goods within the store's capacity", () => {
+    const p = fresh(); // granary 1 → 20k food capacity
+    const { player } = bankResource(p, "food", 800);
+    expect(player.resources.food).toBe(200);
+    expect(player.bankedResources!.food).toBe(800);
+    const back = bankResource(player, "food", -300).player;
+    expect(back.resources.food).toBe(500);
+    expect(back.bankedResources!.food).toBe(500);
+    expect(() => bankResource(back, "food", -600)).toThrowError(/vaulted/i);
+    const full = fresh();
+    full.resources.food = 1000;
+    full.bankedResources = { food: 19900, wood: 0, stone: 0, ore: 0 };
+    expect(() => bankResource(full, "food", 200)).toThrowError(/full/i);
   });
 });

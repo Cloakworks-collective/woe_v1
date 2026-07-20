@@ -6,6 +6,7 @@ import {
   ERA_PEACE_DAYS,
   HOLD_CLOCKS,
   POPULATION_FLOORS,
+  SURRENDER_TICKS_PER_ERA,
   TICKS_PER_HOUR,
   TURNS_PER_DAY,
   TURN_MINUTES,
@@ -32,6 +33,51 @@ import { loadWorld, pushChronicle, pushInbox, saveWorld, type ArchivedAge, type 
 
 export const ERA_PEACE_TICKS = ERA_PEACE_DAYS * TURNS_PER_DAY;
 export const REVENGE_WINDOW_TICKS = 18 * TICKS_PER_HOUR;
+
+// ── Presence & public empire numbers (ladder display) ───────────────────────
+
+/** A ruler counts as Online within 15 minutes of their last page/command. */
+export const ONLINE_WINDOW_MS = 15 * 60 * 1000;
+
+export function isOnline(p: Player, now = Date.now()): boolean {
+  return !!p.lastSeenAtMs && now - p.lastSeenAtMs < ONLINE_WINDOW_MS;
+}
+
+/** Does anyone still hold an open revenge against this player? True if some
+ *  empire they attacked can still strike back (personal window), or a clan they
+ *  bombarded holds a live clan-revenge against their banner. Gates surrender. */
+export function revengePendingOn(world: World, playerId: string, tick: number): boolean {
+  for (const q of Object.values(world.players)) {
+    if (q.id === playerId) continue;
+    if (
+      q.recentAttackers.some(
+        (a) =>
+          a.playerId === playerId &&
+          tick - a.tick <= REVENGE_WINDOW_TICKS &&
+          !q.revengeUsed.includes(playerId),
+      )
+    ) {
+      return true;
+    }
+  }
+  const clanId = world.players[playerId]?.clanId;
+  if (clanId) {
+    for (const c of Object.values(world.clans)) {
+      const r = c.pendingRevenge;
+      if (r && r.againstClanId === clanId && tick <= r.expiresAtTick) return true;
+    }
+  }
+  return false;
+}
+
+/** Public empire numbers ("ID" on the ladder): stable ordinals derived from
+ *  founding order (joinedAtTick, then id) — no stored counter needed. */
+export function empireNumbers(world: World): Map<string, number> {
+  const ordered = Object.values(world.players).sort(
+    (a, b) => a.joinedAtTick - b.joinedAtTick || a.id.localeCompare(b.id),
+  );
+  return new Map(ordered.map((p, i) => [p.id, i + 1]));
+}
 
 // ── Seeding ─────────────────────────────────────────────────────────────────
 
@@ -235,6 +281,27 @@ export function runOneTick(world: World): void {
       const s = processSteward(world.players[p.id]);
       world.players[p.id] = s.player;
       for (const e of s.events) pushInbox(world, p.id, e);
+    }
+  }
+
+  // Queued surrenders: raise the flag once every revenge window has closed
+  // (and the era budget still has room). Done after the main pass so this
+  // tick's revenge windows are settled.
+  for (const p of Object.values(world.players)) {
+    if (!p.surrenderQueued || p.surrendered) continue;
+    if ((p.surrenderTicksUsed ?? 0) >= SURRENDER_TICKS_PER_ERA) {
+      p.surrenderQueued = false;
+      pushInbox(world, p.id, {
+        type: "info",
+        detail: "Your queued surrender is void — your surrender days for this age are spent.",
+      });
+    } else if (!revengePendingOn(world, p.id, tick)) {
+      p.surrendered = true;
+      p.surrenderQueued = false;
+      pushInbox(world, p.id, {
+        type: "info",
+        detail: "The last revenge window against you has closed — your queued surrender takes effect.",
+      });
     }
   }
 

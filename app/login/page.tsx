@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { Flash } from "@/components/Flash";
 import { NameField } from "@/components/NameField";
-import { RACE_NAMES } from "@/lib/constants";
-import type { Race } from "@/lib/constants/races";
+import { RACES, RACE_NAMES } from "@/lib/constants";
+import type { Race, RaceModifiers } from "@/lib/constants/races";
 import { createEmpire, enterEmpire, enterWithToken } from "@/app/actions";
 import { currentPlayerId } from "@/lib/server/auth";
 import { getWorld } from "@/lib/server/world";
@@ -13,13 +13,38 @@ export const dynamic = "force-dynamic";
 // held muted so the six read as one banner-hall, not a rainbow. Boon is honest
 // to the race modifiers in lib/constants/races.ts.
 const CHAMPIONS: { race: Race; tone: string; boon: string }[] = [
-  { race: "human", tone: "#8a2d2a", boon: "Even-handed in all things" },
+  { race: "human", tone: "#8a2d2a", boon: "Plenty & spycraft" },
   { race: "elf", tone: "#3f6130", boon: "Archers & the greenwood" },
   { race: "orc", tone: "#9a4a1e", boon: "The cavalry horde" },
   { race: "troll", tone: "#59636e", boon: "Stone & siege engines" },
   { race: "dwarf", tone: "#8a6a2f", boon: "The iron wall" },
   { race: "gnoll", tone: "#a98526", boon: "Jackal spymasters" },
 ];
+
+// The ledger of gifts & burdens — every race modifier as a % against an
+// unmodified 1.0 (lib/constants/races.ts; balanced by equal-cost army power,
+// not sum-zero). For costs, lower is the gift.
+const BONUS_ROWS: { label: string; get: (m: RaceModifiers) => number; goodWhenLow?: boolean }[] = [
+  { label: "Food", get: (m) => m.production.food },
+  { label: "Wood", get: (m) => m.production.wood },
+  { label: "Stone", get: (m) => m.production.stone },
+  { label: "Ore", get: (m) => m.production.ore },
+  { label: "Defence", get: (m) => m.defence },
+  { label: "Walls", get: (m) => m.walls },
+  { label: "Footmen", get: (m) => m.units.footman },
+  { label: "Archers", get: (m) => m.units.archer },
+  { label: "Cavalry", get: (m) => m.units.cavalry },
+  { label: "Siege", get: (m) => m.siege },
+  { label: "Spying", get: (m) => m.spy },
+  { label: "Scouting", get: (m) => m.scout },
+];
+
+function BonusValue({ value, goodWhenLow }: { value: number; goodWhenLow?: boolean }) {
+  const pct = Math.round((value - 1) * 100);
+  if (pct === 0) return <b className="bonus-zero">0%</b>;
+  const good = goodWhenLow ? pct < 0 : pct > 0;
+  return <b className={good ? "bonus-good" : "bonus-bad"}>{pct > 0 ? `+${pct}%` : `${pct}%`}</b>;
+}
 
 export default async function LoginPage({
   searchParams,
@@ -125,6 +150,26 @@ export default async function LoginPage({
             ))}
           </fieldset>
 
+          {/* Gifts & burdens of the chosen people — swaps with the radio via :has(). */}
+          <div className="mst-boons">
+            {CHAMPIONS.map(({ race }) => (
+              <div key={race} className="mst-boonlist" data-race={race}>
+                <h3>Gifts &amp; burdens of the {RACE_NAMES[race]}</h3>
+                {BONUS_ROWS.map(({ label, get, goodWhenLow }) => (
+                  <span key={label} className="bonus-row">
+                    <span>{label}</span>
+                    <BonusValue value={get(RACES[race])} goodWhenLow={goodWhenLow} />
+                  </span>
+                ))}
+                {race === "human" && (
+                  <span className="bonus-row" style={{ gridColumn: "1 / -1", justifyContent: "center" }}>
+                    <i>The generalists — plenty in every field, spies without equal.</i>
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+
           <section className="mst-charter">
             <svg className="mst-seal" viewBox="0 0 64 64" aria-hidden>
               <circle cx="32" cy="32" r="27" fill="#7c1f16" />
@@ -171,7 +216,7 @@ export default async function LoginPage({
             Enter
           </button>
         </form>
-        <p style={{ marginTop: 7, fontSize: 12, color: "#7a5a2e" }}>
+        <p style={{ marginTop: 7, fontSize: 13, color: "#7a5a2e" }}>
           Your realm token appears in the Command View (and via <code>woe token</code> in the
           terminal client) — the same empire in browser and CLI.
         </p>

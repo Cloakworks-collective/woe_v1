@@ -43,7 +43,7 @@ export default function GuidePage() {
   return (
     <>
       <Panel title="📜 The Field Manual — how War of Empires is won">
-        <p style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+        <p style={{ fontSize: 14.5, lineHeight: 1.6 }}>
           Everything you need to rule: what each part of the empire does, how to grow, how to fight,
           and how to win the era. Jump to a chapter, or read it through once — it&apos;s the whole
           game in a few minutes.
@@ -200,8 +200,8 @@ export default function GuidePage() {
       <Guide id="battle" title="🔥 Battle Strategies — attack modes, phases, warfare" illo="units/cavalry">
         <p>
           Every attack costs <b>10 action turns</b> (you earn 2 per game turn, start with 200). Find
-          targets on the <Link href="/rankings">ladder</Link> — there&apos;s no map. Launch from the{" "}
-          <Link href="/attack">war room</Link>.
+          targets on the <Link href="/rankings">ladder</Link> — there&apos;s no map — and launch
+          straight from each empire&apos;s <b>⚔ Act</b> console there.
         </p>
         <h4>The four attack modes</h4>
         <ul>
@@ -255,7 +255,8 @@ export default function GuidePage() {
       <Guide id="shadows" title="🗡️ Spies & Scouts — the shadow war" illo="units/spy">
         <p>
           <b>Spies</b> run five Tradecraft operations — intel, sabotage, arson, sowing unrest —
-          from the <Link href="/spy">Spy &amp; Scout</Link> page. Send more spies for more damage,
+          from any empire&apos;s <b>⚔ Act</b> console on the <Link href="/rankings">ladder</Link>.
+          Send more spies for more damage,
           but higher catch risk; <b>caught spies are executed</b> (you lose the population).{" "}
           <b>Scouts</b> gather recon on rivals and, at home, catch enemy spies — your Ranger&apos;s
           Lodge level sets how skilled a spy they can catch. Spies, scouts, and their research are{" "}
@@ -372,7 +373,7 @@ export default function GuidePage() {
       </Guide>
 
       <Panel title="Ready?">
-        <p style={{ fontSize: 13.5 }}>
+        <p style={{ fontSize: 14.5 }}>
           Head back to your <Link href="/">Command View</Link> and watch the{" "}
           <Link href="/guide#winning">race to the throne</Link>. The ladder is the world.
         </p>

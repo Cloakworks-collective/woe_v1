@@ -1,3 +1,4 @@
+import { cmd } from "@/app/actions";
 import { Art } from "@/components/Art";
 import { CmdForm } from "@/components/CmdForm";
 import { Flash } from "@/components/Flash";
@@ -6,7 +7,7 @@ import { Info } from "@/components/Info";
 import { Panel } from "@/components/Panel";
 import { ResIcon } from "@/components/ResIcon";
 import { SLOTS_PER_BUILDING_LEVEL, TRAINING_COSTS, TROOPS_PER_MUSTER_HALL, UNIT_GUIDE, UNIT_INFO } from "@/lib/constants";
-import { civilians, level, military, type Player, type WorkerRole } from "@/lib/engine";
+import { civilians, level, military, safeDischargeCount, type Player, type WorkerRole } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
@@ -20,12 +21,30 @@ const ROLES: { role: WorkerRole; label: string; building: string; buildingId: Pa
   { role: "researchers", label: "Researchers", building: "The Collegium", buildingId: "collegium" },
 ];
 
+/** One input, two verbs: assign idle peasants in, or recall them to idle. The
+ *  clicked submit button carries __cmd, so the same form drives both. */
+function AssignRecall({ role, assigned }: { role: WorkerRole; assigned: number }) {
+  return (
+    <form action={cmd} className="assign-form">
+      <input type="hidden" name="__path" value="/train" />
+      <input type="hidden" name="role" value={role} />
+      <input name="count" placeholder="#" aria-label={`Number of ${role}`} size={4} style={{ font: "14.5px Verdana", padding: 2 }} />
+      <button className="btn" name="__cmd" value="assignWorkers">
+        Assign
+      </button>
+      <button className="btn btn-recall" name="__cmd" value="recallWorkers" disabled={assigned === 0} title="Send workers back to the idle pool">
+        Recall
+      </button>
+    </form>
+  );
+}
+
 function CountForm({ name, path, label, extra }: { name: string; path: string; label: string; extra?: Record<string, string> }) {
   return (
     <CmdForm name={name} path={path}>
       {extra &&
         Object.entries(extra).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
-      <input name="count" placeholder="#" aria-label={`${label} count`} size={4} style={{ font: "13.5px Verdana", padding: 2 }} />
+      <input name="count" placeholder="#" aria-label={`${label} count`} size={4} style={{ font: "14.5px Verdana", padding: 2 }} />
       <button className="btn">{label}</button>
     </CmdForm>
   );
@@ -68,19 +87,37 @@ export default async function TrainPage({
   const { player: p } = await getGame();
   const musterFree = level(p, "muster_hall") * TROOPS_PER_MUSTER_HALL - military(p);
   const housingFree = level(p, "hearthstead") * 10 - civilians(p);
+  const safeDischarge = safeDischargeCount(p);
 
   return (
     <>
       <Flash err={err} ok={ok} />
       <LearnLink href="/guide#grow">Workers, food &amp; how to grow</LearnLink>
+
+      {p.idlePeasants > 0 && (
+        <div className="alert alert-warn idle-banner" role="status">
+          <span className="alert-icon">👥</span>
+          <div>
+            <div className="alert-title">
+              {p.idlePeasants} idle peasant{p.idlePeasants === 1 ? "" : "s"} await your word
+            </div>
+            <div className="alert-body">
+              Idle hands produce nothing. Assign them below — farmers feed the realm first, then split
+              the rest across your producers. You can recall any worker back to idle at any time.
+            </div>
+          </div>
+        </div>
+      )}
+
       <Panel
-        title={`The Assignment Hall — ${p.idlePeasants} idle peasants await your word`}
-        info="Worker assignment is free and reversible. No free slot, no assignment — the building always comes first."
+        title="The Assignment Hall"
+        info="Worker assignment is free and reversible — assign idle peasants in, or recall them back to idle. No free slot, no assignment: the building always comes first."
         guide="/guide#grow"
       >
         <div className="card-grid">
           {ROLES.map(({ role, label, building, buildingId }) => {
             const slots = SLOTS_PER_BUILDING_LEVEL * level(p, buildingId);
+            const assigned = p.workers[role];
             return (
               <div className="bcard" key={role}>
                 <div className="bcard-head">
@@ -95,9 +132,9 @@ export default async function TrainPage({
                   </span>
                   <div className="bcard-body">
                     <p style={{ margin: "0 0 7px" }}>
-                      <b>{p.workers[role]}</b> assigned · {slots} slots
+                      <b>{assigned}</b> assigned · {slots} slot{slots === 1 ? "" : "s"}
                     </p>
-                    <CountForm name="assignWorkers" path="/train" label="Assign" extra={{ role }} />
+                    <AssignRecall role={role} assigned={assigned} />
                   </div>
                 </div>
               </div>
@@ -153,11 +190,12 @@ export default async function TrainPage({
               </div>
             </div>
             <div className="bcard-gain">
-              <b>Capacity</b>: {housingFree} beds free (no housing, no discharge)
+              <b>Safe to discharge</b>: {safeDischarge} — capped by {housingFree} free bed
+              {housingFree === 1 ? "" : "s"} and the 30% guard line.
             </div>
           </div>
         </div>
-        <p style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 10 }}>
+        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 10 }}>
           Siege engineers are trained at the <a href="/siege">Siege Works</a>; footmen, archers and
           cavalry are equipped in <a href="/troops">The Army</a>.
         </p>

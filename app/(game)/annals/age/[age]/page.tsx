@@ -29,7 +29,7 @@ export default async function ElderAgePage({ params }: { params: Promise<{ age: 
 
   return (
     <>
-      <p style={{ margin: "0 0 8px", fontSize: 12.5 }}>
+      <p style={{ margin: "0 0 8px", fontSize: 13.5 }}>
         <Link href="/annals">← The Annals</Link> · <span style={{ color: "var(--ink-soft)" }}>{group.title}</span>
       </p>
 

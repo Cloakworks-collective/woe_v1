@@ -1,0 +1,92 @@
+import { civilians, military, totalPopulation, troopTotal, type Player } from "@/lib/engine";
+import { Art } from "./Art";
+
+const fmt = (n: number) => n.toLocaleString("en-US");
+
+type Row = { key: string; art?: string; glyph?: string; label: string; count: number; muted?: boolean };
+
+/**
+ * The census — who your population actually is, told in three estates:
+ * Civilians (the taxpayers), the Regular Army (your counted host), and
+ * Mercenaries (hired swords who don't count as population at all).
+ */
+export function Census({ player: p }: { player: Player }) {
+  const civilianRows: Row[] = [
+    { key: "idle", glyph: "🧍", label: "Idle peasants", count: p.idlePeasants, muted: p.idlePeasants === 0 },
+    { key: "farmers", art: "workers/farmers", label: "Farmers", count: p.workers.farmers },
+    { key: "quarrymen", art: "workers/quarrymen", label: "Quarrymen", count: p.workers.quarrymen },
+    { key: "miners", art: "workers/miners", label: "Miners", count: p.workers.miners },
+    { key: "lumberjacks", art: "workers/lumberjacks", label: "Lumberjacks", count: p.workers.lumberjacks },
+    { key: "merchants", art: "workers/merchants", label: "Merchants", count: p.workers.merchants },
+    { key: "researchers", art: "workers/researchers", label: "Researchers", count: p.workers.researchers },
+    { key: "spies", art: "units/spy", label: "Spies", count: p.army.spies },
+    { key: "scouts", art: "units/scout", label: "Scouts", count: p.army.scouts },
+  ];
+
+  const armyRows: Row[] = [
+    { key: "warriors", glyph: "🗡️", label: "Warriors (unequipped)", count: p.warriors },
+    { key: "footmen", art: "units/footman", label: "Footmen", count: troopTotal(p.army.footmen) },
+    { key: "archers", art: "units/archer", label: "Archers", count: troopTotal(p.army.archers) },
+    { key: "cavalry", art: "units/cavalry", label: "Cavalry", count: troopTotal(p.army.cavalry) },
+    { key: "engineers", art: "units/engineer", label: "Siege engineers", count: p.army.siegeEngineers },
+  ];
+
+  const mercs = p.army.mercenaries;
+
+  const col = (rows: Row[]) => (
+    <ul className="census-list">
+      {rows.map((r) => (
+        <li key={r.key} className={`census-row${r.muted ? " muted" : ""}`}>
+          <span className="census-ic">
+            {r.art ? <Art path={r.art} size={32} title={r.label} /> : <span className="census-glyph">{r.glyph}</span>}
+          </span>
+          <span className="census-label">{r.label}</span>
+          <span className="census-count">{fmt(r.count)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+
+  return (
+    <div className="census">
+      <div className="census-col">
+        <div className="census-col-head">
+          <span>🏘 Civilians</span>
+          <span className="census-col-total">{fmt(civilians(p))}</span>
+        </div>
+        {col(civilianRows)}
+      </div>
+
+      <div className="census-col">
+        <div className="census-col-head">
+          <span>⚔ Regular Army</span>
+          <span className="census-col-total">{fmt(military(p))}</span>
+        </div>
+        {col(armyRows)}
+      </div>
+
+      <div className="census-col">
+        <div className="census-col-head">
+          <span>🛡 Mercenaries</span>
+          <span className="census-col-total">{fmt(mercs)}</span>
+        </div>
+        {col([{ key: "mercs", art: "units/mercenary", label: "Hired swords", count: mercs, muted: mercs === 0 }])}
+        <div className="census-merc-note">
+          Sellswords, not subjects: they <b>die first</b> in battle, shielding your regulars — but
+          they draw gold upkeep every turn and <b>count as neither population nor ranking</b>.
+        </div>
+      </div>
+
+      <div className="census-foot">
+        Population <b>{fmt(totalPopulation(p))}</b> — {fmt(civilians(p))} civilians +{" "}
+        {fmt(military(p))} under arms.
+        {mercs > 0 && (
+          <>
+            {" "}
+            Plus <b>{fmt(mercs)}</b> mercenaries, hired and uncounted.
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -29,7 +29,7 @@ export default async function AdminPage({
     return (
       <div className="frame" style={{ maxWidth: 560, flexDirection: "column", paddingTop: 40 }}>
         <Panel title="🔒 The Crown Chamber">
-          <p style={{ fontSize: 13.5 }}>
+          <p style={{ fontSize: 14.5 }}>
             The chamber is sealed. Set <code>ADMIN_PASSWORD</code> in the environment to open it.
           </p>
         </Panel>
@@ -49,7 +49,7 @@ export default async function AdminPage({
               placeholder="the crown's password"
               aria-label="Admin password"
               autoFocus
-              style={{ padding: "4px 8px", border: "1px solid var(--border)", background: "var(--input-bg)", font: "14px Verdana", flex: 1 }}
+              style={{ padding: "4px 8px", border: "1px solid var(--border)", background: "var(--input-bg)", font: "15px Verdana", flex: 1 }}
             />
             <button className="btn">Enter</button>
           </form>
@@ -64,7 +64,7 @@ export default async function AdminPage({
   return (
     <div className="frame" style={{ maxWidth: 980, flexDirection: "column", paddingTop: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <div style={{ font: "bold 22px Georgia", color: "var(--heading)" }}>👑 The Crown Chamber</div>
+        <div style={{ font: "bold 24px Georgia", color: "var(--heading)" }}>👑 The Crown Chamber</div>
         <form action={adminLogout}>
           <button className="btn">Leave quietly</button>
         </form>
@@ -92,7 +92,7 @@ export default async function AdminPage({
           />
           <button className="btn">Force N turns</button>
         </form>
-        <p style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 4 }}>
+        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 4 }}>
           Forced turns run on top of the wall clock (max 1,008 = 1 week per press).
         </p>
         <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "10px 0" }} />
@@ -101,7 +101,7 @@ export default async function AdminPage({
             📜 Close the Age
           </button>
         </form>
-        <p style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 4 }}>
+        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 4 }}>
           Seals this age&apos;s Annals for good and opens the next era (named for the current winner,
           or &ldquo;an Unnamed Victor&rdquo; if none). <b>This wipes the world</b> — empires, ladder,
           and chat reset; the sealed Annals persist.
@@ -109,7 +109,7 @@ export default async function AdminPage({
       </Panel>
 
       <Panel title="Royal Grant — give (or take, with negatives) resources">
-        <form action={adminGrant} style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", fontSize: 13.5 }}>
+        <form action={adminGrant} style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", fontSize: 14.5 }}>
           <select name="playerId" aria-label="Empire">
             {players.map((p) => (
               <option key={p.id} value={p.id}>
@@ -119,7 +119,7 @@ export default async function AdminPage({
             ))}
           </select>
           {(["gold", "food", "wood", "stone", "ore"] as const).map((r) => (
-            <label key={r} style={{ fontSize: 12.5 }}>
+            <label key={r} style={{ fontSize: 13.5 }}>
               {r} <input name={r} type="number" defaultValue={0} style={{ width: 90 }} aria-label={`Grant ${r}`} />
             </label>
           ))}
@@ -147,7 +147,7 @@ export default async function AdminPage({
                 <td>
                   <b>{p.name}</b>
                   {p.isBot ? " 🤖" : ""}
-                  <div style={{ fontSize: 10.5, color: "var(--ink-soft)" }}>{p.id}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{p.id}</div>
                 </td>
                 <td>{RACE_NAMES[p.race]}</td>
                 <td className="num">{fmt(rankingScore(p))}</td>
@@ -181,7 +181,7 @@ export default async function AdminPage({
             ))}
           </tbody>
         </table>
-        <p style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 6 }}>
+        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 6 }}>
           Banishment blocks the session cookie, the realm token, and every command — the empire
           stays in the world (still attackable, still ticks) until pardoned.
         </p>

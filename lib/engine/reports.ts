@@ -27,6 +27,7 @@ import {
   level,
   military,
   researchLevel,
+  totalPopulation,
   type Player,
   type Resource,
   type WorkerRole,
@@ -64,6 +65,21 @@ export function settlementTitle(p: Player): string {
   let title = SETTLEMENT_TITLES[0].title as string;
   for (const t of SETTLEMENT_TITLES) if (L >= t.min) title = t.title;
   return title;
+}
+
+/** Qualitative army-size descriptor for the public ladder — what a traveler
+ *  could tell at a glance, never the exact count (spies are the intel path).
+ *  Banded by the military share of total population; "Moderate" straddles the
+ *  30% scattering line. */
+export function troopStrengthLabel(p: Player): string {
+  const pop = totalPopulation(p);
+  if (pop === 0) return "None";
+  const share = military(p) / pop;
+  if (share < 0.05) return "None";
+  if (share < 0.15) return "Weak";
+  if (share < 0.3) return "Moderate";
+  if (share < 0.5) return "Strong";
+  return "Heavy";
 }
 
 export function wallName(p: Player): string {

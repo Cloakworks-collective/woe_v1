@@ -8,6 +8,7 @@ import {
   MERC_PRICE_GOLD,
   RACES,
   RESEARCH_FIELDS,
+  SCATTERING,
   SIEGE_GEAR,
   SLOTS_PER_BUILDING_LEVEL,
   STAMINA,
@@ -24,15 +25,19 @@ import type { ResearchField } from "../constants/research";
 import { buildingCost, type Cost } from "./costs";
 import {
   EngineError,
+  bankedRes,
   civilians,
   level,
   military,
+  totalPopulation,
   type EngineResult,
   type Player,
+  type Resource,
   type Tier,
   type TroopType,
   type WorkerRole,
 } from "./types";
+import { STORAGE_BUILDING } from "../constants/buildings";
 
 const TIER_INDEX: Record<Tier, number> = { light: 1, medium: 2, heavy: 3 };
 
@@ -154,13 +159,37 @@ export function disbandTroops(input: Player, type: TroopType, tier: Tier, count:
   return { player: p, events: [] };
 }
 
-/** Return warriors to civilian life — needs vacant Hearthstead space. */
+/** The most warriors that can be discharged without dropping the guard below the
+ *  30% scatter line (empires under the exempt-population floor have no limit). */
+export function safeDischargeCount(p: Player): number {
+  const vacant = level(p, "hearthstead") * HOUSING_PER_HEARTHSTEAD - civilians(p);
+  let cap = Math.min(p.warriors, Math.max(0, vacant));
+  if (totalPopulation(p) >= SCATTERING.EXEMPT_BELOW_POPULATION) {
+    // Keep mil − x ≥ ratio·(civ + x)  ⇒  x ≤ (mil − ratio·civ) / (1 + ratio).
+    const r = SCATTERING.TROOP_RATIO;
+    const guardCap = Math.floor((military(p) - r * civilians(p)) / (1 + r));
+    cap = Math.min(cap, Math.max(0, guardCap));
+  }
+  return cap;
+}
+
+/** Return warriors to civilian life — needs vacant Hearthstead space, and may
+ *  not drop the guard below the 30% line (or the realm scatters at dawn). */
 export function dischargeWarriors(input: Player, count: number): EngineResult {
   const p = structuredClone(input);
   if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
   if (p.warriors < count) throw new EngineError("warriors", "Not enough warriors");
   const vacant = level(p, "hearthstead") * HOUSING_PER_HEARTHSTEAD - civilians(p);
   if (vacant < count) throw new EngineError("housing", "No vacant Hearthstead space");
+  if (
+    totalPopulation(p) >= SCATTERING.EXEMPT_BELOW_POPULATION &&
+    military(p) - count < SCATTERING.TROOP_RATIO * (civilians(p) + count)
+  ) {
+    throw new EngineError(
+      "scatter",
+      `That would drop your guard below the 30% line — at most ${safeDischargeCount(p)} can be discharged safely.`,
+    );
+  }
   p.warriors -= count;
   p.idlePeasants += count;
   return { player: p, events: [] };
@@ -237,12 +266,6 @@ export function restTroops(input: Player): EngineResult {
   return { player: p, events: [] };
 }
 
-export function setSurrender(input: Player, flag: boolean): EngineResult {
-  const p = structuredClone(input);
-  p.surrendered = flag;
-  return { player: p, events: [] };
-}
-
 /** Move gold into/out of the Counting House (negative = withdraw). */
 export function bankGold(input: Player, amount: number): EngineResult {
   const p = structuredClone(input);
@@ -260,6 +283,29 @@ export function bankGold(input: Player, amount: number): EngineResult {
     p.bankedGold += amount;
     p.gold -= amount;
   }
+  return { player: p, events: [] };
+}
+
+/** Move goods into/out of their storage building's vault (negative = withdraw).
+ *  Deposits cap at level × STORAGE_PER_LEVEL, like the Counting House. */
+export function bankResource(input: Player, r: Resource, amount: number): EngineResult {
+  const p = structuredClone(input);
+  if (!Number.isFinite(amount) || amount === 0) throw new EngineError("amount", "Invalid amount");
+  const banked = { ...bankedRes(p) };
+  if (amount > 0) {
+    if (p.resources[r] < amount) throw new EngineError("resources", `Not enough loose ${r}`);
+    const capacity = STORAGE_PER_LEVEL * level(p, STORAGE_BUILDING[r]);
+    if (banked[r] + amount > capacity) {
+      throw new EngineError("capacity", "That store is full");
+    }
+    p.resources[r] -= amount;
+    banked[r] += amount;
+  } else {
+    if (banked[r] < -amount) throw new EngineError("banked", "Not that much vaulted");
+    banked[r] += amount;
+    p.resources[r] -= amount;
+  }
+  p.bankedResources = banked;
   return { player: p, events: [] };
 }
 

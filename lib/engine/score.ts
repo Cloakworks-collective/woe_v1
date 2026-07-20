@@ -1,6 +1,6 @@
 // Ranking score — the visible empire (spec/victory.md).
-// Siege gear/engineers, spies/scouts (as troops), mercenaries, and the
-// shadow research fields are worth zero.
+// Siege gear/engineers, spies/scouts, mercenaries, housing, liquid wealth
+// (gold + resources), and the shadow research fields are worth zero.
 
 import {
   CIVILIAN_LEVELLED_IDS,
@@ -9,7 +9,7 @@ import {
   TIER_POWER,
 } from "../constants";
 import type { BuildingId } from "../constants/buildings";
-import { civilians, level, type Player } from "./types";
+import { level, type Player } from "./types";
 
 const LEVELLED_MILITARY: BuildingId[] = [
   "drill_yard",
@@ -22,8 +22,10 @@ const LEVELLED_MILITARY: BuildingId[] = [
 export function rankingScore(p: Player): number {
   let score = 0;
 
-  // People — spies and scouts count as civilians (they hold day jobs).
-  score += civilians(p) * SCORE.PER_CIVILIAN;
+  // People — idle peasants + workers only. Spies and scouts are covert and
+  // don't count toward the visible empire.
+  const workers = Object.values(p.workers).reduce((a, b) => a + b, 0);
+  score += (p.idlePeasants + workers) * SCORE.PER_CIVILIAN;
 
   // Troops by tier power; warriors count at base; engineers are siege → zero.
   for (const corps of [p.army.footmen, p.army.archers, p.army.cavalry]) {
@@ -38,12 +40,8 @@ export function rankingScore(p: Player): number {
   for (const id of [...CIVILIAN_LEVELLED_IDS, ...LEVELLED_MILITARY]) {
     score += level(p, id) * SCORE.PER_BUILDING_LEVEL;
   }
-  score += (level(p, "hearthstead") + level(p, "muster_hall")) * SCORE.PER_COUNTED_BUILDING;
-
-  // Treasury — sitting on gold is score, and bait.
-  score += (p.gold + p.bankedGold) / SCORE.GOLD_DIVISOR;
-  const res = p.resources;
-  score += (res.food + res.wood + res.stone + res.ore) / SCORE.RESOURCE_DIVISOR;
+  // Housing (hearthsteads, muster halls) and liquid wealth (gold, resources)
+  // don't count — ranking is standing army, settlement, veterancy, research.
 
   // Veterancy is prestige.
   score += p.army.experience * SCORE.PER_XP_POINT;

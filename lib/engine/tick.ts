@@ -11,7 +11,12 @@ import {
   RACES,
   SLOTS_PER_BUILDING_LEVEL,
   STAMINA,
+  STORAGE_BUILDING,
+  STORAGE_PER_LEVEL,
   SURRENDER_TAX_FACTOR,
+  SURRENDER_PRODUCTION_FACTOR,
+  SURRENDER_TICKS_PER_ERA,
+  SURRENDER_DAYS_PER_ERA,
   collegiumRequired,
   rpCost,
   EFFECT_PER_LEVEL,
@@ -20,6 +25,7 @@ import {
 import type { ResearchField } from "../constants/research";
 import type { BuildingId } from "../constants/buildings";
 import {
+  bankedRes,
   buildingIntegrity,
   civilians,
   level,
@@ -87,17 +93,32 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
   const events: EngineResult["events"] = [];
   // Incite Unrest (espionage.md): tax and production −25% while it lasts.
   const unrestMult = unrestActive(p, currentTick) ? 0.75 : 1;
+  // Surrender (economy.md): the town goes dormant — production drops by half
+  // (tax income is halved inside taxIncomePerTurn).
+  const surrenderMult = p.surrendered ? SURRENDER_PRODUCTION_FACTOR : 1;
 
-  // 1. Food upkeep — before production, always.
+  // 1. Food upkeep — before production, always. Loose food first; when it
+  //    runs short the granary vault feeds the people (no starving beside a
+  //    full store).
   const upkeep = foodUpkeepPerTurn(p);
-  if (p.resources.food >= upkeep) {
-    p.resources.food -= upkeep;
+  const vault = { ...bankedRes(p) };
+  if (p.resources.food + vault.food >= upkeep) {
+    const fromLoose = Math.min(p.resources.food, upkeep);
+    p.resources.food -= fromLoose;
+    if (upkeep - fromLoose > 0) {
+      vault.food -= upkeep - fromLoose;
+      p.bankedResources = vault;
+    }
     if (p.starving) {
       p.starving = false;
       events.push({ type: "fed" });
     }
   } else {
     p.resources.food = 0;
+    if (vault.food > 0) {
+      vault.food = 0;
+      p.bankedResources = vault;
+    }
     if (!p.starving) {
       p.starving = true;
       events.push({ type: "starvation" });
@@ -120,7 +141,7 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
 
     // 3. Production.
     const race = RACES[p.race];
-    const base = baseOutputPerProducer(p, hallPenaltyFactor) * unrestMult;
+    const base = baseOutputPerProducer(p, hallPenaltyFactor) * unrestMult * surrenderMult;
     for (const { role, building, resource, field } of PRODUCTION) {
       const n = effectiveProducers(p, role, building);
       if (n === 0) continue;
@@ -156,8 +177,39 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
     p.army.stamina = Math.min(STAMINA.MAX, p.army.stamina + STAMINA.PASSIVE_RECOVERY_PER_TURN);
   }
 
+  // The Steward's vault duty (Royal Charter): loose goods flow into their
+  // stores automatically each turn, up to capacity. Free rulers bank by hand.
+  if (p.premium) {
+    const banked = { ...bankedRes(p) };
+    let vaulted = false;
+    for (const r of ["food", "wood", "stone", "ore"] as const) {
+      const cap = STORAGE_PER_LEVEL * level(p, STORAGE_BUILDING[r]);
+      const move = Math.min(p.resources[r], Math.max(0, cap - banked[r]));
+      if (move > 0) {
+        p.resources[r] -= move;
+        banked[r] += move;
+        vaulted = true;
+      }
+    }
+    if (vaulted) p.bankedResources = banked;
+  }
+
   // Action turns accrue regardless (armies idle, the calendar doesn't).
   p.turnsAvailable = Math.min(ACTION_TURNS.CAP, p.turnsAvailable + ACTION_TURNS.PER_GAME_TURN);
+
+  // Surrender allowance: every turn under the white flag spends the era budget.
+  // When it runs dry the flag comes down on its own — you can hide no longer.
+  if (p.surrendered) {
+    p.surrenderTicksUsed = (p.surrenderTicksUsed ?? 0) + 1;
+    if (p.surrenderTicksUsed >= SURRENDER_TICKS_PER_ERA) {
+      p.surrendered = false;
+      p.surrenderLiftedAtTick = currentTick;
+      events.push({
+        type: "info",
+        detail: `Your ${SURRENDER_DAYS_PER_ERA} days of surrender for this age are spent — the white flag comes down of its own accord.`,
+      });
+    }
+  }
 
   return { player: p, events };
 }

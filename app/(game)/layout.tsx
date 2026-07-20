@@ -1,7 +1,10 @@
 import { AdvisorAlerts } from "@/components/AdvisorAlerts";
+import { MobileNav } from "@/components/MobileNav";
 import { ResourceBar } from "@/components/ResourceBar";
 import { SideNav } from "@/components/SideNav";
 import { TopNav } from "@/components/TopNav";
+import { TourGuide } from "@/components/TourGuide";
+import { isOnboardingActive } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 import { devAdvance } from "@/app/actions";
 
@@ -15,6 +18,7 @@ export default async function GameLayout({ children }: { children: React.ReactNo
     <>
       <ResourceBar player={player} meta={world.meta} />
       <TopNav premium={!!player.premium} />
+      <MobileNav premium={!!player.premium} />
       <AdvisorAlerts player={player} />
       {world.meta.winner && (
         <div className="alert alert-win" role="status">
@@ -29,7 +33,7 @@ export default async function GameLayout({ children }: { children: React.ReactNo
         </div>
       )}
       <div className="frame">
-        <div>
+        <div className="nav-col">
           <SideNav />
           {devTools && (
             <div className="dev-clock">
@@ -54,6 +58,7 @@ export default async function GameLayout({ children }: { children: React.ReactNo
       <div className="footer">
         One turn every 10 minutes · settlers arrive at dawn · the ladder is the world
       </div>
+      <TourGuide active={isOnboardingActive(player) && !player.onboarding?.toured} />
     </>
   );
 }

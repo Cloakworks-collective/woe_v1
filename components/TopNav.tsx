@@ -2,80 +2,106 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { MouseEvent } from "react";
+import { useEffect, type MouseEvent } from "react";
 import { CHRONICLE_GROUPS } from "@/lib/lore/elderAges";
 
 type Item = { href: string; label: string; title: string };
 
 /**
- * Horizontal bar under the top resource bar for the secondary destinations —
- * the council, the wider world, and the premium hub — keeping the left sidebar
- * short and focused on the core loop. The premium entry is contextual: it reads
- * "Royal Charter" (the buy page) until owned, then "The Steward" (the manager).
+ * The desktop top bar of secondary destinations. Kept to a handful of entries —
+ * four direct links plus three themed dropdowns (Rankings, World, Court) — so
+ * the row always fits on one line and never wraps. On mobile it's hidden and
+ * MobileNav's burger takes over. The premium entry is contextual: "Royal
+ * Charter" (buy) until owned, then "The Steward" (manager).
  */
 export function TopNav({ premium }: { premium: boolean }) {
   const pathname = usePathname();
 
-  // Three intent-based groups: your own empire · the wider world · help & account.
-  const you: Item[] = [
-    { href: "/", label: "🏰 Command", title: "Your empire at a glance — decrees, treasury, chronicle" },
-    { href: "/chronicle", label: "📖 Chronicle", title: "Your own story — every tiding and battle you were part of" },
-    { href: "/advisors", label: "🧙 Advisors", title: "Four councillors read your real numbers and advise" },
-  ];
-  // The Annals sit in a dropdown (this age + the four elder eras) so the heavy
-  // history lives on its own subpages rather than one giant page.
-  const worldBefore: Item[] = [
-    { href: "/battles", label: "🌍 World News", title: "The realm at war — clan wars and who is attacking whom" },
-  ];
-  const worldAfter: Item[] = [
-    { href: "/rankings", label: "📜 Rankings", title: "The ladder — find targets and track the crown" },
-    { href: "/clan", label: "🛡️ Clan", title: "Found or join a clan; shared storage and wars" },
-    { href: "/forum", label: "🕯️ Forum", title: "Era chat and permanent letters" },
-  ];
-  const meta: Item[] = [
-    { href: "/guide", label: "📜 Field Manual", title: "How to win: growth, battle strategy, the whole game" },
-    premium
-      ? { href: "/steward", label: "🪶 The Steward", title: "Your build/research queues & standing orders" }
-      : { href: "/premium", label: "👑 Royal Charter", title: "Buy the Steward — automation while you're away" },
-  ];
+  // Native <details> only closes via its own summary. Close any open dropdown
+  // when the click (or Escape) lands outside it — this also enforces one-open-
+  // at-a-time, since opening one closes the rest.
+  useEffect(() => {
+    const openDropdowns = () =>
+      document.querySelectorAll<HTMLDetailsElement>("details.topnav-dd[open]");
+    const onClick = (e: globalThis.MouseEvent) => {
+      const t = e.target as Node | null;
+      openDropdowns().forEach((d) => {
+        if (!t || !d.contains(t)) d.open = false;
+      });
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") openDropdowns().forEach((d) => (d.open = false));
+    };
+    document.addEventListener("click", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
 
-  const render = (item: Item) => {
-    const active =
-      item.href === "/"
-        ? pathname === "/"
-        : item.href === "/steward" || item.href === "/premium"
-          ? pathname === "/steward" || pathname === "/premium"
-          : pathname.startsWith(item.href);
-    return (
-      <Link key={item.href} href={item.href} className={active ? "active" : ""} title={item.title}>
-        {item.label}
-      </Link>
-    );
-  };
+  const command: Item = { href: "/", label: "🏰 Command", title: "Your empire at a glance — decrees, treasury, chronicle" };
+  const clan: Item = { href: "/clan", label: "🛡️ Clan", title: "Found or join a clan; shared storage and wars" };
+  const worldItem: Item = { href: "/battles", label: "🌍 World", title: "The living age — clan wars, the latest battles, and the grand chronicle" };
+  const guide: Item = { href: "/guide", label: "📜 Field Manual", title: "How to win: growth, battle strategy, the whole game" };
+  const premiumItem: Item = premium
+    ? { href: "/steward", label: "🪶 The Steward", title: "Your build/research queues & standing orders" }
+    : { href: "/premium", label: "👑 Buy Premium", title: "The Royal Charter — queues, standing orders & auto-banking while you're away" };
 
+  const active = (href: string) =>
+    href === "/"
+      ? pathname === "/"
+      : href === "/steward" || href === "/premium"
+        ? pathname === "/steward" || pathname === "/premium"
+        : pathname.startsWith(href);
+
+  const render = (item: Item) => (
+    <Link key={item.href} href={item.href} className={active(item.href) ? "active" : ""} title={item.title}>
+      {item.label}
+    </Link>
+  );
+
+  const rankingsActive = pathname.startsWith("/rankings");
   const annalsActive = pathname.startsWith("/annals");
+  const courtActive =
+    pathname.startsWith("/chronicle") || pathname.startsWith("/advisors") || pathname.startsWith("/forum");
   const closeMenu = (e: MouseEvent<HTMLAnchorElement>) =>
     e.currentTarget.closest("details")?.removeAttribute("open");
 
   return (
-    <nav className="topnav" aria-label="Your empire, the world, and help">
+    <nav className="topnav" aria-label="The wider world and your court">
       <div className="topnav-inner">
-        <div className="topnav-group" aria-label="Your empire">{you.map(render)}</div>
-        <div className="topnav-group" aria-label="The world">
-          {worldBefore.map(render)}
+        <div className="topnav-group">
+          {render(command)}
+
           <details className="topnav-dd">
-            <summary
-              className={annalsActive ? "active" : ""}
-              title="The grand chronicle of the age, and the sealed history of all elder ages"
-            >
+            <summary className={rankingsActive ? "active" : ""} title="The ladder — empire ranks, clan ranks, and your war console">
+              📜 Rankings ▾
+            </summary>
+            <div className="topnav-menu" role="menu">
+              <Link href="/rankings" onClick={closeMenu}>
+                🏰 Empire Ranks <span className="topnav-menu-sub">every empire · attack & spy</span>
+              </Link>
+              <Link href="/rankings/clans" onClick={closeMenu}>
+                🛡️ Clan Ranks <span className="topnav-menu-sub">the banners of the age</span>
+              </Link>
+              <Link href="/rankings/records" onClick={closeMenu}>
+                ⚔ War Records <span className="topnav-menu-sub">this age, still being written</span>
+              </Link>
+            </div>
+          </details>
+
+          {render(clan)}
+
+          {render(worldItem)}
+
+          <details className="topnav-dd">
+            <summary className={annalsActive ? "active" : ""} title="The finished history — sealed ages and the elder legends">
               📚 Annals ▾
             </summary>
             <div className="topnav-menu" role="menu">
               <Link href="/annals" onClick={closeMenu}>
-                📜 The Annals — this age
-              </Link>
-              <Link href="/annals/records" onClick={closeMenu}>
-                ⚔ War Records — this age
+                📚 Sealed Ages <span className="topnav-menu-sub">finished eras, kept for all time</span>
               </Link>
               <div className="topnav-menu-head">Elder Ages</div>
               {CHRONICLE_GROUPS.map((g) => (
@@ -85,9 +111,29 @@ export function TopNav({ premium }: { premium: boolean }) {
               ))}
             </div>
           </details>
-          {worldAfter.map(render)}
+
+          <details className="topnav-dd">
+            <summary className={courtActive ? "active" : ""} title="Your court — your chronicle, your councillors, and the forum">
+              🕯️ Court ▾
+            </summary>
+            <div className="topnav-menu" role="menu">
+              <Link href="/chronicle" onClick={closeMenu}>
+                📖 Chronicle <span className="topnav-menu-sub">your own tidings & battles</span>
+              </Link>
+              <Link href="/advisors" onClick={closeMenu}>
+                🧙 Advisors <span className="topnav-menu-sub">four councillors read your numbers</span>
+              </Link>
+              <Link href="/forum" onClick={closeMenu}>
+                🕯️ Forum <span className="topnav-menu-sub">era chat & permanent letters</span>
+              </Link>
+            </div>
+          </details>
         </div>
-        <div className="topnav-group topnav-meta" aria-label="Help and account">{meta.map(render)}</div>
+
+        <div className="topnav-group topnav-meta">
+          {render(guide)}
+          {render(premiumItem)}
+        </div>
       </div>
     </nav>
   );

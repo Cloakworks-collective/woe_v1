@@ -130,8 +130,9 @@ describe("loot & storage protection", () => {
       p.gold = 10000;
       p.bankedGold = 15000;
       p.buildings.counting_house = 1; // protects 20k banked
-      p.resources.wood = 30000;
-      p.buildings.timberyard = 1; // protects 20k wood
+      p.resources.wood = 10000; // loose — raidable
+      p.bankedResources = { food: 0, wood: 20000, stone: 0, ore: 0 }; // vaulted — safe
+      p.buildings.timberyard = 1; // holds 20k wood
       p.buildings.muster_hall = 5;
     });
     expect(unbankedGold(defender)).toBe(10000);
@@ -183,8 +184,9 @@ describe("bombard", () => {
     const defender = empire("D", (p) => {
       p.buildings.walls = 2;
       p.wallIntegrity = 0.4; // already breached — bombard goes straight to town
-      p.buildings.granary = 5; // protects 100k at full integrity
-      p.resources.food = 100000; // everything inside, nothing to raid
+      p.buildings.granary = 5; // holds 100k at full integrity
+      p.resources.food = 0;
+      p.bankedResources = { food: 100000, wood: 0, stone: 0, ore: 0 }; // all vaulted
     });
     expect(unstored(defender, "food")).toBe(0);
     const { report, defender: d2 } = resolveBombard(attacker, defender, { ...OPTS, rng: seededRng(9) });

@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
-import { newEmpire } from "@/lib/engine";
+import { dismissOnboarding as dismissOnboardingGrant, newEmpire } from "@/lib/engine";
 import type { Race } from "@/lib/constants/races";
 import {
   clearSession,
@@ -28,7 +28,7 @@ async function exec(path: string, name: string, args: Record<string, unknown>): 
   revalidatePath("/", "layout");
   const sep = path.includes("?") ? "&" : "?"; // path may carry a tab param
   if (!result.ok) redirect(`${path}${sep}err=${encodeURIComponent(result.message ?? "That did not work.")}`);
-  if (result.battleId) redirect(`/attack?report=${result.battleId}`);
+  if (result.battleId) redirect(`/rankings?report=${result.battleId}`);
   if (result.message) redirect(`${path}${sep}ok=${encodeURIComponent(result.message)}`);
   redirect(path);
 }
@@ -96,6 +96,34 @@ export async function enterWithToken(formData: FormData): Promise<void> {
 export async function leaveSession(): Promise<void> {
   await clearSession();
   redirect("/login");
+}
+
+// ── The Regent's Charges (new-player onboarding) ─────────────────────────────
+
+async function currentPlayerOr404() {
+  const world = await getWorld();
+  const id = await currentPlayerId();
+  const player = id ? world.players[id] : undefined;
+  if (!player) redirect("/login");
+  return { world, player };
+}
+
+/** Wave the charges away — and pay out every remaining reward, so an
+ *  experienced regent who skips the tutorial still receives the full bounty. */
+export async function waiveOnboarding(): Promise<void> {
+  const { world, player } = await currentPlayerOr404();
+  dismissOnboardingGrant(player);
+  await saveWorld(world);
+  revalidatePath("/", "layout");
+  redirect("/");
+}
+
+/** Mark the spotlight tour seen (called from the client when finished/skipped). */
+export async function finishTour(): Promise<void> {
+  const { world, player } = await currentPlayerOr404();
+  player.onboarding = { claimed: [], ...player.onboarding, toured: true };
+  await saveWorld(world);
+  revalidatePath("/", "layout");
 }
 
 // ── Theme (light / dark) ─────────────────────────────────────────────────────

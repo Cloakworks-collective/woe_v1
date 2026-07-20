@@ -51,7 +51,7 @@ export default async function ForumPage({
           {tab === "dm" && (
             <form style={{ display: "inline-flex", gap: 4 }}>
               <input type="hidden" name="tab" value="dm" />
-              <select name="with" defaultValue={dmWith} aria-label="Correspondent" style={{ font: "13.5px Verdana" }}>
+              <select name="with" defaultValue={dmWith} aria-label="Correspondent" style={{ font: "14.5px Verdana" }}>
                 <option value="">— choose a correspondent —</option>
                 {others.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -73,7 +73,7 @@ export default async function ForumPage({
                 padding: 8,
                 maxHeight: 340,
                 overflowY: "auto",
-                fontSize: 13.5,
+                fontSize: 14.5,
               }}
             >
               {messages.length === 0 ? (
@@ -82,7 +82,7 @@ export default async function ForumPage({
                 messages.map((m) => (
                   <div key={m.id} style={{ marginBottom: 6 }}>
                     <b style={{ color: m.authorId === p.id ? "var(--warn)" : "#5a3b1c" }}>{m.authorName}</b>
-                    <span style={{ color: "var(--border)", fontSize: 11.5 }}> · turn {m.tick}</span>
+                    <span style={{ color: "var(--border)", fontSize: 12.5 }}> · turn {m.tick}</span>
                     <div>{m.body}</div>
                   </div>
                 ))
@@ -100,7 +100,7 @@ export default async function ForumPage({
                   placeholder="Speak…"
                   aria-label="Message"
                   maxLength={800}
-                  style={{ font: "13.5px Verdana", padding: 3, width: 320 }}
+                  style={{ font: "14.5px Verdana", padding: 3, width: 320 }}
                 />
                 <button className="btn">Post</button>
               </CmdForm>

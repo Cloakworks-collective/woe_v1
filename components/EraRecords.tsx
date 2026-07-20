@@ -77,7 +77,7 @@ function buildTables(records: EraRecords): ElderTable[] {
 export function EraRecordsView({ records }: { records?: EraRecords }) {
   if (eraRecordsEmpty(records)) {
     return (
-      <p style={{ fontSize: 13.5, fontStyle: "italic" }}>
+      <p style={{ fontSize: 14.5, fontStyle: "italic" }}>
         No deed of arms is yet recorded. When the first blade falls, the age&apos;s records begin.
       </p>
     );

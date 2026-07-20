@@ -91,7 +91,7 @@ export function ElderAgesIndex() {
   const sorted = [...ELDER_AGES].sort((a, b) => a.age - b.age);
   return (
     <div className="elder-realm">
-      <p style={{ fontSize: 12.5, color: "var(--ink-soft)", margin: "0 0 4px" }}>
+      <p style={{ fontSize: 13.5, color: "var(--ink-soft)", margin: "0 0 4px" }}>
         War of Empires is the modern iteration of an elder realm that stood from 2005 to 2013 —{" "}
         <b>thirty-five recorded ages</b> of glory. The sages committed these great names to live
         forever; bards yet sing of their exploits. Because the win itself changed down the years, the

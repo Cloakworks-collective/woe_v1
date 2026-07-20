@@ -11,7 +11,7 @@ const MODE_ICON: Record<string, string> = {
 /** The redacted battle rows every player may see (no composition, no loot). */
 export function PublicBattleTable({ battles, highlightId }: { battles: PublicBattle[]; highlightId?: string }) {
   if (battles.length === 0) {
-    return <p style={{ fontSize: 13.5, fontStyle: "italic" }}>No battles on record. Peace — for now.</p>;
+    return <p style={{ fontSize: 14.5, fontStyle: "italic" }}>No battles on record. Peace — for now.</p>;
   }
   return (
     <table className="tbl">

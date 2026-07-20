@@ -67,7 +67,7 @@ export const ATTACK_MODE_INFO: Record<string, { title: string; tip: string }> = 
 export const ACTION_INFO: Record<string, string> = {
   tax: "The tax dial, from 0% to 100%. Crank it up and gold pours in while your workers down tools; ease it off and production surges while the treasury dries up. 50% is the balanced middle — high tax is a war chest, low tax is a rebuilding sprint.",
   surrender:
-    "Raise the white flag: you can no longer attack, your tax income is halved in tribute and shame, and you become untouchable by everything except revenge. Lift it whenever you like — and simply attacking someone lifts it for you.",
+    "Raise the white flag to become untouchable by everything except revenge — a shelter for when you're outmatched, not a habit. The cost is steep: you cannot attack, and BOTH your tax income and your production fall by half while it flies. You may spend at most 20 days surrendered per era, total. You cannot raise it while a revenge hangs over you — it queues instead, and rises on its own once every revenge window against you has closed. Lower it whenever you like, but your army then stands down: no fresh attacks for 18 hours (revenge excepted), so you can't duck a siege and immediately swing back.",
   bank: "Move gold in or out of the Counting House vault. Gold locked in the vault (up to its capacity) is safe when raiders storm your castle; loose gold on the table is theirs to take. Type a negative number to withdraw.",
   rest: "Stand the army down to recover: 5 action turns and a little food buy back 20 stamina for every soldier. Tired troops swing weaker and guard worse, so rest before a hard fight — you can't rest while starving.",
   equip: "Hand a warrior weapons and armour to make them a footman, archer, or cavalryman at the tier you choose. You'll need the right trainer and a Forge at that same tier level.",
@@ -78,6 +78,8 @@ export const ACTION_INFO: Record<string, string> = {
   assign: "Put idle peasants to work in a trade (or type a negative number to call them home). Free and reversible, but every building holds only 20 workers per level.",
   buildQueue: "Hand this to the Steward (a Royal Charter perk): it will be raised automatically the very moment your treasury can afford it, even while you sleep.",
   repair: "Pay half of the damage in the building's own materials to mend it back to full — restoring its full storage shelter, production, or research along with it.",
+  clanBombard:
+    "War only: wheel your trebuchets against an enemy clan's works — the Storage (its shelter shrinks, goods spill), the Hall (its tax shelter weakens), or the Wonder (its war-cost discount fades). Costs 10 turns and crewed trebuchets, and cracks integrity toward a 50% floor. The price: the whole enemy clan earns a single revenge strike back at you — any of their members may deliver it within 18 hours.",
 };
 
 export const BUILDING_INFO: Record<BuildingId, { title: string; tip: string }> = {
@@ -152,6 +154,7 @@ export const ACTION_GUIDE: Record<string, string> = {
   assign: "/guide#grow",
   buildQueue: "/guide#grow",
   repair: "/guide#defense",
+  clanBombard: "/guide#clans",
 };
 
 export const RESEARCH_GUIDE: Record<ResearchField, string> = {

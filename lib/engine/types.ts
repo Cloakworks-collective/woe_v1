@@ -79,6 +79,9 @@ export interface Player {
   /** Banished by the crown (admin) — all logins and commands rejected.
    *  Server-managed; never part of game rules. */
   banned?: boolean;
+  /** Wall-clock ms of the ruler's last page load or command — powers the
+   *  ladder's "Online" column. Server-managed; never part of game rules. */
+  lastSeenAtMs?: number;
   /** The Royal Charter (premium): unlocks the Steward — queues + standing orders. */
   premium?: boolean;
   buildQueue?: BuildingId[];
@@ -98,9 +101,20 @@ export interface Player {
   gold: number;
   bankedGold: number; // ≤ Counting House capacity × integrity; safe from sieges
   taxRate: number; // 0.0–1.0
-  resources: Record<Resource, number>;
+  resources: Record<Resource, number>; // loose goods — raidable
+  /** Vaulted goods, banked into the storage buildings — safe from raids up to
+   *  capacity × integrity (a wrecked store spills). Manual for everyone;
+   *  Charter holders auto-vault each tick. Absent on old saves = all zeros. */
+  bankedResources?: Record<Resource, number>;
   turnsAvailable: number; // action turns
   surrendered: boolean;
+  /** Cumulative turns spent surrendered this era; capped at SURRENDER_TICKS_PER_ERA. */
+  surrenderTicksUsed: number;
+  /** Queued surrender: the flag rises automatically once every revenge window
+   *  against you has closed (you can't surrender while owing revenge). */
+  surrenderQueued?: boolean;
+  /** Turn the white flag last came down — gates the re-attack cooldown. */
+  surrenderLiftedAtTick?: number;
   starving: boolean; // food hit 0 — empire frozen until fed
 
   // Buildings: level for levelled/tiered buildings, count for counted ones
@@ -129,6 +143,18 @@ export interface Player {
   // Stats
   battlesWon: number;
   battlesLost: number;
+
+  /** New-regent onboarding (spec: help newcomers get started). Server-managed
+   *  UI/reward meta, not a game rule. `claimed` holds charge ids already
+   *  rewarded (rewards are idempotent); `dismissed` hides the panel for good
+   *  and grants any remaining rewards; welcomed/toured gate the one-time
+   *  proclamation and spotlight tour. Absent = a fresh newcomer. */
+  onboarding?: {
+    claimed: string[];
+    dismissed?: boolean;
+    welcomed?: boolean;
+    toured?: boolean;
+  };
 }
 
 // ── Clans (spec/clans.md) ───────────────────────────────────────────────────
@@ -276,6 +302,11 @@ export function totalPopulation(p: Player): number {
 
 export function level(p: Player, id: BuildingId): number {
   return p.buildings[id] ?? 0;
+}
+
+/** Vaulted goods, defaulting to zeros for empires saved before banking. */
+export function bankedRes(p: Player): Record<Resource, number> {
+  return p.bankedResources ?? { food: 0, wood: 0, stone: 0, ore: 0 };
 }
 
 /** Building integrity 0.5–1.0; absent = full health. Bombard is the only

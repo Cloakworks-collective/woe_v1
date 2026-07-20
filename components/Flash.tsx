@@ -7,7 +7,7 @@ export function Flash({ err, ok }: { err?: string; ok?: string }) {
         background: err ? "#f4d8d0" : "#e4eecb",
         color: err ? "var(--warn)" : "var(--green-dark)",
         padding: "6px 12px",
-        fontSize: 13.5,
+        fontSize: 14.5,
         fontWeight: 700,
       }}
     >

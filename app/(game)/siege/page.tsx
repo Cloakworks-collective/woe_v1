@@ -135,7 +135,7 @@ export default async function SiegePage({
               </div>
             </div>
             <CmdForm name="trainEngineers" path={path}>
-              <span style={{ fontSize: 12.5, color: "var(--ink-soft)", marginRight: 4 }}>
+              <span style={{ fontSize: 13.5, color: "var(--ink-soft)", marginRight: 4 }}>
                 {TRAINING_COSTS.siegeEngineer.gold}
                 <ResIcon kind="gold" size={13} /> each · needs a Muster Hall slot
               </span>
@@ -145,7 +145,7 @@ export default async function SiegePage({
               </button>
             </CmdForm>
             {foundry < 1 && (
-              <p style={{ fontSize: 12.5, color: "var(--warn)", marginTop: 4 }}>
+              <p style={{ fontSize: 13.5, color: "var(--warn)", marginTop: 4 }}>
                 Found the War Foundry first (Buildings → Military).
               </p>
             )}
@@ -229,7 +229,7 @@ export default async function SiegePage({
             })}
           </div>
           {discount > 0 && (
-            <p style={{ fontSize: 12.5, marginTop: 10 }}>
+            <p style={{ fontSize: 13.5, marginTop: 10 }}>
               <span style={{ marginRight: 4 }}>🛡</span> Clan Wonder discount: −{Math.round(discount * 100)}%
             </p>
           )}
@@ -268,7 +268,7 @@ export default async function SiegePage({
                       <Art path={COUNTER_ART[c]} size={104} title={step.name} />
                     </span>
                     <div className="bcard-body">
-                      <p style={{ margin: 0, fontSize: 13 }}>
+                      <p style={{ margin: 0, fontSize: 14 }}>
                         A permanent rampart installation — no engineers, no upkeep. It answers the{" "}
                         enemy&apos;s {WEAPON_NAME[c]} every time your walls are tested.
                       </p>

@@ -70,6 +70,82 @@ the grange"*, *"sell 2000 wood at 0.05"*. Battle reports come with trophy or
 skull, as deserved. It plays over the same HTTP API; the server stays
 authoritative, so an agent can't cheat — only command.
 
+## Architecture
+
+The whole game is a **pure TypeScript engine** wrapped in a thin server. No
+ORM, no per-request SQL, no message broker — by choice, not neglect.
+
+```
+Browser UI ─┐                                 lib/engine/*  (pure TS, no I/O)
+CLI client ─┼─▶ Next.js routes ─▶ runCommand ─▶ validate → mutate → events
+Claude /woe ┘   (server actions,   (lib/server/    │
+                 /api/cmd/[name])   pipeline.ts)    ▼
+                                            saveWorld (one JSONB doc)
+                                    ┌───────────────┴───────────────┐
+                                    dev: data/world.json    prod: Supabase
+                                    (plain file)            world_docs row
+```
+
+**The engine is pure.** Everything that *is* the game — combat resolution,
+the 10-minute tick, banking, espionage, market fills, the war-record
+leaderboards — lives in `lib/engine/` as side-effect-free functions:
+`(state, command) → (newState, events)`. That's why the web UI, the CLI, and
+the Claude plugin are all thin: they issue the same commands through the same
+pipeline, and why the whole game is unit-testable without a database.
+
+**One pipeline, one choke point.** Every mutation — a browser click, a CLI
+order, a cron tick — funnels through `runCommand` in
+`lib/server/pipeline.ts`: authenticate → validate → call the engine →
+persist → deliver events. There is deliberately no second path.
+
+**The world is one document.** The entire world (players, clans, battles,
+market, chronicle) is a single JSON document: a plain file in dev, one
+versioned JSONB row (`world_docs`) in Supabase Postgres in prod. Reads load
+it (10s in-memory cache), writes save it whole. Postgres is used as a
+document store; all computation happens in the engine, in memory. For a
+tick-based simulation that touches nearly every player every 10 minutes,
+"load once, compute in code, save once" beats thousands of row updates —
+and keeps the engine free of storage concerns.
+
+**Derived, never stored.** Rankings are a pure function of current state
+(`rankingScore`), computed on read — they can't go stale. The War Records
+(richest raids, bloodiest clashes, feuds, wars) are running tallies updated
+incrementally as each battle resolves — O(1) per battle, no aggregate
+queries over history, ever.
+
+**Time is ticks.** A Vercel cron hits `/api/tick` every 10 minutes; every
+page load and command also catches up any due ticks, so the world advances
+correctly even if the cron sleeps. Pacing is cost, never timers.
+
+### Scaling plan (todo.md §14)
+
+The one-document model has a known ceiling: concurrent writers. Two
+serverless instances saving the blob are last-write-wins — a stale save
+could silently revert a battle. The plan, in order:
+
+1. **Compare-and-swap** on the world save (version guard + retry) — turns
+   silent clobbering into detected retries. Insurance, not scale.
+2. **A single-writer world service** — the classic game-server model: one
+   always-on process owns the world in memory and serializes every command
+   through an in-process queue; Next.js routes forward to it over HTTP and
+   return the result in the same response. The engine doesn't change at all.
+   Persistence moves off the request path: periodic snapshots + an
+   append-only command log for replay. One Node process serializing pure
+   in-memory commands handles thousands per second — hundreds of players is
+   nowhere near its limit.
+3. **Normalized tables for the durable edges** — battle logs, per-tick
+   ranking snapshots, messages decompose into the already-written relational
+   schema (`supabase/migrations/0001_init.sql`, applied but dormant) for
+   cheap public reads. The *live* world stays in the writer's memory.
+
+**Deliberately no broker.** RabbitMQ/Redis pub-sub would transport commands
+to… the same single consumer, while turning request/response (a player needs
+their battle report back *in the same HTTP response*) into correlation IDs
+and reply queues. The "queue" a single writer needs is an array and a
+promise chain; durable replay is the command log's job, which is storage,
+not delivery. HTTP into one process is the simple version *and* the correct
+one.
+
 ## Design specs (`spec/`)
 
 | Doc | Covers |

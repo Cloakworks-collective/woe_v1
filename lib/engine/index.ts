@@ -6,6 +6,7 @@ export * from "./commands";
 export * from "./steward";
 export * from "./newEmpire";
 export * from "./reports";
+export * from "./onboarding";
 export * from "./rng";
 export * from "./score";
 export * from "./combat";

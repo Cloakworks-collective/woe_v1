@@ -3,9 +3,11 @@ import { notFound } from "next/navigation";
 import { Art } from "@/components/Art";
 import { Panel } from "@/components/Panel";
 import { PublicBattleTable } from "@/components/PublicBattleTable";
+import { TargetActions } from "@/components/TargetActions";
 import { RACE_NAMES } from "@/lib/constants";
-import { publicBattle, rankingScore, settlementTitle } from "@/lib/engine";
+import { publicBattle, rankingScore, researchLevel, settlementTitle } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
+import { REVENGE_WINDOW_TICKS } from "@/lib/server/world";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +28,20 @@ export default async function EmpireProfilePage({
     Object.values(world.players)
       .map((q) => rankingScore(q))
       .filter((s) => s > rankingScore(p)).length + 1;
+
+  // Whether I may revenge this empire — a personal window, or a clan-bombard
+  // window my banner still holds against their clan.
+  const personalRevenge = me.recentAttackers.some(
+    (a) => a.playerId === p.id && tick - a.tick <= REVENGE_WINDOW_TICKS && !me.revengeUsed.includes(p.id),
+  );
+  const myClan = me.clanId ? world.clans[me.clanId] : undefined;
+  const rev = myClan?.pendingRevenge;
+  const clanRevenge =
+    !!rev &&
+    tick <= rev.expiresAtTick &&
+    rev.memberSnapshot.includes(me.id) &&
+    p.clanId === rev.againstClanId;
+  const revengeOpen = personalRevenge || clanRevenge;
 
   const mine = world.battles
     .filter((b) => b.attackerId === id || b.defenderId === id)
@@ -52,8 +68,11 @@ export default async function EmpireProfilePage({
             <dd>#{rank} — {fmt(rankingScore(p))} points</dd>
             <dt>Clan</dt>
             <dd>{p.clanId ? (world.clans[p.clanId]?.name ?? "—") : "—"}</dd>
-            <dt>Battles won / lost</dt>
-            <dd>{p.battlesWon} / {p.battlesLost}</dd>
+            <dt>Battles</dt>
+            <dd>
+              <span style={{ color: "var(--pos)", fontWeight: 700 }}>{p.battlesWon} wins</span> ·{" "}
+              <span style={{ color: "var(--neg)", fontWeight: 700 }}>{p.battlesLost} losses</span>
+            </dd>
             <dt>Standing</dt>
             <dd>
               {p.surrendered ? "🏳 surrendered" : p.shieldUntilTick > tick ? "🛡 newcomer shield" : "at large"}
@@ -62,12 +81,23 @@ export default async function EmpireProfilePage({
           </dl>
         </div>
         {p.id !== me.id && (
-          <p style={{ fontSize: 12.5, marginTop: 6 }}>
-            <Link href="/attack">→ the war room</Link> · <Link href="/spy">→ send spies</Link>{" "}
-            <span style={{ color: "var(--ink-soft)" }}>
-              (what you see here is what the heralds tell everyone — composition costs spies)
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8 }}>
+            <TargetActions
+              target={{ id: p.id, name: p.name }}
+              revengeOpen={revengeOpen}
+              tradecraft={researchLevel(me, "tradecraft")}
+              hint={
+                p.shieldUntilTick > tick
+                  ? "🛡 Under the newcomer shield — no attacks or spying."
+                  : p.surrendered
+                    ? "🏳 Surrendered — only revenge may touch them."
+                    : undefined
+              }
+            />
+            <span style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>
+              What you see here is what the heralds tell everyone — composition costs spies.
             </span>
-          </p>
+          </div>
         )}
       </Panel>
 
@@ -96,7 +126,7 @@ export default async function EmpireProfilePage({
 
       <Panel title="Recent battles">
         <PublicBattleTable battles={mine.slice(0, 25)} highlightId={p.id} />
-        <p style={{ fontSize: 12.5, marginTop: 6 }}>
+        <p style={{ fontSize: 13.5, marginTop: 6 }}>
           <Link href="/battles">→ the World News feed</Link>
         </p>
       </Panel>

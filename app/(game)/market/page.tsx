@@ -73,7 +73,7 @@ export default async function MarketPage({
                   <td>
                     <CmdForm name="marketBuy" path="/market">
                       <input type="hidden" name="resource" value={key} />
-                      <input name="amount" placeholder="#" aria-label={`${label} to buy`} size={6} style={{ font: "13.5px Verdana", padding: 2 }} />
+                      <input name="amount" placeholder="#" aria-label={`${label} to buy`} size={6} style={{ font: "14.5px Verdana", padding: 2 }} />
                       <button className="btn" disabled={price === null}>
                         Buy
                       </button>
@@ -108,8 +108,8 @@ export default async function MarketPage({
             ariaLabel="Resource to sell"
             options={RESOURCES.map((r) => ({ value: r.key, label: `${r.icon} ${r.label}` }))}
           />{" "}
-          <input name="amount" placeholder="amount" aria-label="Amount to sell" size={7} style={{ font: "13.5px Verdana", padding: 4 }} />
-          <input name="price" placeholder="ask/unit" aria-label="Ask price per unit" size={7} style={{ font: "13.5px Verdana", padding: 4 }} />
+          <input name="amount" placeholder="amount" aria-label="Amount to sell" size={7} style={{ font: "14.5px Verdana", padding: 4 }} />
+          <input name="price" placeholder="ask/unit" aria-label="Ask price per unit" size={7} style={{ font: "14.5px Verdana", padding: 4 }} />
           <button className="btn">Send caravan</button>
         </CmdForm>
         {myOrders.length > 0 && (

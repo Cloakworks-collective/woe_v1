@@ -36,7 +36,7 @@ export function NameField() {
           padding: "4px 8px",
           border: "1px solid var(--border)",
           background: "var(--input-bg)",
-          font: "14px Verdana",
+          font: "15px Verdana",
         }}
       />
       <button

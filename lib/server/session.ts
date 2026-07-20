@@ -2,7 +2,7 @@
 
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import type { Player } from "@/lib/engine";
+import { applyOnboardingRewards, type Player } from "@/lib/engine";
 import { currentPlayerId, newRealmToken } from "./auth";
 import { saveWorld, type World } from "./store";
 import { getWorld, runDueTicks } from "./world";
@@ -20,7 +20,15 @@ async function _getGame(): Promise<{ world: World; player: Player }> {
   if (player?.banned) redirect(`/login?err=${encodeURIComponent("This empire has been banished by the crown.")}`);
   // Backfill realm tokens for empires founded before CLI access existed.
   const minted = player && !player.apiToken ? ((player.apiToken = newRealmToken()), true) : false;
-  if (processed > 0 || minted) await saveWorld(world);
+  // Pay out any completed-but-unclaimed Regent's Charges (idempotent).
+  const rewarded = player ? applyOnboardingRewards(player).length > 0 : false;
+  // Presence for the ladder's Online column — coarse (4-min granularity) so
+  // ordinary navigation doesn't force a world save on every page.
+  const now = Date.now();
+  const seen = player && now - (player.lastSeenAtMs ?? 0) > 4 * 60 * 1000
+    ? ((player.lastSeenAtMs = now), true)
+    : false;
+  if (processed > 0 || minted || rewarded || seen) await saveWorld(world);
   if (!player) redirect("/login");
   return { world, player };
 }

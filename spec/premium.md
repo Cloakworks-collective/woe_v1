@@ -1,8 +1,10 @@
 # War of Empires — Premium: The Royal Charter
 
-A single one-time purchase — **the Royal Charter, $4.99 (tunable)** — that
+A per-age purchase — **the Royal Charter, $8.99 per age (tunable)** — that
 places **the Steward** in the player's court: an automation officer for
-players who can't check in every ten minutes. All numbers tunable.
+players who can't check in every ten minutes. The Charter lasts until the
+era turns (every empire begins a new age uncharted, since the world resets).
+All numbers tunable.
 
 ---
 

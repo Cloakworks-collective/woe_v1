@@ -31,6 +31,7 @@ import {
 import type { BuildingId } from "../constants/buildings";
 import { luck, type Rng } from "./rng";
 import {
+  bankedRes,
   buildingIntegrity,
   civilians,
   level,
@@ -39,6 +40,7 @@ import {
   type ArmyState,
   type AttackMode,
   type BattleReport,
+  type Clan,
   type Player,
   type Resource,
   type SiegeGearType,
@@ -125,7 +127,10 @@ function buildSide(p: Player, opts: { home: boolean; walls: boolean; warBonus: b
   const wallLvl = opts.walls ? level(p, "walls") : 0;
 
   // Defender wall bonus; the caller reduces it by the attacker's escalade.
-  const wallBonus = opts.home && opts.walls ? wallLvl * WALL_BONUS_PER_LEVEL * p.wallIntegrity : 0;
+  const wallBonus =
+    opts.home && opts.walls
+      ? wallLvl * WALL_BONUS_PER_LEVEL * p.wallIntegrity * RACES[p.race].walls
+      : 0;
 
   const push = (cat: Category, type: TroopType | null, tier: Tier, count: number) => {
     if (count <= 0) return;
@@ -529,14 +534,14 @@ export function resolveBattle(
     for (const r of ["food", "wood", "stone", "ore"] as const) {
       const outside = unstored(defender, r);
       const take = Math.floor(outside * LOOT.FRACTION * scale);
-      defender.resources[r] -= take;
+      plunderResource(defender, r, take);
       attacker.resources[r] += take;
       loot.resources[r] = take;
     }
     if (mode === "siege") {
       const unbanked = unbankedGold(defender);
       const take = Math.floor(unbanked * LOOT.FRACTION * scale);
-      defender.gold -= take;
+      plunderGold(defender, take);
       attacker.gold += take;
       loot.gold = take;
     }
@@ -713,13 +718,110 @@ export function resolveBombard(
   return { attacker, defender, report };
 }
 
+// ── Clan-building bombardment (spec/clans.md — war only) ─────────────────────
+
+export type ClanBuilding = "storage" | "hall" | "wonder";
+
+export interface ClanBombardOutcome {
+  attacker: Player;
+  clan: Clan; // the bombarded clan, its target building's integrity reduced
+  which: ClanBuilding;
+  integrityLost: number;
+  trebuchets: number;
+  rounds: number;
+  log: string[];
+}
+
+const CLAN_BUILDING_LABEL: Record<ClanBuilding, string> = {
+  storage: "Clan Storage",
+  hall: "Clan Hall",
+  wonder: "Clan Wonder",
+};
+
+export function clanBuildingLabel(which: ClanBuilding): string {
+  return CLAN_BUILDING_LABEL[which];
+}
+
+/**
+ * War-only artillery strike on an enemy clan's works. Crewed trebuchets grind
+ * the chosen structure's integrity toward the 50% floor — no Counter-Engine
+ * (clan works carry no War Foundry), so no trebuchet is lost. No loot. The
+ * *price* — a single revenge strike for the whole attacked clan — is applied
+ * by the caller (see the pipeline). Pure; RNG injected.
+ */
+export function resolveClanBombard(
+  attackerIn: Player,
+  targetClanIn: Clan,
+  which: ClanBuilding,
+  opts: BattleOptions,
+): ClanBombardOutcome {
+  const attacker = structuredClone(attackerIn);
+  const clan = structuredClone(targetClanIn);
+  const log: string[] = [];
+  const label = CLAN_BUILDING_LABEL[which];
+  const siegeMult =
+    RACES[attacker.race].siege * (1 + researchLevel(attacker, "siegecraft") * EFFECT_PER_LEVEL);
+  const trebuchets = crewGear(attacker.army.siegeGear, attacker.army.siegeEngineers).trebuchets;
+
+  let integrityLost = 0;
+  let rounds = 0;
+
+  if (trebuchets === 0) {
+    log.push("No crewed trebuchets march — the barrage never begins.");
+    return { attacker, clan, which, integrityLost, trebuchets, rounds, log };
+  }
+  log.push(`${trebuchets} crewed trebuchets wheel within range of the ${label} and open fire.`);
+
+  for (let round = 1; round <= MAX_ROUNDS; round++) {
+    const now = clan.buildings.integrity[which];
+    if (now <= BUILDING_INTEGRITY_FLOOR) {
+      log.push(`Round ${round}: the ${label} is already cracked to its foundations — stones fall on rubble.`);
+      break;
+    }
+    rounds = round;
+    const roll = luck(opts.rng, LUCK_SWING);
+    const dmg = trebuchets * BUILDING_DAMAGE_PER_TREB * siegeMult * roll;
+    const applied = Math.min(now - BUILDING_INTEGRITY_FLOOR, dmg);
+    clan.buildings.integrity[which] = now - applied;
+    integrityLost += applied;
+    log.push(`Round ${round}: the volley cracks the ${label} (−${Math.round(applied * 100)}%).`);
+  }
+
+  log.push(
+    `Bombardment done: the ${label} stands at ${Math.round(clan.buildings.integrity[which] * 100)}% integrity.`,
+  );
+  return { attacker, clan, which, integrityLost, trebuchets, rounds, log };
+}
+
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
-/** Resources sitting outside protected (integrity-scaled) storage. */
+/** Raidable goods: everything loose, plus vaulted overflow past the store's
+ *  (integrity-scaled) capacity — a wrecked store spills. */
 export function unstored(p: Player, r: Resource): number {
   const building = STORAGE_BUILDING[r];
   const cap = STORAGE_PER_LEVEL * level(p, building) * buildingIntegrity(p, building);
-  return Math.max(0, p.resources[r] - cap);
+  const spilled = Math.max(0, bankedRes(p)[r] - cap);
+  return p.resources[r] + spilled;
+}
+
+/** Deduct plundered/burnt goods: loose stock first, then the spilled vault. */
+export function plunderResource(p: Player, r: Resource, amount: number): void {
+  const fromLoose = Math.min(p.resources[r], amount);
+  p.resources[r] -= fromLoose;
+  const rest = amount - fromLoose;
+  if (rest > 0) {
+    const banked = { ...bankedRes(p) };
+    banked[r] = Math.max(0, banked[r] - rest);
+    p.bankedResources = banked;
+  }
+}
+
+/** Deduct plundered gold: loose first, then the spilled vault. */
+export function plunderGold(p: Player, amount: number): void {
+  const fromLoose = Math.min(p.gold, amount);
+  p.gold -= fromLoose;
+  const rest = amount - fromLoose;
+  if (rest > 0) p.bankedGold = Math.max(0, p.bankedGold - rest);
 }
 
 /** Gold outside the (integrity-scaled) Counting House. */
@@ -766,6 +868,12 @@ export interface AttackContext {
   eraPeaceTicks: number; // 5 days × 144
   revengeWindowTicks: number; // 18h × 6
   clanWar: boolean;
+  /** True when a clan-bombardment revenge window (spec/clans.md) authorizes
+   *  this member to strike, even without a personal recentAttackers entry. */
+  clanRevengeAuthorized?: boolean;
+  /** No fresh attacks for this many ticks after lowering the white flag
+   *  (anti-dodge; revenge is exempt). See surrenderLiftedAtTick. */
+  surrenderReattackCooldownTicks?: number;
 }
 
 export function validateAttack(
@@ -786,14 +894,28 @@ export function validateAttack(
   }
 
   if (mode === "revenge") {
-    const hit = attacker.recentAttackers.find(
-      (a) => a.playerId === defender.id && ctx.currentTick - a.tick <= ctx.revengeWindowTicks,
-    );
-    if (!hit) return "No revenge window is open against that empire.";
-    if (attacker.revengeUsed.includes(defender.id)) {
-      return "You have already taken your revenge.";
+    const personalOpen =
+      !!attacker.recentAttackers.find(
+        (a) => a.playerId === defender.id && ctx.currentTick - a.tick <= ctx.revengeWindowTicks,
+      ) && !attacker.revengeUsed.includes(defender.id);
+    // A clan-bombardment revenge (spec/clans.md) is a second, independent path:
+    // any member of the bombarded clan may deliver it against any aggressor.
+    if (!personalOpen && !ctx.clanRevengeAuthorized) {
+      return attacker.revengeUsed.includes(defender.id)
+        ? "You have already taken your revenge."
+        : "No revenge window is open against that empire.";
     }
-    return null; // revenge ignores surrender, stamina, and refusal
+    return null; // revenge ignores surrender, stamina, refusal, and the cooldown
+  }
+
+  // Re-attack cooldown: you can't duck under the white flag and immediately
+  // swing back once you lower it (revenge, handled above, is exempt).
+  if (
+    attacker.surrenderLiftedAtTick !== undefined &&
+    ctx.surrenderReattackCooldownTicks &&
+    ctx.currentTick - attacker.surrenderLiftedAtTick < ctx.surrenderReattackCooldownTicks
+  ) {
+    return "Your host is still standing down from the surrender — no fresh attacks so soon after the white flag comes down.";
   }
 
   if (defender.surrendered) return "They have surrendered — only revenge may touch them.";

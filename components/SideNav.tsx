@@ -25,8 +25,6 @@ const SECTIONS: { head: string; sub: string; items: Item[] }[] = [
     items: [
       { href: "/troops", label: "⚔️ The Army", desc: "Equip warriors into footmen/archers/cavalry; hire mercs" },
       { href: "/siege", label: "🏹 Siege Works", desc: "Build engines & see your defensive counters" },
-      { href: "/attack", label: "🔥 Attack", desc: "The war room — raid, siege, revenge, bombard" },
-      { href: "/spy", label: "🗡️ Spy & Scout", desc: "Espionage missions and reconnaissance" },
     ],
   },
 ];

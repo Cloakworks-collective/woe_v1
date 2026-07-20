@@ -46,11 +46,24 @@ export function newEmpire(opts: {
     bankedGold: 0,
     taxRate: DEFAULT_TAX_RATE,
     resources: { food: 1000, wood: 1000, stone: 1000, ore: 1000 },
+    bankedResources: { food: 0, wood: 0, stone: 0, ore: 0 },
     turnsAvailable: ACTION_TURNS.START,
     surrendered: false,
+    surrenderTicksUsed: 0,
     starving: false,
 
-    buildings: { hearthstead: 15, muster_hall: 2 },
+    // Every empire founds with level-1 banking: the Counting House vault for
+    // gold and one shelter per resource, so day-one raids can't strip a
+    // newcomer bare.
+    buildings: {
+      hearthstead: 15,
+      muster_hall: 2,
+      counting_house: 1,
+      granary: 1,
+      timberyard: 1,
+      masons_yard: 1,
+      ironhold: 1,
+    },
     wallIntegrity: 1,
     buildingIntegrity: {}, // absent entries = full health
 

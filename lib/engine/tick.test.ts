@@ -26,8 +26,8 @@ describe("turn tick", () => {
     p.workers.farmers = 30; // 10 over cap
     p.idlePeasants = 50;
     const { player } = processTurnTick(p);
-    // 20 effective farmers × 20 × (1−0.5) = 200 food, minus upkeep 10
-    expect(player.resources.food).toBe(1000 + 200 - 10);
+    // 20 effective farmers × 20 × (1−0.5) × 1.25 human = 250 food, minus upkeep 10
+    expect(player.resources.food).toBe(1000 + 250 - 10);
   });
 
   it("a bombarded production building yields proportionally less", () => {
@@ -37,8 +37,8 @@ describe("turn tick", () => {
     p.idlePeasants = 60;
     p.buildingIntegrity = { grange: 0.5 }; // cracked to the floor
     const { player } = processTurnTick(p);
-    // 20 × 20 × 0.5 × 0.5 integrity = 100 food, minus upkeep 10
-    expect(player.resources.food).toBe(1000 + 100 - 10);
+    // 20 × 20 × 0.5 × 0.5 integrity × 1.25 human = 125 food, minus upkeep 10
+    expect(player.resources.food).toBe(1000 + 125 - 10);
   });
 
   it("a cracked Collegium banks research slower", () => {
@@ -59,8 +59,29 @@ describe("turn tick", () => {
     p.workers.farmers = 20;
     p.research.levels.statecraft = 5;
     const { player } = processTurnTick(p);
-    // 20 × 20 × 0.5 × 2 = 400 food, minus upkeep 12 (120 pop: farmers added on top)
-    expect(player.resources.food).toBe(1000 + 400 - 12);
+    // 20 × 20 × 0.5 × 2 × 1.25 human = 500 food, minus upkeep 12 (120 pop: farmers added on top)
+    expect(player.resources.food).toBe(1000 + 500 - 12);
+  });
+
+  it("the granary vault feeds the people when loose food runs dry", () => {
+    const p = fresh();
+    p.resources.food = 4; // upkeep is 10
+    p.bankedResources = { food: 50, wood: 0, stone: 0, ore: 0 };
+    const { player } = processTurnTick(p);
+    expect(player.starving).toBe(false);
+    expect(player.resources.food).toBe(0);
+    expect(player.bankedResources!.food).toBe(44); // vault paid the 6 short
+  });
+
+  it("the Steward auto-vaults loose goods for Charter holders", () => {
+    const p = fresh();
+    p.premium = true;
+    const { player } = processTurnTick(p);
+    // Food: 1000 − 10 upkeep = 990 loose, then vaulted. Wood: all 1000 vaulted.
+    expect(player.resources.food).toBe(0);
+    expect(player.bankedResources!.food).toBe(990);
+    expect(player.resources.wood).toBe(0);
+    expect(player.bankedResources!.wood).toBe(1000);
   });
 
   it("starves at 0 food: no tax, no production, flag set, event emitted", () => {

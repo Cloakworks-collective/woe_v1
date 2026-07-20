@@ -59,28 +59,28 @@ export async function ResourceBar({ player, meta }: { player: Player; meta: Worl
         <button title="Leave this throne and return to the gate">abdicate</button>
       </form>
       <div className="res-group">
-        <div className={`res ${bulk(player.gold)}`} title="Gold on hand (banked gold is in the Counting House)">
-          <ResIcon kind="gold" size={17} />
+        <div className={`res ${bulk(player.gold)}`} title="Gold on hand — loose coin, plundered when your castle is sacked. Bank it in the Counting House.">
+          <ResIcon kind="gold" size={28} />
           {fmt(player.gold)}
         </div>
         <div className={`res ${foodCls}`} title={foodTitle}>
-          <ResIcon kind="food" size={17} />
+          <ResIcon kind="food" size={28} />
           {fmt(player.resources.food)}
         </div>
-        <div className={`res ${bulk(player.resources.wood)}`} title="Wood">
-          <ResIcon kind="wood" size={17} />
+        <div className={`res ${bulk(player.resources.wood)}`} title="Wood — timber in your stores">
+          <ResIcon kind="wood" size={28} />
           {fmt(player.resources.wood)}
         </div>
-        <div className={`res ${bulk(player.resources.stone)}`} title="Stone">
-          <ResIcon kind="stone" size={17} />
+        <div className={`res ${bulk(player.resources.stone)}`} title="Stone — in your stores">
+          <ResIcon kind="stone" size={28} />
           {fmt(player.resources.stone)}
         </div>
-        <div className={`res ${bulk(player.resources.ore)}`} title="Ore">
-          <ResIcon kind="ore" size={17} />
+        <div className={`res ${bulk(player.resources.ore)}`} title="Ore — in your stores">
+          <ResIcon kind="ore" size={28} />
           {fmt(player.resources.ore)}
         </div>
         <div className="res" title="Action turns — attacks cost 10, +2 per game turn">
-          <ResIcon kind="turns" size={17} />
+          <ResIcon kind="turns" size={28} />
           {player.turnsAvailable}
         </div>
       </div>

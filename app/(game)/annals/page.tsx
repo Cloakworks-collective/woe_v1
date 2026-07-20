@@ -2,49 +2,32 @@ import Link from "next/link";
 import { ElderAgesIndex } from "@/components/ElderAges";
 import { EraRecordsView } from "@/components/EraRecords";
 import { Panel } from "@/components/Panel";
-import { ToneGlyph } from "@/components/ToneGlyph";
-import { timeAgo } from "@/components/timeAgo";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
 
 const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");
 
+// The Annals hold only what is finished: sealed ages and the elder legends.
+// The living age is chronicled on World News; its war records tally on the
+// Rankings side until the era turns and they are bound in here.
 export default async function AnnalsPage() {
   const { world } = await getGame();
-  const live = world.chronicle ?? [];
   const archive = [...(world.chronicleArchive ?? [])].reverse(); // newest sealed age first
 
   return (
     <>
-      <Panel
-        title={`📜 The Annals of the Age — ${world.meta.eraName}`}
-        info="The grand chronicle of the whole realm — crowns won and lost, wars declared, castles sacked. When the age ends, these Annals are sealed for good in the history books below."
-      >
-        <p style={{ fontSize: 12.5, marginBottom: 8 }}>
-          <Link href="/annals/records">⚔ War Records</Link> ·{" "}
-          <Link href="/chronicle">📖 Your Chronicle</Link>
-        </p>
-        {live.length === 0 ? (
-          <p style={{ fontSize: 13.5, fontStyle: "italic" }}>The age is young; no great deeds are yet recorded.</p>
-        ) : (
-          <ul className="chron">
-            {live.map((e, i) => (
-              <li key={i} className={`chron-row tone-${e.tone}`}>
-                <ToneGlyph tone={e.tone} />
-                <span className="chron-line">{e.text}</span>
-                <span className="chron-when" title={`turn ${e.tick}`}>
-                  {timeAgo(e, world.meta)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
+      <p style={{ margin: "0 0 8px", fontSize: 13.5 }}>
+        The age still burning is elsewhere: <Link href="/battles">🌍 World News</Link> ·{" "}
+        <Link href="/rankings/records">⚔ War Records ({world.meta.eraName})</Link>
+      </p>
 
-      <Panel title="📚 Sealed Ages — the history books, kept for all time">
+      <Panel
+        title="📚 The Annals — sealed ages, kept for all time"
+        info="The finished history of the realm. Each age, once ended, is bound here for good — its chronicle, its final ladder, and its war records. Nothing of the current age appears until it is sealed."
+      >
         {archive.length === 0 ? (
-          <p style={{ fontSize: 13.5, fontStyle: "italic" }}>
+          <p style={{ fontSize: 14.5, fontStyle: "italic" }}>
             No age has yet ended. The first history is still being written.
           </p>
         ) : (
@@ -64,7 +47,7 @@ export default async function AnnalsPage() {
                   </summary>
                   <div className="age-body">
                     {age.finalLadder.length > 0 && (
-                      <p style={{ fontSize: 12.5, margin: "0 0 8px" }}>
+                      <p style={{ fontSize: 13.5, margin: "0 0 8px" }}>
                         <b>Final ladder:</b>{" "}
                         {age.finalLadder.slice(0, 5).map((l, i) => (
                           <span key={i}>
@@ -84,7 +67,7 @@ export default async function AnnalsPage() {
                     </ul>
                     {age.records && (
                       <>
-                        <p style={{ fontSize: 12.5, fontWeight: 600, margin: "10px 0 4px" }}>
+                        <p style={{ fontSize: 13.5, fontWeight: 600, margin: "10px 0 4px" }}>
                           ⚔ War Records of the age
                         </p>
                         <EraRecordsView records={age.records} />

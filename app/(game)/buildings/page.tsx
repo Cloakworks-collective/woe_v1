@@ -208,7 +208,7 @@ export default async function BuildingsPage({
       </div>
 
       {p.premium && (p.buildQueue?.length ?? 0) > 0 && (
-        <p style={{ fontSize: 12.5, color: "var(--ink-soft)", margin: "4px 0" }}>
+        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", margin: "4px 0" }}>
           🪶 The Steward holds {p.buildQueue!.length} queued build
           {p.buildQueue!.length > 1 ? "s" : ""} — <a href="/steward">review the queue</a>.
         </p>
@@ -248,7 +248,7 @@ export default async function BuildingsPage({
       ))}
 
       {military && (
-        <p style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>
+        <p style={{ fontSize: 13.5, color: "var(--ink-soft)" }}>
           The War Foundry&apos;s weapons and counters live in the <a href="/siege">Siege Works</a>.
         </p>
       )}

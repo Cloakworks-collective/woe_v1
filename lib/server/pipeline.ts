@@ -9,6 +9,7 @@ import {
   assignWorkers,
   atWar,
   bankGold,
+  bankResource,
   build,
   dequeueBuild,
   dequeueResearch,
@@ -19,6 +20,8 @@ import {
   buyMercenaries,
   buySiegeGear,
   canJoin,
+  clanBuildingLabel,
+  crewGear,
   declareWar,
   departClan,
   depositToClan,
@@ -38,11 +41,11 @@ import {
   repairWalls,
   resolveBattle,
   resolveBombard,
+  resolveClanBombard,
   restTroops,
   runScoutRecon,
   runSpyMission,
   setResearch,
-  setSurrender,
   setTax,
   type OrderAction,
   type OrderCondition,
@@ -54,13 +57,19 @@ import {
   withdrawFromClan,
   wonderDiscount,
   type AttackMode,
+  type ClanBuilding,
   type Player,
   type Resource,
   type UnitLosses,
 } from "../engine";
-import { FOUNDING_MEMBERS } from "../constants";
+import {
+  FOUNDING_MEMBERS,
+  SURRENDER_DAYS_PER_ERA,
+  SURRENDER_REATTACK_COOLDOWN_TICKS,
+  SURRENDER_TICKS_PER_ERA,
+} from "../constants";
 import { dmChannel, pushBattle, pushChronicle, pushInbox, saveWorld, type World } from "./store";
-import { ERA_PEACE_TICKS, REVENGE_WINDOW_TICKS, getWorld, runDueTicks } from "./world";
+import { ERA_PEACE_TICKS, REVENGE_WINDOW_TICKS, getWorld, revengePendingOn, runDueTicks } from "./world";
 
 export interface CommandResult {
   ok: boolean;
@@ -84,6 +93,7 @@ export async function runCommand(
   const player = world.players[playerId];
   if (!player) return { ok: false, message: "No such empire." };
   if (player.banned) return { ok: false, message: "This empire has been banished by the crown." };
+  player.lastSeenAtMs = Date.now(); // presence for the ladder's Online column
 
   try {
     const result = dispatch(world, player, name, args);
@@ -115,6 +125,8 @@ function dispatch(
       return put(setTax(player, Number(args.rate)).player), undefined;
     case "assignWorkers":
       return put(assignWorkers(player, args.role as never, num(args.count)).player), undefined;
+    case "recallWorkers":
+      return put(assignWorkers(player, args.role as never, -num(args.count)).player), undefined;
     case "trainWarriors":
       return put(trainWarriors(player, num(args.count)).player), undefined;
     case "trainSpies":
@@ -150,9 +162,15 @@ function dispatch(
     case "rest":
       return put(restTroops(player).player), undefined;
     case "surrender":
-      return put(setSurrender(player, Boolean(args.flag)).player), undefined;
+      return doSurrender(world, player, Boolean(args.flag));
     case "bank":
       return put(bankGold(player, num(args.amount)).player), undefined;
+    case "bankRes": {
+      const what = str(args.what);
+      if (!["food", "wood", "stone", "ore"].includes(what))
+        throw new EngineError("what", "Unknown resource");
+      return put(bankResource(player, what as never, num(args.amount)).player), undefined;
+    }
     case "buyMercs":
       return put(buyMercenaries(player, num(args.count), wonderDiscount(clan)).player), undefined;
     case "buySiegeGear":
@@ -329,6 +347,8 @@ function dispatch(
       pushChronicle(world, "war", `⚔ ${clan.name} declares WAR upon ${target.name}!`);
       return;
     }
+    case "clanBombard":
+      return doClanBombard(world, player, str(args.clanId), str(args.which));
 
     // ── Forum ─────────────────────────────────────────────────────────
     case "chat": {
@@ -425,12 +445,26 @@ function doAttack(
   const dClan = defender.clanId ? world.clans[defender.clanId] : undefined;
   const clanWar = atWar(aClan, dClan);
 
+  // Clan-bombardment revenge (spec/clans.md): our clan was bombarded by the
+  // defender's clan, this player was a member at that moment, and the 18h
+  // window is still open. Any such member may deliver the one strike.
+  const rev = aClan?.pendingRevenge;
+  const clanRevengeAuthorized =
+    mode === "revenge" &&
+    !!rev &&
+    !!dClan &&
+    rev.againstClanId === dClan.id &&
+    rev.memberSnapshot.includes(attacker.id) &&
+    tick <= rev.expiresAtTick;
+
   const err = validateAttack(attacker, defender, mode, {
     currentTick: tick,
     eraStartedAtTick: world.meta.eraStartedAtTick,
     eraPeaceTicks: ERA_PEACE_TICKS,
     revengeWindowTicks: REVENGE_WINDOW_TICKS,
     clanWar,
+    clanRevengeAuthorized,
+    surrenderReattackCooldownTicks: SURRENDER_REATTACK_COOLDOWN_TICKS,
   });
   if (err) throw new EngineError("attack", err);
 
@@ -444,10 +478,9 @@ function doAttack(
   const a = outcome.attacker;
   const d = outcome.defender;
 
-  // The attack itself: 10 action turns; attacking lifts surrender and
-  // (implemented proposal) drops your own newcomer shield.
+  // The attack itself: 10 action turns; attacking drops your own newcomer
+  // shield. (You can't attack while surrendered, so there's no flag to lift.)
   a.turnsAvailable -= 10;
-  a.surrendered = false;
   a.shieldUntilTick = Math.min(a.shieldUntilTick, tick);
 
   // Revenge bookkeeping (combat.md): every attack opens the victim's window;
@@ -458,6 +491,11 @@ function doAttack(
   ];
   d.revengeUsed = d.revengeUsed.filter((id) => id !== a.id);
   if (mode === "revenge") a.revengeUsed = [...a.revengeUsed, d.id];
+
+  // A clan's single bombardment-revenge is spent by whoever delivers it —
+  // close the whole clan's window. Mutating aClan in place is enough: the
+  // war-kills block below re-clones from it, and it is the live world object.
+  if (clanRevengeAuthorized && aClan) aClan.pendingRevenge = undefined;
 
   world.players[a.id] = a;
   world.players[d.id] = d;
@@ -519,4 +557,136 @@ function doAttack(
   }
 
   return { ok: true, battleId, message: `Battle resolved: ${outcome.report.victor}` };
+}
+
+/**
+ * Raise or lower the white flag (spec/combat.md, economy.md). Surrender makes
+ * you untouchable but for revenge, halves tax AND production, and spends an
+ * era-limited budget of days. You can't surrender while a revenge hangs over
+ * you — it queues instead, rising once every such window closes. Lowering the
+ * flag starts a re-attack cooldown so surrender can't be a siege-dodge.
+ */
+function doSurrender(world: World, player: Player, flag: boolean): CommandResult {
+  const tick = world.meta.tickNumber;
+  const p = player;
+
+  if (!flag) {
+    const wasFlying = p.surrendered;
+    p.surrendered = false;
+    p.surrenderQueued = false;
+    if (wasFlying) p.surrenderLiftedAtTick = tick;
+    world.players[p.id] = p;
+    return {
+      ok: true,
+      message: wasFlying
+        ? "The white flag is lowered — your host stands ready again (no attacks for a short while)."
+        : "Surrender is called off.",
+    };
+  }
+
+  if (p.surrendered) return { ok: true, message: "You already fly the white flag." };
+  if ((p.surrenderTicksUsed ?? 0) >= SURRENDER_TICKS_PER_ERA) {
+    throw new EngineError(
+      "surrender",
+      `You have spent your ${SURRENDER_DAYS_PER_ERA} days of surrender for this age — there is no hiding now.`,
+    );
+  }
+  if (revengePendingOn(world, p.id, tick)) {
+    p.surrenderQueued = true;
+    world.players[p.id] = p;
+    return {
+      ok: true,
+      message:
+        "A revenge still hangs over you — surrender is queued. The white flag rises once every revenge window against you has closed.",
+    };
+  }
+  p.surrendered = true;
+  p.surrenderQueued = false;
+  world.players[p.id] = p;
+  return {
+    ok: true,
+    message: "The white flag is raised — untouchable but for revenge, at half tax and half production.",
+  };
+}
+
+/**
+ * Clan-building bombardment (spec/clans.md): a war-only artillery strike on an
+ * enemy clan's works. Costs 10 turns and crewed trebuchets; grinds the chosen
+ * structure toward its 50% floor. The price is a single revenge strike for the
+ * whole attacked clan — any member at that moment may deliver it within 18h.
+ */
+function doClanBombard(
+  world: World,
+  attacker: Player,
+  targetClanId: string,
+  which: string,
+): CommandResult {
+  const tick = world.meta.tickNumber;
+  const aClan = attacker.clanId ? world.clans[attacker.clanId] : undefined;
+  if (!aClan) throw new EngineError("clan", "You march under no banner");
+  const tClan = world.clans[targetClanId];
+  if (!tClan) throw new EngineError("clan", "No such clan");
+  if (tClan.id === aClan.id) throw new EngineError("clan", "You cannot bombard your own works");
+  if (!atWar(aClan, tClan)) throw new EngineError("war", "You are not at war with that clan");
+  if (which !== "storage" && which !== "hall" && which !== "wonder") {
+    throw new EngineError("target", "Choose a clan building to bombard");
+  }
+  const target = which as ClanBuilding;
+  if (attacker.surrendered) throw new EngineError("surrender", "You have surrendered — lift the white flag first");
+  if (attacker.starving) throw new EngineError("starving", "Starving armies will not march");
+  if (tick - world.meta.eraStartedAtTick < ERA_PEACE_TICKS) {
+    throw new EngineError("peace", "The era peace holds — no attacks in the first 5 days");
+  }
+  if (attacker.turnsAvailable < 10) throw new EngineError("turns", "A bombardment costs 10 action turns");
+
+  const buildingLevel =
+    target === "storage"
+      ? tClan.buildings.storageLevel
+      : target === "hall"
+        ? tClan.buildings.hallLevel
+        : tClan.buildings.wonderLevel;
+  const label = clanBuildingLabel(target);
+  if (buildingLevel <= 0) throw new EngineError("target", `They have raised no ${label} to break`);
+  if (tClan.buildings.integrity[target] <= 0.5) {
+    throw new EngineError("target", `Their ${label} is already cracked to its floor`);
+  }
+  if (crewGear(attacker.army.siegeGear, attacker.army.siegeEngineers).trebuchets <= 0) {
+    throw new EngineError("gear", "You need crewed trebuchets — trebuchets plus engineers to work them");
+  }
+
+  const outcome = resolveClanBombard(attacker, tClan, target, {
+    rng: Math.random,
+    battleId: randomUUID(),
+    tick,
+  });
+
+  const a = outcome.attacker;
+  a.turnsAvailable -= 10;
+  a.surrendered = false;
+  a.shieldUntilTick = Math.min(a.shieldUntilTick, tick);
+
+  const damaged = outcome.clan;
+  // The price: the whole clan (as it stands now) gets ONE revenge strike.
+  damaged.pendingRevenge = {
+    againstClanId: aClan.id,
+    memberSnapshot: [...damaged.members],
+    expiresAtTick: tick + REVENGE_WINDOW_TICKS,
+  };
+
+  world.players[a.id] = a;
+  world.clans[damaged.id] = damaged;
+
+  const pct = Math.round(outcome.integrityLost * 100);
+  for (const m of damaged.members) {
+    pushInbox(world, m, {
+      type: "clanEvent",
+      detail: `${a.name} of ${aClan.name} bombards your ${label} (−${pct}%). Your clan may strike one revenge against them — first to draw blood claims it (18h).`,
+    });
+  }
+  pushChronicle(world, "war", `🎯 ${aClan.name} bombards the ${label} of ${damaged.name} (−${pct}%).`);
+
+  return {
+    ok: true,
+    message: `Your trebuchets crack the ${damaged.name} ${label} for −${pct}% integrity — expect their revenge.`,
+  };
 }

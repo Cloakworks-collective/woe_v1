@@ -109,13 +109,13 @@ export default async function TroopsPage({
                       title: TIER_INFO[t],
                     }))}
                   />{" "}
-                  <input name="count" placeholder="#" aria-label={`${label} to equip`} size={3} style={{ font: "12.5px Verdana", padding: 3 }} />
+                  <input name="count" placeholder="#" aria-label={`${label} to equip`} size={3} style={{ font: "13.5px Verdana", padding: 3 }} />
                   <button className="btn">Equip</button>
                 </CmdForm>
                 <CmdForm name="disbandTroops" path="/troops">
                   <input type="hidden" name="type" value={type} />
                   <Pills name="tier" ariaLabel={`${label} tier to disband`} options={TIERS.map((t) => ({ value: t, label: t }))} />{" "}
-                  <input name="count" placeholder="#" aria-label={`${label} to disband`} size={3} style={{ font: "12.5px Verdana", padding: 3 }} />
+                  <input name="count" placeholder="#" aria-label={`${label} to disband`} size={3} style={{ font: "13.5px Verdana", padding: 3 }} />
                   <button className="btn" style={{ background: "linear-gradient(#a8853f,#7c5426)", borderColor: "#4e3113" }}>
                     Disband
                   </button>
@@ -124,7 +124,7 @@ export default async function TroopsPage({
             </div>
           ))}
         </div>
-        <p style={{ fontSize: 12.5, marginTop: 6 }}>
+        <p style={{ fontSize: 13.5, marginTop: 6 }}>
           🔥 Stamina {p.army.stamina}/100 · 🎖 Experience {p.army.experience}/100
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}>
@@ -150,19 +150,19 @@ export default async function TroopsPage({
           <dd>10 gold each per turn — unpaid mercs defect</dd>
         </dl>
         <CmdForm name="buyMercs" path="/troops">
-          <input name="count" placeholder="#" aria-label="Mercenaries to hire" size={4} style={{ font: "13.5px Verdana", padding: 4 }} />
+          <input name="count" placeholder="#" aria-label="Mercenaries to hire" size={4} style={{ font: "14.5px Verdana", padding: 4 }} />
           <button className="btn">Hire</button>
           <span style={{ marginLeft: 6 }}><Info tip={ACTION_INFO.hireMercs} guide={ACTION_GUIDE.hireMercs} /></span>
         </CmdForm>
         {discount > 0 && (
-          <p style={{ fontSize: 12.5, color: "var(--green-dark)", marginTop: 4 }}>
+          <p style={{ fontSize: 13.5, color: "var(--green-dark)", marginTop: 4 }}>
             Clan Wonder discount: −{Math.round(discount * 100)}% on mercenaries, troops, and siege gear.
           </p>
         )}
       </Panel>
 
       <Panel title="The Siege Train">
-        <p style={{ fontSize: 13.5 }}>
+        <p style={{ fontSize: 14.5 }}>
           <Art path="siege/trebuchets" size={56} title="Siege Works" /> Engines, engineers, and the
           foundry ladder now live in the <a href="/siege">Siege Works</a> — {p.army.siegeEngineers}{" "}
           engineers, {Object.values(p.army.siegeGear).reduce((a, b) => a + b, 0)} pieces of gear.

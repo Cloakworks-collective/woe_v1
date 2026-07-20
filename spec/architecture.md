@@ -91,48 +91,57 @@ Peasant lifecycle:
 
 ### Race System
 
-Every race's bonuses and penalties **sum to zero** (in ±10/20% steps) —
-Humans are the flat-1.0 baseline, okay at everything, bad at nothing.
+Values are ported from Simon Taylor's 2006 balance workbook (races2.xls,
+"Proposed" sheet). Bonuses do **not** sum to zero; balance is judged by
+equal-cost army power, as in the original workbook. Deliberate divergences
+from the workbook: resource penalties are clamped at ~0.4–0.5×, there is no
+starting-buildings perk (humans get flat +25% production instead), gnolls
+keep spy/scout 1.2 (the workbook's spy race was humans; ours coexist), the
+workbook's ±5% "Health" bonus is folded into global `defence`, and its
+"Defences" bonus maps to `walls` (home fortification only).
 Research speed is identical for all races.
 
 ```ts
 interface RaceModifiers {
   production: { food: number, wood: number, stone: number, ore: number }
-  attack: number                 // global, all troops
-  defence: number                // global, all troops
+  attack: number                 // global, all troops (currently 1.0 for all)
+  defence: number                // global, all troops (carries the old "health" ±5%)
   units: { footman: number, archer: number, cavalry: number }  // per-type atk & def
   siege: number                  // siege damage dealt
+  walls: number                  // home wall bonus factor (fortification quality)
   spy: number                    // mission effectiveness
   scout: number                  // recon + catch chance
-  mercCost: number               // mercenary price factor
+  mercCost: number               // mercenary price factor (currently 1.0 for all)
 }
 ```
 
 | Modifier   | Human | Elf  | Orc  | Troll | Dwarf | Gnoll |
 |------------|-------|------|------|-------|-------|-------|
-| Food       | 1.0   | 1.0  | 1.0  | 1.0   | 0.8   | 1.1   |
-| Wood       | 1.0   | 1.2  | 0.9  | 0.9   | 0.8   | 0.9   |
-| Stone      | 1.0   | 1.0  | 0.9  | 1.2   | 1.0   | 0.9   |
-| Ore        | 1.0   | 1.0  | 1.1  | 0.9   | 1.2   | 1.0   |
-| Attack     | 1.0   | 1.0  | 1.1  | 1.0   | 0.9   | 1.0   |
-| Defence    | 1.0   | 1.0  | 1.0  | 1.0   | 1.1   | 0.9   |
-| Footman    | 1.0   | 1.0  | 1.0  | 1.1   | 1.1   | 1.0   |
-| Archer     | 1.0   | 1.2  | 1.0  | 0.9   | 1.0   | 0.9   |
-| Cavalry    | 1.0   | 0.8  | 1.2  | 0.8   | 1.0   | 1.0   |
-| Siege      | 1.0   | 0.8  | 0.9  | 1.2   | 1.1   | 0.8   |
-| Spy        | 1.0   | 1.0  | 0.9  | 1.0   | 1.0   | 1.2   |
+| Food       | 1.25  | 1.2  | 1.4  | 0.7   | 0.7   | 1.1   |
+| Wood       | 1.25  | 1.5  | 0.6  | 0.8   | 0.4   | 1.3   |
+| Stone      | 1.25  | 0.6  | 0.8  | 1.6   | 1.4   | 0.7   |
+| Ore        | 1.25  | 0.5  | 1.4  | 1.1   | 1.4   | 0.9   |
+| Defence    | 1.0   | 0.95 | 1.0  | 1.05  | 1.05  | 0.95  |
+| Footman    | 1.1   | 0.9  | 0.9  | 1.25  | 1.3   | 1.1   |
+| Archer     | 1.1   | 1.35 | 1.05 | 0.8   | 0.8   | 1.3   |
+| Cavalry    | 1.1   | 1.0  | 1.25 | 0.8   | 0.8   | 1.0   |
+| Siege      | 1.0   | 0.9  | 0.8  | 1.4   | 1.05  | 1.1   |
+| Walls      | 1.0   | 0.9  | 0.8  | 1.1   | 1.25  | 1.1   |
+| Spy        | 1.25  | 1.05 | 0.9  | 0.9   | 0.95  | 1.2   |
 | Scout      | 1.0   | 1.0  | 1.0  | 1.0   | 1.0   | 1.2   |
-| Merc cost  | 1.0   | 1.0  | 1.0  | 1.0   | 1.0   | 0.9   |
 
-Identities: **Elves** — archers from the deep woods (wood +20, archer +20 /
-cavalry −20, siege −20). **Orcs** — the cavalry horde (cavalry +20, attack
-+10, ore +10 / wood, stone, spy, siege −10 each). **Trolls** — stone and
-siege (stone +20, siege +20, footman +10 / cavalry −20, archer, wood, ore
-−10 each). **Dwarves** — the iron wall (ore +20, defence, footman, siege
-+10 each / attack −10, food −20, wood −20). **Gnolls** — jackal spymasters:
-best espionage in the game and cheap sellswords, living off the land (spy
-+20, scout +20, food +10, mercs −10%) but poor builders and formal soldiers
-(siege −20, defence, archer, stone, wood −10 each).
+Identities: **Humans** — the generalist premium: +25% to every resource,
++10% to every troop type, the finest spies (+25), no weakness and no
+specialty. **Elves** — archers from the greenwood (archer +35, wood +50 /
+stone −40, ore −50, frail: defence, walls, siege down). **Orcs** — the
+cavalry horde, fed by farm and forge (cavalry +25, food +40, ore +40 /
+wood −40, siege −20, walls −20 — devastating in the field, soft under
+siege). **Trolls** — stone and siege engines (siege +40, stone +60,
+footman +25 / archer, cavalry −20, food −30). **Dwarves** — the iron
+wall (footman +30, walls +25, stone/ore +40 / wood −60, food −30,
+archer, cavalry −20 — must trade for timber). **Gnolls** — jackal
+skirmisher-spies (archer +30, spy +20, scout +20, wood +30 / stone −30,
+frail: defence −5).
 
 ### Troop & Equipment System
 
