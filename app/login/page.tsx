@@ -237,7 +237,11 @@ export default async function LoginPage({
           </div>
         )}
 
-        <p className="mst-colophon">One turn every ten minutes · settlers arrive at dawn · the ladder is the world.</p>
+        <p className="mst-colophon">
+          One turn every ten minutes · settlers arrive at dawn · the ladder is the world.
+          {" · "}
+          <a href="/spectate">🔭 Watch the realm live →</a>
+        </p>
       </section>
     </main>
   );

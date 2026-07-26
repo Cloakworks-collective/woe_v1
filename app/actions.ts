@@ -7,7 +7,6 @@ import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
-import { dismissOnboarding as dismissOnboardingGrant, newEmpire } from "@/lib/engine";
 import type { Race } from "@/lib/constants/races";
 import {
   clearSession,
@@ -18,8 +17,7 @@ import {
 } from "@/lib/server/auth";
 import { emulatedCardOutcome, grantCharter, paymentMode } from "@/lib/server/premium";
 import { runCommand } from "@/lib/server/pipeline";
-import { saveWorld } from "@/lib/server/store";
-import { getWorld, runDueTicks } from "@/lib/server/world";
+import { getWorld } from "@/lib/server/world";
 
 async function exec(path: string, name: string, args: Record<string, unknown>): Promise<never> {
   const playerId = await currentPlayerId();
@@ -49,16 +47,13 @@ export async function createEmpire(formData: FormData): Promise<void> {
   const name = String(formData.get("name") ?? "").trim().slice(0, 30);
   const race = String(formData.get("race") ?? "human") as Race;
   if (name.length < 2) redirect(`/login?err=${encodeURIComponent("Name your empire (2+ letters).")}`);
-  const world = await getWorld();
-  runDueTicks(world);
-  if (Object.values(world.players).some((p) => p.name.toLowerCase() === name.toLowerCase())) {
-    redirect(`/login?err=${encodeURIComponent("That name is taken.")}`);
-  }
-  const p = newEmpire({ id: randomUUID(), name, race, joinedAtTick: world.meta.tickNumber });
-  p.apiToken = newRealmToken(); // CLI / API bearer credential, shown in the Command View
-  world.players[p.id] = p;
-  await saveWorld(world);
-  await setSession(p.id);
+  // Founding is a command, so it flows through the active write model
+  // (single-writer service §14.2, or compare-and-swap store §14.1).
+  const id = randomUUID();
+  const token = newRealmToken(); // CLI / API bearer credential, shown in the Command View
+  const r = await runCommand(id, "createEmpire", { name, race, token });
+  if (!r.ok) redirect(`/login?err=${encodeURIComponent(r.message ?? "That did not work.")}`);
+  await setSession(id);
   revalidatePath("/", "layout");
   redirect("/");
 }
@@ -100,29 +95,22 @@ export async function leaveSession(): Promise<void> {
 
 // ── The Regent's Charges (new-player onboarding) ─────────────────────────────
 
-async function currentPlayerOr404() {
-  const world = await getWorld();
-  const id = await currentPlayerId();
-  const player = id ? world.players[id] : undefined;
-  if (!player) redirect("/login");
-  return { world, player };
-}
-
 /** Wave the charges away — and pay out every remaining reward, so an
- *  experienced regent who skips the tutorial still receives the full bounty. */
+ *  experienced regent who skips the tutorial still receives the full bounty.
+ *  Routed as a command so it lands through the active writer. */
 export async function waiveOnboarding(): Promise<void> {
-  const { world, player } = await currentPlayerOr404();
-  dismissOnboardingGrant(player);
-  await saveWorld(world);
+  const id = await currentPlayerId();
+  if (!id) redirect("/login");
+  await runCommand(id, "dismissOnboarding", {});
   revalidatePath("/", "layout");
   redirect("/");
 }
 
 /** Mark the spotlight tour seen (called from the client when finished/skipped). */
 export async function finishTour(): Promise<void> {
-  const { world, player } = await currentPlayerOr404();
-  player.onboarding = { claimed: [], ...player.onboarding, toured: true };
-  await saveWorld(world);
+  const id = await currentPlayerId();
+  if (!id) redirect("/login");
+  await runCommand(id, "finishTour", {});
   revalidatePath("/", "layout");
 }
 

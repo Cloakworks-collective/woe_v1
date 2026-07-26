@@ -1,24 +1,25 @@
 import Link from "next/link";
 import { Info } from "./Info";
-import { HOLD_CLOCKS, POPULATION_FLOORS, TICKS_PER_HOUR } from "@/lib/constants";
+import { HOLD_CLOCKS, POPULATION_FLOORS } from "@/lib/constants";
 import { rankingScore, totalPopulation, type Player } from "@/lib/engine";
 import type { World } from "@/lib/server/store";
-import { clanScore } from "@/lib/server/world";
+import { MS_PER_HOUR, clanHold, clanScore, overlordHold } from "@/lib/server/world";
 
 const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");
 
-/** A labelled progress bar toward a victory clock (hours held at #1). */
-function Clock({ heldTicks, targetHours }: { heldTicks: number; targetHours: number }) {
-  const targetTicks = targetHours * TICKS_PER_HOUR;
-  const pct = Math.max(0, Math.min(100, (heldTicks / targetTicks) * 100));
+/** A labelled progress bar toward a victory clock (hours held at #1). §14.3: the
+ *  held time is exact milliseconds, so it advances between ticks. */
+function Clock({ heldMs, targetHours }: { heldMs: number; targetHours: number }) {
+  const heldHours = heldMs / MS_PER_HOUR;
+  const pct = Math.max(0, Math.min(100, (heldHours / targetHours) * 100));
   const done = pct >= 100;
   return (
-    <span className="vt-clock" title={`${(heldTicks / TICKS_PER_HOUR).toFixed(1)}h of ${targetHours}h`}>
+    <span className="vt-clock" title={`${heldHours.toFixed(1)}h of ${targetHours}h`}>
       <span className="vt-track">
         <i style={{ width: `${pct}%`, background: done ? "var(--gold)" : undefined }} />
       </span>
       <small>
-        {(heldTicks / TICKS_PER_HOUR).toFixed(1)} / {targetHours}h
+        {heldHours.toFixed(1)} / {targetHours}h
       </small>
     </span>
   );
@@ -44,9 +45,9 @@ export function VictoryTracker({ world, me }: { world: World; me: Player }) {
   const gap = leader.score - myScore;
   const iAmLeader = leader.p.id === me.id;
 
-  const cum = world.meta.overlordClocks[leader.p.id] ?? 0;
-  const streak =
-    world.meta.overlordStreak?.playerId === leader.p.id ? world.meta.overlordStreak.ticks : 0;
+  const oh = overlordHold(world);
+  const cum = leader.p.id === oh.holderId ? oh.cumMs : (world.meta.overlordClocksMs?.[leader.p.id] ?? 0);
+  const streak = leader.p.id === oh.holderId ? oh.streakMs : 0;
   const leaderPop = totalPopulation(leader.p);
   const leaderMeetsFloor = leaderPop >= POPULATION_FLOORS.GRAND_OVERLORD;
 
@@ -55,9 +56,9 @@ export function VictoryTracker({ world, me }: { world: World; me: Player }) {
     .map((c) => ({ c, score: clanScore(world, c) }))
     .sort((a, b) => b.score - a.score);
   const topClan = clans[0];
-  const clanCum = topClan ? (world.meta.clanClocks[topClan.c.id] ?? 0) : 0;
-  const clanStreak =
-    topClan && world.meta.clanStreak?.clanId === topClan.c.id ? world.meta.clanStreak.ticks : 0;
+  const ch = clanHold(world);
+  const clanCum = topClan ? (topClan.c.id === ch.holderId ? ch.cumMs : (world.meta.clanClocksMs?.[topClan.c.id] ?? 0)) : 0;
+  const clanStreak = topClan && topClan.c.id === ch.holderId ? ch.streakMs : 0;
   const clanPop = topClan
     ? topClan.c.members.reduce(
         (s, id) => s + (world.players[id] ? totalPopulation(world.players[id]) : 0),
@@ -93,11 +94,11 @@ export function VictoryTracker({ world, me }: { world: World; me: Player }) {
             <dl className="vt-clocks">
               <dt>Total held</dt>
               <dd>
-                <Clock heldTicks={cum} targetHours={HOLD_CLOCKS.CUMULATIVE_HOURS} />
+                <Clock heldMs={cum} targetHours={HOLD_CLOCKS.CUMULATIVE_HOURS} />
               </dd>
               <dt>Unbroken streak</dt>
               <dd>
-                <Clock heldTicks={streak} targetHours={HOLD_CLOCKS.STREAK_HOURS} />
+                <Clock heldMs={streak} targetHours={HOLD_CLOCKS.STREAK_HOURS} />
               </dd>
             </dl>
           </div>
@@ -120,11 +121,11 @@ export function VictoryTracker({ world, me }: { world: World; me: Player }) {
                 <dl className="vt-clocks">
                   <dt>Total held</dt>
                   <dd>
-                    <Clock heldTicks={clanCum} targetHours={HOLD_CLOCKS.CUMULATIVE_HOURS} />
+                    <Clock heldMs={clanCum} targetHours={HOLD_CLOCKS.CUMULATIVE_HOURS} />
                   </dd>
                   <dt>Unbroken streak</dt>
                   <dd>
-                    <Clock heldTicks={clanStreak} targetHours={HOLD_CLOCKS.STREAK_HOURS} />
+                    <Clock heldMs={clanStreak} targetHours={HOLD_CLOCKS.STREAK_HOURS} />
                   </dd>
                 </dl>
               </>

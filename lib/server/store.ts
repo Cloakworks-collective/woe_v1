@@ -8,6 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { BattleReport, Clan, EraRecords, GameEvent, MarketOrder, Player } from "../engine";
+import { worldServiceEnabled } from "./worldClient";
 
 export interface ForumMessage {
   id: string;
@@ -24,16 +25,27 @@ export interface InboxItem {
   at?: string; // wall-clock ISO when the tiding was recorded (for "how long ago")
 }
 
+/** An open hold interval: who is currently accruing (the eligible #1 / #1 clan)
+ *  and the wall-clock ms they began. Cumulative held time lives in the *ClocksMs
+ *  maps; the live streak is `now − sinceMs` (§14.3 — event-driven, ms-accurate). */
+export interface HoldInterval {
+  id: string; // playerId or clanId
+  sinceMs: number; // wall-clock ms this uninterrupted, above-floor #1 hold began
+}
+
 export interface WorldMeta {
   tickNumber: number;
   eraNumber: number;
   eraName: string;
   eraStartedAtTick: number;
   lastTickAt: string; // wall-clock ISO of the last processed tick
-  overlordClocks: Record<string, number>; // playerId → cumulative ticks at #1
-  overlordStreak: { playerId: string; ticks: number } | null;
-  clanClocks: Record<string, number>;
-  clanStreak: { clanId: string; ticks: number } | null;
+  // §14.3 hold clocks — cumulative *closed*-interval ms per holder, plus the
+  // current open interval. Credited by exact elapsed ms whenever the ladder top
+  // reorders (every command + tick), not sampled once per 10-minute tick.
+  overlordClocksMs: Record<string, number>; // playerId → cumulative closed ms at #1 (above floor)
+  overlordAccruing: HoldInterval | null;
+  clanClocksMs: Record<string, number>;
+  clanAccruing: HoldInterval | null;
   winner?: { kind: "overlord" | "clan"; id: string; name: string; atTick: number };
   crownHolderId?: string; // last-recorded #1, to notice when the crown passes
 }
@@ -116,10 +128,44 @@ export function storeMode(): "supabase" | "file" {
   return supabase() ? "supabase" : "file";
 }
 
-export async function loadWorld(): Promise<World | null> {
+/** The shared Supabase client (or null when unconfigured) — for the durable
+ *  read-heavy edges in §14.4 (spectator snapshots), which live in their own
+ *  tables rather than the world blob. */
+export function getSupabaseClient(): SupabaseClient | null {
+  return supabase();
+}
+
+/**
+ * Optimistic-concurrency failure (spec/architecture.md §14.1): the world row's
+ * version moved on under us between load and save — another writer got there
+ * first. The caller should reload, re-apply, and retry (see `commitWithRetry`).
+ * This turns silent last-write-wins corruption into a detectable, recoverable
+ * event the moment a second serverless instance exists.
+ */
+export class WorldConflictError extends Error {
+  constructor(message = "The world was written by another process") {
+    super(message);
+    this.name = "WorldConflictError";
+  }
+}
+
+/** Drop the in-process world cache so the next load re-fetches from the store
+ *  (and re-reads the authoritative version for the next compare-and-swap). */
+export function invalidateWorldCache(): void {
+  g.__woeWorld = undefined;
+  g.__woeWorldLoadedAt = undefined;
+  g.__woeWorldVersion = undefined;
+}
+
+/** Postgres unique-violation (racing INSERT of the same world row). */
+function isUniqueViolation(error: { code?: string }): boolean {
+  return error.code === "23505";
+}
+
+export async function loadWorld(opts: { forceReload?: boolean } = {}): Promise<World | null> {
   const sb = supabase();
   if (sb) {
-    if (g.__woeWorld && Date.now() - (g.__woeWorldLoadedAt ?? 0) < CACHE_TTL_MS) {
+    if (!opts.forceReload && g.__woeWorld && Date.now() - (g.__woeWorldLoadedAt ?? 0) < CACHE_TTL_MS) {
       return g.__woeWorld;
     }
     const { data, error } = await sb
@@ -128,14 +174,18 @@ export async function loadWorld(): Promise<World | null> {
       .eq("id", WORLD_ROW_ID)
       .maybeSingle();
     if (error) throw new Error(`Supabase load failed: ${error.message}`);
-    if (!data) return null;
+    if (!data) {
+      // No row yet — clear any stale version so the next save INSERTs.
+      g.__woeWorldVersion = undefined;
+      return null;
+    }
     g.__woeWorld = data.doc as World;
     g.__woeWorldVersion = data.version as number;
     g.__woeWorldLoadedAt = Date.now();
     return g.__woeWorld;
   }
 
-  if (g.__woeWorld) return g.__woeWorld;
+  if (!opts.forceReload && g.__woeWorld) return g.__woeWorld;
   try {
     const raw = fs.readFileSync(WORLD_FILE, "utf8");
     g.__woeWorld = JSON.parse(raw) as World;
@@ -145,20 +195,59 @@ export async function loadWorld(): Promise<World | null> {
   }
 }
 
+/**
+ * Persist the world. On Supabase this is a **compare-and-swap**: the write only
+ * lands if the row's version still equals the one we loaded (`__woeWorldVersion`),
+ * bumping it by one. If another writer advanced it first, we throw
+ * `WorldConflictError` instead of clobbering their write (§14.1). The in-process
+ * cache is updated only on success, so a conflicting save never poisons it.
+ * The file store (single-process local dev) has no such race and writes plainly.
+ */
 export async function saveWorld(world: World): Promise<void> {
+  // §14.2 safety net: when the single-writer service owns the world, the store
+  // is not the source of truth — writing to it would be silently discarded.
+  // Every mutation must instead flow through a command (runCommand → the
+  // service). This catches any unconverted path loudly. (Admin write ops are
+  // the known remaining path — wire them through commands to run under §14.2.)
+  if (worldServiceEnabled()) {
+    throw new Error(
+      "saveWorld() is disabled while WORLD_SERVICE_URL is set — route this mutation through runCommand (the single writer, §14.2).",
+    );
+  }
   const sb = supabase();
   if (sb) {
+    const expected = g.__woeWorldVersion; // version we read (undefined = fresh row)
+    const nextVersion = (expected ?? 0) + 1;
+    const stamp = new Date().toISOString();
+
+    if (expected === undefined) {
+      // First write of a fresh world row (the seed). A racing instance may
+      // create it first — that surfaces as a unique violation → conflict.
+      const { error } = await sb
+        .from("world_docs")
+        .insert({ id: WORLD_ROW_ID, doc: world, version: nextVersion, updated_at: stamp });
+      if (error) {
+        if (isUniqueViolation(error)) throw new WorldConflictError("world row already created");
+        throw new Error(`Supabase save failed: ${error.message}`);
+      }
+    } else {
+      // Guarded update: only rows still at `expected` are touched. Zero rows
+      // back means the version moved on — someone else committed first.
+      const { data, error } = await sb
+        .from("world_docs")
+        .update({ doc: world, version: nextVersion, updated_at: stamp })
+        .eq("id", WORLD_ROW_ID)
+        .eq("version", expected)
+        .select("version");
+      if (error) throw new Error(`Supabase save failed: ${error.message}`);
+      if (!data || data.length === 0) {
+        throw new WorldConflictError(`version ${expected} was overtaken`);
+      }
+    }
+
     g.__woeWorld = world;
+    g.__woeWorldVersion = nextVersion;
     g.__woeWorldLoadedAt = Date.now();
-    const version = (g.__woeWorldVersion ?? 0) + 1;
-    const { error } = await sb.from("world_docs").upsert({
-      id: WORLD_ROW_ID,
-      doc: world,
-      version,
-      updated_at: new Date().toISOString(),
-    });
-    if (error) throw new Error(`Supabase save failed: ${error.message}`);
-    g.__woeWorldVersion = version;
     return;
   }
 

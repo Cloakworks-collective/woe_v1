@@ -6,8 +6,8 @@
 
 import Stripe from "stripe";
 import { CHARTER_PRICE_CENTS, CHARTER_PRODUCT_DESC, CHARTER_PRODUCT_NAME } from "../constants";
-import { pushInbox, saveWorld } from "./store";
 import { getWorld } from "./world";
+import { runCommand } from "./pipeline";
 
 const g = globalThis as unknown as { __woeStripe?: Stripe };
 
@@ -22,19 +22,13 @@ export function paymentMode(): "stripe" | "emulator" {
   return stripeClient() ? "stripe" : "emulator";
 }
 
-/** Set the premium flag and tell the player. Idempotent. */
+/** Set the premium flag and tell the player. Idempotent. Routed as a command so
+ *  it lands through the active writer (single-writer service §14.2 or CAS §14.1). */
 export async function grantCharter(playerId: string): Promise<boolean> {
   const world = await getWorld();
-  const player = world.players[playerId];
-  if (!player) return false;
-  if (player.premium) return true;
-  player.premium = true;
-  pushInbox(world, playerId, {
-    type: "info",
-    detail: "👑 The Royal Charter is sealed — the Steward enters your service.",
-  });
-  await saveWorld(world);
-  return true;
+  if (!world.players[playerId]) return false;
+  const r = await runCommand(playerId, "grantCharter", {});
+  return r.ok;
 }
 
 /** Create a Stripe Checkout Session for the Charter. Caller redirects to url. */

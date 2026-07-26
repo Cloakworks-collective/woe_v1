@@ -1,0 +1,49 @@
+# Fly.io deploy for the single-writer World Service (todo.md §14.2).
+# EXAMPLE — rename the app, then:
+#
+#   fly apps create woe-world-service
+#   fly volumes create woe_data --size 1 --region iad
+#   fly secrets set WORLD_SERVICE_SECRET=$(openssl rand -hex 24)
+#   fly deploy -c worldService/fly.toml
+#
+# Then point the Vercel app at it (Project → Settings → Environment Variables):
+#   WORLD_SERVICE_URL    = https://woe-world-service.fly.dev
+#   WORLD_SERVICE_SECRET = <the same secret you set above>
+#
+# IMPORTANT: run exactly ONE instance. This is a single-writer service — the
+# whole point is that all mutations flow through one process. Do not scale it
+# horizontally (min=max=1, no autoscale).
+
+app = "woe-world-service"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "4000"
+  WORLD_SERVICE_DATA_DIR = "/data"
+
+# Durable state — snapshots + the append-only command log.
+[mounts]
+  source = "woe_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = false   # always-on: it holds the world in RAM
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+
+# Single writer — one machine, never more.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

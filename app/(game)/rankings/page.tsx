@@ -6,7 +6,7 @@ import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { TargetActions } from "@/components/TargetActions";
 import { Pager } from "@/components/Pager";
-import { HOLD_CLOCKS, RACE_NAMES, TICKS_PER_HOUR } from "@/lib/constants";
+import { HOLD_CLOCKS, RACE_NAMES } from "@/lib/constants";
 import {
   rankingScore,
   researchLevel,
@@ -16,7 +16,7 @@ import {
 } from "@/lib/engine";
 import { paginate } from "@/lib/paginate";
 import { getGame } from "@/lib/server/session";
-import { REVENGE_WINDOW_TICKS, empireNumbers } from "@/lib/server/world";
+import { MS_PER_HOUR, REVENGE_WINDOW_TICKS, empireNumbers, overlordHold } from "@/lib/server/world";
 
 export const dynamic = "force-dynamic";
 
@@ -70,11 +70,9 @@ export default async function RankingsPage({
   const warClanIds = new Set(myClan?.wars.map((w) => w.clanId) ?? []);
 
   const leader = ladder[0];
-  const cum = leader ? (world.meta.overlordClocks[leader.p.id] ?? 0) : 0;
-  const streak =
-    leader && world.meta.overlordStreak?.playerId === leader.p.id
-      ? world.meta.overlordStreak.ticks
-      : 0;
+  const oh = overlordHold(world);
+  const cum = leader && leader.p.id === oh.holderId ? oh.cumMs : leader ? (world.meta.overlordClocksMs?.[leader.p.id] ?? 0) : 0;
+  const streak = leader && leader.p.id === oh.holderId ? oh.streakMs : 0;
 
   return (
     <>
@@ -182,8 +180,8 @@ export default async function RankingsPage({
         {leader && (
           <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 6 }}>
             <span style={{ color: "var(--coin)" }}>👑</span> The crown is public:{" "}
-            <b>{leader.p.name}</b> holds #1 — {(cum / TICKS_PER_HOUR).toFixed(1)}h of the{" "}
-            {HOLD_CLOCKS.CUMULATIVE_HOURS}h cumulative, {(streak / TICKS_PER_HOUR).toFixed(1)}h of the{" "}
+            <b>{leader.p.name}</b> holds #1 — {(cum / MS_PER_HOUR).toFixed(1)}h of the{" "}
+            {HOLD_CLOCKS.CUMULATIVE_HOURS}h cumulative, {(streak / MS_PER_HOUR).toFixed(1)}h of the{" "}
             {HOLD_CLOCKS.STREAK_HOURS}h streak
             {totalPopulation(leader.p) < 10000 ? " (below the 10,000 population floor — clocks frozen)" : ""}.
           </p>

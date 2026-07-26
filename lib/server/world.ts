@@ -30,7 +30,17 @@ import {
   type Player,
   type Resource,
 } from "../engine";
-import { loadWorld, pushChronicle, pushInbox, saveWorld, type ArchivedAge, type World } from "./store";
+import {
+  invalidateWorldCache,
+  loadWorld,
+  pushChronicle,
+  pushInbox,
+  saveWorld,
+  WorldConflictError,
+  type ArchivedAge,
+  type World,
+} from "./store";
+import { fetchServiceWorld, worldServiceEnabled } from "./worldClient";
 
 export const ERA_PEACE_TICKS = ERA_PEACE_DAYS * TURNS_PER_DAY;
 export const REVENGE_WINDOW_TICKS = 18 * TICKS_PER_HOUR;
@@ -192,10 +202,10 @@ export function seedWorld(now = new Date()): World {
       eraName: "The First Dawn",
       eraStartedAtTick: 0,
       lastTickAt: now.toISOString(),
-      overlordClocks: {},
-      overlordStreak: null,
-      clanClocks: {},
-      clanStreak: null,
+      overlordClocksMs: {},
+      overlordAccruing: null,
+      clanClocksMs: {},
+      clanAccruing: null,
     },
     players,
     clans,
@@ -232,21 +242,79 @@ export function seedWorld(now = new Date()): World {
   };
 }
 
-export async function getWorld(): Promise<World> {
-  let world = await loadWorld();
+export async function getWorld(opts: { forceReload?: boolean } = {}): Promise<World> {
+  // §14.2: when the single-writer service owns the world, read from it. All
+  // writes go through it too (runCommand forwards), so this is read-only.
+  if (worldServiceEnabled()) {
+    const world = await fetchServiceWorld(opts);
+    for (const p of Object.values(world.players)) normalizePlayer(p);
+    normalizeMeta(world.meta);
+    return world;
+  }
+
+  let world = await loadWorld(opts);
   if (!world) {
     world = seedWorld();
-    await saveWorld(world);
+    try {
+      await saveWorld(world);
+    } catch (e) {
+      if (!(e instanceof WorldConflictError)) throw e;
+      // Another instance seeded the world first — adopt theirs.
+      world = (await loadWorld({ forceReload: true }))!;
+    }
   }
   // Bring legacy saves into the current shape (typed mercenaries; no warrior
-  // pool). Idempotent, so it's safe to run on every load.
+  // pool; §14.3 ms hold clocks). Idempotent, so it's safe to run on every load.
   for (const p of Object.values(world.players)) normalizePlayer(p);
+  normalizeMeta(world.meta);
   return world;
+}
+
+/**
+ * The single safe way to mutate-and-persist the world under optimistic
+ * concurrency (spec/architecture.md §14.1). Loads the world, runs `apply`
+ * (which mutates it and returns a result plus whether it changed anything),
+ * then saves. If the save loses a compare-and-swap race, it reloads a fresh
+ * world and **replays** `apply` against it, up to `maxAttempts`. A read-only
+ * pass (`dirty: false`) skips the save entirely — no write, no race.
+ *
+ * `apply` must be replay-safe: it may run more than once, each time on a fresh
+ * world, so it should derive everything from the world it's handed (no reliance
+ * on a prior attempt's mutations). RNG is fine — a replayed command simply
+ * resolves fresh against current state, since the losing attempt never
+ * persisted. `load`/`save` are injectable for tests.
+ */
+export async function commitWithRetry<T>(
+  apply: (world: World) => { result: T; dirty: boolean },
+  opts: {
+    maxAttempts?: number;
+    load?: (forceReload: boolean) => Promise<World>;
+    save?: (world: World) => Promise<void>;
+  } = {},
+): Promise<T> {
+  const max = opts.maxAttempts ?? 5;
+  const load = opts.load ?? ((forceReload: boolean) => getWorld({ forceReload }));
+  const save = opts.save ?? saveWorld;
+  let lastConflict: unknown;
+  for (let attempt = 0; attempt < max; attempt++) {
+    const world = await load(attempt > 0);
+    const { result, dirty } = apply(world);
+    if (!dirty) return result; // pure read — nothing to persist, nothing to race
+    try {
+      await save(world);
+      return result;
+    } catch (e) {
+      if (!(e instanceof WorldConflictError)) throw e;
+      lastConflict = e;
+      invalidateWorldCache(); // force the next attempt to re-fetch + re-version
+    }
+  }
+  throw lastConflict ?? new WorldConflictError("world commit exhausted its retries");
 }
 
 // ── The tick ────────────────────────────────────────────────────────────────
 
-export function runOneTick(world: World): void {
+export function runOneTick(world: World, nowMs = Date.now()): void {
   world.meta.tickNumber += 1;
   const tick = world.meta.tickNumber;
 
@@ -327,17 +395,20 @@ export function runOneTick(world: World): void {
     }
   }
 
-  updateVictoryClocks(world);
+  updateCrown(world, nowMs);
 }
 
 /** Process all wall-clock-due ticks (10 minutes each). Idempotent catch-up. */
 export function runDueTicks(world: World, now = new Date()): number {
   const last = new Date(world.meta.lastTickAt).getTime();
-  const due = Math.floor((now.getTime() - last) / (TURN_MINUTES * 60 * 1000));
+  const step = TURN_MINUTES * 60 * 1000;
+  const due = Math.floor((now.getTime() - last) / step);
   const capped = Math.min(due, 2016); // two weeks of downtime, max, per request
-  for (let i = 0; i < capped; i++) runOneTick(world);
+  // Each caught-up tick is credited at its own scheduled wall-clock time so the
+  // §14.3 hold clocks stay monotonic through a catch-up run.
+  for (let i = 0; i < capped; i++) runOneTick(world, last + (i + 1) * step);
   if (capped > 0) {
-    world.meta.lastTickAt = new Date(last + capped * TURN_MINUTES * 60 * 1000).toISOString();
+    world.meta.lastTickAt = new Date(last + capped * step).toISOString();
   }
   return capped;
 }
@@ -356,21 +427,73 @@ export function clanScore(world: World, clan: Clan): number {
   return Math.round(s);
 }
 
-function updateVictoryClocks(world: World): void {
+/** Milliseconds a completed cumulative hour is worth, and a tick's worth (for
+ *  migrating legacy tick-counted clocks). */
+export const MS_PER_HOUR = 3_600_000;
+const TICK_MS = TURN_MINUTES * 60 * 1000;
+
+/** A read-only view of a holder's hold time as of `nowMs`: cumulative closed
+ *  intervals plus the current open one, and the live streak (the open interval). */
+export interface HoldView {
+  holderId?: string;
+  cumMs: number;
+  streakMs: number;
+}
+
+function holdView(clocksMs: Record<string, number>, accruing: { id: string; sinceMs: number } | null, nowMs: number): HoldView {
+  if (!accruing) return { cumMs: 0, streakMs: 0 };
+  const open = Math.max(0, nowMs - accruing.sinceMs);
+  return { holderId: accruing.id, cumMs: (clocksMs[accruing.id] ?? 0) + open, streakMs: open };
+}
+
+/** The reigning empire's hold as of `nowMs` (default now). */
+export function overlordHold(world: World, nowMs = Date.now()): HoldView {
+  return holdView(world.meta.overlordClocksMs ?? {}, world.meta.overlordAccruing ?? null, nowMs);
+}
+
+/** The reigning clan's hold as of `nowMs` (default now). */
+export function clanHold(world: World, nowMs = Date.now()): HoldView {
+  return holdView(world.meta.clanClocksMs ?? {}, world.meta.clanAccruing ?? null, nowMs);
+}
+
+/**
+ * Transition an accrual interval. When the eligible holder changes (a new #1, or
+ * the current one dropping below the floor / losing the top), the outgoing
+ * holder's open interval is closed — its exact elapsed ms credited to the
+ * cumulative map — and a fresh interval opens for the new eligible holder (or
+ * none). Returns the new open interval. Unchanged holder → the interval keeps
+ * running (its ms are read live by `holdView`).
+ */
+function advanceAccrual(
+  clocksMs: Record<string, number>,
+  accruing: { id: string; sinceMs: number } | null,
+  eligibleId: string | undefined,
+  nowMs: number,
+): { id: string; sinceMs: number } | null {
+  if ((eligibleId ?? null) === (accruing?.id ?? null)) return accruing;
+  if (accruing) clocksMs[accruing.id] = (clocksMs[accruing.id] ?? 0) + Math.max(0, nowMs - accruing.sinceMs);
+  return eligibleId ? { id: eligibleId, sinceMs: nowMs } : null;
+}
+
+/**
+ * §14.3 — event-driven, millisecond-accurate hold clocks. Called after every
+ * command *and* every tick (i.e. every state change that can reorder the
+ * ladder), not sampled once per 10-minute tick. Credits the crown-holder by
+ * exact elapsed ms, so in the endgame the crown can flip many times inside a
+ * tick and each holder is credited precisely for the moment they held it.
+ */
+export function updateCrown(world: World, nowMs = Date.now()): void {
   if (world.meta.winner) return;
-  const tick = world.meta.tickNumber;
   const players = Object.values(world.players);
   if (players.length === 0) return;
 
-  // Grand Overlord.
+  // ── Grand Overlord ──
   const top = players.reduce((a, b) => (rankingScore(b) > rankingScore(a) ? b : a));
 
   // The crown is public — note it in the Annals whenever it changes hands.
   if (world.meta.crownHolderId !== top.id) {
     const hadPrev = world.meta.crownHolderId !== undefined;
-    const prevName = world.meta.crownHolderId
-      ? world.players[world.meta.crownHolderId]?.name
-      : undefined;
+    const prevName = world.meta.crownHolderId ? world.players[world.meta.crownHolderId]?.name : undefined;
     world.meta.crownHolderId = top.id;
     if (hadPrev) {
       pushChronicle(
@@ -383,62 +506,63 @@ function updateVictoryClocks(world: World): void {
     }
   }
 
-  const meetsFloor = totalPopulation(top) >= POPULATION_FLOORS.GRAND_OVERLORD;
-  if (meetsFloor) {
-    world.meta.overlordClocks[top.id] = (world.meta.overlordClocks[top.id] ?? 0) + 1;
-    world.meta.overlordStreak =
-      world.meta.overlordStreak?.playerId === top.id
-        ? { playerId: top.id, ticks: world.meta.overlordStreak.ticks + 1 }
-        : { playerId: top.id, ticks: 1 };
-  } else {
-    if (world.meta.overlordStreak?.playerId === top.id) world.meta.overlordStreak = null;
-  }
-  const cum = world.meta.overlordClocks[top.id] ?? 0;
-  const streak = world.meta.overlordStreak?.playerId === top.id ? world.meta.overlordStreak.ticks : 0;
-  if (
-    cum >= HOLD_CLOCKS.CUMULATIVE_HOURS * TICKS_PER_HOUR &&
-    streak >= HOLD_CLOCKS.STREAK_HOURS * TICKS_PER_HOUR
-  ) {
-    world.meta.winner = { kind: "overlord", id: top.id, name: top.name, atTick: tick };
+  // Only the #1, and only while above the population floor, accrues.
+  const overlordEligible = totalPopulation(top) >= POPULATION_FLOORS.GRAND_OVERLORD ? top.id : undefined;
+  world.meta.overlordClocksMs ??= {};
+  world.meta.overlordAccruing = advanceAccrual(world.meta.overlordClocksMs, world.meta.overlordAccruing ?? null, overlordEligible, nowMs);
+
+  const oh = overlordHold(world, nowMs);
+  if (oh.holderId && oh.cumMs >= HOLD_CLOCKS.CUMULATIVE_HOURS * MS_PER_HOUR && oh.streakMs >= HOLD_CLOCKS.STREAK_HOURS * MS_PER_HOUR) {
+    world.meta.winner = { kind: "overlord", id: oh.holderId, name: world.players[oh.holderId]?.name ?? "", atTick: world.meta.tickNumber };
     pushChronicle(
       world,
       "crown",
-      `🏆 ${top.name} is proclaimed GRAND OVERLORD — the age ends, and the next shall bear this name!`,
+      `🏆 ${world.players[oh.holderId]?.name} is proclaimed GRAND OVERLORD — the age ends, and the next shall bear this name!`,
     );
     return;
   }
 
-  // Clan victory.
+  // ── Clan victory ──
   const clans = Object.values(world.clans);
   if (clans.length === 0) return;
   const topClan = clans.reduce((a, b) => (clanScore(world, b) > clanScore(world, a) ? b : a));
-  const clanPop = topClan.members.reduce(
-    (sum, id) => sum + (world.players[id] ? totalPopulation(world.players[id]) : 0),
-    0,
-  );
-  const frozen = (topClan.clockFrozenUntilTick ?? 0) > tick;
-  if (clanPop >= POPULATION_FLOORS.CLAN && !frozen) {
-    world.meta.clanClocks[topClan.id] = (world.meta.clanClocks[topClan.id] ?? 0) + 1;
-    world.meta.clanStreak =
-      world.meta.clanStreak?.clanId === topClan.id
-        ? { clanId: topClan.id, ticks: world.meta.clanStreak.ticks + 1 }
-        : { clanId: topClan.id, ticks: 1 };
-    const cCum = world.meta.clanClocks[topClan.id] ?? 0;
-    const cStreak = world.meta.clanStreak.ticks;
-    if (
-      cCum >= HOLD_CLOCKS.CUMULATIVE_HOURS * TICKS_PER_HOUR &&
-      cStreak >= HOLD_CLOCKS.STREAK_HOURS * TICKS_PER_HOUR
-    ) {
-      world.meta.winner = { kind: "clan", id: topClan.id, name: topClan.name, atTick: tick };
-      pushChronicle(
-        world,
-        "crown",
-        `🏆 The clan ${topClan.name} seizes CLAN VICTORY — the age ends, and the next shall bear their name!`,
-      );
-    }
-  } else if (world.meta.clanStreak?.clanId === topClan.id) {
-    world.meta.clanStreak = null;
+  const clanPop = topClan.members.reduce((sum, id) => sum + (world.players[id] ? totalPopulation(world.players[id]) : 0), 0);
+  const frozen = (topClan.clockFrozenUntilTick ?? 0) > world.meta.tickNumber;
+  const clanEligible = clanPop >= POPULATION_FLOORS.CLAN && !frozen ? topClan.id : undefined;
+  world.meta.clanClocksMs ??= {};
+  world.meta.clanAccruing = advanceAccrual(world.meta.clanClocksMs, world.meta.clanAccruing ?? null, clanEligible, nowMs);
+
+  const ch = clanHold(world, nowMs);
+  if (ch.holderId && ch.cumMs >= HOLD_CLOCKS.CUMULATIVE_HOURS * MS_PER_HOUR && ch.streakMs >= HOLD_CLOCKS.STREAK_HOURS * MS_PER_HOUR) {
+    world.meta.winner = { kind: "clan", id: ch.holderId, name: world.clans[ch.holderId]?.name ?? "", atTick: world.meta.tickNumber };
+    pushChronicle(
+      world,
+      "crown",
+      `🏆 The clan ${world.clans[ch.holderId]?.name} seizes CLAN VICTORY — the age ends, and the next shall bear their name!`,
+    );
   }
+}
+
+/** Bring a legacy world's meta into the §14.3 ms shape (tick-counted clocks →
+ *  ms; streaks dropped — they re-open on the next `updateCrown`). Idempotent. */
+export function normalizeMeta(meta: World["meta"]): void {
+  const legacy = meta as unknown as Record<string, unknown>;
+  if (!meta.overlordClocksMs) {
+    meta.overlordClocksMs = {};
+    const old = legacy.overlordClocks as Record<string, number> | undefined;
+    if (old) for (const [id, t] of Object.entries(old)) meta.overlordClocksMs[id] = t * TICK_MS;
+  }
+  if (meta.overlordAccruing === undefined) meta.overlordAccruing = null;
+  if (!meta.clanClocksMs) {
+    meta.clanClocksMs = {};
+    const old = legacy.clanClocks as Record<string, number> | undefined;
+    if (old) for (const [id, t] of Object.entries(old)) meta.clanClocksMs[id] = t * TICK_MS;
+  }
+  if (meta.clanAccruing === undefined) meta.clanAccruing = null;
+  delete legacy.overlordClocks;
+  delete legacy.overlordStreak;
+  delete legacy.clanClocks;
+  delete legacy.clanStreak;
 }
 
 // ── Era transition (spec/victory.md) ────────────────────────────────────────

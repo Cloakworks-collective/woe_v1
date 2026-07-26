@@ -241,36 +241,67 @@ last-write-wins with no detection — a stale instance's save can silently
 revert a resolved battle (loot reverted, casualties resurrected, report gone).
 The end-of-era attack storm is the guaranteed-failure scenario. Plan, in order:
 
-- [ ] **14.1 CAS now (~1h):** compare-and-swap in `saveWorld` — upsert guarded
-      by `eq("version", loadedVersion)`; on conflict reload + replay + retry.
-      Turns silent world corruption into detectable retries. Does NOT scale
-      (one row = one global write lock) but stops data loss the day two
-      serverless instances exist.
-- [ ] **14.2 Single-writer world service (the real fix):** one always-on
-      process (Fly/Railway) owns the world in memory and serializes ALL
-      commands through a queue — the classic MUD/browser-game model. Engine
-      code unchanged; Next.js routes become thin forwarders. A single Node
-      process serializing in-memory commands handles thousands/sec —
-      hundreds of players is nowhere near the limit. Persistence moves off
-      the request path: snapshot every few seconds + append-only command log
-      for replay. The 10-minute tick stays trivial (world already in RAM).
-- [ ] **14.3 Event-driven crown clocks:** overlord/clan clocks currently
-      accrue by sampling #1 once per 10-min tick — in the endgame the crown
-      can flip 5× inside a tick and only the boundary holder gets credit.
-      Fix without polling: store `crownHolderId` + `crownSinceMs`; whenever a
-      state change reorders the ladder top (every change passes through the
-      single writer), close the previous holder's interval and credit exact
-      elapsed ms. Millisecond-accurate, zero timers. (`crownHolderId` already
-      exists in meta — half-built.)
-- [ ] **14.4 Decompose the durable/read-heavy edges** into the normalized
-      0001 tables: battle_reports as append-only log, ranking_snapshots
-      (engine inserts top-N each tick; rankings page reads one indexed row),
-      messages. The LIVE world stays in the writer's memory — do not re-plumb
-      the engine through row transactions. Rank itself needs no infra: it's a
-      pure function of current state, correct on every read by construction.
-- [ ] **14.5 Live spectator reads:** endgame ladder churn for viewers via
-      short polling of /api/rankings or Supabase Realtime push on crown
-      changes, reading tick snapshots (14.4) — never recomputing per viewer.
+- [x] **14.1 CAS — DONE.** `saveWorld` (Supabase) is now a version-guarded
+      compare-and-swap: `update(...).eq("version", loadedVersion)`, throwing
+      `WorldConflictError` on a lost race instead of clobbering (insert path for
+      the fresh seed row). New `commitWithRetry(apply)` primitive in `world.ts`
+      does load → apply → CAS-save → on conflict reload-fresh + **replay** +
+      retry (bounded); a read-only pass (`dirty:false`) skips the save. Routed
+      the hot/frequent write paths through it — `runCommand`, `getGame`,
+      `/api/tick`, `/api/state` — so same-player command races and the era
+      attack storm reload+replay rather than silently reverting. File store
+      (single-process dev) is unaffected. 5 concurrency tests; verified live
+      against Supabase (5 concurrent same-player commands all landed). Rarely-hit
+      one-shot paths (join/premium/admin/createEmpire) are still protected by
+      CAS (loud conflict, not silent loss) — wrap them in `commitWithRetry` too
+      when convenient. Still one global write lock — does NOT scale; that's 14.2.
+- [x] **14.2 Single-writer world service — DONE (built + verified; deploy is
+      user's).** `worldService/main.ts` (run `pnpm world-service`, via tsx): one
+      always-on Node process owns the world in memory, serializes EVERY mutation
+      through an in-order promise queue, self-ticks (`runDueTicks` on a timer),
+      and persists off the request path — snapshot every 2s (+ on SIGTERM) plus
+      an append-only `commands.jsonl` truncated per snapshot, with boot replay.
+      Reuses the engine verbatim: extracted `applyOneCommand` (the shared heart)
+      is what both the service and the §14.1 in-process path run. HTTP: `POST
+      /command`, `GET /world` (consistent, queued read), `GET /health`; shared
+      secret (`x-woe-secret`). Next.js became a thin forwarder, gated by
+      `WORLD_SERVICE_URL`: `runCommand` → forward, `getWorld` → fetch snapshot;
+      `getGame`/`/api/state`/`/api/tick` read the service; found/premium/
+      onboarding routed through commands (new `createEmpire`/`syncPlayer`/
+      `grantCharter`/`dismissOnboarding`/`finishTour` in dispatch). `saveWorld`
+      throws under service mode (loud safety net). Verified live end-to-end:
+      found via Next `/api/join` → build/assign via `/api/cmd` → read via
+      `/api/state`, all landing in the SERVICE world (not Supabase); restart
+      preserves state (snapshot+replay). Deploy artifacts: `worldService/`
+      Dockerfile + fly.toml + README + `.env.example`. tsc clean, 116 tests.
+      **Remaining:** admin write ops (disabled under service mode — wire through
+      commands); RNG-faithful replay (log per-command seed); actual deploy
+      (Fly/Railway — needs your creds). Run exactly ONE instance.
+- [x] **14.3 Event-driven crown clocks — DONE.** Overlord/clan hold-clocks now
+      accrue by exact elapsed **milliseconds** whenever the ladder top reorders
+      (after every command *and* every tick, via `updateCrown` called from
+      `applyOneCommand` + `runOneTick`), not sampled once per 10-min tick. Meta
+      went ms-based: `overlordClocksMs`/`overlordAccruing` (open interval) +
+      `clanClocksMs`/`clanAccruing`; `overlordHold`/`clanHold` selectors read
+      cum + live streak; `normalizeMeta` migrates legacy tick clocks. Only the
+      #1 above the pop floor accrues; streak resets on losing #1. UI (VictoryTracker,
+      both rankings pages) shows ms→hours. 4 tests (flip-inside-a-tick credits
+      each holder exactly, floor freeze, win threshold). No infra.
+- [x] **14.4 Durable read edge — DONE (spectator snapshots).** `lib/server/
+      analytics.ts`: the tick writes a top-N ladder + crown snapshot to Postgres
+      (`spectator_snapshots`, `supabase/migrations/0003_*.sql`) off the request
+      path — from `/api/tick` (§14.1) and the world-service tick loop (§14.2).
+      Supabase-gated (graceful no-op + crash-safe without it — verified live:
+      the tick still succeeds when the table is absent). Pure `buildSpectatorSnapshot`
+      is unit-tested. NOTE: this is the *new* read edge; migrating battle_reports/
+      messages **out of the blob** (blob-shrink) is still open — the append-only
+      logs live in the blob for now, read paths unchanged.
+- [x] **14.5 Live spectator reads — DONE.** Public `/spectate` (outside the auth
+      shell) polls `/api/spectate`, which reads one indexed snapshot row (14.4) —
+      every viewer shares it, none recompute the ladder; crown clocks animate
+      client-side. Linked from /login. Realtime-push (vs polling) noted as an
+      enhancement. Needs migration 0003 applied + a tick to populate; until then
+      it shows "no snapshot yet" (verified graceful).
 - [ ] Perf guardrails while still on the blob: keep saves off hot read paths,
       watch blob size as player count grows (every save rewrites everything —
       write amplification is the quiet killer).

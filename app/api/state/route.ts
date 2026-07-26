@@ -24,13 +24,19 @@ import {
   wallName,
 } from "@/lib/engine";
 import { resolvePlayerId } from "@/lib/server/auth";
-import { saveWorld } from "@/lib/server/store";
-import { REVENGE_WINDOW_TICKS, getWorld, runDueTicks } from "@/lib/server/world";
+import { REVENGE_WINDOW_TICKS, commitWithRetry, getWorld, runDueTicks } from "@/lib/server/world";
+import { worldServiceEnabled } from "@/lib/server/worldClient";
 
 export async function GET(req: NextRequest) {
-  const world = await getWorld();
-  const processed = runDueTicks(world);
-  if (processed > 0) await saveWorld(world);
+  // With the single writer (§14.2) the service advances its own clock, so a
+  // read just fetches it. Otherwise advance under optimistic concurrency (§14.1),
+  // persisting only if a tick actually landed.
+  const world = worldServiceEnabled()
+    ? await getWorld()
+    : await commitWithRetry((world) => {
+        const processed = runDueTicks(world);
+        return { result: world, dirty: processed > 0 };
+      });
 
   const playerId = await resolvePlayerId(req, world);
   const p = playerId ? world.players[playerId] : undefined;

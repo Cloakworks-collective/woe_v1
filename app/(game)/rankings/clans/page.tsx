@@ -2,11 +2,11 @@ import Link from "next/link";
 import { LearnLink } from "@/components/LearnLink";
 import { Pager } from "@/components/Pager";
 import { Panel } from "@/components/Panel";
-import { HOLD_CLOCKS, POPULATION_FLOORS, TICKS_PER_HOUR } from "@/lib/constants";
+import { HOLD_CLOCKS, POPULATION_FLOORS } from "@/lib/constants";
 import { memberCap, totalPopulation } from "@/lib/engine";
 import { paginate } from "@/lib/paginate";
 import { getGame } from "@/lib/server/session";
-import { clanScore } from "@/lib/server/world";
+import { MS_PER_HOUR, clanHold, clanScore } from "@/lib/server/world";
 
 export const dynamic = "force-dynamic";
 
@@ -34,9 +34,9 @@ export default async function ClanRanksPage({
 
   const paged = paginate(clans, page, PAGE_SIZE);
   const top = clans[0];
-  const cum = top ? (world.meta.clanClocks[top.c.id] ?? 0) : 0;
-  const streak =
-    top && world.meta.clanStreak?.clanId === top.c.id ? world.meta.clanStreak.ticks : 0;
+  const ch = clanHold(world);
+  const cum = top && top.c.id === ch.holderId ? ch.cumMs : top ? (world.meta.clanClocksMs?.[top.c.id] ?? 0) : 0;
+  const streak = top && top.c.id === ch.holderId ? ch.streakMs : 0;
 
   return (
     <>
@@ -100,8 +100,8 @@ export default async function ClanRanksPage({
             <Pager page={paged} href={(n) => `/rankings/clans?page=${n}`} noun="clans" />
             {top && (
               <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 6 }}>
-                👑 {top.c.name} leads the clans — {(cum / TICKS_PER_HOUR).toFixed(1)}h of the{" "}
-                {HOLD_CLOCKS.CUMULATIVE_HOURS}h cumulative, {(streak / TICKS_PER_HOUR).toFixed(1)}h
+                👑 {top.c.name} leads the clans — {(cum / MS_PER_HOUR).toFixed(1)}h of the{" "}
+                {HOLD_CLOCKS.CUMULATIVE_HOURS}h cumulative, {(streak / MS_PER_HOUR).toFixed(1)}h
                 of the {HOLD_CLOCKS.STREAK_HOURS}h streak
                 {top.population < POPULATION_FLOORS.CLAN
                   ? ` (below the ${fmt(POPULATION_FLOORS.CLAN)} population floor — clocks frozen)`

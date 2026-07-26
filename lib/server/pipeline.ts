@@ -6,11 +6,14 @@ import { randomUUID } from "node:crypto";
 import {
   EngineError,
   addStandingOrder,
+  applyOnboardingRewards,
   assignWorkers,
   atWar,
   bankGold,
   bankResource,
   build,
+  dismissOnboarding as dismissOnboardingGrant,
+  newEmpire,
   dequeueBuild,
   dequeueResearch,
   queueBuild,
@@ -66,8 +69,17 @@ import {
   SURRENDER_REATTACK_COOLDOWN_TICKS,
   SURRENDER_TICKS_PER_ERA,
 } from "../constants";
-import { dmChannel, pushBattle, pushChronicle, pushInbox, saveWorld, type World } from "./store";
-import { ERA_PEACE_TICKS, REVENGE_WINDOW_TICKS, getWorld, revengePendingOn, runDueTicks } from "./world";
+import type { Race } from "../constants/races";
+import { dmChannel, pushBattle, pushChronicle, pushInbox, type World } from "./store";
+import {
+  ERA_PEACE_TICKS,
+  REVENGE_WINDOW_TICKS,
+  commitWithRetry,
+  revengePendingOn,
+  runDueTicks,
+  updateCrown,
+} from "./world";
+import { forwardCommand, worldServiceEnabled } from "./worldClient";
 
 export interface CommandResult {
   ok: boolean;
@@ -79,33 +91,95 @@ function regularKills(l: UnitLosses): number {
   return l.footmen + l.archers + l.cavalry + l.engineers;
 }
 
-/** Execute one command for one player. Catches EngineError into {ok:false}. */
+/**
+ * Apply one command to an in-memory world (no persistence — the caller commits).
+ * Returns the command's result plus whether the world changed. This is the
+ * shared heart of both write models:
+ *   - in-process store (§14.1): wrapped in `commitWithRetry` by `runCommand`.
+ *   - single-writer service (§14.2): called directly on the service's world,
+ *     serialized by its queue (see `worldService/main.ts`).
+ * `createEmpire` is special — it has no existing player, so it's handled before
+ * the player lookup.
+ */
+export function applyOneCommand(
+  world: World,
+  playerId: string,
+  name: string,
+  args: Record<string, unknown>,
+): { result: CommandResult; dirty: boolean } {
+  runDueTicks(world); // the world moves before every command
+
+  if (name === "createEmpire") {
+    try {
+      const result = createEmpireCmd(world, playerId, args);
+      updateCrown(world); // a founding shifts the ladder — recompute the crown
+      return { result, dirty: true };
+    } catch (e) {
+      if (e instanceof EngineError) return { result: { ok: false, message: e.message }, dirty: true };
+      throw e;
+    }
+  }
+
+  const player = world.players[playerId];
+  if (!player) return { result: { ok: false, message: "No such empire." }, dirty: false };
+  if (player.banned) {
+    return { result: { ok: false, message: "This empire has been banished by the crown." }, dirty: false };
+  }
+  player.lastSeenAtMs = Date.now(); // presence for the ladder's Online column
+
+  try {
+    const result = dispatch(world, player, name, args);
+    // §14.3: every command can reorder the ladder top — credit the crown-holder
+    // by exact elapsed ms right now, not at the next 10-minute tick boundary.
+    updateCrown(world);
+    return { result: result ?? { ok: true }, dirty: true };
+  } catch (e) {
+    // A user-level rejection still persists the ticks that ran this pass.
+    if (e instanceof EngineError) return { result: { ok: false, message: e.message }, dirty: true };
+    throw e; // unexpected — bubble out (neither a conflict nor a user error)
+  }
+}
+
+/**
+ * Execute one command for one player. Catches EngineError into {ok:false}.
+ *
+ * Two write models, chosen by env:
+ *   - `WORLD_SERVICE_URL` set → forward the command to the single-writer world
+ *     service (§14.2), which serializes it against every other mutation.
+ *   - otherwise → apply locally under optimistic concurrency (§14.1):
+ *     `commitWithRetry` reloads + replays on a lost compare-and-swap.
+ */
 export async function runCommand(
   playerId: string,
   name: string,
   args: Record<string, unknown>,
 ): Promise<CommandResult> {
-  const world = await getWorld();
-  runDueTicks(world); // the world moves before every command
-
-  const player = world.players[playerId];
-  if (!player) return { ok: false, message: "No such empire." };
-  if (player.banned) return { ok: false, message: "This empire has been banished by the crown." };
-  player.lastSeenAtMs = Date.now(); // presence for the ladder's Online column
-
-  try {
-    const result = dispatch(world, player, name, args);
-    await saveWorld(world);
-    return result ?? { ok: true };
-  } catch (e) {
-    await saveWorld(world); // ticks that ran still count
-    if (e instanceof EngineError) return { ok: false, message: e.message };
-    throw e;
-  }
+  if (worldServiceEnabled()) return forwardCommand(playerId, name, args);
+  return commitWithRetry<CommandResult>((world) => applyOneCommand(world, playerId, name, args));
 }
 
 const num = (v: unknown) => Math.floor(Number(v));
 const str = (v: unknown) => String(v ?? "");
+
+/**
+ * Found a new empire (name uniqueness checked against the live world). The id
+ * and realm token are generated by the caller (Next.js has crypto + owns the
+ * session), so this stays a plain world mutation that both write models share.
+ */
+function createEmpireCmd(world: World, id: string, args: Record<string, unknown>): CommandResult {
+  const name = str(args.name).trim().slice(0, 30);
+  const race = str(args.race || "human") as Race;
+  if (name.length < 2) throw new EngineError("name", "Name your empire (2+ letters).");
+  if (world.players[id]) throw new EngineError("id", "That empire already exists.");
+  if (Object.values(world.players).some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+    throw new EngineError("name", "That name is taken.");
+  }
+  const p = newEmpire({ id, name, race, joinedAtTick: world.meta.tickNumber });
+  const token = str(args.token);
+  if (token) p.apiToken = token;
+  world.players[id] = p;
+  return { ok: true, message: "Empire founded." };
+}
 
 function dispatch(
   world: World,
@@ -118,6 +192,32 @@ function dispatch(
   const put = (p: Player) => (world.players[p.id] = p);
 
   switch (name) {
+    // ── Account / session mutations (routed through the writer in §14.2) ──
+    case "syncPlayer": {
+      // Page-load housekeeping that must pass through the single writer: backfill
+      // a realm token (generated by the caller), pay out completed Regent's
+      // Charges (idempotent), and keep the presence stamp fresh.
+      const token = str(args.token);
+      if (token && !player.apiToken) player.apiToken = token;
+      applyOnboardingRewards(player);
+      return; // lastSeenAtMs already stamped by applyOneCommand
+    }
+    case "grantCharter": {
+      if (!player.premium) {
+        player.premium = true;
+        pushInbox(world, player.id, {
+          type: "info",
+          detail: "👑 The Royal Charter is sealed — the Steward enters your service.",
+        });
+      }
+      return { ok: true, message: "The Royal Charter is sealed." };
+    }
+    case "dismissOnboarding":
+      return dismissOnboardingGrant(player), undefined;
+    case "finishTour":
+      player.onboarding = { claimed: [], ...player.onboarding, toured: true };
+      return;
+
     // ── Economy & management ──────────────────────────────────────────
     case "setTax":
       return put(setTax(player, Number(args.rate)).player), undefined;

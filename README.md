@@ -117,26 +117,31 @@ queries over history, ever.
 page load and command also catches up any due ticks, so the world advances
 correctly even if the cron sleeps. Pacing is cost, never timers.
 
-### Scaling plan (todo.md §14)
+### Scaling (todo.md §14 — built)
 
-The one-document model has a known ceiling: concurrent writers. Two
-serverless instances saving the blob are last-write-wins — a stale save
-could silently revert a battle. The plan, in order:
+The one-document model has a known ceiling: concurrent writers. Two serverless
+instances saving the blob are last-write-wins — a stale save could silently
+revert a battle. All five parts of the plan are now built:
 
-1. **Compare-and-swap** on the world save (version guard + retry) — turns
-   silent clobbering into detected retries. Insurance, not scale.
-2. **A single-writer world service** — the classic game-server model: one
-   always-on process owns the world in memory and serializes every command
-   through an in-process queue; Next.js routes forward to it over HTTP and
-   return the result in the same response. The engine doesn't change at all.
-   Persistence moves off the request path: periodic snapshots + an
-   append-only command log for replay. One Node process serializing pure
-   in-memory commands handles thousands per second — hundreds of players is
-   nowhere near its limit.
-3. **Normalized tables for the durable edges** — battle logs, per-tick
-   ranking snapshots, messages decompose into the already-written relational
-   schema (`supabase/migrations/0001_init.sql`, applied but dormant) for
-   cheap public reads. The *live* world stays in the writer's memory.
+1. **§14.1 Compare-and-swap** on the world save (version guard + reload/replay/
+   retry) — silent clobbering becomes a detected, recovered retry. Insurance,
+   not scale. `lib/server/store.ts` + `commitWithRetry`.
+2. **§14.2 Single-writer world service** — `worldService/main.ts`: one always-on
+   process owns the world in memory and serializes every command through an
+   in-process queue; Next.js forwards to it over HTTP (gated by
+   `WORLD_SERVICE_URL`) and returns the result in the same response. Engine
+   unchanged (same `applyOneCommand`). Persistence off the request path:
+   snapshot + append-only command log. See `worldService/README.md`.
+3. **§14.3 Event-driven crown clocks** — the victory hold-clocks accrue by exact
+   elapsed **milliseconds** whenever the ladder top reorders (every command +
+   tick), not sampled once per 10-minute tick, so an endgame crown that flips
+   many times inside a tick credits each holder precisely.
+4. **§14.4 Durable read edge** — the tick writes a top-N ladder + crown snapshot
+   to Postgres (`spectator_snapshots`, `supabase/migrations/0003_*.sql`) off the
+   request path. The *live* world stays in the writer's memory.
+5. **§14.5 Live spectator reads** — `/spectate` (public) polls `/api/spectate`,
+   which reads one indexed snapshot row — every viewer shares it, none recompute
+   the ladder.
 
 **Deliberately no broker.** RabbitMQ/Redis pub-sub would transport commands
 to… the same single consumer, while turning request/response (a player needs
@@ -145,6 +150,73 @@ and reply queues. The "queue" a single writer needs is an array and a
 promise chain; durable replay is the command log's job, which is storage,
 not delivery. HTTP into one process is the simple version *and* the correct
 one.
+
+## Deployment — what runs where
+
+There are **two supported topologies**. Start with A; move to B only when you
+outgrow the single-row write lock (hundreds of concurrent players / endgame
+storms). The switch is one env var — no code change.
+
+### A. Serverless only (§14.1) — the default
+
+```
+Browsers / CLI / Claude ─▶ Next.js on Vercel ─▶ Supabase Postgres (world_docs blob, CAS)
+                                  ▲
+                         Vercel Cron every 10m → /api/tick
+```
+
+| Component | Runs on | Deploy | Notes |
+|-----------|---------|--------|-------|
+| **Next.js app** (UI + API + engine) | **Vercel** (or any Node host) | `vercel deploy` | Holds the whole game; writes the world blob with compare-and-swap |
+| **Supabase Postgres** | Supabase (managed) | already live | Stores `world_docs` (the world blob) + `spectator_snapshots` |
+| **Cron** | Vercel Cron (`vercel.json`, `*/10`) | with the app | Hits `/api/tick`; guarded by `CRON_SECRET` |
+
+**To deploy A:** push to Vercel; set env `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`
+(and optionally `STRIPE_*`, `ADMIN_PASSWORD`). Leave `WORLD_SERVICE_URL` unset.
+That's the whole system — nothing else to run.
+
+### B. Single-writer service (§14.2) — for scale
+
+```
+Browsers / CLI / Claude ─▶ Next.js on Vercel ──HTTP──▶ World Service (always-on, Fly/Railway)
+   (thin forwarder)                                     owns world in RAM, self-ticks
+                                                          │  snapshot + command log → volume
+                                                          └  spectator snapshots → Supabase
+```
+
+| Component | Runs on | Deploy | Notes |
+|-----------|---------|--------|-------|
+| **Next.js app** (forwarder) | **Vercel** | `vercel deploy` + set `WORLD_SERVICE_URL` | Now forwards every command to the service; reads the world from it |
+| **World Service** | **Fly.io / Railway / Render / a VM** — one always-on instance | `fly deploy -c worldService/fly.toml` (Dockerfile + fly.toml provided) | The single writer. **Run exactly one instance.** Needs a persistent volume for snapshots |
+| **Supabase Postgres** | Supabase (managed) | already live | Only `spectator_snapshots` here (the service owns the live world in RAM) |
+
+**To move A → B:** deploy the world service (see `worldService/README.md`), then
+on Vercel set `WORLD_SERVICE_URL=https://<service-url>` and
+`WORLD_SERVICE_SECRET=<shared secret>` (the same the service runs with) and
+redeploy. The Vercel cron becomes a harmless no-op (the service self-ticks) and
+can be removed. Supabase can no longer be the source of truth for the live world
+— it holds only the spectator snapshots.
+
+### What needs deploying (checklist)
+
+- [ ] **Supabase migration `0003_spectator_snapshots.sql`** — apply it (e.g.
+      `supabase db push`, or paste it in the SQL editor) so §14.5 spectating
+      goes live. Until then `/spectate` shows "no snapshot yet" (harmless).
+      Migrations `0001` (dormant normalized schema) and `0002` (`world_docs`) are
+      already applied.
+- [ ] **Vercel** — deploy the app + env (topology A works immediately).
+- [ ] **World service (only for topology B)** — deploy to Fly/Railway (one
+      instance + volume) and set `WORLD_SERVICE_URL`/`WORLD_SERVICE_SECRET` on
+      Vercel. Optional until you need the scale.
+- [ ] **Admin under §14.2** — the `/admin` write ops still go through the old
+      store path and are disabled when `WORLD_SERVICE_URL` is set (they throw a
+      clear error). Wire them through commands before relying on admin in
+      topology B. (Everything a *player* does already works in both topologies.)
+
+Local dev needs none of this: with no Supabase env it uses `data/world.json`;
+`pnpm dev` + `pnpm world-service` (optional) exercise both topologies on your
+machine.
 
 ## Design specs (`spec/`)
 
