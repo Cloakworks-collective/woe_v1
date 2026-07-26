@@ -8,11 +8,14 @@
 // the lore framing is written in the scribes' tongue. Append later ages to
 // ELDER_AGES as records surface.
 
+/** A table cell: a plain value, or a linked label (e.g. a clan → its page). */
+export type ElderCell = string | number | { text: string; href: string };
+
 /** A generic leaderboard from the old chronicles. */
 export interface ElderTable {
   title: string;
   headers: string[];
-  rows: (string | number)[][];
+  rows: ElderCell[][];
   note?: string; // e.g. "champion of each feat"
   numeric?: number[]; // indices of right-aligned numeric columns
 }

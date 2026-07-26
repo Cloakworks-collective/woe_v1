@@ -43,7 +43,7 @@ export function Census({ player: p }: { player: Player }) {
       {rows.map((r) => (
         <li key={r.key} className={`census-row${r.muted ? " muted" : ""}`}>
           <span className="census-ic">
-            {r.art ? <Art path={r.art} size={32} title={r.label} /> : <span className="census-glyph">{r.glyph}</span>}
+            {r.art ? <Art path={r.art} size={52} title={r.label} /> : <span className="census-glyph">{r.glyph}</span>}
           </span>
           <span className="census-label">{r.label}</span>
           <span className="census-count">{fmt(r.count)}</span>

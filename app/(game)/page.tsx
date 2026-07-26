@@ -3,6 +3,7 @@ import { Art } from "@/components/Art";
 import { Census } from "@/components/Census";
 import { CmdForm } from "@/components/CmdForm";
 import { Flash } from "@/components/Flash";
+import { HealthBar } from "@/components/HealthBar";
 import { Info } from "@/components/Info";
 import { Meter } from "@/components/Meter";
 import { Panel } from "@/components/Panel";
@@ -13,8 +14,6 @@ import { SettlementView } from "@/components/SettlementView";
 import { StatTile } from "@/components/StatTile";
 import { TaxSlider } from "@/components/TaxSlider";
 import { VictoryTracker } from "@/components/VictoryTracker";
-import { eventLine, eventTone } from "@/components/eventLine";
-import { timeAgo } from "@/components/timeAgo";
 import {
   ACTION_GUIDE,
   ACTION_INFO,
@@ -33,7 +32,9 @@ import {
 } from "@/lib/constants";
 import {
   bankedRes,
+  buildingIntegrity,
   civilians,
+  crewGear,
   foodUpkeepPerTurn,
   level,
   military,
@@ -75,10 +76,62 @@ export default async function CommandView({
   const { world, player: p } = await getGame();
   const rates = productionRates(p);
   const foodNet = rates.food - foodUpkeepPerTurn(p);
-  const goldVaultCap = STORAGE_PER_LEVEL * level(p, "counting_house");
-  const bankAllAmt = Math.min(p.gold, goldVaultCap - p.bankedGold);
+  // The Counting House & storehouses as one model. Every "Bank" is bank-all: it
+  // stores the most the vault can take (min of loose stock and remaining room).
+  // A bombarded store shelters less (capacity × integrity) and its overflow
+  // spills back out into the open — raidable again — which we surface per row.
+  type Holding = {
+    key: "gold" | Resource;
+    label: string;
+    icon: React.ReactNode;
+    loose: number;
+    vaulted: number;
+    fullCap: number; // capacity at full health
+    integrity: number; // 0.5–1.0; <1 = bombarded
+    protectedCap: number; // fullCap × integrity — what's actually sheltered
+    spilled: number; // vaulted beyond the shelter — spilled back into the open
+    exposed: number; // loose + spilled — what raiders/spies can take
+    bankMax: number; // how much a Bank-all would move in (fills the shelter)
+    full: boolean; // shelter is topped out
+  };
+  const makeHolding = (key: "gold" | Resource, label: string, icon: React.ReactNode): Holding => {
+    const building = STORAGE_BUILDING[key];
+    const loose = key === "gold" ? p.gold : p.resources[key];
+    const vaulted = key === "gold" ? p.bankedGold : bankedRes(p)[key];
+    const fullCap = STORAGE_PER_LEVEL * level(p, building);
+    const integrity = buildingIntegrity(p, building);
+    const protectedCap = Math.floor(fullCap * integrity);
+    const spilled = Math.max(0, vaulted - protectedCap);
+    const exposed = key === "gold" ? unbankedGold(p) : unstored(p, key);
+    const bankMax = Math.max(0, Math.min(loose, protectedCap - vaulted));
+    return {
+      key,
+      label,
+      icon,
+      loose,
+      vaulted,
+      fullCap,
+      integrity,
+      protectedCap,
+      spilled,
+      exposed,
+      bankMax,
+      full: vaulted >= protectedCap,
+    };
+  };
+  const holdings: Holding[] = [
+    makeHolding("gold", "Gold", <ResIcon kind="gold" size={20} />),
+    ...RES_LABELS.map(({ key, label, icon }) => makeHolding(key, label, icon)),
+  ];
   const nextFoundryStep = WAR_FOUNDRY_LADDER.find((s) => s.level === level(p, "war_foundry") + 1);
-  const inbox = world.inbox[p.id] ?? [];
+  // Siege: having an engine and having it MANNED are different — an uncrewed
+  // engine can't fire. Compute what's actually fielded.
+  const crewed = crewGear(p.army.siegeGear, p.army.siegeEngineers);
+  const enginesBuilt = GEAR_KEYS.reduce((s, k) => s + p.army.siegeGear[k], 0);
+  const enginesManned = GEAR_KEYS.reduce((s, k) => s + crewed[k], 0);
+  const enginesUnmanned = enginesBuilt - enginesManned;
+  const engineersBusy = GEAR_KEYS.reduce((s, k) => s + crewed[k] * SIEGE_GEAR[k].crew, 0);
+  const engineersIdleCount = Math.max(0, p.army.siegeEngineers - engineersBusy);
   const revengeOpen = p.recentAttackers.filter(
     (a) => world.meta.tickNumber - a.tick <= 108 && !p.revengeUsed.includes(a.playerId),
   );
@@ -235,98 +288,86 @@ export default async function CommandView({
         </Panel>
 
         <Panel title="The Counting House — the realm's bank">
-          <div style={{ marginBottom: 6 }}>
-            <Meter
-              icon={<ResIcon kind="gold" size={18} />}
-              label="Gold vault"
-              value={p.bankedGold}
-              max={goldVaultCap}
-              display={`${fmt(p.bankedGold)} / ${fmt(goldVaultCap)} banked`}
-              tone="good"
-            />
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-            <CmdForm name="bank" path="/">
-              <input name="amount" placeholder="gold ±" aria-label="Gold to bank (negative withdraws)" size={8} style={{ font: "14.5px Verdana", padding: 4 }} />
-              <button className="btn">Bank</button>
-            </CmdForm>
-            <CmdForm name="bank" path="/">
-              <input type="hidden" name="amount" value={bankAllAmt} />
-              <button className="btn" disabled={bankAllAmt <= 0}>
-                Bank all ({fmt(Math.max(0, bankAllAmt))})
-              </button>
-            </CmdForm>
-            <CmdForm name="bank" path="/">
-              <input type="hidden" name="amount" value={-p.bankedGold} />
-              <button className="btn" disabled={p.bankedGold <= 0}>
-                Withdraw all
-              </button>
-            </CmdForm>
-            <Info tip={ACTION_INFO.bank} guide={ACTION_GUIDE.bank} />
-          </div>
           <table className="tbl">
             <thead>
               <tr>
                 <th>Holding</th>
                 <th className="num">Loose</th>
                 <th className="num">
-                  <Info tip="Banked into the vault — safe from raiders while the store stands (a bombarded store spills its overflow).">
-                    Vaulted
+                  <Info tip="Sheltered in the vault — safe from raiders and spies while the store stands. A bombarded store shelters less (capacity × its integrity) and any overflow spills back into the open.">
+                    Vaulted / shelter
                   </Info>
                 </th>
                 <th className="num">
-                  <Info tip="Everything loose plus any vault overflow. Raiders carry it off; spies torch it.">
+                  <Info tip="Everything loose plus any spilled vault overflow. Raiders carry it off; spies torch it.">
                     Exposed
                   </Info>
                 </th>
-                {!p.premium && <th>Bank ±</th>}
+                {!p.premium && <th></th>}
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                    <ResIcon kind="gold" size={20} /> Gold
-                  </span>
-                </td>
-                <td className="num">{fmt(p.gold)}</td>
-                <td className="num" style={{ color: "var(--coin)" }}>
-                  {fmt(p.bankedGold)} <span style={{ color: "var(--ink-soft)" }}>/ {fmt(goldVaultCap)}</span>
-                </td>
-                <td className="num" style={unbankedGold(p) > 0 ? { color: "var(--warn)" } : undefined}>
-                  {fmt(unbankedGold(p))}
-                </td>
-                {!p.premium && (
-                  <td style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>use the dials above</td>
-                )}
-              </tr>
-              {RES_LABELS.map(({ key, label, icon }) => {
-                const cap = STORAGE_PER_LEVEL * level(p, STORAGE_BUILDING[key]);
-                const vaulted = bankedRes(p)[key];
-                const exposed = unstored(p, key);
+              {holdings.map((h) => {
+                const damaged = h.integrity < 1;
                 return (
-                  <tr key={key}>
+                  <tr key={h.key}>
                     <td>
-                      {icon} {label}
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                        {h.icon} {h.label}
+                      </span>
                     </td>
-                    <td className="num">{fmt(p.resources[key])}</td>
-                    <td className="num">
-                      {fmt(vaulted)} <span style={{ color: "var(--ink-soft)" }}>/ {fmt(cap)}</span>
+                    <td className="num">{fmt(h.loose)}</td>
+                    <td className="num" style={h.key === "gold" ? { color: "var(--coin)" } : undefined}>
+                      {fmt(h.vaulted)}{" "}
+                      <span style={{ color: "var(--ink-soft)" }}>/ {fmt(h.protectedCap)}</span>
+                      {h.full && h.protectedCap > 0 && !damaged && (
+                        <span
+                          title="This vault is full — no more can be sheltered."
+                          style={{ marginLeft: 6, color: "var(--green)", fontWeight: 700, fontSize: 11.5 }}
+                        >
+                          FULL
+                        </span>
+                      )}
+                      {damaged && (
+                        <Link
+                          href="/buildings"
+                          className="store-dmg"
+                          title={`Bombarded — the store is at ${Math.round(h.integrity * 100)}% integrity, so it shelters only ${fmt(h.protectedCap)} of its ${fmt(h.fullCap)} capacity. Click to repair on the Buildings page.`}
+                        >
+                          <span className="store-dmg-tag">🔥 repair</span>
+                          <HealthBar integrity={h.integrity} label={`${h.label} store`} />
+                        </Link>
+                      )}
                     </td>
-                    <td className="num" style={exposed > 0 ? { color: "var(--warn)" } : undefined}>{fmt(exposed)}</td>
+                    <td className="num" style={h.exposed > 0 ? { color: "var(--warn)" } : undefined}>
+                      {fmt(h.exposed)}
+                      {h.spilled > 0 && (
+                        <span
+                          title="Overflow spilled from the bombarded vault — back in the open and raidable until the store is repaired."
+                          style={{ display: "block", fontSize: 11, color: "var(--red)" }}
+                        >
+                          incl. {fmt(h.spilled)} spilled
+                        </span>
+                      )}
+                    </td>
                     {!p.premium && (
                       <td>
-                        <CmdForm name="bankRes" path="/">
-                          <input type="hidden" name="what" value={key} />
-                          <input
-                            name="amount"
-                            placeholder="±"
-                            aria-label={`${label} to bank (negative withdraws)`}
-                            size={5}
-                            style={{ font: "13.5px Verdana", padding: 3 }}
-                          />
-                          <button className="btn" style={{ padding: "3px 8px", fontSize: 13 }}>
-                            Bank
+                        <CmdForm name={h.key === "gold" ? "bank" : "bankRes"} path="/">
+                          {h.key !== "gold" && <input type="hidden" name="what" value={h.key} />}
+                          <input type="hidden" name="amount" value={h.bankMax} />
+                          <button
+                            className="btn"
+                            style={{ padding: "3px 10px", fontSize: 13 }}
+                            disabled={h.bankMax <= 0}
+                            title={
+                              h.bankMax > 0
+                                ? `Shelter ${fmt(h.bankMax)} ${h.label} in the vault`
+                                : h.loose <= 0
+                                  ? `No loose ${h.label} to store`
+                                  : "The shelter is already full"
+                            }
+                          >
+                            Store all
                           </button>
                         </CmdForm>
                       </td>
@@ -336,20 +377,22 @@ export default async function CommandView({
               })}
             </tbody>
           </table>
-          <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 6, marginBottom: 0 }}>
+          <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 8, marginBottom: 0 }}>
             {p.premium ? (
               <>
-                🪶 <b>The Steward vaults your goods automatically</b> each turn, up to capacity — a
-                Royal Charter privilege.
+                🪶 <b>The Steward shelters your gold and goods automatically</b> each turn, up to
+                capacity — a Royal Charter privilege.
               </>
             ) : (
               <>
-                Vault goods to keep them from raiders (negative withdraws; the granary always feeds
-                your people). Holders of the <Link href="/premium">Royal Charter</Link> have the
-                Steward vault everything automatically.
+                <b>Store all</b> shelters the most each vault can hold — safe from raiders and spies.
+                The granary always feeds your people first. Holders of the{" "}
+                <Link href="/premium">Royal Charter</Link> have the Steward shelter everything
+                automatically. <Info tip={ACTION_INFO.bank} guide={ACTION_GUIDE.bank} />
               </>
             )}{" "}
-            Raise <Link href="/buildings">storage buildings</Link> for deeper vaults.
+            A bombarded store shelters less and spills its overflow — repair it on the{" "}
+            <Link href="/buildings">Buildings</Link> page. Raise storage buildings for deeper vaults.
           </p>
         </Panel>
       </div>
@@ -367,67 +410,82 @@ export default async function CommandView({
       </Panel>
 
       <div className="panel-row">
-        <Panel title="The Siege Train — engines & crews">
+        <Panel title={`The Siege Train — ${enginesManned} of ${enginesBuilt} engines manned`}>
           <div className="stat-grid">
             <StatTile
-              icon={<Art path="units/engineer" size={26} title="Siege engineers" />}
+              icon={<Art path="units/engineer" size={46} title="Siege engineers" />}
               label="Engineer crews"
               value={fmt(p.army.siegeEngineers)}
-              sub="hands to work the engines"
+              sub={`${fmt(engineersBusy)} manning · ${fmt(engineersIdleCount)} idle`}
+              tone={enginesUnmanned > 0 ? "warn" : undefined}
             />
             <StatTile
-              icon={<Art path="buildings/war_foundry" size={26} title="War Foundry" />}
+              icon={<Art path="buildings/war_foundry" size={46} title="War Foundry" />}
               label="War Foundry"
               value={`level ${level(p, "war_foundry")} / 10`}
-              sub={
-                nextFoundryStep
-                  ? `next: ${nextFoundryStep.name}`
-                  : "the full ladder is forged"
-              }
+              sub={nextFoundryStep ? `next: ${nextFoundryStep.name}` : "the full ladder is forged"}
             />
-            {GEAR_KEYS.map((key) => (
-              <StatTile
-                key={key}
-                icon={<Art path={`siege/${key}`} size={26} title={WEAPON_NAME[key]} />}
-                label={WEAPON_NAME[key]}
-                value={fmt(p.army.siegeGear[key])}
-                sub={`crew of ${SIEGE_GEAR[key].crew} each`}
-              />
-            ))}
+            {GEAR_KEYS.map((key) => {
+              const built = p.army.siegeGear[key];
+              const manned = crewed[key];
+              return (
+                <StatTile
+                  key={key}
+                  icon={<Art path={`siege/${key}`} size={46} title={WEAPON_NAME[key]} />}
+                  label={WEAPON_NAME[key]}
+                  value={
+                    <>
+                      {fmt(manned)}
+                      <span style={{ color: "var(--ink-soft)", fontWeight: 400 }}> / {fmt(built)}</span>
+                    </>
+                  }
+                  sub={built === 0 ? `none built · crew ${SIEGE_GEAR[key].crew}` : `manned / built · crew ${SIEGE_GEAR[key].crew}`}
+                  tone={built > 0 && manned < built ? "warn" : built > 0 ? "good" : undefined}
+                />
+              );
+            })}
           </div>
-          <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 8, marginBottom: 0 }}>
-            {RACES[p.race].siege !== 1 && (
-              <>
-                {RACE_NAMES[p.race]} work engines at{" "}
-                <b>×{RACES[p.race].siege.toFixed(2).replace(/0$/, "")}</b> force.{" "}
-              </>
-            )}
-            <Link href="/siege">To the Siege Works →</Link>
-          </p>
+          {enginesUnmanned > 0 ? (
+            <p className="siege-warn" style={{ marginTop: 8 }}>
+              ⚠ <b>{enginesUnmanned}</b> of your <b>{enginesBuilt}</b> engines stand <b>unmanned</b> —
+              they can&apos;t fire without crews.{" "}
+              <Link href="/siege">🔧 Train engineers at the Siege Works →</Link>
+            </p>
+          ) : (
+            <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 8, marginBottom: 0 }}>
+              {RACES[p.race].siege !== 1 && (
+                <>
+                  {RACE_NAMES[p.race]} work engines at{" "}
+                  <b>×{RACES[p.race].siege.toFixed(2).replace(/0$/, "")}</b> force.{" "}
+                </>
+              )}
+              <Link href="/siege">To the Siege Works →</Link>
+            </p>
+          )}
         </Panel>
 
         <Panel title="The Shadow Work — spies & scouts">
           <div className="stat-grid">
             <StatTile
-              icon={<Art path="units/spy" size={26} title="Spies" />}
+              icon={<Art path="units/spy" size={46} title="Spies" />}
               label="Spies"
               value={fmt(p.army.spies)}
               sub={`${fmt(SLOTS_PER_BUILDING_LEVEL * level(p, "shadow_guild"))} slots in the Shadow Guild`}
             />
             <StatTile
-              icon={<Art path="units/scout" size={26} title="Scouts" />}
+              icon={<Art path="units/scout" size={46} title="Scouts" />}
               label="Scouts"
               value={fmt(p.army.scouts)}
               sub={`${fmt(SLOTS_PER_BUILDING_LEVEL * level(p, "rangers_lodge"))} slots in the Ranger's Lodge`}
             />
             <StatTile
-              icon={<Art path="buildings/shadow_guild" size={26} title="Shadow Guild" />}
+              icon={<Art path="buildings/shadow_guild" size={46} title="Shadow Guild" />}
               label="Shadow Guild"
               value={`level ${level(p, "shadow_guild")}`}
               sub="steal ledgers, sabotage, torch stores"
             />
             <StatTile
-              icon={<Art path="buildings/rangers_lodge" size={26} title="Ranger's Lodge" />}
+              icon={<Art path="buildings/rangers_lodge" size={46} title="Ranger's Lodge" />}
               label="Ranger's Lodge"
               value={`level ${level(p, "rangers_lodge")}`}
               sub="recon rivals; catch their spies"
@@ -446,33 +504,15 @@ export default async function CommandView({
         </Panel>
       </div>
 
-      <Panel title="Chronicle — latest tidings">
-        {inbox.length === 0 ? (
-          <p style={{ fontSize: 14.5, fontStyle: "italic" }}>The vellum is yet unmarked. History is unwritten.</p>
-        ) : (
-          <ul className="chron">
-            {inbox.slice(0, 8).map((item, i) => (
-              <li key={i} className={`chron-row tone-${eventTone(item.event)}`}>
-                <span className="chron-line">{eventLine(item.event)}</span>
-                <span className="chron-when" title={`turn ${item.tick}`}>
-                  {timeAgo(item, world.meta)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p style={{ fontSize: 13.5, marginTop: 6 }}>
-          <Link href="/chronicle">→ the full Chronicle & battle ledger</Link>
-        </p>
-        {revengeOpen.length > 0 && (
-          <p style={{ marginTop: 6, fontSize: 14.5 }}>
-            <span style={{ color: "var(--warn)", fontWeight: 700 }}>⚔ Revenge windows open</span>{" "}
-            against:{" "}
+      {revengeOpen.length > 0 && (
+        <Panel title="⚔ Revenge windows open">
+          <p style={{ margin: 0, fontSize: 14.5 }}>
+            You may strike back at:{" "}
             {revengeOpen.map((r) => world.players[r.playerId]?.name ?? "?").join(", ")} —{" "}
             <Link href="/rankings">to the ladder</Link>.
           </p>
-        )}
-      </Panel>
+        </Panel>
+      )}
 
       <Panel title="🖥 Rule from the terminal">
         <details>

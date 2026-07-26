@@ -36,16 +36,104 @@ export interface PairRecord {
   total: number;
 }
 
+/** A ruler's LIFETIME tallies this age — the raw material for the "Champions of
+ *  the Realms" and "Non-Battle Titles" leaderboards (a champion is crowned for
+ *  each feat). Kept as running totals (not derived from the capped battle log)
+ *  so a deed done at turn 50 still counts when the age is sealed. Snapshot feats
+ *  (experience, research, population, wealth) are read from the live empire at
+ *  seal time instead and are NOT stored here. */
+export interface PlayerFeats {
+  id: string;
+  name: string;
+  tag: string; // clan code, "" if unbannered
+  // Battle (folded in by recordBattle)
+  defendersKilled: number; // enemy regulars felled while attacking → "the Slayer"
+  attackersKilled: number; // enemy regulars felled while defending → "the Defender"
+  goldWon: number; // gold plundered in battle → "the Plunderer"
+  resourcesWon: number; // resources hauled in battle → "the Raider"
+  siegeDamage: number; // wall + building integrity broken (×100) → "the Siege Master"
+  // Espionage (recordSpyFeat)
+  resourcesDestroyed: number; // goods burned by arson → "the Vandal"
+  spyDamage: number; // siege gear wrecked by saboteurs → "the Saboteur"
+  // Market (recordSaleFeat)
+  marketSales: number; // net gold earned selling at the Bazaar → "the Marketeer"
+  // Clan largesse (recordGiftFeat)
+  goldGiven: number; // gold deposited to the clan vault → "the Generous"
+  resourcesGiven: number; // resources deposited to the clan vault → "the Bountiful"
+}
+
 export interface EraRecords {
   richestAttacks: RankedBattle[]; // by gold plundered, desc
   richestRaids: RankedBattle[]; // by resources hauled, desc
   bloodiestAttacks: RankedBattle[]; // by total troops fallen in one clash, desc
   feuds: Record<string, PairRecord>; // ruler-vs-ruler, keyed by sorted ids
   wars: Record<string, PairRecord>; // clan-vs-clan, keyed by sorted ids
+  /** Lifetime per-ruler feat tallies, keyed by player id. Absent on old saves. */
+  feats?: Record<string, PlayerFeats>;
 }
 
 export function newEraRecords(): EraRecords {
-  return { richestAttacks: [], richestRaids: [], bloodiestAttacks: [], feuds: {}, wars: {} };
+  return { richestAttacks: [], richestRaids: [], bloodiestAttacks: [], feuds: {}, wars: {}, feats: {} };
+}
+
+/** Get-or-create a ruler's lifetime feat record, refreshing name/tag each time. */
+export function featOf(records: EraRecords, id: string, name: string, tag: string): PlayerFeats {
+  const feats = records.feats ?? (records.feats = {});
+  let f = feats[id];
+  if (!f) {
+    f = feats[id] = {
+      id,
+      name,
+      tag,
+      defendersKilled: 0,
+      attackersKilled: 0,
+      goldWon: 0,
+      resourcesWon: 0,
+      siegeDamage: 0,
+      resourcesDestroyed: 0,
+      spyDamage: 0,
+      marketSales: 0,
+      goldGiven: 0,
+      resourcesGiven: 0,
+    };
+  } else {
+    f.name = name; // keep the display name/banner current
+    f.tag = tag;
+  }
+  return f;
+}
+
+/** Fold a spy mission's damage into the saboteur's lifetime tallies. */
+export function recordSpyFeat(
+  records: EraRecords,
+  id: string,
+  name: string,
+  tag: string,
+  dmg: { resourcesDestroyed?: number; gearDestroyed?: number },
+): void {
+  const f = featOf(records, id, name, tag);
+  f.resourcesDestroyed += dmg.resourcesDestroyed ?? 0;
+  f.spyDamage += dmg.gearDestroyed ?? 0;
+}
+
+/** Fold a Bazaar sale's net gold into the seller's lifetime tallies. */
+export function recordSaleFeat(records: EraRecords, id: string, name: string, tag: string, goldNet: number): void {
+  featOf(records, id, name, tag).marketSales += Math.max(0, goldNet);
+}
+
+/** Fold a clan-vault deposit into the giver's lifetime largesse tallies. */
+export function recordGiftFeat(
+  records: EraRecords,
+  id: string,
+  name: string,
+  tag: string,
+  resource: string,
+  amount: number,
+): void {
+  const f = featOf(records, id, name, tag);
+  if (amount <= 0) return;
+  if (resource === "gold") f.goldGiven += amount;
+  else f.resourcesGiven += amount;
 }
 
 export function totalLosses(l: UnitLosses): number {
@@ -126,6 +214,21 @@ export function recordBattle(records: EraRecords, r: BattleReport, ctx: BattleCo
   const blood = atkLost + defLost;
   if (blood > 0) insertTop(records.bloodiestAttacks, { ...base, value: blood });
 
+  // Lifetime ruler feats — the champions' raw material. The aggressor is
+  // credited for plunder, kills-while-attacking, and siege damage; the
+  // defender for regulars felled repelling the assault.
+  const af = featOf(records, ctx.attackerId, r.attackerName, attackerTag);
+  af.defendersKilled += regularLosses(r.defenderLosses);
+  af.goldWon += gold;
+  af.resourcesWon += resTotal;
+  const wallBroken = r.wallIntegrityDamage;
+  const bldgBroken = (r.buildingDamage ?? []).reduce((s, b) => s + b.integrityLost, 0);
+  af.siegeDamage += Math.round((wallBroken + bldgBroken) * 100);
+  if (ctx.attackerId !== ctx.defenderId) {
+    const df = featOf(records, ctx.defenderId, r.defenderName, defenderTag);
+    df.attackersKilled += regularLosses(r.attackerLosses);
+  }
+
   // Feud — the running toll of a ruler-vs-ruler rivalry (troops each has lost).
   if (blood > 0 && ctx.attackerId !== ctx.defenderId) {
     const { key, firstIsA } = pairKey(ctx.attackerId, ctx.defenderId);
@@ -193,6 +296,7 @@ export function eraRecordsEmpty(records?: EraRecords): boolean {
     records.richestRaids.length === 0 &&
     records.bloodiestAttacks.length === 0 &&
     Object.keys(records.feuds).length === 0 &&
-    Object.keys(records.wars).length === 0
+    Object.keys(records.wars).length === 0 &&
+    Object.keys(records.feats ?? {}).length === 0
   );
 }

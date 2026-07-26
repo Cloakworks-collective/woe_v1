@@ -1,7 +1,13 @@
 // The Grand Bazaar (spec/market.md): anonymous order book, cheapest-first
 // fills, 5% seller fee burned. Pure functions over the order list.
 
-import { CARAVAN_CAPACITY_PER_MARKET_LEVEL, MARKET_FEE, SLOTS_PER_BUILDING_LEVEL } from "../constants";
+import {
+  CARAVAN_CAPACITY_PER_MARKET_LEVEL,
+  MARKET_FEE,
+  MARKET_PRICE_MAX,
+  MARKET_PRICE_MIN,
+  SLOTS_PER_BUILDING_LEVEL,
+} from "../constants";
 import { EngineError, level, type MarketOrder, type Player, type Resource } from "./types";
 
 export function caravanCapacity(p: Player): number {
@@ -29,7 +35,12 @@ export function postOrder(
 ): { seller: Player; order: MarketOrder } {
   const seller = structuredClone(sellerIn);
   if (!Number.isInteger(amount) || amount <= 0) throw new EngineError("amount", "Invalid amount");
-  if (!(pricePerUnit > 0)) throw new EngineError("price", "Set a price above zero");
+  if (!Number.isInteger(pricePerUnit) || pricePerUnit < MARKET_PRICE_MIN || pricePerUnit > MARKET_PRICE_MAX) {
+    throw new EngineError(
+      "price",
+      `Set a whole-number price between ${MARKET_PRICE_MIN} and ${MARKET_PRICE_MAX} gold per unit`,
+    );
+  }
   if (level(seller, "market_square") === 0) {
     throw new EngineError("market", "Build a Market Square first");
   }

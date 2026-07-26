@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { researchOrdinalCost } from "../constants";
 import { newEmpire } from "./newEmpire";
 import { processTurnTick } from "./tick";
 import { mercTotal, type Player } from "./types";
@@ -51,6 +52,30 @@ describe("turn tick", () => {
     const { player } = processTurnTick(p);
     // 20 × 20 × 0.5 × 0.5 integrity = 100 RP
     expect(player.research.banked.masonry).toBe(100);
+  });
+
+  it("research needs no Collegium gate — any level completes when the RP is banked", () => {
+    const p = fresh();
+    p.buildings.collegium = 1; // a tiny library — old model would have gated level 2+
+    p.research.activeField = "masonry";
+    p.research.levels.masonry = 3; // going for level 4 at a level-1 Collegium
+    p.research.banked.masonry = researchOrdinalCost(4) + 5; // total done = 3 → next is the 4th
+    p.workers.researchers = 0; // no new RP this tick; just resolve the level-up
+    const { player } = processTurnTick(p);
+    expect(player.research.levels.masonry).toBe(4);
+  });
+
+  it("research cost is global + progressive (the Nth level costs by its ordinal)", () => {
+    const p = fresh();
+    p.research.levels = { masonry: 3, siegecraft: 1, pathfinding: 2 }; // 6 done
+    p.research.activeField = "statecraft";
+    // The next level (statecraft's 1st) is the 7th research overall.
+    p.research.banked.statecraft = researchOrdinalCost(7) + 1;
+    p.workers.researchers = 0;
+    const { player } = processTurnTick(p);
+    expect(player.research.levels.statecraft).toBe(1);
+    // ...and it cost the 7th-ordinal price, more than the 1st ever did.
+    expect(researchOrdinalCost(7)).toBeGreaterThan(researchOrdinalCost(1));
   });
 
   it("statecraft 5 doubles post-tax output", () => {

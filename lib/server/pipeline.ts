@@ -22,6 +22,7 @@ import {
   buildClanBuilding,
   hireMercenaries,
   buySiegeGear,
+  buySiegeCounter,
   canJoin,
   clanBuildingLabel,
   crewGear,
@@ -36,7 +37,11 @@ import {
   postOrder,
   buyFromMarket,
   cancelOrder,
+  clanCode,
   recordBattle,
+  recordGiftFeat,
+  recordSaleFeat,
+  recordSpyFeat,
   newEraRecords,
   recordWarKills,
   repairBuilding,
@@ -283,6 +288,11 @@ function dispatch(
         put(buySiegeGear(player, args.type as never, num(args.count), wonderDiscount(clan)).player),
         undefined
       );
+    case "buySiegeCounter":
+      return (
+        put(buySiegeCounter(player, args.type as never, num(args.count), wonderDiscount(clan)).player),
+        undefined
+      );
 
     // ── The Steward (Royal Charter premium; spec/premium.md) ──────────
     case "queueBuild":
@@ -317,6 +327,13 @@ function dispatch(
       const r = runSpyMission(player, target, str(args.op), num(args.spies), tick, Math.random);
       put(r.attacker);
       world.players[target.id] = r.defender;
+      if (!r.caught && ((r.resourcesDestroyed ?? 0) > 0 || (r.gearDestroyed ?? 0) > 0)) {
+        const records = world.eraRecords ?? (world.eraRecords = newEraRecords());
+        recordSpyFeat(records, player.id, player.name, clanCode(clan?.name), {
+          resourcesDestroyed: r.resourcesDestroyed,
+          gearDestroyed: r.gearDestroyed,
+        });
+      }
       pushInbox(world, player.id, {
         type: "spyReport",
         op: str(args.op),
@@ -352,7 +369,7 @@ function dispatch(
         world.orders,
         args.resource as Resource,
         num(args.amount),
-        Number(args.price),
+        Math.floor(Number(args.price)), // ask prices are whole gold (2–50)
         randomUUID(),
         tick,
       );
@@ -371,10 +388,13 @@ function dispatch(
       put(r.buyer);
       world.orders = r.orders;
       // Pay sellers their net (the 5% fee is burned) — anonymously.
+      const saleRecords = world.eraRecords ?? (world.eraRecords = newEraRecords());
       for (const f of r.fills) {
         const seller = world.players[f.sellerId];
         if (seller) {
           seller.gold += f.netGold;
+          const sellerClan = seller.clanId ? world.clans[seller.clanId] : undefined;
+          recordSaleFeat(saleRecords, seller.id, seller.name, clanCode(sellerClan?.name), f.netGold);
           pushInbox(world, seller.id, {
             type: "marketSale",
             resource: args.resource as Resource,
@@ -425,6 +445,9 @@ function dispatch(
       const r = depositToClan(player, clan, args.what as never, num(args.amount));
       put(r.player);
       world.clans[clan.id] = r.clan;
+      // Largesse toward the clan vault counts toward "the Generous"/"the Bountiful".
+      const giftRecords = world.eraRecords ?? (world.eraRecords = newEraRecords());
+      recordGiftFeat(giftRecords, player.id, player.name, clanCode(clan.name), str(args.what), num(args.amount));
       return;
     }
     case "clanWithdraw": {

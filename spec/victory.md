@@ -105,10 +105,44 @@ Entries are tone-coloured and time-stamped; the live feed is the page
 `/annals`.
 
 When an age ends, its Annals are **sealed for good** — archived with the era
-name, the victor, and the final top-10 ladder — and carried forward across
-every future reset as the realm's history books. The next age opens its own
-fresh Annals with a naming entry. (Implementation: `world.chronicle` live +
-`world.chronicleArchive[]` sealed; `eraReset()` does the sealing.)
+name, the victor, the final top-10 ladder, and the full **War Records** (below)
+— and carried forward across every future reset as the realm's history books.
+The next age opens its own fresh Annals with a naming entry. (Implementation:
+`world.chronicle` live + `world.chronicleArchive[]` sealed; `eraReset()` does
+the sealing.)
+
+## War Records (the leaderboards of the age)
+
+Every age keeps a full set of **superlative leaderboards** — the same shape as
+the sealed Elder Ages — tallied live and visible at `/rankings/records`, then
+frozen into the Annals when the age ends. Two kinds of feat feed them:
+
+- **Flow tallies** — running totals accumulated as deeds happen, kept
+  independently of the capped battle log so an early record still stands at the
+  age's close (`EraRecords.feats` per ruler, plus the five battle lists):
+  - **Champions of the Realms** — the champion of each feat of arms, each with
+    an epithet: Defenders Killed (*the Slayer*), Attackers Killed (*the
+    Defender*), Gold Won in Battle (*the Plunderer*), Resources Won (*the
+    Raider*), Regular Troops Slain (*the Empire Destroyer*), Most Siege Damage
+    (*the Siege Master*), plus snapshot feats Most Experienced Army (*the
+    Undefeatable*) and Strongest Empire-less Ruler (*the Black Knight*).
+  - **Non-Battle Titles** — the leader of each civil feat: Most Market Sales
+    (*the Marketeer*), Most Gold Given Away (*the Generous*), Most Resources
+    Given Away (*the Bountiful*), Most Spy Damage (*the Saboteur*), Most
+    Resources Destroyed (*the Vandal*), plus snapshot feats Most Research (*the
+    Wise*), Largest Population (*the Populous*), Grandest Works (*the
+    Architect*), Greatest Wealth (*the Wealthy*).
+  - **Richest Attacks / Richest Raids / Bloodiest Attacks / Greatest Wars /
+    Greatest Feuds** — the top-N single clashes and running rivalries.
+- **Snapshot ladders** — read from the live empires at build time (and frozen
+  at seal): **Greatest Rulers** (the ladder), **Strongest Empires** (the clan
+  ladder), **Lords & Ladies** (the mightiest ruler of each race).
+
+(No gold-stealing spy op exists, so the old *"the Thief"* title is omitted until
+one does.) Implementation: `lib/server/eraTables.ts#buildEraTables(world)`
+assembles all tables as `ElderTable[]`, rendered through the Elder Ages'
+`LeaderTable`; `eraReset()` stores the frozen set in
+`ArchivedAge.sealedTables`.
 
 ## Era transition
 

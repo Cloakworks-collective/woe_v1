@@ -42,7 +42,8 @@ export function PriceChart({
     const lo = points.reduce((a, d) => (d.p < a.p ? d : a), points[0]);
 
     const gridPrices = [pMin + (pMax - pMin) * 0.75, pMin + (pMax - pMin) * 0.5, pMin + (pMax - pMin) * 0.25];
-    const fnum = (n: number) => (n >= 10 ? Math.round(n).toString() : n.toFixed(2));
+    // Prices are whole gold per unit (2–50) — never show a decimal.
+    const fnum = (n: number) => Math.round(n).toString();
 
     // Trend since the first recorded point.
     const delta = last.p - first.p;

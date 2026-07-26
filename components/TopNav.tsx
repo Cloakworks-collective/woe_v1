@@ -87,7 +87,7 @@ export function TopNav({ premium }: { premium: boolean }) {
                 🛡️ Clan Ranks <span className="topnav-menu-sub">the banners of the age</span>
               </Link>
               <Link href="/rankings/records" onClick={closeMenu}>
-                ⚔ War Records <span className="topnav-menu-sub">this age, still being written</span>
+                🏆 Records of the Age <span className="topnav-menu-sub">rulers, champions & titles — still being written</span>
               </Link>
             </div>
           </details>

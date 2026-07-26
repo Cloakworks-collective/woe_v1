@@ -85,6 +85,17 @@ export default async function TroopsPage({
   const safeDischarge = safeDischargeCount(p);
   const foundry = level(p, "war_foundry");
 
+  // Can we afford at least one of a priced thing? (Green button / dull-red when
+  // short — recomputed each render, since the page reloads after every action.)
+  const canAfford = (c: Cost, mult = 1) =>
+    p.gold >= (c.gold ?? 0) * mult &&
+    p.resources.wood >= (c.wood ?? 0) * mult &&
+    p.resources.stone >= (c.stone ?? 0) * mult &&
+    p.resources.ore >= (c.ore ?? 0) * mult;
+  const canTrainOne = (type: keyof typeof TRAINING_COSTS) =>
+    p.idlePeasants >= 1 && musterFree >= 1 && canAfford(TRAINING_COSTS[type], TIER_COST_MULT.light);
+  const canHireMerc = mercInService < mercCap && p.gold >= mercPriceLight;
+
   return (
     <>
       <Flash err={err} ok={ok} />
@@ -132,7 +143,17 @@ export default async function TroopsPage({
                         options={TIERS.map((t) => ({ value: t, label: t, title: TIER_INFO[t] }))}
                       />
                       <input name="count" placeholder="#" aria-label={`${label} to train`} size={3} style={{ font: "13.5px Verdana", padding: 3 }} />
-                      <button className="btn">Train</button>
+                      <button
+                        className={canTrainOne(type) ? "btn" : "btn btn-no"}
+                        disabled={!canTrainOne(type)}
+                        title={
+                          canTrainOne(type)
+                            ? undefined
+                            : "Can't raise even one light — need an idle peasant, a free Muster Hall bed, and the gold/ore"
+                        }
+                      >
+                        Train
+                      </button>
                     </div>
                   </CmdForm>
                 </div>
@@ -184,9 +205,14 @@ export default async function TroopsPage({
                 <CmdForm name="trainEngineers" path="/troops">
                   <div className="troop-form-line">
                     <input name="count" placeholder="#" aria-label="Engineers to train" size={3} style={{ font: "13.5px Verdana", padding: 3 }} />
-                    <button className="btn" disabled={foundry < 1}>
-                      Train
-                    </button>
+                    {(() => {
+                      const canEng = foundry >= 1 && p.idlePeasants >= 1 && musterFree >= 1 && canAfford(TRAINING_COSTS.siegeEngineer);
+                      return (
+                        <button className={canEng ? "btn" : "btn btn-no"} disabled={!canEng}>
+                          Train
+                        </button>
+                      );
+                    })()}
                   </div>
                 </CmdForm>
                 {foundry < 1 && (
@@ -274,7 +300,19 @@ export default async function TroopsPage({
                   options={TIERS.map((t) => ({ value: t, label: t, title: TIER_INFO[t] }))}
                 />
                 <input name="count" placeholder="#" aria-label="Mercenaries to hire" size={4} style={{ font: "14.5px Verdana", padding: 4 }} />
-                <button className="btn">Hire</button>
+                <button
+                  className={canHireMerc ? "btn" : "btn btn-no"}
+                  disabled={!canHireMerc}
+                  title={
+                    canHireMerc
+                      ? undefined
+                      : mercInService >= mercCap
+                        ? "Mercenary cap reached (25% of your regulars)"
+                        : "Not enough gold to hire even one"
+                  }
+                >
+                  Hire
+                </button>
                 <Info tip={ACTION_INFO.hireMercs} guide={ACTION_GUIDE.hireMercs} />
               </div>
             </CmdForm>

@@ -3,7 +3,7 @@
 // All time windows are measured in ticks (1 tick = 10 minutes, 144/day).
 
 import type { Race } from "../constants/races";
-import type { BuildingId } from "../constants/buildings";
+import type { BuildingId, CounterType } from "../constants/buildings";
 import type { ResearchField } from "../constants/research";
 
 export type Resource = "food" | "wood" | "stone" | "ore";
@@ -39,7 +39,10 @@ export interface ArmyState {
   archers: TroopCounts;
   cavalry: TroopCounts;
   siegeEngineers: number;
-  siegeGear: Record<SiegeGearType, number>;
+  siegeGear: Record<SiegeGearType, number>; // offensive; crewed when attacking
+  /** Defensive siege engines; crewed by engineers when defending. Absent on
+   *  old saves (migrated to zeros in normalizePlayer). */
+  siegeCounters: Record<CounterType, number>;
   spies: number;
   scouts: number;
   mercenaries: MercForce; // die first; max 25% of regular army headcount
@@ -292,6 +295,10 @@ export function emptyMercForce(): MercForce {
   return { footmen: emptyTroopCounts(), archers: emptyTroopCounts(), cavalry: emptyTroopCounts() };
 }
 
+export function emptySiegeCounters(): Record<CounterType, number> {
+  return { billhooks: 0, forkpoles: 0, boiling_oil: 0, hoardings: 0, counter_engine: 0 };
+}
+
 /** Total hired sellswords across every type and tier. */
 export function mercTotal(m: MercForce): number {
   return troopTotal(m.footmen) + troopTotal(m.archers) + troopTotal(m.cavalry);
@@ -312,6 +319,8 @@ export function normalizePlayer(p: Player): Player {
     p.army.mercenaries = emptyMercForce();
     p.army.mercenaries.footmen.light = m;
   }
+  // Defensive siege engines were added later — old armies have none.
+  if (!p.army.siegeCounters) p.army.siegeCounters = emptySiegeCounters();
   return p;
 }
 
@@ -353,4 +362,10 @@ export function buildingIntegrity(p: Player, id: BuildingId): number {
 
 export function researchLevel(p: Player, field: ResearchField): number {
   return p.research.levels[field] ?? 0;
+}
+
+/** Total research levels earned across every field — the ordinal that drives the
+ *  global progressive research cost (spec/research.md). */
+export function totalResearchLevels(p: Player): number {
+  return Object.values(p.research.levels).reduce((a, b) => a + (b ?? 0), 0);
 }

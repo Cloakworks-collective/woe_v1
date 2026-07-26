@@ -24,7 +24,8 @@ A **merchant** (Market Square slot-holder, see `buildings.md`) runs caravans:
 
 **Selling:**
 1. Load a caravan: pick a resource, an amount (≤ capacity), and an **ask price
-   per unit in gold** — any price you like.
+   per unit in gold** — a **whole number** in the **2–50** band
+   (`MARKET_PRICE_MIN`..`MARKET_PRICE_MAX`; no fractions, floor is 2).
 2. The caravan joins the Bazaar's anonymous order book. Nobody sees your name,
    only the aggregate supply.
 3. As your goods sell, gold arrives immediately; the merchant frees up when

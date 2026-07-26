@@ -198,6 +198,7 @@ export async function adminSeed(formData: FormData): Promise<void> {
     cavalry: { light: 22, medium: 14, heavy: 7 },
     siegeEngineers: 25,
     siegeGear: { ropes: 8, ladders: 6, rams: 4, ballistae: 3, trebuchets: 3 },
+    siegeCounters: { billhooks: 6, forkpoles: 4, boiling_oil: 3, hoardings: 2, counter_engine: 2 },
     spies: 40,
     scouts: 40,
     mercenaries: {

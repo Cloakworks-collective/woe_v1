@@ -41,6 +41,7 @@ import {
   type World,
 } from "./store";
 import { fetchServiceWorld, worldServiceEnabled } from "./worldClient";
+import { buildEraTables } from "./eraTables";
 
 export const ERA_PEACE_TICKS = ERA_PEACE_DAYS * TURNS_PER_DAY;
 export const REVENGE_WINDOW_TICKS = 18 * TICKS_PER_HOUR;
@@ -210,13 +211,13 @@ export function seedWorld(now = new Date()): World {
     players,
     clans,
     orders: [
-      // Opening asks so the Bazaar isn't a ghost town. Pricing anchor: a
-      // producer makes 20 units/turn untaxed while a civilian pays ≤4 g —
-      // so a resource is worth a fraction of a gold piece.
-      { id: "seed-1", sellerId: "bot-eldervale", resource: "wood", remaining: 4000, pricePerUnit: 0.05, createdTick: 700 },
-      { id: "seed-2", sellerId: "bot-stonewatch", resource: "stone", remaining: 3000, pricePerUnit: 0.06, createdTick: 705 },
-      { id: "seed-3", sellerId: "bot-karakdun", resource: "ore", remaining: 2500, pricePerUnit: 0.08, createdTick: 710 },
-      { id: "seed-4", sellerId: "bot-nightpaw", resource: "food", remaining: 5000, pricePerUnit: 0.03, createdTick: 715 },
+      // Opening asks so the Bazaar isn't a ghost town. Prices are whole gold
+      // per unit, bounded to the MARKET_PRICE_MIN..MAX band (2–50); food is the
+      // cheapest staple, ore the dearest war-metal.
+      { id: "seed-1", sellerId: "bot-eldervale", resource: "wood", remaining: 4000, pricePerUnit: 8, createdTick: 700 },
+      { id: "seed-2", sellerId: "bot-stonewatch", resource: "stone", remaining: 3000, pricePerUnit: 12, createdTick: 705 },
+      { id: "seed-3", sellerId: "bot-karakdun", resource: "ore", remaining: 2500, pricePerUnit: 20, createdTick: 710 },
+      { id: "seed-4", sellerId: "bot-nightpaw", resource: "food", remaining: 5000, pricePerUnit: 5, createdTick: 715 },
     ],
     battles: [],
     priceHistory: { food: [], wood: [], stone: [], ore: [] },
@@ -587,6 +588,10 @@ export function eraReset(world: World): World {
     entries: world.chronicle ?? [],
     finalLadder,
     records: world.eraRecords,
+    // Freeze the full leaderboard set now — the ladders, Lords & Ladies and
+    // civil feats read the live empires, which the reset below wipes away.
+    // No clan links: the banners are gone once the age is sealed.
+    sealedTables: buildEraTables(world, { link: false }),
   };
 
   const fresh = seedWorld();

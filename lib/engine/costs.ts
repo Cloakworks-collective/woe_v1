@@ -13,6 +13,7 @@ import {
   type BuildingId,
   type RatioBand,
 } from "../constants/buildings";
+import { WALL_REPAIR_COST_FACTOR } from "../constants/combat";
 
 export interface Cost {
   gold: number;
@@ -48,4 +49,22 @@ export function buildingCost(id: BuildingId, targetLevel: number): Cost {
     : MILITARY_BANDS[bandIndex(targetLevel)];
   const res = BASE_COSTS.military * COST_GROWTH ** (targetLevel - 1);
   return split(res, band);
+}
+
+/**
+ * Cost to repair a bombarded building (or the walls) back to full integrity:
+ * a fraction of the building's cost at its current level, scaled by how much
+ * damage there is to mend (spec/buildings.md, combat.md). A store at 60%
+ * integrity costs `buildingCost × 0.4 × WALL_REPAIR_COST_FACTOR` to make whole.
+ * `id === "walls"` prices a wall repair.
+ */
+export function repairCost(id: BuildingId, currentLevel: number, integrity: number): Cost {
+  const damaged = Math.max(0, Math.min(1, 1 - integrity));
+  const base = buildingCost(id, currentLevel);
+  return {
+    gold: Math.round(base.gold * damaged * WALL_REPAIR_COST_FACTOR),
+    wood: Math.round(base.wood * damaged * WALL_REPAIR_COST_FACTOR),
+    stone: Math.round(base.stone * damaged * WALL_REPAIR_COST_FACTOR),
+    ore: Math.round(base.ore * damaged * WALL_REPAIR_COST_FACTOR),
+  };
 }

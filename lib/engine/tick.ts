@@ -17,8 +17,7 @@ import {
   SURRENDER_PRODUCTION_FACTOR,
   SURRENDER_TICKS_PER_ERA,
   SURRENDER_DAYS_PER_ERA,
-  collegiumRequired,
-  rpCost,
+  researchOrdinalCost,
   EFFECT_PER_LEVEL,
   MAX_FIELD_LEVEL,
 } from "../constants";
@@ -33,6 +32,7 @@ import {
   mercTotal,
   military,
   researchLevel,
+  totalResearchLevels,
   type EngineResult,
   type Player,
   type Resource,
@@ -164,15 +164,17 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
     }
     if (field) {
       let lvl = researchLevel(p, field);
-      while (
-        lvl < MAX_FIELD_LEVEL &&
-        (p.research.banked[field] ?? 0) >= rpCost(lvl + 1) &&
-        level(p, "collegium") >= collegiumRequired(lvl + 1)
-      ) {
-        p.research.banked[field]! -= rpCost(lvl + 1);
+      // Cost is global + progressive: the price of the next level depends on how
+      // many levels you've earned across ALL fields (the Collegium only sets the
+      // speed, not what's reachable). Recomputed each level, so a multi-level
+      // tick pays escalating costs.
+      let cost = researchOrdinalCost(totalResearchLevels(p) + 1);
+      while (lvl < MAX_FIELD_LEVEL && (p.research.banked[field] ?? 0) >= cost) {
+        p.research.banked[field]! -= cost;
         lvl += 1;
         p.research.levels[field] = lvl;
         events.push({ type: "researchComplete", field, level: lvl });
+        cost = researchOrdinalCost(totalResearchLevels(p) + 1);
       }
     }
 

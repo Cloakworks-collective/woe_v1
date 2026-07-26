@@ -43,7 +43,13 @@ export function LeaderTable({ t }: { t: ElderTable }) {
             <tr key={ri}>
               {row.map((cell, ci) => (
                 <td key={ci} className={numeric.has(ci) ? "num" : undefined}>
-                  {cell === "" ? "—" : cell}
+                  {typeof cell === "object" && cell !== null ? (
+                    <Link href={cell.href}>{cell.text}</Link>
+                  ) : cell === "" ? (
+                    "—"
+                  ) : (
+                    cell
+                  )}
                 </td>
               ))}
             </tr>

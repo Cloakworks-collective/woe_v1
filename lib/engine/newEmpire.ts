@@ -34,6 +34,7 @@ export function newEmpire(opts: {
       cavalry: { light: 0, medium: 0, heavy: 0 },
       siegeEngineers: 0,
       siegeGear: { ropes: 0, ladders: 0, rams: 0, ballistae: 0, trebuchets: 0 },
+      siegeCounters: { billhooks: 0, forkpoles: 0, boiling_oil: 0, hoardings: 0, counter_engine: 0 },
       spies: 0,
       scouts: 0,
       mercenaries: emptyMercForce(),

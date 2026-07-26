@@ -11,7 +11,11 @@ tax**, scaled by `(1 − taxRate)` like all producers (see `economy.md`).
 - **One active project at a time.** All RP generated each turn flow into it;
   the level completes the moment its cost is paid (no timers beyond earning
   the points).
-- Switching projects is allowed; banked progress on the old project is kept.
+- Switching projects is allowed, but **abandoning a field forfeits half** the
+  progress banked toward its next level (`RESEARCH_SWITCH_LOSS = 0.5`): e.g. a
+  field 40% of the way to its next level drops to 20% when you switch away. The
+  UI shows each field's progress bar + a time-to-next-level ETA so you can
+  finish a level before re-pointing the scholars.
 - Charter holders can chart a **research queue** (`premium.md`): the Steward
   re-points the scholars to the next queued field-level as each completes.
   Same RP economy — the queue only automates the switching.
@@ -23,19 +27,29 @@ fieldEfficiency = level × 20%          // 0%, 20%, 40%, 60%, 80%, 100%
 actualBonus     = fieldEfficiency × maxEffect
 ```
 
-### Collegium gating
+### Global progressive cost — the order is the strategy
 
-Field level N requires **Collegium level ≥ 2N − 1**:
+Research cost is **global and progressive**, not per-field-level. The cost of a
+level depends on **how many levels you've already earned across ALL fields**:
 
-| Field level | Requires Collegium |
-|-------------|--------------------|
-| 1           | 1                  |
-| 2           | 3                  |
-| 3           | 5                  |
-| 4           | 7                  |
-| 5           | 9                  |
+```
+researchOrdinalCost(order) = RESEARCH_ORDINAL_BASE × RESEARCH_ORDINAL_GROWTH^(order−1)
+                             // base 2,000, growth 1.3 (tunable placeholders)
+order = (total levels earned across all fields) + 1
+```
 
-(Collegium 2/4/6/8/10 add researcher slots between unlock levels.)
+So if you've done 3× Masonry + 1× Siegecraft + 2× Pathfinding (6 levels), your
+**next** level — in *any* field — is your **7th** research and costs
+`researchOrdinalCost(7)`, regardless of which field it is. Every level makes the
+next dearer, so **what you research first is the strategy**.
+
+### The Collegium sets speed, never a ceiling
+
+There is **no level gate** — every field level is researchable at any time. The
+**Collegium sets only the speed**: it caps researcher slots (20 × level), so a
+small library still learns anything, it just crawls. Combined with the rising
+cost, a level-1 Collegium can eventually research anything — it just takes a very
+long time. Raise the Collegium (and assign scholars) to go faster.
 
 ---
 

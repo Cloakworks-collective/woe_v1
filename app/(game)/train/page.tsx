@@ -39,13 +39,32 @@ function AssignRecall({ role, assigned }: { role: WorkerRole; assigned: number }
   );
 }
 
-function CountForm({ name, path, label, extra }: { name: string; path: string; label: string; extra?: Record<string, string> }) {
+function CountForm({
+  name,
+  path,
+  label,
+  extra,
+  afford = true,
+}: {
+  name: string;
+  path: string;
+  label: string;
+  extra?: Record<string, string>;
+  /** Can the empire afford at least one? false → dull-red, disabled button. */
+  afford?: boolean;
+}) {
   return (
     <CmdForm name={name} path={path}>
       {extra &&
         Object.entries(extra).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
-      <input name="count" placeholder="#" aria-label={`${label} count`} size={4} style={{ font: "14.5px Verdana", padding: 2 }} />
-      <button className="btn">{label}</button>
+      <input name="count" placeholder="#" aria-label={`${label} count`} size={4} style={{ font: "14.5px Verdana", padding: 2 }} disabled={!afford} />
+      <button
+        className={afford ? "btn" : "btn btn-no"}
+        disabled={!afford}
+        title={afford ? undefined : "Not enough gold to train even one"}
+      >
+        {label}
+      </button>
     </CmdForm>
   );
 }
@@ -154,7 +173,7 @@ export default async function TrainPage({
                       <ResIcon kind="gold" size={20} /> {cost} each
                     </li>
                   </ul>
-                  <CountForm name={cmd} path="/train" label="Train" />
+                  <CountForm name={cmd} path="/train" label="Train" afford={p.gold >= cost} />
                 </div>
               </div>
               <div className="bcard-gain">

@@ -1,5 +1,14 @@
 import Link from "next/link";
-import { civilians, level, military, totalPopulation, wallName, type Player } from "@/lib/engine";
+import { buildingIntegrity, civilians, level, military, totalPopulation, wallName, type Player } from "@/lib/engine";
+import type { BuildingId } from "@/lib/constants/buildings";
+
+const STORE_NAMES: { id: BuildingId; name: string }[] = [
+  { id: "counting_house", name: "Counting House" },
+  { id: "granary", name: "Granary" },
+  { id: "timberyard", name: "Timberyard" },
+  { id: "masons_yard", name: "Mason's Yard" },
+  { id: "ironhold", name: "Ironhold" },
+];
 
 /**
  * The critical banners atop every page — each one is a councillor raising the
@@ -87,6 +96,36 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
       ctas: [
         { href: "/buildings", label: "🧱 Repair the walls", primary: true },
         { href: "/advisors#defensive", label: "Ask Marshal Aldric →" },
+        { href: "/guide#defense", label: "📜 Field Manual" },
+      ],
+    });
+  }
+
+  // 4 · Storehouses bombarded — cracked vaults shelter less and spill goods
+  //     back into the open (Treasurer Poll).
+  const brokenStores = STORE_NAMES.filter(({ id }) => level(p, id) > 0 && buildingIntegrity(p, id) < 0.999);
+  if (!p.starving && brokenStores.length > 0) {
+    alerts.push({
+      key: "stores",
+      variant: "warn",
+      icon: "🔥",
+      title: "Treasurer Poll: your storehouses are breached",
+      body: (
+        <>
+          {brokenStores.map((s, i) => (
+            <span key={s.id}>
+              {i > 0 ? ", " : ""}
+              <b>{s.name}</b> ({Math.round(buildingIntegrity(p, s.id) * 100)}%)
+            </span>
+          ))}{" "}
+          {brokenStores.length === 1 ? "is" : "are"} cracked — each shelters only its capacity ×
+          integrity, so the overflow has spilled back into the open where raiders and spies can take
+          it. Repair the stores to seal your gold and goods away again.
+        </>
+      ),
+      ctas: [
+        { href: "/buildings", label: "🔧 Repair the storehouses", primary: true },
+        { href: "/advisors#economic", label: "Ask Treasurer Poll →" },
         { href: "/guide#defense", label: "📜 Field Manual" },
       ],
     });

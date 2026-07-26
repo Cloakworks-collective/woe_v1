@@ -8,6 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { BattleReport, Clan, EraRecords, GameEvent, MarketOrder, Player } from "../engine";
+import type { ElderTable } from "../lore/elderAges";
 import { worldServiceEnabled } from "./worldClient";
 
 export interface ForumMessage {
@@ -70,6 +71,12 @@ export interface ArchivedAge {
   /** The age's War Records (superlatives of arms), sealed with it. Optional for
    *  ages sealed before records were kept. */
   records?: EraRecords;
+  /** The full leaderboard set (rulers, empires, champions, titles, battle
+   *  records) computed from the live world at seal time — the ladders and civil
+   *  feats can't be recovered once the world resets, so they're frozen here.
+   *  Absent on ages sealed before the full record set existed (fall back to
+   *  `records`, which holds only the five battle tables). */
+  sealedTables?: ElderTable[];
 }
 
 export interface PricePoint {

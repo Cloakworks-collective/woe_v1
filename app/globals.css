@@ -1644,6 +1644,128 @@ select:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+/* Damaged-store indicator in the Counting House — a clickable integrity bar
+   that links through to the Buildings page to repair. */
+.store-dmg {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 3px;
+  text-decoration: none;
+}
+.store-dmg-tag {
+  font: 700 11px Verdana, sans-serif;
+  color: var(--red);
+  white-space: nowrap;
+}
+.store-dmg:hover .store-dmg-tag {
+  text-decoration: underline;
+}
+
+/* Repairs-needed list on the Buildings page (read-only; buttons live on cards). */
+.repair-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.repair-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.repair-name {
+  font-weight: 700;
+  color: var(--heading);
+}
+.repair-hint {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+a.repair-hint:hover {
+  text-decoration: underline;
+}
+/* The 🔨 Repair button — amber, distinct from the gold Build/Upgrade. */
+.btn.btn-repair {
+  background: linear-gradient(#c88a2e, #9a641b);
+  border-color: #6d440f;
+}
+
+/* Affordability colouring: a can't-afford button reads dull red (and disabled)
+   instead of neutral grey, so green = press it, red = you're short. The state is
+   recomputed every render (server-rendered pages reload after each action). */
+.btn.btn-no,
+.btn.btn-no[disabled] {
+  background: linear-gradient(#a86a5c, #7c3f33);
+  border-color: #582a20;
+  color: #f2ddd6;
+  cursor: not-allowed;
+  filter: none;
+}
+
+/* Siege: "engines built vs manned" emphasis + inline engineer training. */
+.corps-stat.short .corps-stat-num {
+  color: var(--red);
+}
+.siege-warn {
+  font-size: 13.5px;
+  margin: 0 0 8px;
+  padding: 7px 10px;
+  border-left: 3px solid var(--red);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  border-radius: 3px;
+  color: var(--ink);
+}
+.siege-train {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.siege-train-note {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+/* Tabular cost tooltip (inside a .tip-pop). */
+.costtip-tbl {
+  border-collapse: collapse;
+  margin-top: 6px;
+  font: 400 13px Verdana, sans-serif;
+  width: 100%;
+}
+.costtip-tbl th,
+.costtip-tbl td {
+  padding: 2px 0;
+  text-align: left;
+  white-space: nowrap;
+}
+.costtip-tbl th {
+  color: #d9c49a;
+  font-weight: 700;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 3px;
+}
+.costtip-tbl th.num,
+.costtip-tbl td.num {
+  text-align: right;
+  padding-left: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.costtip-tbl td:first-child {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.costtip-tbl tr.short td {
+  color: #ff9f8c;
+  font-weight: 700;
+}
+
 /* ── Stat tiles — iconized replacement for dl.kv text lists ─ */
 .stat-grid {
   display: grid;
@@ -2596,6 +2718,16 @@ select:focus-visible {
 /* ── The Research Tree ────────────────────────────────────── */
 
 /* Trunk: the Collegium tier ladder (which field level each Collegium unlocks). */
+.rnext-banner {
+  margin-top: 4px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--green) 12%, transparent);
+  border-left: 3px solid var(--green);
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .rtier-ladder {
   display: flex;
   gap: 6px;
@@ -2636,19 +2768,23 @@ select:focus-visible {
 
 .rtree-branches {
   display: grid;
-  grid-template-columns: 1.6fr 1fr 1fr;
+  /* Equal columns so each branch's centre (where its drop line sits) is
+     predictable — the horizontal rail below spans between the outer centres. */
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   position: relative;
   margin-top: 20px;
 }
 
-/* The horizontal rail joining the three branches, dropping from the trunk. */
+/* The horizontal rail joining the three branches, dropping from the trunk.
+   With three equal columns each branch centre sits at ~1/6, 1/2, 5/6, so a rail
+   inset ~15% from each edge runs cleanly under the outer branch drop-lines. */
 .rtree-branches::before {
   content: "";
   position: absolute;
   top: -11px;
-  left: 25%;
-  right: 20%;
+  left: 15%;
+  right: 15%;
   height: 2px;
   background: var(--border);
 }
@@ -2830,6 +2966,13 @@ select:focus-visible {
 .rnode-gate {
   color: var(--warn);
   font-weight: 700;
+}
+
+.rnode-eta {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--green-dark);
+  margin-top: 3px;
 }
 
 .rnode-actions {
@@ -3841,18 +3984,15 @@ select:focus-visible {
 }
 .census-ic {
   flex: none;
-  width: 34px;
-  height: 34px;
+  width: 54px;
+  height: 54px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   line-height: 0;
 }
 .census-glyph {
-  font-size: 26px;
-}
-.census-glyph {
-  font-size: 18.5px;
+  font-size: 40px;
   line-height: 1;
 }
 .census-label {

@@ -1,5 +1,6 @@
 import { Art } from "@/components/Art";
 import { CmdForm } from "@/components/CmdForm";
+import { CostTip } from "@/components/CostTip";
 import { Flash } from "@/components/Flash";
 import { HealthBar } from "@/components/HealthBar";
 import { LearnLink } from "@/components/LearnLink";
@@ -14,14 +15,15 @@ import {
 } from "@/lib/constants";
 import { BUILDING_GUIDE, BUILDING_INFO } from "@/lib/constants";
 import type { BuildingId, BuildingMeta } from "@/lib/constants/buildings";
-import { buildingCost, buildingUpgradeBenefit, buildingIntegrity, level, type Player } from "@/lib/engine";
+import { buildingCost, buildingUpgradeBenefit, buildingIntegrity, level, repairCost, type Player } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
+type Cost = { gold: number; wood: number; stone: number; ore: number };
 
-function affordable(p: Player, c: { gold: number; wood: number; stone: number; ore: number }) {
+function affordable(p: Player, c: Cost) {
   return (
     p.gold >= c.gold &&
     p.resources.wood >= c.wood &&
@@ -29,6 +31,7 @@ function affordable(p: Player, c: { gold: number; wood: number; stone: number; o
     p.resources.ore >= c.ore
   );
 }
+
 
 const HEARTHSTEAD: BuildingMeta = {
   id: "hearthstead",
@@ -51,6 +54,11 @@ const MILITARY_GROUPS: { title: string; note: string; ids: string[] }[] = [
   { title: "⚔ Barracks & Tiers", note: "Muster Halls house 10 troops each; the trainers + Forge gate light → medium → heavy.", ids: ["muster_hall", "drill_yard", "fletchers_range", "knights_stables", "forge"] },
   { title: "🏰 Siege & Defence", note: "The Walls blunt sieges (and bombard hits them first); the War Foundry's ladder lives in the Siege Works.", ids: ["war_foundry", "walls"] },
 ];
+
+// Which tab a building's card lives on, so the repair list can point to it.
+const MILITARY_IDS = new Set<string>(MILITARY_GROUPS.flatMap((g) => g.ids));
+const buildingName = (id: BuildingId): string =>
+  id === "walls" ? "The Walls" : (CIV[id] ?? MIL[id] ?? HEARTHSTEAD).name;
 
 function CostList({ cost }: { cost: { gold: number; wood: number; stone: number; ore: number } }) {
   const parts: [ResKind, number][] = [
@@ -96,6 +104,12 @@ function LevelTrack({ lvl, max }: { lvl: number; max: number }) {
 }
 
 function BuildingCards({ ids, player, path }: { ids: string[]; player: Player; path: string }) {
+  const have = {
+    gold: player.gold,
+    wood: player.resources.wood,
+    stone: player.resources.stone,
+    ore: player.resources.ore,
+  };
   return (
     <div className="card-grid">
       {ids.map((id) => {
@@ -109,6 +123,8 @@ function BuildingCards({ ids, player, path }: { ids: string[]; player: Player; p
         const counted = bid === "hearthstead" || bid === "muster_hall";
         const name = bid === "walls" && lvl > 0 ? `${b.name} — ${WALL_NAMES[lvl]}` : b.name;
         const integrity = bid === "walls" ? player.wallIntegrity : buildingIntegrity(player, bid);
+        const needsRepair = lvl > 0 && integrity < 1;
+        const rcost = needsRepair ? repairCost(bid, lvl, integrity) : null;
         return (
           <div className="bcard" key={id}>
             <div className="bcard-head">
@@ -132,20 +148,34 @@ function BuildingCards({ ids, player, path }: { ids: string[]; player: Player; p
                   )}
                 </div>
               </div>
-              {cost && (
+              {(cost || (needsRepair && rcost)) && (
                 <div className="bcard-btns">
-                  <CmdForm name="build" path={path}>
-                    <input type="hidden" name="id" value={bid} />
-                    <button className="btn" disabled={!affordable(player, cost)}>
-                      {counted ? "Build" : lvl === 0 ? "Found" : "Upgrade"}
-                    </button>
-                  </CmdForm>
-                  {player.premium && (
+                  {cost && (
+                    <CmdForm name="build" path={path}>
+                      <input type="hidden" name="id" value={bid} />
+                      <CostTip heading={`${counted ? "Build" : lvl === 0 ? "Found" : "Upgrade"} ${b.name}`} cost={cost} have={have}>
+                        <button className={affordable(player, cost) ? "btn" : "btn btn-no"} disabled={!affordable(player, cost)}>
+                          {counted ? "Build" : lvl === 0 ? "Found" : "Upgrade"}
+                        </button>
+                      </CostTip>
+                    </CmdForm>
+                  )}
+                  {cost && player.premium && (
                     <CmdForm name="queueBuild" path={path}>
                       <input type="hidden" name="id" value={bid} />
                       <button className="btn" title="Queue for the Steward — built when affordable">
                         🪶
                       </button>
+                    </CmdForm>
+                  )}
+                  {needsRepair && rcost && (
+                    <CmdForm name={bid === "walls" ? "repairWalls" : "repairBuilding"} path={path}>
+                      {bid !== "walls" && <input type="hidden" name="id" value={bid} />}
+                      <CostTip heading={`Repair ${b.name} to full (now ${Math.round(integrity * 100)}%)`} cost={rcost} have={have}>
+                        <button className={affordable(player, rcost) ? "btn" : "btn btn-no"} disabled={!affordable(player, rcost)}>
+                          🔨 Repair
+                        </button>
+                      </CostTip>
                     </CmdForm>
                   )}
                 </div>
@@ -192,7 +222,12 @@ export default async function BuildingsPage({
   const military = tab === "military";
   const path = military ? "/buildings?tab=military" : "/buildings";
   const groups = military ? MILITARY_GROUPS : CIVILIAN_GROUPS;
-  const damaged = damagedBuildings(p);
+  // Everything that can be repaired, across both tabs — walls plus any cracked
+  // building. The action buttons live on each building's card; this is the list.
+  const repairs: { id: BuildingId; integrity: number }[] = [
+    ...(p.wallIntegrity < 1 ? [{ id: "walls" as BuildingId, integrity: p.wallIntegrity }] : []),
+    ...damagedBuildings(p),
+  ];
 
   return (
     <>
@@ -214,30 +249,30 @@ export default async function BuildingsPage({
         </p>
       )}
 
-      {(p.wallIntegrity < 1 || damaged.length > 0) && (
+      {repairs.length > 0 && (
         <Panel
-          title="🔨 Repairs — the masons await"
-          info="Bombardment cracks buildings down to a floor of 50% — repairing restores full storage protection, production, and research."
+          title={`🔨 Repairs needed — ${repairs.length} ${repairs.length === 1 ? "structure" : "structures"} damaged`}
+          info="Bombardment cracks buildings down to a floor of 50%, and a wrecked store shelters less, a producer yields less, the Collegium researches slower. Repair each from its card below (the 🔨 Repair button) — it costs a fraction of the building's price, scaled by the damage. Hover the button for the exact cost."
         >
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            {p.wallIntegrity < 1 && (
-              <CmdForm name="repairWalls" path={path}>
-                <span style={{ marginRight: 4 }}>
-                  <HealthBar integrity={p.wallIntegrity} label="Walls" />
-                </span>
-                <button className="btn">Repair walls — ½ cost × damage</button>
-              </CmdForm>
-            )}
-            {damaged.map(({ id, integrity }) => (
-              <CmdForm key={id} name="repairBuilding" path={path}>
-                <input type="hidden" name="id" value={id} />
-                <span style={{ marginRight: 4 }}>
-                  <HealthBar integrity={integrity} label={id.replace(/_/g, " ")} />
-                </span>
-                <button className="btn">Repair</button>
-              </CmdForm>
-            ))}
-          </div>
+          <ul className="repair-list">
+            {repairs.map(({ id, integrity }) => {
+              const dtab = MILITARY_IDS.has(id) ? "military" : "civilian";
+              const onThisTab = dtab === (military ? "military" : "civilian");
+              return (
+                <li key={id} className="repair-row">
+                  <HealthBar integrity={integrity} label={buildingName(id)} />
+                  <span className="repair-name">{buildingName(id)}</span>
+                  {onThisTab ? (
+                    <span className="repair-hint">— use its 🔨 Repair button below</span>
+                  ) : (
+                    <a className="repair-hint" href={`/buildings?tab=${dtab}`}>
+                      — on the {dtab === "military" ? "Military" : "Civilian"} tab →
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </Panel>
       )}
 

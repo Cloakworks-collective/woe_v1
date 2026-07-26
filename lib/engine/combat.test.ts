@@ -40,7 +40,11 @@ describe("battle resolution — the spec's worked example", () => {
       p.army.footmen.light = 60;
       p.buildings.walls = 5;
       p.buildings.muster_hall = 8;
-      if (defForkPoles) p.buildings.war_foundry = 4; // unlocks Fork Poles
+      if (defForkPoles) {
+        p.buildings.war_foundry = 4;
+        p.army.siegeCounters.forkpoles = 2; // crewed Fork Poles cancel the 2 ladder teams
+        p.army.siegeEngineers = 2;
+      }
     });
     return { attacker, defender };
   }
@@ -80,17 +84,60 @@ describe("battle resolution — the spec's worked example", () => {
       p.army.footmen.light = 60;
       p.army.archers.light = 20;
       p.buildings.walls = 5;
-      p.buildings.war_foundry = 6; // Bill-hooks, Fork Poles, Boiling Oil active
+      p.buildings.war_foundry = 6;
+      p.army.siegeCounters.boiling_oil = 1; // crewed Boiling Oil cancels a ram
+      p.army.siegeEngineers = 2; // crew of 2 for the Boiling Oil
       p.buildings.muster_hall = 10;
     });
     const { report } = resolveBattle(attacker, defender, "siege", { ...OPTS, rng: seededRng(11) });
     const log = report.log.join("\n");
-    expect(log).toMatch(/Boiling Oil scalds our ram crews \(−75%\)/); // counter callout
+    expect(log).toMatch(/Boiling Oil neutralise \d+ of our \d+ rams/); // counter callout
     expect(log).toMatch(/Siege volley \(\d+ crewed engines\).*walls take −\d+%/);
     expect(log).toMatch(/Arrows fall: .*lose \d+/);
     expect(log).toMatch(/Cavalry charge: .*lose \d+/);
     expect(log).toMatch(/The lines meet: .*lose \d+/);
     expect(log).toMatch(/Round 1: attacker strength/); // round summary retained
+  });
+
+  it("each crewed counter cancels one enemy engine (the surplus still fires)", () => {
+    const mk = (counterEngines: number) =>
+      empire("D", (p) => {
+        p.army.footmen.light = 200;
+        p.buildings.walls = 6;
+        p.buildings.war_foundry = 10;
+        p.buildings.muster_hall = 25;
+        p.army.siegeCounters.counter_engine = counterEngines;
+        p.army.siegeEngineers = counterEngines * 5; // crew of 5 each
+      });
+    const atk = () =>
+      empire("A", (p) => {
+        p.army.footmen.light = 200;
+        p.army.siegeGear.trebuchets = 4;
+        p.army.siegeEngineers = 20;
+        p.buildings.muster_hall = 25;
+      });
+    const none = resolveBattle(atk(), mk(0), "siege", { ...OPTS, rng: seededRng(9) });
+    const some = resolveBattle(atk(), mk(4), "siege", { ...OPTS, rng: seededRng(9) });
+    // 4 counter-engines cancel all 4 trebuchets → the wall takes far less.
+    expect(some.report.wallIntegrityDamage).toBeLessThan(none.report.wallIntegrityDamage);
+    expect(some.report.log.join("\n")).toMatch(/Counter-Engine neutralise 4 of our 4 trebuchets/);
+  });
+
+  it("a defender with spare engineers fires its own engines back", () => {
+    const attacker = empire("A", (p) => {
+      p.army.footmen.light = 150;
+      p.buildings.muster_hall = 20;
+    });
+    const defender = empire("D", (p) => {
+      p.army.footmen.light = 150;
+      p.buildings.walls = 6;
+      p.buildings.war_foundry = 9;
+      p.army.siegeGear.trebuchets = 3; // offensive engines to fire back
+      p.army.siegeEngineers = 15; // no counters bought → all spare, fire back
+      p.buildings.muster_hall = 20;
+    });
+    const { report } = resolveBattle(attacker, defender, "siege", { ...OPTS, rng: seededRng(4) });
+    expect(report.log.join("\n")).toMatch(/Their engines answer/);
   });
 
   it("raids ignore walls entirely (open-field fight)", () => {
@@ -161,7 +208,9 @@ describe("bombard", () => {
     });
     const defender = empire("D", (p) => {
       p.buildings.walls = 6;
-      p.buildings.war_foundry = 10; // Counter-Engine
+      p.buildings.war_foundry = 10;
+      p.army.siegeCounters.counter_engine = 2; // crewed Counter-Engines
+      p.army.siegeEngineers = 10; // crew of 5 each → 2 manned
       p.buildings.granary = 3;
       p.buildings.grange = 3;
     });
@@ -170,8 +219,8 @@ describe("bombard", () => {
       rng: seededRng(5),
     });
     expect(report.victor).toBe("none");
-    expect(d2.wallIntegrity).toBeLessThan(1);
-    expect(a2.army.siegeGear.trebuchets).toBeLessThan(4); // counter kills
+    expect(d2.wallIntegrity).toBeLessThan(1); // 4 trebs − 2 cancelled = 2 still pound
+    expect(a2.army.siegeGear.trebuchets).toBeLessThan(4); // Counter-Engines splinter them
   });
 
   it("with the walls already down, the fire cracks the town's buildings (floor 50%)", () => {

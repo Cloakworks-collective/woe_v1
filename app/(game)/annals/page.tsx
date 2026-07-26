@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { ElderAgesIndex } from "@/components/ElderAges";
-import { EraRecordsView } from "@/components/EraRecords";
+import { EraTablesView } from "@/components/EraRecords";
 import { Panel } from "@/components/Panel";
 import { getGame } from "@/lib/server/session";
+import { battleTables } from "@/lib/server/eraTables";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export default async function AnnalsPage() {
     <>
       <p style={{ margin: "0 0 8px", fontSize: 13.5 }}>
         The age still burning is elsewhere: <Link href="/battles">🌍 World News</Link> ·{" "}
-        <Link href="/rankings/records">⚔ War Records ({world.meta.eraName})</Link>
+        <Link href="/rankings/records">🏆 Records of the Age ({world.meta.eraName})</Link>
       </p>
 
       <Panel
@@ -65,12 +66,14 @@ export default async function AnnalsPage() {
                         </li>
                       ))}
                     </ul>
-                    {age.records && (
+                    {(age.sealedTables?.length || age.records) && (
                       <>
                         <p style={{ fontSize: 13.5, fontWeight: 600, margin: "10px 0 4px" }}>
-                          ⚔ War Records of the age
+                          🏆 Records of the age
                         </p>
-                        <EraRecordsView records={age.records} />
+                        <EraTablesView
+                          tables={age.sealedTables ?? (age.records ? battleTables(age.records) : [])}
+                        />
                       </>
                     )}
                   </div>

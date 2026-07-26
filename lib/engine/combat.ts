@@ -7,7 +7,8 @@ import {
   BREAK_THRESHOLD,
   BUILDING_DAMAGE_PER_TREB,
   BUILDING_INTEGRITY_FLOOR,
-  COUNTER_REDUCTION,
+  COUNTER_FOR,
+  COUNTER_TYPES,
   EFFECT_PER_LEVEL,
   ENGINE_FIRE,
   ESCALADE_COVERAGE,
@@ -16,6 +17,7 @@ import {
   LUCK_SWING,
   MAX_ROUNDS,
   RACES,
+  SIEGE_COUNTERS,
   SIEGE_GEAR,
   SIEGE_GEAR_LOSS_ON_DEFEAT,
   STAMINA,
@@ -28,7 +30,7 @@ import {
   WAR_FOUNDRY_LADDER,
   XP,
 } from "../constants";
-import type { BuildingId } from "../constants/buildings";
+import type { BuildingId, CounterType } from "../constants/buildings";
 import { luck, type Rng } from "./rng";
 import {
   bankedRes,
@@ -79,15 +81,39 @@ interface Side {
   siegeMult: number; // race siege × siegecraft research
 }
 
-function counters(p: Player): Set<SiegeGearType> {
-  const out = new Set<SiegeGearType>();
-  const foundry = level(p, "war_foundry");
-  for (const step of WAR_FOUNDRY_LADDER) {
-    if (step.side === "defense" && step.counters && foundry >= step.level) {
-      out.add(step.counters);
-    }
+/** Allocate engineers to defensive counters, heaviest-crew first (like crewGear). */
+export function crewCounters(
+  counters: Record<CounterType, number>,
+  engineers: number,
+): Record<CounterType, number> {
+  const crewed: Record<CounterType, number> = {
+    billhooks: 0,
+    forkpoles: 0,
+    boiling_oil: 0,
+    hoardings: 0,
+    counter_engine: 0,
+  };
+  let left = engineers;
+  for (const t of COUNTER_TYPES) {
+    const can = Math.min(counters[t], Math.floor(left / SIEGE_COUNTERS[t].crew));
+    crewed[t] = can;
+    left -= can * SIEGE_COUNTERS[t].crew;
   }
-  return out;
+  return crewed;
+}
+
+/** A defender's engineer allocation: they man the defensive counters FIRST
+ *  (priority), then any spare engineers crew the offensive engines to fire back
+ *  (spec/combat.md — decided model). */
+export function defenderCrews(defender: Player): {
+  counters: Record<CounterType, number>;
+  offensive: Record<SiegeGearType, number>;
+} {
+  const eng = defender.army.siegeEngineers;
+  const counters = crewCounters(defender.army.siegeCounters, eng);
+  const usedByCounters = COUNTER_TYPES.reduce((s, t) => s + counters[t] * SIEGE_COUNTERS[t].crew, 0);
+  const offensive = crewGear(defender.army.siegeGear, Math.max(0, eng - usedByCounters));
+  return { counters, offensive };
 }
 
 /** Allocate engineers to gear, heaviest engines first. Returns crewed counts. */
@@ -183,9 +209,10 @@ function buildSide(p: Player, opts: { home: boolean; walls: boolean; warBonus: b
 
 function attackerEscalade(attacker: Player, defender: Player): number {
   const crewed = crewGear(attacker.army.siegeGear, attacker.army.siegeEngineers);
-  const defCounters = counters(defender);
-  const ropesEff = crewed.ropes * (defCounters.has("ropes") ? 1 - COUNTER_REDUCTION : 1);
-  const laddersEff = crewed.ladders * (defCounters.has("ladders") ? 1 - COUNTER_REDUCTION : 1);
+  // Each manned Bill-hook / Fork Pole cancels one climbing rope / ladder team.
+  const defC = defenderCrews(defender).counters;
+  const ropesEff = Math.max(0, crewed.ropes - defC.billhooks);
+  const laddersEff = Math.max(0, crewed.ladders - defC.forkpoles);
   const covered = ropesEff * ESCALADE_COVERAGE.ropes + laddersEff * ESCALADE_COVERAGE.ladders;
   const troops = military(attacker) - attacker.army.siegeEngineers + mercTotal(attacker.army.mercenaries);
   return troops > 0 ? Math.min(1, covered / troops) : 0;
@@ -315,16 +342,21 @@ export function resolveBattle(
   const escalade = walls ? attackerEscalade(attacker, defender) : 0;
   def.wallBonus *= 1 - escalade;
 
-  const defCounters = counters(defender);
-  const atkCrewed = walls
-    ? crewGear(attacker.army.siegeGear, attacker.army.siegeEngineers)
-    : { trebuchets: 0, ballistae: 0, rams: 0, ladders: 0, ropes: 0 };
-  const defCrewed = walls
-    ? crewGear(defender.army.siegeGear, defender.army.siegeEngineers)
-    : { trebuchets: 0, ballistae: 0, rams: 0, ladders: 0, ropes: 0 };
+  const noGear = { trebuchets: 0, ballistae: 0, rams: 0, ladders: 0, ropes: 0 };
+  const atkCrewed = walls ? crewGear(attacker.army.siegeGear, attacker.army.siegeEngineers) : { ...noGear };
+  // Defender engineers man the counters first, then fire back with spares.
+  const defCrew = walls
+    ? defenderCrews(defender)
+    : { counters: crewCounters(defender.army.siegeCounters, 0), offensive: { ...noGear } };
+  const defCrewed = defCrew.offensive;
+
+  // Each manned counter cancels one incoming enemy engine of its paired weapon
+  // (decided model): the surplus still fires. Constant across the battle.
+  const effRams = Math.max(0, atkCrewed.rams - defCrew.counters.boiling_oil);
+  const effBallistae = Math.max(0, atkCrewed.ballistae - defCrew.counters.hoardings);
+  const effTrebs = Math.max(0, atkCrewed.trebuchets - defCrew.counters.counter_engine);
 
   let wallDamage = 0;
-  let trebsLostToCounter = 0;
   let rounds = 0;
   let victor: "attacker" | "defender" = "defender";
 
@@ -332,18 +364,14 @@ export function resolveBattle(
     log.push(`Escalade covers ${Math.round(escalade * 100)}% of the attacking host.`);
   }
 
-  // Name the defensive installations that will blunt this attack (75% each).
+  // Name how many engines the defenders' crewed counters neutralise.
   if (walls) {
-    const COUNTER_NAMES: Record<SiegeGearType, string> = {
-      ropes: "Bill-hooks cut our climbing ropes",
-      ladders: "Fork Poles topple our ladders",
-      rams: "Boiling Oil scalds our ram crews",
-      ballistae: "Hoardings shelter their walls from our ballistae",
-      trebuchets: "their Counter-Engine duels our trebuchets",
-    };
     for (const t of ["ropes", "ladders", "rams", "ballistae", "trebuchets"] as const) {
-      if (defCounters.has(t) && attacker.army.siegeGear[t] > 0) {
-        log.push(`${COUNTER_NAMES[t]} (−${Math.round(COUNTER_REDUCTION * 100)}%).`);
+      const ct = COUNTER_FOR[t];
+      const manned = defCrew.counters[ct];
+      const incoming = atkCrewed[t];
+      if (manned > 0 && incoming > 0) {
+        log.push(`${SIEGE_COUNTERS[ct].name} neutralise ${Math.min(manned, incoming)} of our ${incoming} ${t}.`);
       }
     }
   }
@@ -353,16 +381,12 @@ export function resolveBattle(
     const aLuck = luck(opts.rng, LUCK_SWING);
     const dLuck = luck(opts.rng, LUCK_SWING);
 
-    // Phase 1 — siege (siege & revenge only). Both sides' engines fire.
+    // Phase 1 — siege (siege & revenge only). Both sides' engines fire; the
+    // defenders' counters have already cancelled some of ours (effRams etc.).
     if (walls) {
-      const cEng = defCounters.has("trebuchets");
-      const balMult = defCounters.has("ballistae") ? 1 - COUNTER_REDUCTION : 1; // Hoardings
-      const trebMult = cEng ? 1 - COUNTER_REDUCTION : 1;
-      const ramMult = defCounters.has("rams") ? 1 - COUNTER_REDUCTION : 1; // Boiling Oil
-
       const atkSiegeTroopDmg =
-        (atkCrewed.ballistae * ENGINE_FIRE.ballistae.troopDamage * balMult +
-          atkCrewed.trebuchets * ENGINE_FIRE.trebuchets.troopDamage * trebMult) *
+        (effBallistae * ENGINE_FIRE.ballistae.troopDamage +
+          effTrebs * ENGINE_FIRE.trebuchets.troopDamage) *
         atk.siegeMult *
         aLuck *
         atk.warBonus;
@@ -370,8 +394,7 @@ export function resolveBattle(
       dealProportional(def, atkSiegeTroopDmg, def.wallBonus);
 
       const grind =
-        (atkCrewed.rams * ENGINE_FIRE.rams.wallDamage * ramMult +
-          atkCrewed.trebuchets * ENGINE_FIRE.trebuchets.wallDamage * trebMult) *
+        (effRams * ENGINE_FIRE.rams.wallDamage + effTrebs * ENGINE_FIRE.trebuchets.wallDamage) *
         atk.siegeMult *
         aLuck;
       const applied = Math.max(0, Math.min(defender.wallIntegrity - wallDamage, grind));
@@ -379,7 +402,7 @@ export function resolveBattle(
       def.wallBonus = level(defender, "walls") * WALL_BONUS_PER_LEVEL *
         Math.max(0, defender.wallIntegrity - wallDamage) * (1 - escalade);
 
-      const engines = atkCrewed.trebuchets + atkCrewed.ballistae + atkCrewed.rams;
+      const engines = effTrebs + effBallistae + effRams;
       if (engines > 0) {
         const k = killsSince(def, preSiege);
         const wallBit = applied > 0 ? `; the walls take −${Math.round(applied * 100)}%` : "";
@@ -403,12 +426,6 @@ export function resolveBattle(
         );
       }
 
-      // Counter-Engine duels: destroys one attacker trebuchet per round.
-      if (cEng && atk.gear.trebuchets - trebsLostToCounter > 0) {
-        trebsLostToCounter += 1;
-        atkCrewed.trebuchets = Math.max(0, atkCrewed.trebuchets - 1);
-        log.push("The Counter-Engine finds its mark — one of our trebuchets splinters.");
-      }
     }
 
     // Phase 2 — archers, proportional, simultaneous.
@@ -479,14 +496,9 @@ export function resolveBattle(
   applyLossesToPlayer(defender, def);
   defender.wallIntegrity = Math.max(0, defender.wallIntegrity - wallDamage);
 
-  // Siege gear: attacker loses counter-killed trebs always; 50% of all
-  // committed gear on defeat. Defender installations are permanent.
+  // Siege gear: the attacker loses 50% of all committed gear on defeat. The
+  // defender's counters are blunted this battle but not consumed.
   const gearLost: Partial<Record<SiegeGearType, number>> = {};
-  attacker.army.siegeGear.trebuchets = Math.max(
-    0,
-    attacker.army.siegeGear.trebuchets - trebsLostToCounter,
-  );
-  if (trebsLostToCounter > 0) gearLost.trebuchets = trebsLostToCounter;
   if (victor === "defender" && walls) {
     for (const t of ["ropes", "ladders", "rams", "ballistae", "trebuchets"] as const) {
       const lost = Math.floor(attacker.army.siegeGear[t] * SIEGE_GEAR_LOSS_ON_DEFEAT);
@@ -570,7 +582,6 @@ export function resolveBattle(
     defenderLosses: def.losses,
     wallIntegrityDamage: wallDamage,
     siegeGearLost: gearLost,
-    trebsDestroyedByCounter: trebsLostToCounter || undefined,
     loot,
     staminaLoss: {
       attacker: STAMINA.DRAIN_PER_ROUND_ATTACKER * rounds,
@@ -625,7 +636,9 @@ export function resolveBombard(
   const attacker = structuredClone(attackerIn);
   const defender = structuredClone(defenderIn);
   const log: string[] = [];
-  const hasCounter = counters(defender).has("trebuchets");
+  // The defender's engineers man their Counter-Engines — each cancels one of our
+  // trebuchets' fire, and their crews also duel and splinter our engines.
+  const mannedCE = crewCounters(defender.army.siegeCounters, defender.army.siegeEngineers).counter_engine;
   const siegeMult =
     RACES[attacker.race].siege * (1 + researchLevel(attacker, "siegecraft") * EFFECT_PER_LEVEL);
   defender.buildingIntegrity ??= {};
@@ -638,8 +651,8 @@ export function resolveBombard(
   const opening = crewGear(attacker.army.siegeGear, attacker.army.siegeEngineers).trebuchets;
   if (opening > 0) {
     log.push(`${opening} crewed trebuchets wheel into range and open fire on the walls.`);
-    if (hasCounter) {
-      log.push(`Their Counter-Engine answers (−${Math.round(COUNTER_REDUCTION * 100)}% to our stones).`);
+    if (mannedCE > 0) {
+      log.push(`${mannedCE} crewed Counter-Engine${mannedCE > 1 ? "s" : ""} answer, cancelling that many of our volleys.`);
     }
   }
 
@@ -648,39 +661,45 @@ export function resolveBombard(
     if (crewed === 0) break;
     rounds = round;
     const roll = luck(opts.rng, LUCK_SWING);
-    const mult = (hasCounter ? 1 - COUNTER_REDUCTION : 1) * siegeMult * roll;
+    const mult = siegeMult * roll;
+    const firing = Math.max(0, crewed - mannedCE); // counters cancel this many volleys
 
-    const wallsStanding = level(defender, "walls") > 0 && defender.wallIntegrity > WALL_BOMBARD_PIVOT;
-    if (wallsStanding) {
-      // Walls first — grind them down toward the pivot (and a touch past it).
-      const grind = crewed * ENGINE_FIRE.trebuchets.wallDamage * mult;
-      const applied = Math.min(defender.wallIntegrity, grind);
-      defender.wallIntegrity -= applied;
-      wallDamage += applied;
-      if (defender.wallIntegrity <= WALL_BOMBARD_PIVOT) {
-        log.push(`Round ${round}: the wall is breached — the fire spills onto the town.`);
-      } else {
-        log.push(`Round ${round}: the trebuchets pound the walls (−${Math.round(applied * 100)}%).`);
-      }
+    if (firing === 0) {
+      log.push(`Round ${round}: the Counter-Engines smother our barrage — no stone finds the walls.`);
     } else {
-      // Walls are down (or absent) — a random building takes the volley.
-      const target = pickBombardTarget(defender, opts.rng);
-      if (!target) {
-        log.push(`Round ${round}: nothing left standing to break — the barrage falls on rubble.`);
+      const wallsStanding = level(defender, "walls") > 0 && defender.wallIntegrity > WALL_BOMBARD_PIVOT;
+      if (wallsStanding) {
+        // Walls first — grind them down toward the pivot (and a touch past it).
+        const grind = firing * ENGINE_FIRE.trebuchets.wallDamage * mult;
+        const applied = Math.min(defender.wallIntegrity, grind);
+        defender.wallIntegrity -= applied;
+        wallDamage += applied;
+        if (defender.wallIntegrity <= WALL_BOMBARD_PIVOT) {
+          log.push(`Round ${round}: the wall is breached — the fire spills onto the town.`);
+        } else {
+          log.push(`Round ${round}: ${firing} trebuchets pound the walls (−${Math.round(applied * 100)}%).`);
+        }
       } else {
-        const dmg = crewed * BUILDING_DAMAGE_PER_TREB * mult;
-        const cur = buildingIntegrity(defender, target);
-        const hit = Math.min(Math.max(0, cur - BUILDING_INTEGRITY_FLOOR), dmg);
-        defender.buildingIntegrity[target] = cur - hit;
-        buildingHits[target] = (buildingHits[target] ?? 0) + hit;
-        log.push(`Round ${round}: a volley cracks the ${BUILDING_LABEL[target] ?? target} (−${Math.round(hit * 100)}%).`);
+        // Walls are down (or absent) — a random building takes the volley.
+        const target = pickBombardTarget(defender, opts.rng);
+        if (!target) {
+          log.push(`Round ${round}: nothing left standing to break — the barrage falls on rubble.`);
+        } else {
+          const dmg = firing * BUILDING_DAMAGE_PER_TREB * mult;
+          const cur = buildingIntegrity(defender, target);
+          const hit = Math.min(Math.max(0, cur - BUILDING_INTEGRITY_FLOOR), dmg);
+          defender.buildingIntegrity[target] = cur - hit;
+          buildingHits[target] = (buildingHits[target] ?? 0) + hit;
+          log.push(`Round ${round}: a volley cracks the ${BUILDING_LABEL[target] ?? target} (−${Math.round(hit * 100)}%).`);
+        }
       }
     }
 
-    if (hasCounter && attacker.army.siegeGear.trebuchets > 0) {
+    // The Counter-Engine crews splinter one of our trebuchets each round.
+    if (mannedCE > 0 && attacker.army.siegeGear.trebuchets > 0) {
       attacker.army.siegeGear.trebuchets -= 1;
       trebsLost += 1;
-      log.push(`Round ${round}: the Counter-Engine smashes one of our trebuchets.`);
+      log.push(`Round ${round}: a Counter-Engine smashes one of our trebuchets.`);
     }
   }
 

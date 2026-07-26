@@ -1,9 +1,19 @@
 import Link from "next/link";
 import { Art } from "@/components/Art";
-import { MAX_FIELD_LEVEL, RESEARCH_FIELDS, RESEARCH_INFO, rpCost } from "@/lib/constants";
-import { researchLevel, researchRate, type Player } from "@/lib/engine";
+import { MAX_FIELD_LEVEL, RESEARCH_FIELDS, RESEARCH_INFO, researchOrdinalCost } from "@/lib/constants";
+import { researchLevel, researchRate, totalResearchLevels, type Player } from "@/lib/engine";
 
 const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");
+
+// 1 turn = 10 minutes → a compact "~N turns (~Xh Ym)" ETA.
+function etaLabel(turns: number): string {
+  if (!Number.isFinite(turns) || turns <= 0) return "—";
+  const mins = turns * 10;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const time = h > 0 ? `${h}h${m ? ` ${m}m` : ""}` : `${m}m`;
+  return `~${fmt(turns)} turn${turns === 1 ? "" : "s"} (${time})`;
+}
 
 /** The Collegium at a glance — the field under study with its progress, then
  *  every field's art and level so a ruler sees the whole tech tree filling in. */
@@ -11,7 +21,7 @@ export function ResearchView({ player: p }: { player: Player }) {
   const active = RESEARCH_FIELDS.find((f) => f.id === p.research.activeField);
   const activeLvl = active ? researchLevel(p, active.id) : 0;
   const banked = active ? p.research.banked[active.id] ?? 0 : 0;
-  const cost = active ? rpCost(activeLvl + 1) : 0;
+  const cost = active ? researchOrdinalCost(totalResearchLevels(p) + 1) : 0;
   const pct = active && cost > 0 ? Math.min(100, Math.round((banked / cost) * 100)) : 0;
   const rate = researchRate(p);
   const maxed = active && activeLvl >= MAX_FIELD_LEVEL;
@@ -40,6 +50,11 @@ export function ResearchView({ player: p }: { player: Player }) {
                 <>
                   <b style={{ color: "var(--pos)" }}>{pct}%</b> · {fmt(banked)} / {fmt(cost)} points ·{" "}
                   <b style={{ color: "var(--pos)" }}>+{fmt(rate)}</b>/turn
+                  {rate > 0 && (
+                    <>
+                      {" · "}⏳ {etaLabel(Math.ceil((cost - banked) / rate))}
+                    </>
+                  )}
                 </>
               )}
             </div>

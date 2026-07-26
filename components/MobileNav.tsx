@@ -53,7 +53,7 @@ export function MobileNav({ premium }: { premium: boolean }) {
         { href: "/siege", label: "🏹 Siege Works" },
         { href: "/rankings", label: "🔥 Rankings — the ladder" },
         { href: "/rankings/clans", label: "🛡️ Clan Ranks" },
-        { href: "/rankings/records", label: "⚔ War Records — this age" },
+        { href: "/rankings/records", label: "🏆 Records of the Age" },
         { href: "/battles", label: "🌍 World" },
         { href: "/clan", label: "🛡️ Your Clan" },
       ],

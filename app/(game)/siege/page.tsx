@@ -6,12 +6,15 @@ import { Info } from "@/components/Info";
 import { Panel } from "@/components/Panel";
 import { ResIcon, type ResKind } from "@/components/ResIcon";
 import {
-  COUNTER_REDUCTION,
+  COUNTER_TYPES,
+  SIEGE_COUNTERS,
   SIEGE_GEAR,
   TRAINING_COSTS,
+  TROOPS_PER_MUSTER_HALL,
   WAR_FOUNDRY_LADDER,
 } from "@/lib/constants";
-import { crewGear, level, wonderDiscount } from "@/lib/engine";
+import type { CounterType } from "@/lib/constants/buildings";
+import { crewCounters, crewGear, level, military, wonderDiscount } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
@@ -24,15 +27,16 @@ const GEAR_ART: Record<string, string> = {
   trebuchets: "siege/trebuchets",
 };
 
-// The defensive counters (War Foundry even levels), each with its new art
-// and the weapon it blunts.
-const COUNTER_ART: Record<string, string> = {
-  ropes: "siege/bill_hooks",
-  ladders: "siege/fork_poles",
-  rams: "siege/boiling_oil",
-  ballistae: "siege/hoardings",
-  trebuchets: "siege/counter_engine",
+// The defensive engines, each with its art (keyed by counter type).
+const COUNTER_ART: Record<CounterType, string> = {
+  billhooks: "siege/bill_hooks",
+  forkpoles: "siege/fork_poles",
+  boiling_oil: "siege/boiling_oil",
+  hoardings: "siege/hoardings",
+  counter_engine: "siege/counter_engine",
 };
+// Display order lightest → heaviest (COUNTER_TYPES is heaviest-first for crewing).
+const DEFENSE_ORDER = [...COUNTER_TYPES].reverse();
 
 const WEAPON_NAME: Record<string, string> = Object.fromEntries(
   WAR_FOUNDRY_LADDER.filter((s) => s.gearKey).map((s) => [s.gearKey!, s.name]),
@@ -90,7 +94,9 @@ export default async function SiegePage({
   const discount = wonderDiscount(clan);
   const foundry = level(p, "war_foundry");
   const crewed = crewGear(p.army.siegeGear, p.army.siegeEngineers);
-  const cut = Math.round(COUNTER_REDUCTION * 100);
+  // How many counters your engineers would man on defense (they crew counters
+  // first). A display estimate — in a real defence, spares also fire your engines.
+  const counterCrewed = crewCounters(p.army.siegeCounters, p.army.siegeEngineers);
 
   const defensive = tab === "defense";
   const path = defensive ? "/siege?tab=defense" : "/siege?tab=offense";
@@ -98,12 +104,34 @@ export default async function SiegePage({
   const offense = WAR_FOUNDRY_LADDER.filter((s) => s.side === "offense");
   const defense = WAR_FOUNDRY_LADDER.filter((s) => s.side === "defense");
 
-  // Engineers busy crewing gear vs idle.
-  const engineersBusy = (Object.keys(SIEGE_GEAR) as (keyof typeof SIEGE_GEAR)[]).reduce(
-    (s, t) => s + crewed[t] * SIEGE_GEAR[t].crew,
-    0,
-  );
+  // Engineers busy crewing gear vs idle; engines built vs actually manned.
+  const gearKeys = Object.keys(SIEGE_GEAR) as (keyof typeof SIEGE_GEAR)[];
+  const engineersBusy = gearKeys.reduce((s, t) => s + crewed[t] * SIEGE_GEAR[t].crew, 0);
   const engineersIdle = Math.max(0, p.army.siegeEngineers - engineersBusy);
+  const enginesBuilt = gearKeys.reduce((s, t) => s + p.army.siegeGear[t], 0);
+  const enginesManned = gearKeys.reduce((s, t) => s + crewed[t], 0);
+  const enginesIdle = enginesBuilt - enginesManned;
+  // Engineers to fully man every engine (extra needed beyond what we have).
+  const crewNeeded = gearKeys.reduce((s, t) => s + p.army.siegeGear[t] * SIEGE_GEAR[t].crew, 0);
+  const extraEngineersNeeded = Math.max(0, crewNeeded - p.army.siegeEngineers);
+
+  const engCost = TRAINING_COSTS.siegeEngineer;
+  const musterFree = level(p, "muster_hall") * TROOPS_PER_MUSTER_HALL - military(p);
+  const canTrainEngineer =
+    foundry >= 1 &&
+    p.idlePeasants >= 1 &&
+    musterFree >= 1 &&
+    p.gold >= (engCost.gold ?? 0) &&
+    p.resources.wood >= (engCost.wood ?? 0) &&
+    p.resources.stone >= (engCost.stone ?? 0) &&
+    p.resources.ore >= (engCost.ore ?? 0);
+  const engineerBlockReason = !(foundry >= 1)
+    ? "Found the War Foundry first"
+    : p.idlePeasants < 1
+      ? "No idle peasants to recruit"
+      : musterFree < 1
+        ? "No free Muster Hall bed"
+        : "Not enough resources for one engineer";
 
   return (
     <>
@@ -112,8 +140,9 @@ export default async function SiegePage({
       <Panel title={`The Siege Works — War Foundry level ${foundry}/10`}>
         <p style={{ marginBottom: 10 }}>
           Five offensive weapons and five defensive counters climb the foundry ladder in pairs —
-          only a level-10 foundry owns the complete kit. Offensive gear is equipment crewed by
-          engineers; the counters are permanent wall installations, always active when you defend.
+          only a level-10 foundry owns the complete kit. Both are equipment crewed by engineers:
+          offensive engines when you attack, defensive engines when you defend (counters first, then
+          spare crews fire your own engines back).
         </p>
         <div className="corps">
           <span className="corps-art">
@@ -133,12 +162,55 @@ export default async function SiegePage({
                 <span className="corps-stat-num">{engineersIdle}</span>
                 <span className="corps-stat-label">Idle</span>
               </div>
+              <div className={`corps-stat${enginesIdle > 0 ? " short" : ""}`}>
+                <span className="corps-stat-num">
+                  {enginesManned}
+                  <span style={{ color: "var(--ink-soft)", fontWeight: 400 }}> / {enginesBuilt}</span>
+                </span>
+                <span className="corps-stat-label">Engines manned</span>
+              </div>
             </div>
-            <p style={{ fontSize: 13.5, color: "var(--ink-soft)", margin: 0 }}>
-              Engineers are recruited in <a href="/troops">The Army</a>, alongside your footmen,
-              archers, and cavalry ({TRAINING_COSTS.siegeEngineer.gold}
-              <ResIcon kind="gold" size={13} /> each). Here they take up the engines below.
-            </p>
+
+            {/* Have vs manned — the crux: an engine without a crew is firewood. */}
+            {enginesIdle > 0 ? (
+              <p className="siege-warn">
+                ⚠ <b>{enginesIdle}</b> of your <b>{enginesBuilt}</b> engines stand <b>unmanned</b> —
+                they cannot fire until crewed. Recruit <b>{extraEngineersNeeded}</b> more engineer
+                {extraEngineersNeeded === 1 ? "" : "s"} to field the whole arsenal.
+              </p>
+            ) : enginesBuilt > 0 ? (
+              <p style={{ fontSize: 13.5, color: "var(--green-dark)", margin: "0 0 8px" }}>
+                ✓ All <b>{enginesBuilt}</b> engines are manned and ready to march.
+              </p>
+            ) : null}
+
+            {/* Train engineers right here — the crews that activate the engines. */}
+            <div className="siege-train">
+              <CmdForm name="trainEngineers" path={path}>
+                <span className="troop-form-label" style={{ marginRight: 6 }}>
+                  Recruit engineers ({engCost.gold}
+                  <ResIcon kind="gold" size={13} /> each)
+                </span>
+                <input
+                  name="count"
+                  placeholder="#"
+                  aria-label="Engineers to train"
+                  size={3}
+                  style={{ font: "13.5px Verdana", padding: 3 }}
+                  disabled={!canTrainEngineer}
+                />
+                <button
+                  className={canTrainEngineer ? "btn" : "btn btn-no"}
+                  disabled={!canTrainEngineer}
+                  title={canTrainEngineer ? "Train siege engineers to crew your engines" : engineerBlockReason}
+                >
+                  🔧 Train
+                </button>
+              </CmdForm>
+              <span className="siege-train-note">
+                Engineers are also raised in <a href="/troops">The Army</a> alongside your troops.
+              </span>
+            </div>
           </div>
         </div>
       </Panel>
@@ -228,46 +300,85 @@ export default async function SiegePage({
 
       {defensive && (
         <Panel
-          title="🛡 The Ramparts — defensive counters"
-          info={`Each counter is a permanent installation unlocked by its foundry level — no gear, no crews, always active when you defend. Each blunts its paired weapon by ${cut}%.`}
+          title="🛡 The Ramparts — defensive engines"
+          info="Defensive engines are bought and crewed just like offensive gear — but your engineers man them when you DEFEND (counters first, then spares fire your own engines back). Each crewed engine cancels one incoming enemy engine of its paired weapon; the surplus still fires, so field enough to blunt an assault."
           guide="/guide#defend"
         >
           <div className="card-grid">
-            {defense.map((step) => {
-              const c = step.counters!;
-              const installed = foundry >= step.level;
+            {DEFENSE_ORDER.map((ct) => {
+              const c = SIEGE_COUNTERS[ct];
+              const unlocked = foundry >= c.foundryLevel;
+              const costs: [ResKind, number][] = [
+                ["wood", c.wood],
+                ["stone", c.stone],
+                ["ore", c.ore],
+                ["gold", c.gold],
+              ];
               return (
-                <div className={`bcard${installed ? "" : " locked"}`} key={c}>
+                <div className={`bcard${unlocked ? "" : " locked"}`} key={ct}>
                   <div className="bcard-head">
                     <div>
-                      <span className="bcard-name">{step.name}</span>
+                      <Info
+                        tip={`Cancels one incoming ${WEAPON_NAME[c.counters]} per crewed engine when you defend. Crew of ${c.crew} engineers each.`}
+                        title={c.name}
+                        guide="/guide#defend"
+                      >
+                        <span className="bcard-name">{c.name}</span>
+                      </Info>
                       <div className="bcard-sub">
-                        {installed ? (
-                          <span className="siege-chip on">✓ Installed</span>
+                        {unlocked ? (
+                          <span className="siege-chip on">✓ Foundry {c.foundryLevel}</span>
                         ) : (
-                          <span className="siege-chip off">🔒 Needs Foundry {step.level}</span>
+                          <span className="siege-chip off">🔒 Needs Foundry {c.foundryLevel}</span>
                         )}
                       </div>
                     </div>
+                    <div className="bcard-btns">
+                      <CmdForm name="buySiegeCounter" path={path}>
+                        <input type="hidden" name="type" value={ct} />
+                        <input name="count" placeholder="#" size={3} aria-label={`${c.name} to forge`} style={{ padding: 3 }} />
+                        <button className="btn" disabled={!unlocked}>
+                          Forge
+                        </button>
+                      </CmdForm>
+                    </div>
                   </div>
                   <p className="bcard-desc">
-                    Cuts <b>{WEAPON_NAME[c]}</b> by {cut}% whenever you defend.
+                    Cancels <b>{WEAPON_NAME[c.counters]}</b> — one enemy engine per crewed {c.name}, when you defend.
                   </p>
                   <div className="bcard-main">
                     <span className="bcard-art">
-                      <Art path={COUNTER_ART[c]} size={104} title={step.name} />
+                      <Art path={COUNTER_ART[ct]} size={104} title={c.name} />
                     </span>
                     <div className="bcard-body">
-                      <p style={{ margin: 0, fontSize: 14 }}>
-                        A permanent rampart installation — no engineers, no upkeep. It answers the{" "}
-                        enemy&apos;s {WEAPON_NAME[c]} every time your walls are tested.
-                      </p>
+                      <CrewCost crew={c.crew} />
+                      <Fielded owned={p.army.siegeCounters[ct]} crewed={counterCrewed[ct]} />
+                      <ul className="bcard-costs" style={{ marginTop: 8 }}>
+                        <li>
+                          {costs
+                            .filter(([, n]) => n > 0)
+                            .map(([kind, n], i) => (
+                              <span key={kind} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: i < costs.length - 1 ? 8 : 0 }}>
+                                <ResIcon kind={kind} size={18} /> {n}
+                              </span>
+                            ))}
+                        </li>
+                      </ul>
                     </div>
                   </div>
                 </div>
               );
             })}
           </div>
+          <p className="siege-train-note" style={{ marginTop: 10 }}>
+            On defence your engineers man the counters first (heaviest first), then any spare
+            engineers fire your own engines back — so keep enough engineers to crew both.
+          </p>
+          {discount > 0 && (
+            <p style={{ fontSize: 13.5, marginTop: 6 }}>
+              <span style={{ marginRight: 4 }}>🛡</span> Clan Wonder discount: −{Math.round(discount * 100)}%
+            </p>
+          )}
         </Panel>
       )}
     </>

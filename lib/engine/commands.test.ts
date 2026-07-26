@@ -7,6 +7,7 @@ import {
   dischargeTroops,
   hireMercenaries,
   restTroops,
+  setResearch,
   setTax,
   trainTroops,
 } from "./commands";
@@ -145,6 +146,26 @@ describe("training & army", () => {
     expect(player.turnsAvailable).toBe(195);
     expect(player.resources.food).toBe(1000 - 0.2 * 20);
     expect(player.army.stamina).toBe(80);
+  });
+});
+
+describe("research", () => {
+  it("switching to a new field halves the current field's banked progress", () => {
+    const p = fresh();
+    p.research.activeField = "art_of_war";
+    p.research.banked.art_of_war = 400; // 40% toward a 1,000 next level, say
+    const after = setResearch(p, "shieldcraft").player;
+    expect(after.research.activeField).toBe("shieldcraft");
+    expect(after.research.banked.art_of_war).toBe(200); // 40% → 20%
+    expect(after.research.banked.shieldcraft ?? 0).toBe(0); // the new field is untouched
+  });
+
+  it("re-selecting the same field costs no progress", () => {
+    const p = fresh();
+    p.research.activeField = "art_of_war";
+    p.research.banked.art_of_war = 400;
+    const after = setResearch(p, "art_of_war").player;
+    expect(after.research.banked.art_of_war).toBe(400);
   });
 });
 

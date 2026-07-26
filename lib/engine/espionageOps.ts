@@ -37,6 +37,8 @@ export interface SpyMissionResult {
   catchChance: number;
   detail: string; // what the attacker learns / did
   victimDetail?: string; // what the victim sees (anonymous unless caught)
+  resourcesDestroyed?: number; // arson: total goods burned (for War Records)
+  gearDestroyed?: number; // sabotage: total siege gear wrecked (for War Records)
 }
 
 export function runSpyMission(
@@ -100,6 +102,8 @@ export function runSpyMission(
 
   let detail = "";
   let victimDetail: string | undefined;
+  let resourcesDestroyed = 0;
+  let gearDestroyed = 0;
 
   switch (op.id) {
     case "survey_coffers": {
@@ -129,7 +133,10 @@ export function runSpyMission(
         const n = Math.min(defender.army.siegeGear[t], toWreck);
         defender.army.siegeGear[t] -= n;
         toWreck -= n;
-        if (n > 0) wrecked.push(`${n} ${t}`);
+        if (n > 0) {
+          wrecked.push(`${n} ${t}`);
+          gearDestroyed += n;
+        }
       }
       detail = wrecked.length
         ? `Sabotage successful: destroyed ${wrecked.join(", ")}.`
@@ -145,7 +152,10 @@ export function runSpyMission(
       for (const r of ["food", "wood", "stone", "ore"] as Resource[]) {
         const amt = Math.floor(unstored(defender, r) * pct);
         plunderResource(defender, r, amt);
-        if (amt > 0) burned.push(`${amt} ${r}`);
+        if (amt > 0) {
+          burned.push(`${amt} ${r}`);
+          resourcesDestroyed += amt;
+        }
       }
       detail = burned.length
         ? `Fires set — burned ${burned.join(", ")} (${Math.round(pct * 100)}% of what lay outside).`
@@ -164,7 +174,7 @@ export function runSpyMission(
     }
   }
 
-  return { attacker, defender, caught: false, catchChance, detail, victimDetail };
+  return { attacker, defender, caught: false, catchChance, detail, victimDetail, resourcesDestroyed, gearDestroyed };
 }
 
 /** Scout recon: cheap, safe, fuzzy (±20%, tightened by Pathfinding). */

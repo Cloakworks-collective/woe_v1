@@ -182,9 +182,6 @@ export const WAR_FOUNDRY_LADDER: FoundryStep[] = [
   { level: 10, side: "defense", name: "Counter-Engine", counters: "trebuchets" },
 ];
 
-/** Each defensive counter reduces its paired weapon's effect by 75% (tunable). */
-export const COUNTER_REDUCTION = 0.75;
-
 /** Offensive siege gear: purchase cost + engineer crew required. */
 export const SIEGE_GEAR = {
   ropes: { gold: 50, wood: 10, stone: 0, ore: 5, crew: 1 },
@@ -192,6 +189,38 @@ export const SIEGE_GEAR = {
   rams: { gold: 400, wood: 200, stone: 0, ore: 50, crew: 2 },
   ballistae: { gold: 800, wood: 300, stone: 20, ore: 100, crew: 3 },
   trebuchets: { gold: 2000, wood: 800, stone: 100, ore: 300, crew: 5 },
+};
+
+/**
+ * Defensive siege engines — purchased and crewed just like offensive gear, but
+ * manned only when you DEFEND (spec/combat.md). Each type cancels one incoming
+ * enemy engine of its paired offensive weapon per engine you keep crewed: man 7
+ * Counter-Engines against 10 trebuchets and 7 are neutralised, 3 still fire.
+ * Bought at the same War Foundry level as their offensive twin (`foundryLevel`).
+ */
+export type CounterType = "billhooks" | "forkpoles" | "boiling_oil" | "hoardings" | "counter_engine";
+
+export const SIEGE_COUNTERS: Record<
+  CounterType,
+  { gold: number; wood: number; stone: number; ore: number; crew: number; foundryLevel: number; counters: keyof typeof SIEGE_GEAR; name: string }
+> = {
+  billhooks: { gold: 50, wood: 10, stone: 5, ore: 5, crew: 1, foundryLevel: 2, counters: "ropes", name: "Bill-hooks" },
+  forkpoles: { gold: 100, wood: 50, stone: 10, ore: 10, crew: 1, foundryLevel: 4, counters: "ladders", name: "Fork Poles" },
+  boiling_oil: { gold: 400, wood: 100, stone: 100, ore: 50, crew: 2, foundryLevel: 6, counters: "rams", name: "Boiling Oil" },
+  hoardings: { gold: 800, wood: 300, stone: 200, ore: 100, crew: 3, foundryLevel: 8, counters: "ballistae", name: "Hoardings" },
+  counter_engine: { gold: 2000, wood: 800, stone: 200, ore: 300, crew: 5, foundryLevel: 10, counters: "trebuchets", name: "Counter-Engine" },
+};
+
+/** Counter types heaviest-crew first — the order engineers man them (like gear). */
+export const COUNTER_TYPES: CounterType[] = ["counter_engine", "hoardings", "boiling_oil", "forkpoles", "billhooks"];
+
+/** The counter that neutralises each offensive weapon. */
+export const COUNTER_FOR: Record<keyof typeof SIEGE_GEAR, CounterType> = {
+  ropes: "billhooks",
+  ladders: "forkpoles",
+  rams: "boiling_oil",
+  ballistae: "hoardings",
+  trebuchets: "counter_engine",
 };
 
 export const WALL_NAMES = [

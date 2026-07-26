@@ -38,15 +38,23 @@ export const MAX_FIELD_LEVEL = 5;
 /** Each level = +20% of the field's max effect. */
 export const EFFECT_PER_LEVEL = 0.2;
 
-/** rpCost(level) = 2,000 × 5^(level−1). */
-export const RP_COST_BASE = 2000;
-export const RP_COST_FACTOR = 5;
+/**
+ * Research cost is GLOBAL and progressive (spec/research.md): the price of a
+ * level depends on how many levels you've already earned across ALL fields, not
+ * on which field it is. Your Nth research level overall costs
+ * `RESEARCH_ORDINAL_BASE × RESEARCH_ORDINAL_GROWTH^(N−1)` — so each level makes
+ * the next one dearer, and the ORDER you research in is the strategy.
+ * (Tunable placeholders.)
+ */
+export const RESEARCH_ORDINAL_BASE = 2000;
+export const RESEARCH_ORDINAL_GROWTH = 1.3;
 
-export function rpCost(level: number): number {
-  return RP_COST_BASE * RP_COST_FACTOR ** (level - 1);
+/** RP to complete your `order`-th research level overall (1-based). */
+export function researchOrdinalCost(order: number): number {
+  return Math.round(RESEARCH_ORDINAL_BASE * RESEARCH_ORDINAL_GROWTH ** Math.max(0, order - 1));
 }
 
-/** Field level N requires Collegium level ≥ 2N − 1. */
-export function collegiumRequired(fieldLevel: number): number {
-  return 2 * fieldLevel - 1;
-}
+/** Fraction of the current field's banked progress toward its next level that is
+ *  LOST when you switch the scholars to a different field — the cost of a
+ *  wandering research programme. 0.5 = you keep half (spec/research.md). */
+export const RESEARCH_SWITCH_LOSS = 0.5;

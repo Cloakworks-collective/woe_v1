@@ -18,6 +18,101 @@ shield-drop-on-attack, spy-block vs protected players.
       at tier but die before matching regulars (die-first per arm). Legacy saves
       migrated (`normalizePlayer`). Specs + CLI + plugin + tests updated (110 pass).
 
+## Research economy rework — DONE (this pass)
+- [x] Removed Collegium level-gate (collegiumRequired) — everything researchable
+      any time; Collegium = speed only (scholar slots). Tier ladder + lock pips
+      gone.
+- [x] Global progressive cost: researchOrdinalCost(N)=2000×1.3^(N-1) by TOTAL
+      levels earned across all fields (totalResearchLevels helper). rpCost
+      replaced in tick/ResearchView/research page/eraTables. UI banner + per-node
+      "your Nth research" cost. Spec updated; 4 tests.
+
+## Defensive siege rework — DONE (this pass)
+- [x] Defensive counters are purchasable crewed gear (SIEGE_COUNTERS,
+      buySiegeCounter, ArmyState.siegeCounters + migration). Engineers man them
+      when defending (counters first, spares fire back). Each crewed counter
+      cancels ONE incoming enemy engine of its paired weapon (decided model);
+      bombard counter-engines cancel volleys + splinter 1 treb/round. Siege
+      Works Ramparts tab rebuilt as buyable cards. combat.md updated; 130 tests.
+- [ ] ART: regenerate Hoardings + Counter-Engine sprites — BLOCKED: PixelLab
+      account out of generations/credits (HTTP 402 on both MCP + REST token).
+
+## Research page UX — DONE (this pass)
+- [x] Fixed disjointed tree connector lines (equal 3-col grid + rail inset 15%).
+- [x] Switch penalty: setResearch forfeits 50% of the current field's banked
+      progress toward its next level (RESEARCH_SWITCH_LOSS); UI says so (intro +
+      "Switch here" button title); spec updated; 2 tests.
+- [x] Every node shows a progress bar + %; active field shows time-to-next-level
+      ETA (~N turns (Xh Ym)); dashboard ResearchView widget too.
+
+## Market whole-number prices — DONE (this pass)
+- [x] Ask prices are whole gold, bounded 2–50 (MARKET_PRICE_MIN/MAX). postOrder
+      validates integer+band; pipeline floors input; caravan price field
+      number/min2/max50/step1; all displayed prices Math.round'd; PriceChart fnum
+      → Math.round (no decimals). Seeds repriced whole 2–50; spec updated; live
+      world migrated (orders + priceHistory rescaled). Verified in-browser.
+
+## Market caravans UX — DONE (this pass)
+- [x] Moved "Your Caravans" above Price History; rebuilt as a per-resource table
+      (Goods · Loose · Market price · Amount · Ask gold/unit · 🐫 Send caravan).
+      Each row is its own marketPost via CmdForm `id` + inputs' `form={id}`
+      attribute; ask prefills market price; Send button green/red by merchant
+      availability + loose goods; no-merchants warning links to Market Square.
+      Verified a real dispatch in-browser.
+
+## Siege built-vs-manned UX — DONE (this pass)
+- [x] Command dashboard + Siege Works now distinguish engines built vs manned
+      (crewGear allocation). Dashboard: "X of Y engines manned" title, per-engine
+      manned/built tiles (amber when short), unmanned-warning banner → /siege.
+      Siege Works: "Engines manned X/Y" stat + "recruit K more" CTA + inline
+      "🔧 Train" engineers form (green/red afford) on the page itself.
+
+## Affordability UI — DONE (this pass)
+- [x] Green (affordable) / dull-red disabled (can't afford) buttons via .btn-no,
+      on Buildings (Upgrade/Repair), /train (spies/scouts), /troops (troops,
+      engineers, mercs). Recomputed each render (server-rendered reload). New
+      <CostTip> shows cost as a table on hover (Cost · Need · You have, short
+      rows red) — wired onto Buildings Upgrade + Repair.
+
+## Repairs UX — DONE (this pass)
+- [x] Shared repairCost(id,level,integrity) engine helper (repairWalls/
+      repairBuilding call it). Buildings page: removed the context-free "Repairs"
+      button panel; each cracked building card now shows an amber "🔨 Repair"
+      button next to Upgrade with the exact cost on hover (title), disabled when
+      unaffordable. Top panel is now a read-only "Repairs needed" list (HealthBar
+      + name + tab hint/link). Bombard confirmed working as designed (trebuchet-
+      scaled, walls-first to 0.5 pivot, buildings to 0.5 floor, Counter-Engine
+      kills a treb/round) — no code change, just explained.
+
+## Command View polish — DONE (this pass)
+- [x] Counting House rewritten: one "Store all" button per holding (auto-max,
+      no inputs), removed the separate Bank-all + all withdraw buttons. Shows
+      FULL, and spilled overflow in Exposed. Unified gold+resources holdings
+      model. bank tooltip updated (no withdraw). Damaged stores show a graphic
+      HealthBar + "🔥 repair" link to /buildings; new AdvisorAlerts banner
+      ("storehouses breached", Treasurer Poll) with a Repair CTA when any store
+      integrity < 1.
+- [x] Dashboard icons enlarged: census 32→52px (container 54, glyph 40); Siege
+      Train + Shadow Work StatTile icons 26→46px.
+- [x] Removed the Chronicle feed from the Command View (still at /chronicle);
+      kept "⚔ Revenge windows open" as its own panel.
+
+## War Records — DONE (this pass)
+- [x] Expanded live War Records to full Elder-Age parity (were battle-only):
+      added lifetime per-ruler flow tallies (`EraRecords.feats`) folded in by
+      recordBattle/recordSpyFeat/recordSaleFeat/recordGiftFeat (wired through
+      pipeline spy/marketBuy/clanDeposit; runSpyMission now returns
+      resources/gear destroyed). `lib/server/eraTables.ts#buildEraTables` builds
+      all 10 tables as ElderTable[] (Greatest Rulers, Strongest Empires, Lords &
+      Ladies, Champions of the Realms + epithets, Non-Battle Titles, + 5 battle
+      tables) rendered via LeaderTable; /rankings/records live, eraReset freezes
+      into ArchivedAge.sealedTables. Specs (victory.md) + 3 tests (124 total);
+      verified in-browser. NOTE: no gold-stealing spy op → "the Thief" omitted.
+      Renamed the page "War Records" → "🏆 Records of the Age" (nav + all
+      cross-links). "Banner" column → "Clan", now a link to /clan/[id] (ElderTable
+      gained a {text,href} link-cell; buildEraTables has a {link} flag — sealed
+      ages render plain since clans are gone at reset).
+
 ## UI & combat polish — DONE (this pass)
 - [x] Visual pass I: race portraits on Rankings + Attack; pixel tone-emblems
       (7 glyphs in public/art/tones/, <ToneGlyph>) on Chronicle/World News/Annals.

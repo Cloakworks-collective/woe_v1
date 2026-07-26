@@ -8,21 +8,22 @@ import {
   MERC_PRICE_GOLD,
   RACES,
   RESEARCH_FIELDS,
+  RESEARCH_SWITCH_LOSS,
   SCATTERING,
   SIEGE_GEAR,
+  SIEGE_COUNTERS,
   SLOTS_PER_BUILDING_LEVEL,
   STAMINA,
   STORAGE_PER_LEVEL,
   TIER_COST_MULT,
   TRAINING_COSTS,
   TROOPS_PER_MUSTER_HALL,
-  WALL_REPAIR_COST_FACTOR,
   WAR_FOUNDRY_LADDER,
   maxLevel,
 } from "../constants";
-import type { BuildingId } from "../constants/buildings";
+import type { BuildingId, CounterType } from "../constants/buildings";
 import type { ResearchField } from "../constants/research";
-import { buildingCost, type Cost } from "./costs";
+import { buildingCost, repairCost, type Cost } from "./costs";
 import {
   EngineError,
   bankedRes,
@@ -238,7 +239,14 @@ export function setResearch(input: Player, field: ResearchField): EngineResult {
     throw new EngineError("field", "Unknown research field");
   }
   const p = structuredClone(input);
-  p.research.activeField = field; // banked progress on the old project is kept
+  const prev = p.research.activeField;
+  // Switching the scholars to a NEW field abandons half the progress banked
+  // toward the current field's next level (spec/research.md) — the price of an
+  // undisciplined programme. Re-selecting the same field costs nothing.
+  if (prev && prev !== field) {
+    p.research.banked[prev] = Math.floor((p.research.banked[prev] ?? 0) * (1 - RESEARCH_SWITCH_LOSS));
+  }
+  p.research.activeField = field;
   return { player: p, events: [] };
 }
 
@@ -357,19 +365,38 @@ export function buySiegeGear(
   return { player: p, events: [] };
 }
 
+/** Buy a defensive siege engine — needs the War Foundry level that unlocks it.
+ *  Crewed by engineers when you defend (spec/combat.md). */
+export function buySiegeCounter(
+  input: Player,
+  type: CounterType,
+  count: number,
+  wonderDiscount = 0,
+): EngineResult {
+  const p = structuredClone(input);
+  if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
+  const c = SIEGE_COUNTERS[type];
+  if (!c) throw new EngineError("counter", "Unknown defensive engine");
+  if (level(p, "war_foundry") < c.foundryLevel) {
+    throw new EngineError("foundry", `${c.name} requires War Foundry ${c.foundryLevel}`);
+  }
+  const m = count * (1 - wonderDiscount);
+  pay(p, {
+    gold: Math.round(c.gold * m),
+    wood: Math.round(c.wood * m),
+    stone: Math.round(c.stone * m),
+    ore: Math.round(c.ore * m),
+  });
+  p.army.siegeCounters[type] += count;
+  return { player: p, events: [] };
+}
+
 /** Repair walls: damagedFraction × wall build cost × 0.5. Restores pop rate fully. */
 export function repairWalls(input: Player): EngineResult {
   const p = structuredClone(input);
   const lvl = level(p, "walls");
   if (lvl === 0 || p.wallIntegrity >= 1) throw new EngineError("walls", "Nothing to repair");
-  const damaged = 1 - p.wallIntegrity;
-  const base = buildingCost("walls", lvl);
-  pay(p, {
-    gold: Math.round(base.gold * damaged * WALL_REPAIR_COST_FACTOR),
-    wood: Math.round(base.wood * damaged * WALL_REPAIR_COST_FACTOR),
-    stone: Math.round(base.stone * damaged * WALL_REPAIR_COST_FACTOR),
-    ore: Math.round(base.ore * damaged * WALL_REPAIR_COST_FACTOR),
-  });
+  pay(p, repairCost("walls", lvl, p.wallIntegrity));
   p.wallIntegrity = 1;
   return { player: p, events: [] };
 }
@@ -381,14 +408,7 @@ export function repairBuilding(input: Player, id: BuildingId): EngineResult {
   const lvl = level(p, id);
   const integrity = p.buildingIntegrity?.[id] ?? 1;
   if (lvl === 0 || integrity >= 1) throw new EngineError("building", "Nothing to repair");
-  const damaged = 1 - integrity;
-  const base = buildingCost(id, lvl);
-  pay(p, {
-    gold: Math.round(base.gold * damaged * WALL_REPAIR_COST_FACTOR),
-    wood: Math.round(base.wood * damaged * WALL_REPAIR_COST_FACTOR),
-    stone: Math.round(base.stone * damaged * WALL_REPAIR_COST_FACTOR),
-    ore: Math.round(base.ore * damaged * WALL_REPAIR_COST_FACTOR),
-  });
+  pay(p, repairCost(id, lvl, integrity));
   (p.buildingIntegrity ??= {})[id] = 1;
   return { player: p, events: [] };
 }

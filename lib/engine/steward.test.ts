@@ -1,7 +1,7 @@
 // The Steward (spec/premium.md): queues + standing orders, premium-gated.
 
 import { describe, expect, it } from "vitest";
-import { rpCost } from "../constants";
+import { researchOrdinalCost } from "../constants";
 import {
   addStandingOrder,
   dequeueBuild,
@@ -109,7 +109,7 @@ describe("research queue", () => {
     p = queueResearch(p, "masonry").player;
     p = queueResearch(p, "masonry").player;
     expect(p.researchQueue!.map((e) => e.toLevel)).toEqual([1, 2]);
-    expect(rpCost(2)).toBeGreaterThan(rpCost(1)); // sanity: they are distinct goals
+    expect(researchOrdinalCost(2)).toBeGreaterThan(researchOrdinalCost(1)); // sanity: progressive cost
   });
 });
 

@@ -118,9 +118,10 @@ own logic:
 Every building (walls included) has an integrity **floor of 50%** — artillery
 cracks a structure open but never levels it. All damage persists until the
 defender **repairs** it (½ × damage × the building's build cost). The
-defender's Counter-Engine (War Foundry 10) reduces bombard damage 75% and
-destroys one attacker trebuchet per round. No loot; bombard is the softening
-strike before the castle attack.
+defender's crewed **Counter-Engines** each cancel one attacking trebuchet's
+volley (so enough of them stop the bombard cold) and splinter one attacker
+trebuchet per round. No loot; bombard is the softening strike before the castle
+attack.
 
 ## The wall bonus (defender, siege & revenge attacks only)
 
@@ -134,10 +135,19 @@ effectiveWall = wallBonus × integrity × (1 − escalade)
   penalty in `buildings.md` until repaired.
 - **Escalade**: each crewed Ropes team lets 10 attacking troops ignore the
   wall; each Ladder team 25. `escalade = min(1, coveredTroops / attackerTroops)`.
-- **Counters** (War Foundry installations, `buildings.md`): each reduces its
-  paired weapon's effect by 75% — Bill-hooks vs ropes, Fork Poles vs ladders,
-  Boiling Oil vs rams, Hoardings vs ballista troop-damage, Counter-Engine vs
-  trebuchets (also returns fire, destroying attacker engines).
+- **Counters** are **purchasable, crewed defensive engines** (`SIEGE_COUNTERS`
+  in `buildings.md`), not permanent installations. They're bought like offensive
+  gear (gated by their War Foundry level) and **crewed by engineers when you
+  defend**. Each type cancels its paired offensive weapon **one-for-one per
+  crewed engine** — Bill-hooks vs ropes, Fork Poles vs ladders, Boiling Oil vs
+  rams, Hoardings vs ballistae, Counter-Engine vs trebuchets: man 7 counters
+  against 10 enemy engines and 7 are neutralised, 3 still fire. There is **no
+  guaranteed 75% blunt** — it scales with how many counters you keep crewed.
+- **Defender engineer allocation**: on defence engineers man the counters FIRST
+  (heaviest-crew first), then any **spare engineers crew the offensive engines to
+  fire back** at the attacker. In a **bombard**, crewed Counter-Engines cancel
+  that many of the attacker's trebuchet volleys *and* splinter one attacker
+  trebuchet per round.
 - Raids: **no wall bonus, no siege phase** — fought in the open countryside.
 - Bombard: no troop battle at all (see attack modes above).
 
@@ -266,8 +276,9 @@ Size scaling: target ≥150% of your strength → +50% loot; target ≤50% → l
 scaled down proportionally (floor 25% of normal).
 
 **Siege gear fate:** attacker's engines survive if the attacker wins; on a
-loss, 50% of committed gear is destroyed (Counter-Engine kills count extra).
-Defender installations (counters) are permanent and never lost.
+loss, 50% of committed offensive gear is destroyed. Defensive counters are
+blunted for the battle but not consumed (a bombard's Counter-Engines do splinter
+attacker trebuchets over the rounds).
 
 **The War Ledger (public).** Every battle also produces a **redacted public
 view** any player may browse (global last-100 page; per-empire profiles):
