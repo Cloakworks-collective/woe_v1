@@ -64,8 +64,9 @@ order. All caps 10 (tunable).
 - One entry = **one level of one field** (queueing Masonry twice = levels
   1 and 2). The Steward keeps `research.activeField` pointed at the head
   entry; when the target level completes, it advances to the next.
-- Banked-RP rules are unchanged (`research.md`); the Collegium gate simply
-  makes the scholars bank until the gate is raised.
+- Banked-RP rules are unchanged (`research.md`): there is no level gate, so
+  the Steward simply keeps `research.activeField` on the head entry and the
+  scholars bank toward it at the Collegium's speed.
 
 ### 3. Standing orders (≤ 10 active)
 

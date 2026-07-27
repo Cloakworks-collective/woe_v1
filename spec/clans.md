@@ -57,7 +57,8 @@ withdrawableNow = 3 × lifetimeDeposited − lifetimeWithdrawn
 
 ### 2. Clan Hall (levels 1–4) — the roster & the tax shelter
 
-Founding a clan (5 players minimum, together) erects Hall level 1.
+Founding a clan (**one player, 50,000 gold**) erects Hall level 1 (member cap 5);
+others petition to join.
 
 Clan members help each other bear the tax burden: the Hall reduces the
 **production penalty from taxation** for every member — capped at a **50%
@@ -72,7 +73,7 @@ stops mattering.
 | 4          | 20         | 50%              |
 
 ```
-outputPerProducer = 20 × (1 − taxRate × hallPenaltyFactor) × statecraftMult
+outputPerWorker = 50 × buildingLevel × (1 − taxRate × hallPenaltyFactor) × statecraftMult
 ```
 
 Stacks with Statecraft research (`research.md`). Hall-4 at 100% tax leaves
@@ -161,7 +162,7 @@ clans time joint defense and counterattacks without any formal mechanic.
 | Clan Hall    | L1: 50k gold (founding fee) · L2: 500k gold + 250k each · L3: 1.5M + 750k each · L4: 3M + 1.5M each |
 | Clan Wonder  | L1: 1M gold + 500k each · L2: 2.5M + 1.25M each · L3: 5M + 2.5M each |
 
-Storage 1 is reachable by 5 founders within their first serious week;
+Storage 1 is reachable by a young clan within its first serious week;
 Hall 4 + Wonder 3 is a whole-era project for a full roster. All paid from
 the pool — deposits first, always.
 

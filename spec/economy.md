@@ -21,8 +21,12 @@ Quarry, Deepvein Mine, and Sawyer's Mill do **not** limit worker slots — you m
 assign as many farmers/quarrymen/miners/lumberjacks as your population allows.
 Instead each **building level lifts every worker's output**: a worker produces
 `50 × buildingLevel` units/turn at 0% tax — **50/turn at level 1 up to 500/turn
-at level 10** (`PRODUCTION_PER_WORKER_PER_LEVEL = 50`). Merchants and researchers
-are still slot-capped by their halls (Market Square / Collegium, 20 × level).
+at level 10** (`PRODUCTION_PER_WORKER_PER_LEVEL = 50`). Merchants, researchers,
+spies, and scouts are **uncapped too** — you need only the building, and its
+level scales each unit's effect: every Collegium level lifts a scholar's RP/turn
+(50 × level, same curve); every Market Square level adds 1,000 to each caravan's
+capacity **and shortens its road to the Bazaar** (`market.md`); Shadow Guild and
+Ranger's Lodge levels deepen each spy/scout's bite (`espionage.md`).
 
 | Tax rate | Gold / civilian / turn | Gold / civilian / DAY |
 |----------|------------------------|------------------------|
@@ -64,7 +68,7 @@ before race and research bonuses.)
 | Miner      | Deepvein Mine   | 50 × Mine level ore               |
 | Lumberjack | Sawyer's Mill   | 50 × Mill level wood              |
 | Merchant   | Market Square   | runs trade caravans — carries 1,000 × Market Square level in goods (see `market.md`) |
-| Researcher | The Collegium   | 20 research points (slot-capped)  |
+| Researcher | The Collegium   | 50 × Collegium level research points (50 at L1 → 500 at L10; uncapped) |
 
 - All outputs scale by `(1 − taxRate)` and are then modified by race bonuses.
 - Merchants produce no resources — they haul caravans to the Grand Bazaar and

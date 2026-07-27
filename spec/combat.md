@@ -314,8 +314,10 @@ footmen behind Curtain Wall (level 5, +50%), full integrity, no Fork Poles.
 - Round 2: 70 vs 20 — defender at 33% strength… round 3 breaks them.
   Attacker wins, takes 25% of unbanked gold.
 
-With Fork Poles the ladders drop to 12.5 covered troops (75% countered),
-wall stays ~+44%, and the math tilts toward the defender holding.
+With **one crewed Fork Pole** the defender cancels one of the two ladder teams
+outright — only 25 troops slip past, the wall holds at ~+37.5%, and the math
+tilts toward the defender. A second Fork Pole would cancel the last team, and
+the assault meets the full +50%.
 
 ---
 

@@ -26,7 +26,7 @@ The game is turn-based with a 10-minute tick interval. Each tick:
 
 1. **Food upkeep** — 0.1 × (civilians + regular troops) deducted; at 0 food the empire **starves**: steps 2–4 and attacking are suspended until fed (`economy.md`).
 2. **Tax income** — Every civilian pays `0.4 × taxRate` gold; mercenary upkeep is deducted — unpaid mercenaries defect (see `economy.md`). Regular military has no upkeep.
-3. **Production** — Each producer yields `20 × (1 − taxRate)` units of their resource (food, stone, ore, wood, gold-commerce, research), modified by race bonuses.
+3. **Production** — Each worker yields `50 × buildingLevel × (1 − taxRate)` units of their resource (food, stone, ore, wood, research) — 50/turn per level at 0% tax, uncapped worker count — modified by statecraft, clan-hall shelter, and race bonuses (`economy.md`).
 4. **Stamina recovery** — Idle troops regain 1 stamina point per turn (passive).
 5. **The Steward** (premium holders only, `premium.md`) — build queue, research queue, standing orders; issues ordinary instant commands when they become possible.
 6. **Daily reset** — Once per day: recruit new peasants based on civilian buildings, reduced by wall damage (see `buildings.md`); then the peasant-scattering check (troops < 30% of civilians → peasants leave).
@@ -227,8 +227,9 @@ live in **`combat.md`**. Summary:
 - Modifiers: race, equipment tier, stamina, experience, research (Art of
   War / Shieldcraft / Siegecraft), and the defender's wall bonus
   (level × 10% × integrity, reduced by escalade and siege).
-- War Foundry offense/defense pairs: each defensive installation counters its
-  paired weapon at 75% (see `buildings.md`).
+- War Foundry offense/defense pairs: defensive counters are purchased, crewed
+  equipment; each crewed counter cancels one incoming paired weapon, one-for-one
+  (see `buildings.md`, `combat.md`).
 - A side breaks below 30% remaining strength; victory/loot/wall-integrity/
   stamina/experience outcomes per `combat.md`.
 
@@ -713,7 +714,7 @@ in-game dev time controls (+1 turn / +1 day) are enabled.
 ## Open Questions / TBD
 
 Resolved (see the dedicated docs):
-- [x] Production rates — `economy.md` (tax-scaled, 20/turn at 0% tax; race modifiers still TBD).
+- [x] Production rates — `economy.md` (per worker: 50 × building level/turn at 0% tax, uncapped worker count; tax/statecraft/hall/race modifiers applied).
 - [x] Combat formulas — `combat.md` (unit stats, damage, breaking, aftermath).
 - [x] Building cost model — `buildings.md` (ratio bands, 1.5× curve; per-building baseCost values still TBD). Upgrades are instant; no prerequisite tree beyond Forge gating.
 - [x] Troop equipment costs — `buildings.md` (light ×1 / medium ×2 / heavy ×4).

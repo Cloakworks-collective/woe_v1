@@ -22,7 +22,7 @@ There are 6 playable races, each with distinct bonuses and penalties:
 
 ## Core Loop
 
-1. **Recruit** — Receive peasants daily (base 1/day, up to 100/day via civilian buildings; damaged walls cut growth up to 50% — see `buildings.md`).
+1. **Recruit** — Receive peasants daily (base 1/day, up to 100/day via civilian buildings; damaged walls cut growth up to 50%; settlers beyond your empty Hearthstead beds find no roof and are **lost, not queued** — see `buildings.md`).
 2. **Train** — Assign peasants as workers (gold + resources per turn) or raise them **directly** into soldiers — footmen, archers, or cavalry at light/medium/heavy tiers — plus engineers, spies, and scouts. There is no separate "warrior" step; the tier you can field is gated by your trainer and Forge levels.
 3. **Reinforce** — Tier up (each tier needs its trainer *and* the Forge at that level) and hire **mercenaries** — sellswords in the same arms and tiers, bought for gold to bolster the host quickly.
 4. **Build** — Construct defences, peasant buildings, and military/specialty buildings to unlock capabilities.
@@ -31,12 +31,13 @@ There are 6 playable races, each with distinct bonuses and penalties:
 
 ## Economy
 
-- **Taxes** are the kingdom's gold engine: 0–100% rate, ~29 gold/citizen/**day** at the 50% default (0.4/turn at 100%). Production drops inversely — producers yield 20 units/turn at 0% tax. Gold is scarce, resources are bulk (see `economy.md`).
+- **Taxes** are the kingdom's gold engine: 0–100% rate, ~29 gold/citizen/**day** at the 50% default (0.4/turn at 100%). Production drops inversely — each worker yields **50 × its building's level** per turn at 0% tax (50 at level 1 up to 500 at level 10; workers are unlimited — the building's level, not a slot count, sets the pace). Gold is scarce, resources are bulk (see `economy.md`).
 - **Resource types:** Gold, Food, Wood/Lumber, Stone, Ore/Metal. 1 turn = 10 minutes.
 - Military pays no tax and costs no upkeep — except mercenaries (paid per turn or they defect; max 25% of regular army).
 - Food is population upkeep (0.1/person/turn): if it runs out, **everything stops** — production, research, taxes, growth, attacking — until the empire is fed. Attacks themselves are instantaneous and cost no food.
 - Resources outside storage can be stolen via raids; gold and resources via sieges.
 - Resource storage buildings protect a portion from being plundered.
+- The **Grand Bazaar** turns surplus into gold: a merchant's caravan must **travel to market** before its goods list — 100 turns at Market Square level 1 down to 10 at level 10 — after which buyers fill instantly, cheapest-first, a 5% seller fee burned (see `market.md`).
 
 ## Military
 
@@ -50,7 +51,7 @@ There are 6 playable races, each with distinct bonuses and penalties:
 - **Mercenaries** — Hired from the Black Market in the same arms and tiers as your regulars (heavy cavalry needs Knights' Stables 3 + Forge 3, just like the real thing), for gold alone — no peasants spent. They fight as their type/tier but **die before your matching regulars** (the front line of their arm). Require per-turn gold upkeep or they defect; capped at 25% of regular army size; count zero toward ranking.
 
 ### Combat Phases (in order, per round; full math in `combat.md`)
-1. Siege weapons fire (proportional damage to all troops; rams/trebuchets grind wall integrity; defender's War Foundry counters reduce paired weapons by 75%)
+1. Siege weapons fire (proportional damage to all troops; rams/trebuchets grind wall integrity; each of the defender's **crewed** War Foundry counters cancels one incoming paired weapon, one-for-one)
 2. Archers fire (proportional damage)
 3. Cavalry charge (targeted order: cavalry → footmen → engineers → archers)
 4. Footmen charge (targeted order: footmen → archers → cavalry → engineers)
@@ -113,7 +114,7 @@ players joining mid-era get a 72-hour shield.
 
 ## Clans
 
-- Players form clans (5 founders, up to 20 members as the Clan Hall grows).
+- A player founds a clan alone for **50,000 gold** (or petitions to join one); the roster holds **5 members**, rising to **20** as the Clan Hall grows.
 - Leadership (leader, vice, 3 officers) builds clan buildings from a shared storage pool all members feed: Clan Storage → Clan Hall (member cap + shrinks the tax production penalty, down to 50% at max) → Clan Wonder (discounts mercenary/troop/siege costs for every member).
 - Clan wars double battle damage both ways; friendly clans share online status and last-attacked times. Neutral is the default. (Full design: `clans.md`.)
 

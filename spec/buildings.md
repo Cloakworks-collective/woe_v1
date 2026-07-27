@@ -360,23 +360,39 @@ counters it doesn't have.
 | 9   | Offense   | **Trebuchet**        | The wall-breaker: massive wall + proportional troop damage   |
 | 10  | Defense   | **Counter-Engine**   | Defender's own trebuchet duels attacker engines — counters Trebuchet |
 
-**How counters work:** defensive unlocks are permanent wall installations —
-no purchase, no crew, always active when defending. Each counter reduces the
-effectiveness of its paired offensive weapon by **75% (tunable)** in any
-attack against you.
+**How counters work:** defensive counters are **purchased, crewed equipment**,
+not permanent installations — bought like offensive gear (each gated by its War
+Foundry level) and **manned by engineers when you defend**. Each crewed counter
+**cancels one incoming enemy engine of its paired weapon, one-for-one** — there
+is no flat percentage. Field enough of a counter and the whole matching salvo is
+stopped; field fewer and only that many are cancelled, the surplus still fires.
+On defence, engineers man the counters first (heaviest-crew first), then any
+spare engineers crew your own offensive engines to fire back (see `combat.md`).
 
-**Offensive gear** is purchased equipment, crewed by siege engineers:
+**Offensive gear** — purchased equipment, crewed by siege engineers:
 
-| Weapon           | Gold | Wood | Stone | Ore | Engineers to crew |
-|------------------|------|------|-------|-----|-------------------|
-| Ropes & Grapples | 50   | 10   | —     | 5   | 1                 |
-| Ladders          | 100  | 50   | —     | 10  | 1                 |
-| Battering Ram    | 400  | 200  | —     | 50  | 2                 |
-| Ballista         | 800  | 300  | 20    | 100 | 3                 |
-| Trebuchet        | 2000 | 800  | 100   | 300 | 5                 |
+| Weapon           | Gold | Wood | Stone | Ore | Crew | Foundry |
+|------------------|------|------|-------|-----|------|---------|
+| Ropes & Grapples | 50   | 10   | —     | 5   | 1    | 1       |
+| Ladders          | 100  | 50   | —     | 10  | 1    | 3       |
+| Battering Ram    | 400  | 200  | —     | 50  | 2    | 5       |
+| Ballista         | 800  | 300  | 20    | 100 | 3    | 7       |
+| Trebuchet        | 2000 | 800  | 100   | 300 | 5    | 9       |
 
-Stone in ballista/trebuchet costs is ammunition. Siege gear is equipment, not
-people — uncrewed gear cannot be fielded, and enemy spies can sabotage it.
+**Defensive counters** — bought & crewed the same way; each cancels its paired
+offensive weapon one-for-one:
+
+| Counter        | Cancels        | Gold | Wood | Stone | Ore | Crew | Foundry |
+|----------------|----------------|------|------|-------|-----|------|---------|
+| Bill-hooks     | Ropes & Grapples | 50   | 10   | 5     | 5   | 1    | 2       |
+| Fork Poles     | Ladders        | 100  | 50   | 10    | 10  | 1    | 4       |
+| Boiling Oil    | Battering Ram  | 400  | 100  | 100   | 50  | 2    | 6       |
+| Hoardings      | Ballista       | 800  | 300  | 200   | 100 | 3    | 8       |
+| Counter-Engine | Trebuchet      | 2000 | 800  | 200   | 300 | 5    | 10      |
+
+Stone in the heavier costs is ammunition. Siege gear is equipment, not people —
+uncrewed gear (offensive or defensive) cannot be fielded, and enemy spies can
+sabotage it.
 
 ---
 
@@ -384,8 +400,8 @@ people — uncrewed gear cannot be fielded, and enemy spies can sabotage it.
 
 - [ ] Clan buildings — separate system, designed later.
 - [ ] baseCost values per building (the 1.5× curve and 50% gold share are placeholders).
-- [x] Production rates and merchant income — resolved, see `economy.md` (tax-scaled: 20/turn at 0% tax; race modifiers still TBD).
+- [x] Production rates and merchant income — resolved, see `economy.md` (per worker: 50 × building level/turn at 0% tax, 50 at L1 → 500 at L10; workers uncapped; race modifiers applied).
 - [ ] Storage capacity numbers per level.
-- [x] Player-trade mechanics — resolved, see `market.md` (Grand Bazaar, caravan capacity 1k × Market Square level).
-- [x] Research tree — resolved, see `research.md` (10 fields × 5 levels, Collegium-gated).
-- [x] Wall integrity — resolved, see `combat.md` (ram 3%/round, trebuchet 5%/round, counters −75%; repair = damagedFraction × wall build cost × 0.5, fully restores pop rate).
+- [x] Player-trade mechanics — resolved, see `market.md` (Grand Bazaar, caravan capacity 1k × Market Square level, delivery `max(10, 110 − 10 × level)` turns).
+- [x] Research tree — resolved, see `research.md` (10 fields × 5 levels; the Collegium sets research SPEED, not a level gate — every field is reachable at any time).
+- [x] Wall integrity — resolved, see `combat.md` (ram 3%/round, trebuchet 5%/round, crewed counters cancel their paired weapon one-for-one; repair = damagedFraction × wall build cost × 0.5, fully restores pop rate).

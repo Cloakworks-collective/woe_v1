@@ -73,13 +73,15 @@ Collegium (and assign more scholars) to go faster.
 
 ### Statecraft (keeping people effective under high taxes)
 
-A straight production multiplier applied **after** the tax penalty:
+A straight production multiplier applied **after** the tax penalty (the same
+factor the Collegium's own scholars enjoy):
 
 ```
-outputPerProducer = 20 × (1 − taxRate) × (1 + statecraftLevel × 0.2)
+outputPerWorker = 50 × buildingLevel × (1 − taxRate × hallPenaltyFactor) × (1 + statecraftLevel × 0.2)
 ```
 
-- Statecraft 5 = ×2: at 50% tax, producers work as if untaxed (10 → 20/turn).
+- Statecraft 5 = ×2: at 50% tax, workers produce as if untaxed (a level-1
+  Grange farmer makes 25 → 50/turn).
 - The tax trade-off itself never disappears — 100% tax is still 0 production
   (2 × 0 = 0). Statecraft softens the dial, never removes it.
 - Stacks multiplicatively with the per-resource fields (Crop Rotation etc.).
