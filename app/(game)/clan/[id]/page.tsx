@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Art } from "@/components/Art";
 import { ClanMembers } from "@/components/ClanMembers";
+import { ClanWorks } from "@/components/ClanWorks";
 import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { memberCap, wonderDiscount } from "@/lib/engine";
@@ -73,6 +74,10 @@ export default async function ClanViewPage({
             This is your banner — <Link href="/clan">manage it in the Clan Hall</Link>.
           </p>
         )}
+      </Panel>
+
+      <Panel title="Clan Works" info="A clan's three great works and what they grant. Levels are raised, and bombardment damage mended, from the shared pool by its leadership." guide="/guide#clans">
+        <ClanWorks clan={clan} />
       </Panel>
 
       <Panel title={`Clan Members — ${clan.members.length}`}>

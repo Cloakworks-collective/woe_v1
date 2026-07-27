@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { ClanBombardTargets } from "@/components/ClanBombardTargets";
+import { Flash } from "@/components/Flash";
 import { LearnLink } from "@/components/LearnLink";
 import { Pager } from "@/components/Pager";
 import { Panel } from "@/components/Panel";
-import { HOLD_CLOCKS, POPULATION_FLOORS } from "@/lib/constants";
+import { ACTION_INFO, HOLD_CLOCKS, POPULATION_FLOORS } from "@/lib/constants";
 import { memberCap, totalPopulation } from "@/lib/engine";
 import { paginate } from "@/lib/paginate";
 import { getGame } from "@/lib/server/session";
@@ -16,10 +18,15 @@ const PAGE_SIZE = 30;
 export default async function ClanRanksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; err?: string; ok?: string }>;
 }) {
-  const { page } = await searchParams;
+  const { page, err, ok } = await searchParams;
   const { world, player: me } = await getGame();
+  const myClan = me.clanId ? world.clans[me.clanId] : undefined;
+  const warClanIds = new Set(myClan?.wars.map((w) => w.clanId) ?? []);
+  const enemyClans = (myClan?.wars ?? [])
+    .map((w) => world.clans[w.clanId])
+    .filter((c): c is NonNullable<typeof c> => Boolean(c));
 
   const clans = Object.values(world.clans)
     .map((c) => ({
@@ -40,11 +47,23 @@ export default async function ClanRanksPage({
 
   return (
     <>
+      <Flash err={err} ok={ok} />
       <LearnLink href="/guide#clans">How clans work &amp; win together</LearnLink>
       <nav className="rank-tabs" aria-label="Rankings">
         <Link href="/rankings">Empire Ranks</Link>
         <Link href="/rankings/clans" aria-current="page">Clan Ranks</Link>
       </nav>
+
+      {enemyClans.length > 0 && (
+        <Panel title="War Front — bombard your rivals" info={ACTION_INFO.clanBombard} guide="/guide#clans">
+          <p className="panel-lede">
+            You are at war. Wheel your crewed trebuchets against the works of any clan below — 10 action
+            turns per strike, cracking the target toward its 50% floor. Every strike hands them one revenge.
+          </p>
+          <ClanBombardTargets enemies={enemyClans} turnsAvailable={me.turnsAvailable} path="/rankings/clans" />
+        </Panel>
+      )}
+
       <Panel title="Clan Ranks — the banners of the age">
         {clans.length === 0 ? (
           <p style={{ fontSize: 14.5 }}>
@@ -80,7 +99,11 @@ export default async function ClanRanksPage({
                       <td>
                         <Link href={`/clan/${c.id}`}>{c.name}</Link>
                         {me.clanId === c.id && <span style={{ color: "var(--pos)" }}> (yours)</span>}
-                        {c.wars.length > 0 && <span style={{ color: "var(--warn)" }}> ⚔ at war</span>}
+                        {warClanIds.has(c.id) ? (
+                          <span style={{ color: "var(--warn)", fontWeight: 700 }}> 🎯 your enemy</span>
+                        ) : (
+                          c.wars.length > 0 && <span style={{ color: "var(--warn)" }}> ⚔ at war</span>
+                        )}
                       </td>
                       <td className="num">
                         {c.members.length}/{memberCap(c)}

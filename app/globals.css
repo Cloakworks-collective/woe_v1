@@ -5986,3 +5986,665 @@ button.act-ghost {
     justify-content: center;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Clan pages — banner header, works cards, war-front bombard board, roster mgmt
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.panel-lede {
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  max-width: 78ch;
+}
+
+/* ── Banner header ────────────────────────────────────────────────────────── */
+.clan-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.clan-crest {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
+}
+.clan-header-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px 18px;
+  flex: 1 1 320px;
+}
+.clan-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.clan-stat-label {
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.clan-stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.clan-stat-value small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.clan-warbar {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--warn);
+  background: rgba(160, 51, 37, 0.1);
+  color: var(--warn);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.clan-warbar-rev {
+  border-color: var(--coin);
+  background: rgba(240, 199, 94, 0.14);
+  color: var(--ink);
+}
+
+/* ── Clan Works cards ─────────────────────────────────────────────────────── */
+.clanworks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+.clanwork {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--panel), var(--panel-alt));
+}
+.clanwork.is-cracked {
+  border-color: var(--warn);
+}
+.clanwork-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.clanwork-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+.clanwork-title {
+  font-size: 15.5px;
+  color: var(--ink);
+}
+.clanwork-lvl {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--coin);
+}
+.clanwork-lvl-max {
+  color: var(--ink-soft);
+  font-weight: 400;
+}
+.clanwork-info {
+  flex: 0 0 auto;
+}
+.clanwork-effect {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+/* integrity bar */
+.clanwork-integ,
+.cbt-bar {
+  position: relative;
+  height: 16px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.16);
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+}
+.clanwork-integ-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--pos, #4a7c3f), #6fae5c);
+  transition: width 0.4s ease;
+}
+.clanwork-integ-fill.is-cracked {
+  background: linear-gradient(90deg, #a03325, #c65a45);
+}
+.clanwork-integ-label,
+.cbt-bar-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ink);
+  text-shadow: 0 1px 2px rgba(255, 250, 230, 0.5);
+}
+
+.clanwork-next {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-light);
+  font-size: 12.5px;
+}
+.clanwork-next-effect {
+  color: var(--ink);
+}
+.clanwork-next-arrow {
+  font-weight: 700;
+  color: var(--coin);
+}
+.clanwork-next-cost {
+  margin: 2px 0 8px;
+  color: var(--ink-soft);
+}
+.clanwork-req {
+  color: var(--warn);
+}
+.clanwork-zenith {
+  color: var(--coin);
+  font-weight: 700;
+}
+.btn-repair {
+  background: linear-gradient(#3f6f8a, #2b4f6a) !important;
+  border-color: #1b3547 !important;
+  margin-bottom: 4px;
+}
+
+/* ── War-front bombard board ──────────────────────────────────────────────── */
+.cbt {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cbt-enemy {
+  border: 1px solid var(--warn);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(160, 51, 37, 0.06);
+}
+.cbt-enemy-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.cbt-flag {
+  color: var(--warn);
+}
+.cbt-record {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+.cbt-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+.cbt-structs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+.cbt-struct {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.cbt-struct.is-cracked {
+  opacity: 0.7;
+}
+.cbt-struct-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.cbt-struct-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.cbt-struct-lvl {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--coin);
+}
+.cbt-bar-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #a03325, #c65a45);
+  transition: width 0.4s ease;
+}
+.cbt-struct-note {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+.cbt-floored {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+.cbt-fire {
+  background: linear-gradient(var(--warn), #7a2318) !important;
+  border-color: #511207 !important;
+  width: 100%;
+}
+
+/* ── Roster management ────────────────────────────────────────────────────── */
+.clan-manage-wrap {
+  margin: 12px 0;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--panel-alt);
+}
+.clan-manage-wrap > summary {
+  cursor: pointer;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  user-select: none;
+}
+.clan-manage-wrap[open] > summary {
+  border-bottom: 1px solid var(--border-light);
+}
+.clanmanage {
+  padding: 10px 12px;
+}
+.clanmanage-hint {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.clanmanage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.clanmanage-self {
+  color: var(--ink-soft);
+}
+.btn-mini {
+  font-size: 11.5px !important;
+  padding: 3px 8px !important;
+  line-height: 1.2 !important;
+}
+.btn-crown {
+  background: linear-gradient(#c8a24a, #9c7a30) !important;
+  border-color: #6a5220 !important;
+  color: #2a1f08 !important;
+}
+.btn-kick {
+  background: linear-gradient(#a8853f, #7c5426) !important;
+  border-color: #4e3113 !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Animation phase 1 — A5 sky · D13 resource deltas · D14 toasts · D15 transitions
+   Every effect here is additive chrome: content is always drawn first and never
+   gated on an animation, and all of it stands down under prefers-reduced-motion.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── A5 · time-of-day sky band on the top bar ─────────────────────────────── */
+.topbar { position: relative; }
+.topbar-sky {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0.9;
+}
+.topbar[data-daytime="day"] .topbar-sky   { background: linear-gradient(90deg, #6ea3d8, #bfe3ff, #6ea3d8); }
+.topbar[data-daytime="dawn"] .topbar-sky  { background: linear-gradient(90deg, #e8894a, #ffd98a, #ff9e5e); }
+.topbar[data-daytime="dusk"] .topbar-sky  { background: linear-gradient(90deg, #d5674f, #f2a65a, #7a4e73); }
+.topbar[data-daytime="night"] .topbar-sky { background: linear-gradient(90deg, #161f45, #33407e, #161f45); }
+.topbar-sun {
+  position: absolute;
+  top: -2px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  line-height: 1;
+  filter: drop-shadow(0 0 5px rgba(255, 220, 150, 0.9));
+  transition: left 0.8s ease;
+}
+.topbar[data-daytime="night"] .topbar-sun { filter: drop-shadow(0 0 5px rgba(150, 180, 255, 0.9)); }
+
+/* ── D13 · floating resource deltas + gold glint ──────────────────────────── */
+.res { position: relative; }
+.res-delta {
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  transform: translateX(-50%);
+  font: 700 12px Verdana, sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  z-index: 6;
+}
+.res-delta-up { color: #8fe58f; animation: res-float 2.2s ease-out forwards; }
+.res-delta-down { color: #f2a3a3; animation: res-float 2.2s ease-out forwards; }
+@keyframes res-float {
+  0% { opacity: 0; transform: translate(-50%, 6px); }
+  14% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -22px); }
+}
+.res-glint::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 240, 190, 0.75) 50%, transparent 70%);
+  background-size: 250% 100%;
+  animation: res-glint-sweep 1.1s ease-out forwards;
+}
+@keyframes res-glint-sweep {
+  0% { background-position: 180% 0; opacity: 0; }
+  20% { opacity: 1; }
+  100% { background-position: -80% 0; opacity: 0; }
+}
+
+/* ── D14 · event toasts ───────────────────────────────────────────────────── */
+.toast-stack {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(380px, calc(100vw - 28px));
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  border-left: 4px solid var(--ink-soft);
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  font-size: 13.5px;
+  line-height: 1.35;
+  pointer-events: auto;
+  animation: toast-in 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.toast.toast-exit { animation: toast-out 0.38s ease-in forwards; }
+.toast-war    { border-left-color: var(--red); }
+.toast-danger { border-left-color: var(--warn); }
+.toast-shadow { border-left-color: #7b5ea7; }
+.toast-growth { border-left-color: var(--pos); }
+.toast-trade  { border-left-color: var(--coin); }
+.toast-clan   { border-left-color: #4a86c5; }
+.toast-crown  { border-left-color: var(--coin); }
+.toast-info   { border-left-color: var(--ink-soft); }
+.toast-glyph { flex: 0 0 auto; image-rendering: pixelated; }
+.toast-glyph-emoji { font-size: 20px; }
+.toast-body { flex: 1 1 auto; }
+.toast-x {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 2px;
+  align-self: flex-start;
+}
+.toast-x:hover { color: var(--ink); }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(115%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(115%); }
+}
+@media (max-width: 640px) {
+  .toast-stack { left: 10px; right: 10px; bottom: 10px; max-width: none; }
+}
+
+/* ── D15 · cross-document view transitions (progressive enhancement) ──────── */
+@view-transition { navigation: auto; }
+::view-transition-old(root),
+::view-transition-new(root) { animation-duration: 0.22s; }
+
+/* Motion off-switch for the whole batch. */
+@media (prefers-reduced-motion: reduce) {
+  .topbar-sun { transition: none; }
+  .res-delta, .res-glint::after { animation: none; display: none; }
+  .toast { animation: none; }
+  @view-transition { navigation: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Research status hero — is anyone studying? (laboring / idle / silent)
+   Pure-CSS animation; every state reads fully even with motion off.
+   ══════════════════════════════════════════════════════════════════════════ */
+.rstat {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--panel), var(--panel-alt));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.rstat-active {
+  border-color: var(--gold);
+  background:
+    radial-gradient(120% 160% at 12% 0%, rgba(240, 199, 94, 0.22), transparent 55%),
+    linear-gradient(180deg, var(--panel), var(--panel-alt));
+}
+.rstat-silent { opacity: 0.94; filter: saturate(0.7); }
+
+.rstat-emblem {
+  position: relative;
+  flex: 0 0 auto;
+  width: 84px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+}
+.rstat-emblem img { position: relative; z-index: 1; image-rendering: pixelated; }
+.rstat-face { font-size: 46px; line-height: 1; position: relative; z-index: 1; }
+
+/* Active — a pulsing aura + rising sparks over the field emblem */
+.rstat-aura {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(240, 199, 94, 0.55), transparent 68%);
+  z-index: 0;
+  animation: rstat-aura 2.4s ease-in-out infinite;
+}
+@keyframes rstat-aura {
+  0%, 100% { transform: scale(0.86); opacity: 0.5; }
+  50% { transform: scale(1.08); opacity: 0.95; }
+}
+.rstat-spark {
+  position: absolute;
+  z-index: 2;
+  font-size: 12px;
+  color: var(--gold);
+  text-shadow: 0 0 6px rgba(240, 199, 94, 0.9);
+  opacity: 0;
+  animation: rstat-spark 2.6s ease-in-out infinite;
+}
+.rstat-spark.k1 { left: 8%; animation-delay: 0s; }
+.rstat-spark.k2 { left: 60%; animation-delay: 0.9s; }
+.rstat-spark.k3 { left: 34%; animation-delay: 1.7s; }
+@keyframes rstat-spark {
+  0% { opacity: 0; transform: translateY(10px) scale(0.6); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-26px) scale(1.1); }
+}
+
+.rstat-main { flex: 1 1 auto; min-width: 0; }
+.rstat-kicker {
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 2px;
+}
+.rstat-active .rstat-kicker { color: var(--gold); }
+.rstat-title {
+  font-family: Georgia, serif;
+  font-size: 21px;
+  color: var(--ink);
+  line-height: 1.15;
+}
+.rstat-lvl {
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #2a1f08;
+  background: linear-gradient(var(--gold), var(--parchment-dark));
+  border-radius: 999px;
+  padding: 1px 9px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.rstat-bar {
+  position: relative;
+  height: 12px;
+  margin: 9px 0 5px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+.rstat-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #b58b32, var(--gold));
+  transition: width 0.5s ease;
+}
+.rstat-bar i::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 248, 214, 0.65) 50%, transparent 65%);
+  background-size: 250% 100%;
+  animation: rstat-shimmer 1.8s linear infinite;
+}
+@keyframes rstat-shimmer {
+  0% { background-position: 160% 0; }
+  100% { background-position: -60% 0; }
+}
+.rstat-meta { font-size: 13px; color: var(--ink-soft); }
+.rstat-meta b { color: var(--ink); }
+
+.rstat-side {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+.rstat-chip {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  padding: 3px 11px;
+  white-space: nowrap;
+}
+.rstat-chip-rate { color: var(--pos); }
+
+/* Idle — scholars ready, a gentle glow + a bobbing "look below" arrow */
+.rstat-glow {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(120, 170, 220, 0.4), transparent 70%);
+  animation: rstat-aura 3s ease-in-out infinite;
+}
+.rstat-hint { font-size: 13.5px; color: var(--ink-soft); margin-top: 3px; }
+.rstat-arrow {
+  display: inline-block;
+  font-weight: 700;
+  color: var(--gold);
+  animation: rstat-bob 1.3s ease-in-out infinite;
+}
+@keyframes rstat-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+
+/* Silent — the books are shut; a few drifting "z"s */
+.rstat-sleeping .rstat-face { opacity: 0.7; }
+.rstat-z {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font: 700 13px Georgia, serif;
+  color: var(--ink-soft);
+  opacity: 0;
+  animation: rstat-zzz 3.2s ease-in-out infinite;
+}
+.rstat-z.z1 { animation-delay: 0s; }
+.rstat-z.z2 { animation-delay: 1.1s; font-size: 15px; }
+.rstat-z.z3 { animation-delay: 2.2s; font-size: 17px; }
+@keyframes rstat-zzz {
+  0% { opacity: 0; transform: translate(0, 4px) rotate(-8deg); }
+  25% { opacity: 0.85; }
+  100% { opacity: 0; transform: translate(10px, -18px) rotate(8deg); }
+}
+.rstat-cta {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--gold);
+  text-decoration: none;
+}
+.rstat-cta:hover { text-decoration: underline; }
+
+@media (max-width: 560px) {
+  .rstat { flex-wrap: wrap; gap: 12px; }
+  .rstat-side { flex-direction: row; align-items: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rstat-aura, .rstat-spark, .rstat-glow, .rstat-arrow, .rstat-z, .rstat-bar i::after { animation: none; }
+  .rstat-spark, .rstat-z { display: none; }
+  .rstat-aura, .rstat-glow { opacity: 0.6; }
+}

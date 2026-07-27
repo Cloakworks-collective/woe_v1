@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import { ResIcon } from "@/components/ResIcon";
+import { ResourceDeltas } from "@/components/ResourceDeltas";
 import { TickCountdown } from "@/components/TickCountdown";
 import { ACTION_TURNS, TURNS_PER_DAY } from "@/lib/constants";
 import { bankedRes, foodUpkeepPerTurn, productionRates, taxIncomePerTurn, type Player } from "@/lib/engine";
@@ -44,8 +45,19 @@ function ResTip({
   );
 }
 
+/** A5 — where we sit in the 144-turn day, and its name/glyph, for the sky band. */
+function timeOfDay(tickNumber: number): { t: number; phase: "dawn" | "day" | "dusk" | "night"; glyph: string; label: string } {
+  const t = (tickNumber % TURNS_PER_DAY) / TURNS_PER_DAY; // 0 = just after dawn → 1 = next dawn
+  if (t < 0.06) return { t, phase: "dawn", glyph: "🌅", label: "Dawn breaks" };
+  if (t < 0.5) return { t, phase: "day", glyph: "☀️", label: "Daylight" };
+  if (t < 0.62) return { t, phase: "dusk", glyph: "🌇", label: "Dusk" };
+  if (t < 0.9) return { t, phase: "night", glyph: "🌙", label: "Night" };
+  return { t, phase: "dawn", glyph: "🌄", label: "Dawn approaches" };
+}
+
 export async function ResourceBar({ player, meta }: { player: Player; meta: WorldMeta }) {
   const ticksToDawn = TURNS_PER_DAY - (meta.tickNumber % TURNS_PER_DAY);
+  const sky = timeOfDay(meta.tickNumber);
   const dark = (await cookies()).get("woe_theme")?.value === "dark";
 
   // Per-turn truths for the popovers: production, tax, upkeep, and what's vaulted.
@@ -79,7 +91,7 @@ export async function ResourceBar({ player, meta }: { player: Player; meta: Worl
       ]}
       note="Loose goods can be looted; store them from the Command View to shelter them."
     >
-      <div className={`res ${bulk(player.resources[key])}`}>
+      <div className={`res ${bulk(player.resources[key])}`} data-res={key}>
         <ResIcon kind={key} size={28} />
         {fmt(player.resources[key])}
       </div>
@@ -87,16 +99,21 @@ export async function ResourceBar({ player, meta }: { player: Player; meta: Worl
   );
 
   return (
-    <div className="topbar">
+    <div className="topbar" data-daytime={sky.phase} style={{ ["--day-t" as string]: sky.t }}>
+      <div className="topbar-sky" aria-hidden="true">
+        <span className="topbar-sun" style={{ left: `${Math.round(sky.t * 100)}%` }}>
+          {sky.glyph}
+        </span>
+      </div>
       <div className="title">
         WAR OF EMPIRES
         <small>
           <span className="tip tip-down" tabIndex={0}>
             <span style={{ cursor: "help" }}>
-              {meta.eraName} · turn {meta.tickNumber.toLocaleString()} · dawn in {ticksToDawn} turns
+              {sky.glyph} {meta.eraName} · turn {meta.tickNumber.toLocaleString()} · dawn in {ticksToDawn} turns
             </span>
             <span className="tip-pop costtip" role="tooltip">
-              <b>The turning of the world</b>
+              <b>The turning of the world — {sky.label.toLowerCase()}</b>
               <span className="costtip-body">
                 One turn every 10 minutes — production, research, and upkeep run each turn, even
                 while you sleep. At <b>dawn</b> (every {TURNS_PER_DAY} turns) the big events fire:
@@ -133,7 +150,7 @@ export async function ResourceBar({ player, meta }: { player: Player; meta: Worl
           ]}
           note="Loose coin is plundered when your castle is sacked — bank it in the Counting House."
         >
-          <div className={`res ${bulk(player.gold)}`}>
+          <div className={`res ${bulk(player.gold)}`} data-res="gold">
             <ResIcon kind="gold" size={28} />
             {fmt(player.gold)}
           </div>
@@ -148,7 +165,7 @@ export async function ResourceBar({ player, meta }: { player: Player; meta: Worl
           ]}
           note={foodNote}
         >
-          <div className={`res ${foodCls}`}>
+          <div className={`res ${foodCls}`} data-res="food">
             <ResIcon kind="food" size={28} />
             {fmt(player.resources.food)}
           </div>
@@ -167,12 +184,22 @@ export async function ResourceBar({ player, meta }: { player: Player; meta: Worl
           ]}
           note={`Capped at ${ACTION_TURNS.CAP}. Spend them — capped turns are wasted turns.`}
         >
-          <div className="res">
+          <div className="res" data-res="turns">
             <ResIcon kind="turns" size={28} />
             {player.turnsAvailable}
           </div>
         </ResTip>
       </div>
+      <ResourceDeltas
+        playerId={player.id}
+        tick={meta.tickNumber}
+        gold={player.gold}
+        food={player.resources.food}
+        wood={player.resources.wood}
+        stone={player.resources.stone}
+        ore={player.resources.ore}
+        turns={player.turnsAvailable}
+      />
     </div>
   );
 }

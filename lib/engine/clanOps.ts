@@ -4,8 +4,10 @@
 import {
   BUILD_COSTS,
   CHURN,
+  CLAN_REPAIR_COST_FACTOR,
   FOUNDING_MEMBERS,
   HALL,
+  LEADERSHIP,
   STORAGE_CAP_PER_LEVEL,
   TICKS_PER_HOUR,
   WAR,
@@ -68,6 +70,102 @@ export function isLeadership(clan: Clan, playerId: string): boolean {
     clan.viceLeaderId === playerId ||
     clan.officerIds.includes(playerId)
   );
+}
+
+export type ClanRole = "leader" | "vice" | "officer" | "member";
+
+/** Rank as a number for outranks comparisons: leader 3 > vice 2 > officer 1 > member 0. */
+export function clanRank(clan: Clan, playerId: string): number {
+  if (clan.leaderId === playerId) return 3;
+  if (clan.viceLeaderId === playerId) return 2;
+  if (clan.officerIds.includes(playerId)) return 1;
+  return 0;
+}
+
+export function clanRoleOf(clan: Clan, playerId: string): ClanRole {
+  return (["member", "officer", "vice", "leader"] as const)[clanRank(clan, playerId)];
+}
+
+// ── Leadership appointments (leader only) ────────────────────────────────────
+
+/**
+ * Appoint a member to a role (or demote to plain member). Leader only. Honours
+ * the LEADERSHIP caps (one Vice, three Officers). The leader's own seat is moved
+ * only via transferLeadership.
+ */
+export function setMemberRole(
+  clanIn: Clan,
+  actorId: string,
+  targetId: string,
+  role: "vice" | "officer" | "member",
+): Clan {
+  const clan = structuredClone(clanIn);
+  if (clan.leaderId !== actorId) throw new EngineError("rank", "Only the Leader may appoint roles");
+  if (targetId === clan.leaderId) throw new EngineError("rank", "Pass the mantle to change the Leader");
+  if (!clan.members.includes(targetId)) throw new EngineError("member", "Not a member of this clan");
+  // Strip any current seat first, then seat as requested.
+  clan.officerIds = clan.officerIds.filter((o) => o !== targetId);
+  if (clan.viceLeaderId === targetId) clan.viceLeaderId = undefined;
+  if (role === "vice") {
+    if (clan.viceLeaderId) throw new EngineError("cap", "There is already a Vice — demote them first");
+    clan.viceLeaderId = targetId;
+  } else if (role === "officer") {
+    if (clan.officerIds.length >= LEADERSHIP.OFFICERS) {
+      throw new EngineError("cap", `A clan may name only ${LEADERSHIP.OFFICERS} Officers`);
+    }
+    clan.officerIds.push(targetId);
+  }
+  return clan;
+}
+
+/** Hand the leadership to another member; the former leader steps down to a
+ *  plain member (the new leader may re-appoint them). Leader only. */
+export function transferLeadership(clanIn: Clan, actorId: string, targetId: string): Clan {
+  const clan = structuredClone(clanIn);
+  if (clan.leaderId !== actorId) throw new EngineError("rank", "Only the Leader may pass the mantle");
+  if (targetId === actorId) throw new EngineError("target", "You already hold the mantle");
+  if (!clan.members.includes(targetId)) throw new EngineError("member", "Not a member of this clan");
+  clan.officerIds = clan.officerIds.filter((o) => o !== targetId);
+  if (clan.viceLeaderId === targetId) clan.viceLeaderId = undefined;
+  clan.leaderId = targetId;
+  return clan;
+}
+
+// ── Repair (leadership only; paid from the pool) ─────────────────────────────
+
+/** Gold + each (wood/stone/ore) to mend a bombarded work back to full. Zero when
+ *  whole or unbuilt. UI and engine share this so the quoted price is the paid one. */
+export function clanRepairCost(clan: Clan, which: "storage" | "hall" | "wonder"): { gold: number; each: number } {
+  const integ = clan.buildings.integrity[which];
+  const level =
+    which === "storage" ? clan.buildings.storageLevel : which === "hall" ? clan.buildings.hallLevel : clan.buildings.wonderLevel;
+  if (integ >= 1 || level <= 0) return { gold: 0, each: 0 };
+  const base = which === "storage" ? BUILD_COSTS.storage(level) : which === "hall" ? BUILD_COSTS.hall[level]! : BUILD_COSTS.wonder[level]!;
+  const dmg = 1 - integ;
+  return {
+    gold: Math.ceil(base.gold * dmg * CLAN_REPAIR_COST_FACTOR),
+    each: Math.ceil(base.each * dmg * CLAN_REPAIR_COST_FACTOR),
+  };
+}
+
+export function repairClanBuilding(clanIn: Clan, actorId: string, which: "storage" | "hall" | "wonder"): Clan {
+  const clan = structuredClone(clanIn);
+  if (!isLeadership(clan, actorId)) throw new EngineError("rank", "Only leadership may order repairs");
+  if (clan.buildings.integrity[which] >= 1) throw new EngineError("repair", "That structure stands whole");
+  const level =
+    which === "storage" ? clan.buildings.storageLevel : which === "hall" ? clan.buildings.hallLevel : clan.buildings.wonderLevel;
+  if (level <= 0) throw new EngineError("repair", "Nothing built to mend");
+  const cost = clanRepairCost(clan, which);
+  if (clan.storage.gold < cost.gold) throw new EngineError("gold", "The pool lacks gold to mend it");
+  for (const r of ["wood", "stone", "ore"] as const) {
+    if (clan.storage[r] < cost.each) throw new EngineError(r, `The pool lacks ${r} to mend it`);
+  }
+  clan.storage.gold -= cost.gold;
+  clan.storage.wood -= cost.each;
+  clan.storage.stone -= cost.each;
+  clan.storage.ore -= cost.each;
+  clan.buildings.integrity[which] = 1;
+  return clan;
 }
 
 function ledger(clan: Clan, playerId: string) {

@@ -38,9 +38,11 @@ in §F-20.
       on fixed paths between Grange/Mill/Market; count scales subtly with
       population; paused off-screen (IntersectionObserver) and behind
       `prefers-reduced-motion`.
-- [ ] **A5. Day/night & dawn tint** ⭐⭐ 🔨low — color-mix overlay keyed to
-      the real tick-of-day (dawn approaching → warming light), torch/window
-      glow at night. Pure CSS, ~zero cost. **No new assets needed.**
+- [x] **A5. Day/night & dawn tint** ⭐⭐ 🔨low — *(done, phase 1)* time-of-day
+      sky band on the top bar: a phase-tinted gradient strip with a sun/moon
+      glyph tracking its arc across the 144-turn day, keyed to `tickNumber`; the
+      phase name rides the "dawn in N turns" tooltip. Pure CSS, no new assets.
+      (Full-page/town tinting deferred until the isometric town A1 exists.)
 
 ## B. War made visible
 
@@ -76,15 +78,20 @@ in §F-20.
 - [ ] **D12. Idle animations on key art** ⭐⭐ 🔨med — chimney smoke,
       waterwheel turn, forge glow, fluttering clan banner, market pennant.
       2–4 frame sprite-sheet loops via `steps()` — pennies on the GPU.
-- [ ] **D13. Resource tick feedback** ⭐⭐ 🔨low — top bar floats
-      "+1,250 🪵 / −40 🍞" deltas when values change between loads (diff vs a
-      localStorage snapshot), coin glint on gold gains. **No new assets.**
-- [ ] **D14. Event toasts with sprites** ⭐ 🔨low — chronicle events
-      (attacked, spy caught, crown clock) slide in with the relevant unit
-      sprite, reusing the Flash system.
-- [ ] **D15. Page transitions** ⭐ 🔨low — Next 15 View Transitions for
-      cross-page morphs (clicked building card grows into the Buildings
-      page). Progressive enhancement; free on unsupported browsers.
+- [x] **D13. Resource tick feedback** ⭐⭐ 🔨low — *(done, phase 1)*
+      `ResourceDeltas` floats "+1,250 / −40" chips up from each top-bar figure
+      when it moved since the previous tick (diffed against a per-player
+      localStorage snapshot), plus a gold-coin glint sweep on gold gains.
+      Additive over the server-rendered numbers; off under reduced-motion.
+- [x] **D14. Event toasts with sprites** ⭐ 🔨low — *(done, phase 1)*
+      `EventToasts` slides in the tidings a reader hasn't seen since their last
+      load (newest-first, capped 4), each with its tone sprite
+      (`/art/tones/<tone>.png`); last-seen tick kept in localStorage so nothing
+      repeats. Purely additive over the Chronicle.
+- [x] **D15. Page transitions** ⭐ 🔨low — *(done, phase 1, minimal)*
+      `@view-transition { navigation: auto }` cross-fade on cross-document
+      navigations; progressive enhancement, off under reduced-motion. The
+      card-grows-into-page morph is a later enhancement.
 
 ## E. Game chrome — the whole app reads as a game
 
@@ -122,8 +129,8 @@ in §F-20.
 
 ## Recommended build order
 
-1. **Cheap-life batch (no new assets):** A5 day/night tint · D13 resource
-   deltas · D14 sprite toasts (+ D15 transitions if trivial).
+1. ~~**Cheap-life batch (no new assets):** A5 day/night tint · D13 resource
+   deltas · D14 sprite toasts · D15 transitions.~~ **✅ Done.**
 2. **A1 + A2 — the isometric town.** The single biggest "less text-based"
    jump. (Gated on F20 credits.)
 3. **B6 — battle replay theater.** The biggest wow.

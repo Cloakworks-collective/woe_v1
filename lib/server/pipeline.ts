@@ -25,9 +25,14 @@ import {
   buySiegeCounter,
   canJoin,
   clanBuildingLabel,
+  clanRank,
   crewGear,
   declareWar,
   departClan,
+  isLeadership,
+  repairClanBuilding,
+  setMemberRole,
+  transferLeadership,
   depositToClan,
   dischargeTroops,
   trainTroops,
@@ -461,6 +466,54 @@ function dispatch(
       if (!clan) throw new EngineError("clan", "You have no clan");
       world.clans[clan.id] = buildClanBuilding(clan, player.id, args.which as never);
       return;
+    }
+    case "clanRepair": {
+      if (!clan) throw new EngineError("clan", "You have no clan");
+      world.clans[clan.id] = repairClanBuilding(clan, player.id, args.which as never);
+      return;
+    }
+    case "clanSetRole": {
+      if (!clan) throw new EngineError("clan", "You have no clan");
+      const role = str(args.role);
+      if (role !== "vice" && role !== "officer" && role !== "member") {
+        throw new EngineError("role", "Unknown role");
+      }
+      const target = world.players[str(args.targetId)];
+      const updated = setMemberRole(clan, player.id, str(args.targetId), role);
+      world.clans[clan.id] = updated;
+      if (target) {
+        const titled = role === "member" ? "returned to the ranks" : `named ${role === "vice" ? "Vice-Leader" : "an Officer"}`;
+        pushInbox(world, target.id, { type: "clanEvent", detail: `${clan.name}: you have been ${titled}.` });
+      }
+      return { ok: true, message: "Roster updated." };
+    }
+    case "clanTransferLead": {
+      if (!clan) throw new EngineError("clan", "You have no clan");
+      const target = world.players[str(args.targetId)];
+      world.clans[clan.id] = transferLeadership(clan, player.id, str(args.targetId));
+      for (const m of clan.members) {
+        pushInbox(world, m, {
+          type: "clanEvent",
+          detail: `${target?.name ?? "A new leader"} now leads ${clan.name}.`,
+        });
+      }
+      return { ok: true, message: `You have passed the mantle to ${target?.name ?? "them"}.` };
+    }
+    case "clanKick": {
+      if (!clan) throw new EngineError("clan", "You have no clan");
+      const targetId = str(args.targetId);
+      if (targetId === player.id) throw new EngineError("target", "To depart yourself, use Leave the clan");
+      if (!isLeadership(clan, player.id)) throw new EngineError("rank", "Only leadership may remove members");
+      const target = world.players[targetId];
+      if (!target || target.clanId !== clan.id) throw new EngineError("member", "Not a member of your clan");
+      if (clanRank(clan, player.id) <= clanRank(clan, targetId)) {
+        throw new EngineError("rank", "You can only remove members ranked below you");
+      }
+      const r = departClan(target, clan, tick);
+      put(r.player);
+      world.clans[clan.id] = r.clan;
+      pushInbox(world, target.id, { type: "clanEvent", detail: `You have been removed from ${clan.name}.` });
+      return { ok: true, message: `${target.name} has been removed from the clan.` };
     }
     case "clanDeclareWar": {
       if (!clan) throw new EngineError("clan", "You have no clan");

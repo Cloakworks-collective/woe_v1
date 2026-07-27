@@ -75,6 +75,34 @@ export const ACTION_INFO: Record<string, string> = {
   repair: "Pay half of the damage in the building's own materials to mend it back to full — restoring its full storage shelter, production, or research along with it.",
   clanBombard:
     "War only: wheel your trebuchets against an enemy clan's works — the Storage (its shelter shrinks, goods spill), the Hall (its tax shelter weakens), or the Wonder (its war-cost discount fades). Costs 10 turns and crewed trebuchets, and cracks integrity toward a 50% floor. The price: the whole enemy clan earns a single revenge strike back at you — any of their members may deliver it within 18 hours.",
+  clanRepair:
+    "Mend a bombarded clan work back to full integrity, restoring its shelter, tax relief, or war discount. Paid from the clan pool — half the current level's build cost, scaled by how badly it's cracked. Any leadership seat may order it.",
+  clanSetRole:
+    "The Leader appoints the roster: one Vice-Leader and up to three Officers. Vice may declare war and build; Officers may build and bombard-lead. Demote anyone back to the ranks at will.",
+  clanKick:
+    "Remove a member ranked below you from the clan. Like leaving, it forfeits their deposited resources (they stay in the pool), starts their 48-hour cooldown, and counts toward their per-era departure limit.",
+  clanTransferLead:
+    "Pass the leadership to another member. You step down to a plain member — the new leader may re-appoint you. Do this before you leave, since a leader can't abandon a clan that still has members.",
+};
+
+/** Clan works — what each building is, what it grants now, and what the next
+ *  level buys. `effect(clan)` and `next(clan)` are filled by the page. */
+export const CLAN_BUILDING_INFO: Record<"storage" | "hall" | "wonder", { title: string; icon: string; tip: string }> = {
+  storage: {
+    title: "Clan Storage",
+    icon: "🏦",
+    tip: "The shared vault. Each level adds 250,000 capacity per resource to the pool that members deposit into and draw from (under the 3× rule). A bombarded Storage shelters less — capacity scales with its integrity, and the overflow spills out where raiders can reach it. Storage also gates the Wonder (levels 4 / 7 / 10 unlock Wonder 1 / 2 / 3).",
+  },
+  hall: {
+    title: "Clan Hall",
+    icon: "🏛️",
+    tip: "The seat of the clan. Its level raises the member cap (5 → 10 → 15 → 20) and softens the tax penalty every member feels while clanned — from full at Hall 1 down to half at Hall 4, so members keep more of their gold. A cracked Hall shelters less until repaired.",
+  },
+  wonder: {
+    title: "Clan Wonder",
+    icon: "🗿",
+    tip: "A great monument that discounts war for the whole clan — every member pays 10% less per Wonder level on mercenaries, troops, and siege gear. Requires deep Storage to raise (level 4 / 7 / 10). Worth the most on the clan score. A bombarded Wonder gives a shallower discount until mended.",
+  },
 };
 
 export const BUILDING_INFO: Record<BuildingId, { title: string; tip: string }> = {

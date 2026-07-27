@@ -8,12 +8,24 @@ Cooperative play: shared buildings, war, and diplomacy. All numbers tunable.
 
 | Position       | Count | Powers                                                        |
 |----------------|-------|---------------------------------------------------------------|
-| **Leader**     | 1     | Everything: appoint/demote, invite/kick, build, war, diplomacy |
-| **Vice-Leader**| 1     | Same as Leader except appointing/removing the Leader          |
-| **Officer**    | 3     | Build clan buildings, invite members                          |
+| **Leader**     | 1     | Everything: appoint/demote, kick, build, repair, war, pass the mantle |
+| **Vice-Leader**| 1     | Build, repair, kick lower ranks, declare war                  |
+| **Officer**    | 3     | Build clan buildings, repair, kick plain members              |
 
-Only these **5 leadership positions can build clan buildings**. Regular
-members contribute resources and fight.
+Only these **5 leadership positions can build or repair clan buildings**.
+Regular members contribute resources and fight.
+
+**Roster management (`/clan` → Manage roster, Leader only for appointments):**
+- **`clanSetRole`** — the Leader appoints one Vice-Leader and up to three
+  Officers, or demotes anyone back to the ranks. Caps enforced in the engine
+  (`setMemberRole`, `lib/engine/clanOps.ts`).
+- **`clanTransferLead`** — the Leader passes the mantle to another member and
+  steps down to a plain member (`transferLeadership`). Must be done before a
+  Leader can leave a clan that still has members.
+- **`clanKick`** — any leadership seat removes a member **ranked below them**
+  (`clanRank` gate). Kicking uses the same `departClan` path as leaving, so the
+  removed member forfeits deposits, takes the 48h cooldown, and it counts toward
+  their per-era departure limit.
 
 ## Membership churn (joining & leaving)
 
@@ -104,6 +116,13 @@ statement: this clan out-produced everyone.
 - **Clan buildings become bombardable:** members of a warring clan can
   bombard the enemy's Clan Storage, Hall, and Wonder (integrity damage, like
   any bombard; effects degrade proportionally until repaired from the pool).
+  The bombard board (`ClanBombardTargets`) lives on **both** the Clan Hall
+  (`/clan`, War Front panel) and the **Clan Ranks** page
+  (`/rankings/clans`, War Front panel) — wherever you meet the enemy.
+- **Repair (`clanRepair`):** any leadership seat mends a cracked work back to
+  full integrity, paid from the pool — `CLAN_REPAIR_COST_FACTOR` (0.5) of the
+  work's current-level build cost, scaled by the damage taken. `clanRepairCost`
+  quotes the exact price the engine charges.
 - **The price:** bombarding clan buildings grants the attacked clan **one
   revenge attack** — but it can be executed by **any member who was in the
   clan at that moment** (membership snapshot, 18h window, first to strike

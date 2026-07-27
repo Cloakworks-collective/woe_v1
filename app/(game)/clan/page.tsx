@@ -1,7 +1,10 @@
 import { Btn } from "@/components/Btn";
 import Link from "next/link";
 import { Art } from "@/components/Art";
+import { ClanBombardTargets } from "@/components/ClanBombardTargets";
+import { ClanManage } from "@/components/ClanManage";
 import { ClanMembers } from "@/components/ClanMembers";
+import { ClanWorks } from "@/components/ClanWorks";
 import { CountInput } from "@/components/CountInput";
 import { CmdForm } from "@/components/CmdForm";
 import { ReqTip } from "@/components/CostTip";
@@ -9,9 +12,10 @@ import { Flash } from "@/components/Flash";
 import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { ResIcon } from "@/components/ResIcon";
-import { ACTION_INFO, BUILD_COSTS, CHURN, HALL, STORAGE_CAP_PER_LEVEL } from "@/lib/constants";
-import { memberCap, withdrawableNow, wonderDiscount, type ClanResource } from "@/lib/engine";
+import { ACTION_INFO, CHURN, HALL, WAR } from "@/lib/constants";
+import { clanRank, memberCap, withdrawableNow, wonderDiscount, type ClanResource } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
+import { clanScore } from "@/lib/server/world";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +39,9 @@ export default async function ClanPage({
         <LearnLink href="/guide#clans">How clans work &amp; win together</LearnLink>
         <Panel title="No Banner Yet">
           <p style={{ fontSize: 14.5, marginBottom: 8 }}>
-            You march alone. Found a clan (50,000 gold) or petition an existing one.
+            You march alone. A clan pools resources in a shared vault, shelters every member from part of
+            their tax, discounts war for all, and can win the age together. Found your own (50,000 gold) or
+            petition an existing banner below.
             {p.clanDepartures > 0 &&
               ` You have departed ${p.clanDepartures}/${CHURN.MAX_DEPARTURES_PER_ERA} times this era.`}
             {(p.clanJoinableAtTick ?? 0) > tick &&
@@ -55,213 +61,201 @@ export default async function ClanPage({
           </CmdForm>
         </Panel>
         <Panel title="Standing Banners">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Clan</th>
-                <th className="num">Members</th>
-                <th>War record</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.values(world.clans).map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <b>
-                      <Link href={`/clan/${c.id}`}>{c.name}</Link>
-                    </b>
-                  </td>
-                  <td className="num">
-                    {c.members.length}/{memberCap(c)}
-                  </td>
-                  <td>
-                    <span style={{ color: "var(--pos)" }}>{c.warRecord.wins} wins</span>
-                    <span style={{ color: "var(--ink-soft)" }}> · </span>
-                    <span style={{ color: "var(--neg)" }}>{c.warRecord.losses} losses</span>
-                  </td>
-                  <td>
-                    <CmdForm name="clanJoin" path="/clan">
-                      <input type="hidden" name="clanId" value={c.id} />
-                      <ReqTip
-                        heading={`Join ${c.name}`}
-                        body="Petition to march under this banner — you share its storage pool and fight its wars."
-                        note="Leaving a clan later forfeits your deposits and starts a 48-hour cooldown."
-                        disabledReason={
-                          (p.clanJoinableAtTick ?? 0) > tick
-                            ? `On cooldown — you can join again at turn ${p.clanJoinableAtTick}.`
-                            : c.members.length >= memberCap(c)
-                              ? "This clan is full."
-                              : undefined
-                        }
-                      >
-                        <Btn className="btn">Join</Btn>
-                      </ReqTip>
-                    </CmdForm>
-                  </td>
+          {Object.keys(world.clans).length === 0 ? (
+            <p style={{ fontSize: 14.5 }}>No banners fly yet — be the first to raise one.</p>
+          ) : (
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Clan</th>
+                  <th className="num">Members</th>
+                  <th>War record</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {Object.values(world.clans).map((c) => (
+                  <tr key={c.id}>
+                    <td>
+                      <b>
+                        <Link href={`/clan/${c.id}`}>{c.name}</Link>
+                      </b>
+                    </td>
+                    <td className="num">
+                      {c.members.length}/{memberCap(c)}
+                    </td>
+                    <td>
+                      <span style={{ color: "var(--pos)" }}>{c.warRecord.wins} wins</span>
+                      <span style={{ color: "var(--ink-soft)" }}> · </span>
+                      <span style={{ color: "var(--neg)" }}>{c.warRecord.losses} losses</span>
+                    </td>
+                    <td>
+                      <CmdForm name="clanJoin" path="/clan">
+                        <input type="hidden" name="clanId" value={c.id} />
+                        <ReqTip
+                          heading={`Join ${c.name}`}
+                          body="Petition to march under this banner — you share its storage pool and fight its wars."
+                          note="Leaving a clan later forfeits your deposits and starts a 48-hour cooldown."
+                          disabledReason={
+                            (p.clanJoinableAtTick ?? 0) > tick
+                              ? `On cooldown — you can join again at turn ${p.clanJoinableAtTick}.`
+                              : c.members.length >= memberCap(c)
+                                ? "This clan is full."
+                                : undefined
+                          }
+                        >
+                          <Btn className="btn">Join</Btn>
+                        </ReqTip>
+                      </CmdForm>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </Panel>
       </>
     );
   }
 
-  const isLeader = clan.leaderId === p.id || clan.viceLeaderId === p.id;
-  const isBuilder = isLeader || clan.officerIds.includes(p.id);
-  const storageCap = STORAGE_CAP_PER_LEVEL * clan.buildings.storageLevel;
-  const nextStorage = clan.buildings.storageLevel < 10 ? BUILD_COSTS.storage(clan.buildings.storageLevel + 1) : null;
-  const nextHall = clan.buildings.hallLevel < 4 ? BUILD_COSTS.hall[clan.buildings.hallLevel + 1] : null;
-  const nextWonder = clan.buildings.wonderLevel < 3 ? BUILD_COSTS.wonder[clan.buildings.wonderLevel + 1] : null;
+  const myRank = clanRank(clan, p.id);
+  const isLeadership = myRank >= 1;
+  const canDeclare = clan.leaderId === p.id || clan.viceLeaderId === p.id;
+  const score = clanScore(world, clan);
+  const rank = Object.values(world.clans).map((c) => clanScore(world, c)).filter((s) => s > score).length + 1;
 
   // A live clan-bombardment revenge our banner may still deliver.
   const pendingRev =
-    clan.pendingRevenge &&
-    tick <= clan.pendingRevenge.expiresAtTick &&
-    clan.pendingRevenge.memberSnapshot.includes(p.id)
+    clan.pendingRevenge && tick <= clan.pendingRevenge.expiresAtTick && clan.pendingRevenge.memberSnapshot.includes(p.id)
       ? clan.pendingRevenge
       : undefined;
   const revengeAgainst = pendingRev ? world.clans[pendingRev.againstClanId] : undefined;
   const enemyClans = clan.wars
     .map((w) => world.clans[w.clanId])
     .filter((c): c is NonNullable<typeof c> => Boolean(c));
+  const otherClans = Object.values(world.clans).filter((c) => c.id !== clan.id && !clan.wars.some((w) => w.clanId === c.id));
 
   return (
     <>
       <Flash err={err} ok={ok} />
       <LearnLink href="/guide#clans">How clans work &amp; win together</LearnLink>
-      <Panel title={`${clan.name} — ${clan.members.length}/${memberCap(clan)} banners`}>
-        <span className="guide-illo">
-          <Art path="clan/crest" size={96} title={`${clan.name} crest`} />
-        </span>
-        <div className="panel-row">
-          <dl className="kv">
-            <dt>Hall level (tax shelter)</dt>
-            <dd>
-              {clan.buildings.hallLevel} — penalty felt{" "}
-              {Math.round((HALL[clan.buildings.hallLevel - 1]?.taxPenaltyFelt ?? 1) * 100)}%
-            </dd>
-            <dt>Storage level</dt>
-            <dd>
-              {clan.buildings.storageLevel} (cap {fmt(storageCap)}/resource)
-            </dd>
-            <dt>Wonder</dt>
-            <dd>
-              {clan.buildings.wonderLevel} (−{Math.round(wonderDiscount(clan) * 100)}% war costs)
-            </dd>
-            <dt>War record</dt>
-            <dd>
-              <span style={{ color: "var(--pos)", fontWeight: 700 }}>{clan.warRecord.wins} wins</span> ·{" "}
-              <span style={{ color: "var(--neg)", fontWeight: 700 }}>{clan.warRecord.losses} losses</span>
-            </dd>
-          </dl>
+
+      {/* ── Banner header ─────────────────────────────────────────────── */}
+      <Panel title={`${clan.name}`}>
+        <div className="clan-header">
+          <span className="clan-crest">
+            <Art path="clan/crest" size={96} title={`${clan.name} crest`} />
+          </span>
+          <div className="clan-header-facts">
+            <div className="clan-stat">
+              <span className="clan-stat-label">Rank</span>
+              <span className="clan-stat-value">#{rank} <small>of {Object.keys(world.clans).length}</small></span>
+            </div>
+            <div className="clan-stat">
+              <span className="clan-stat-label">Banners</span>
+              <span className="clan-stat-value">{clan.members.length}<small>/{memberCap(clan)}</small></span>
+            </div>
+            <div className="clan-stat">
+              <span className="clan-stat-label">Tax shelter</span>
+              <span className="clan-stat-value">members feel {Math.round((HALL[clan.buildings.hallLevel - 1]?.taxPenaltyFelt ?? 1) * 100)}%</span>
+            </div>
+            <div className="clan-stat">
+              <span className="clan-stat-label">War discount</span>
+              <span className="clan-stat-value">−{Math.round(wonderDiscount(clan) * 100)}%</span>
+            </div>
+            <div className="clan-stat">
+              <span className="clan-stat-label">War record</span>
+              <span className="clan-stat-value">
+                <span style={{ color: "var(--pos)" }}>{clan.warRecord.wins}W</span>
+                {" · "}
+                <span style={{ color: "var(--neg)" }}>{clan.warRecord.losses}L</span>
+              </span>
+            </div>
+            <div className="clan-stat">
+              <span className="clan-stat-label">Clan score</span>
+              <span className="clan-stat-value" style={{ color: "var(--coin)" }}>{fmt(score)}</span>
+            </div>
+          </div>
         </div>
+
         {clan.wars.length > 0 && (
-          <p style={{ fontSize: 14.5, marginTop: 6, color: "var(--warn)", fontWeight: 700 }}>
-            ⚔ AT WAR:{" "}
-            {clan.wars
-              .map(
-                (w) =>
-                  `${world.clans[w.clanId]?.name ?? "?"} (kills ${w.regularKills} / losses ${w.regularLosses} — win at net +200)`,
-              )
-              .join(", ")}
-          </p>
+          <div className="clan-warbar">
+            ⚔ AT WAR ·{" "}
+            {clan.wars.map((w, i) => {
+              const net = w.regularKills - w.regularLosses;
+              return (
+                <span key={w.clanId}>
+                  {i > 0 && " · "}
+                  <b>{world.clans[w.clanId]?.name ?? "?"}</b> (net {net >= 0 ? "+" : ""}{net}/{WAR.NET_REGULAR_KILLS_TO_WIN})
+                </span>
+              );
+            })}
+          </div>
         )}
         {pendingRev && (
-          <p style={{ fontSize: 14.5, marginTop: 6, color: "var(--warn)", fontWeight: 700 }}>
-            ⚔ Your banner may claim <b>one revenge strike</b> against{" "}
-            {revengeAgainst?.name ?? "the aggressor"} for bombarding your works — deliver it from the{" "}
-            <Link href="/rankings">ladder</Link> (first member to strike claims it).
-          </p>
+          <div className="clan-warbar clan-warbar-rev">
+            ⚔ Your banner holds <b>one revenge strike</b> against {revengeAgainst?.name ?? "the aggressor"} for
+            bombarding your works — claim it from the <Link href="/rankings">ladder</Link> (first member to strike takes it).
+          </div>
         )}
       </Panel>
 
+      {/* ── War Front ─────────────────────────────────────────────────── */}
       {enemyClans.length > 0 && (
-        <Panel
-          title="War Front — bombard the enemy's works"
-          info={ACTION_INFO.clanBombard}
-          guide="/guide#clans"
-        >
-          <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 8 }}>
-            Any member may fire. Costs 10 action turns and crewed trebuchets (trebuchets + engineers).
-            Each strike hands the enemy clan one revenge — expect their strongest.
+        <Panel title="War Front — break the enemy's works" info={ACTION_INFO.clanBombard} guide="/guide#clans">
+          <p className="panel-lede">
+            Any member may fire. A strike costs 10 action turns and crewed trebuchets (trebuchets with
+            engineers to work them), and cracks the target toward its 50% floor. Each strike hands the enemy
+            clan a single revenge — expect their strongest.
           </p>
-          {enemyClans.map((enemy) => {
-            const rows = [
-              { key: "storage", label: "Clan Storage", level: enemy.buildings.storageLevel, integ: enemy.buildings.integrity.storage },
-              { key: "hall", label: "Clan Hall", level: enemy.buildings.hallLevel, integ: enemy.buildings.integrity.hall },
-              { key: "wonder", label: "Clan Wonder", level: enemy.buildings.wonderLevel, integ: enemy.buildings.integrity.wonder },
-            ].filter((r) => r.level > 0);
-            return (
-              <div key={enemy.id} style={{ marginBottom: 10 }}>
-                <b style={{ fontSize: 14 }}>
-                  <Link href={`/clan/${enemy.id}`}>{enemy.name}</Link>
-                </b>
-                <table className="tbl">
-                  <thead>
-                    <tr>
-                      <th>Structure</th>
-                      <th className="num">Level</th>
-                      <th className="num">Integrity</th>
-                      <th>Bombard</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => (
-                      <tr key={r.key}>
-                        <td>{r.label}</td>
-                        <td className="num">{r.level}</td>
-                        <td className="num">{Math.round(r.integ * 100)}%</td>
-                        <td>
-                          {r.integ > 0.5 ? (
-                            <CmdForm name="clanBombard" path="/clan">
-                              <input type="hidden" name="clanId" value={enemy.id} />
-                              <input type="hidden" name="which" value={r.key} />
-                              <ReqTip
-                                heading={`Bombard ${enemy.name}'s ${r.label}`}
-                                body={`Fire your crewed trebuchets at this structure, cracking its integrity (now ${Math.round(r.integ * 100)}%). Any member may fire.`}
-                                rows={[{ icon: <span className="costtip-ico">⏳</span>, label: "Action turns", need: 10, have: p.turnsAvailable }]}
-                                note="Also needs at least one crewed trebuchet (a trebuchet with its engineers). Each strike hands the enemy clan one revenge."
-                                disabledReason={p.turnsAvailable < 10 ? "Not enough action turns — a bombardment costs 10." : undefined}
-                              >
-                                <Btn className="btn">Bombard (10 turns)</Btn>
-                              </ReqTip>
-                            </CmdForm>
-                          ) : (
-                            <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>cracked to the floor</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
+          <ClanBombardTargets enemies={enemyClans} turnsAvailable={p.turnsAvailable} path="/clan" />
         </Panel>
       )}
 
-      <Panel title={`Clan Members — ${clan.members.length}`}>
-        <ClanMembers world={world} clan={clan} viewerId={p.id} />
-        <CmdForm name="clanLeave" path="/clan">
-          <ReqTip
-            heading="Leave the clan"
-            body={`Abandon ${clan.name}. You forfeit every resource you have deposited into the pool, and can't join another clan for 48 hours.`}
-            note="A departure also counts against your per-era limit."
-          >
-            <Btn className="btn" style={{ background: "linear-gradient(#a8853f,#7c5426)", borderColor: "#4e3113", marginTop: 8 }}>
-              Leave (forfeits deposits, 48h cooldown)
-            </Btn>
-          </ReqTip>
-        </CmdForm>
-      </Panel>
-
+      {/* ── Clan Works ────────────────────────────────────────────────── */}
       <Panel
-        title="Clan Storage — mutual aid, not a piggy bank"
-        info="The 3× rule: withdraw at most triple your lifetime deposits. Building spends bypass the cap — the clan's money doing the clan's work."
+        title={isLeadership ? "Clan Works — raise & repair (paid from the pool)" : "Clan Works"}
+        info="The three great works of a clan. Levels are raised — and bombardment damage is mended — from the shared pool. Only the five leadership seats may build or repair."
         guide="/guide#clans"
       >
+        <ClanWorks clan={clan} editable={isLeadership} path="/clan" />
+      </Panel>
+
+      {/* ── Diplomacy ─────────────────────────────────────────────────── */}
+      {canDeclare && otherClans.length > 0 && (
+        <Panel title="Diplomacy — declare war" info="Leaders and Vice-Leaders may open a war. Both clans deal +100% damage until one side nets +200 regular kills. A declared war can't be called off." guide="/guide#clans">
+          <CmdForm name="clanDeclareWar" path="/clan">
+            <select name="clanId" aria-label="Clan to declare war on" style={{ font: "14.5px Verdana", padding: 3 }}>
+              {otherClans.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.members.length} members, {c.warRecord.wins}W/{c.warRecord.losses}L)
+                </option>
+              ))}
+            </select>
+            <ReqTip
+              heading="Declare war"
+              body="Open a clan war on the chosen banner. Both clans deal +100% damage to each other until one side wins — first to net +200 kills over losses takes it, plus tribute and frozen victory clocks for the loser."
+              note="Leaders and Vice only. A declared war can't be called off — fight it out."
+            >
+              <Btn className="btn" style={{ background: "linear-gradient(var(--warn),var(--warn))", borderColor: "#511207" }}>
+                Declare War (+100% damage both ways)
+              </Btn>
+            </ReqTip>
+          </CmdForm>
+        </Panel>
+      )}
+
+      {/* ── Storage ───────────────────────────────────────────────────── */}
+      <Panel
+        title="Clan Storage — mutual aid, not a piggy bank"
+        info="The 3× rule: withdraw at most triple your lifetime deposits. Building and repair spends bypass the cap — the clan's wealth doing the clan's work."
+        guide="/guide#clans"
+      >
+        {clan.buildings.storageLevel === 0 && (
+          <p className="panel-lede" style={{ color: "var(--warn)" }}>
+            No Clan Storage built yet — raise it in Clan Works before the pool can hold anything.
+          </p>
+        )}
         <table className="tbl">
           <thead>
             <tr>
@@ -276,7 +270,7 @@ export default async function ClanPage({
             {POOL.map((r) => (
               <tr key={r}>
                 <td>
-                  <b>{r}</b>
+                  <b style={{ textTransform: "capitalize" }}>{r}</b>
                 </td>
                 <td className="num">{fmt(clan.storage[r])}</td>
                 <td className="num">{fmt(Math.min(clan.storage[r], withdrawableNow(clan, p.id, r)))}</td>
@@ -312,87 +306,28 @@ export default async function ClanPage({
         </table>
       </Panel>
 
-      {isBuilder && (
-        <Panel title="Clan Works (leadership only — paid from the pool)">
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {nextStorage && (
-              <CmdForm name="clanBuild" path="/clan">
-                <input type="hidden" name="which" value="storage" />
-                <ReqTip
-                  heading={`Clan Storage → L${clan.buildings.storageLevel + 1}`}
-                  body={`Deepen the shared store — more pooled capacity per resource (now ${fmt(storageCap)} each).`}
-                  rows={[{ icon: <ResIcon kind="gold" size={16} />, label: "Gold (from pool)", need: nextStorage.gold, have: clan.storage.gold }]}
-                  note={`Plus ${fmt(nextStorage.each)} of every other resource, paid from the clan pool.`}
-                  disabledReason={clan.storage.gold < nextStorage.gold ? "The clan pool is short on gold for this." : undefined}
-                >
-                  <Btn className="btn">
-                    Storage → L{clan.buildings.storageLevel + 1} ({fmt(nextStorage.gold)}g + {fmt(nextStorage.each)} each)
-                  </Btn>
-                </ReqTip>
-              </CmdForm>
-            )}
-            {nextHall && (
-              <CmdForm name="clanBuild" path="/clan">
-                <input type="hidden" name="which" value="hall" />
-                <ReqTip
-                  heading={`Clan Hall → L${clan.buildings.hallLevel + 1}`}
-                  body="Raise the Hall — softens the tax penalty every member feels, so their treasuries fill faster."
-                  rows={[{ icon: <ResIcon kind="gold" size={16} />, label: "Gold (from pool)", need: nextHall.gold, have: clan.storage.gold }]}
-                  note={`Plus ${fmt(nextHall.each)} of every other resource, paid from the clan pool.`}
-                  disabledReason={clan.storage.gold < nextHall.gold ? "The clan pool is short on gold for this." : undefined}
-                >
-                  <Btn className="btn">
-                    Hall → L{clan.buildings.hallLevel + 1} ({fmt(nextHall.gold)}g + {fmt(nextHall.each)} each)
-                  </Btn>
-                </ReqTip>
-              </CmdForm>
-            )}
-            {nextWonder && (
-              <CmdForm name="clanBuild" path="/clan">
-                <input type="hidden" name="which" value="wonder" />
-                <ReqTip
-                  heading={`Clan Wonder → L${clan.buildings.wonderLevel + 1}`}
-                  body="Raise the Wonder — deepens the discount on every member's war costs (siege gear, troops, and mercenaries)."
-                  rows={[{ icon: <ResIcon kind="gold" size={16} />, label: "Gold (from pool)", need: nextWonder.gold, have: clan.storage.gold }]}
-                  note={`Plus ${fmt(nextWonder.each)} of every other resource, paid from the clan pool.`}
-                  disabledReason={clan.storage.gold < nextWonder.gold ? "The clan pool is short on gold for this." : undefined}
-                >
-                  <Btn className="btn">
-                    Wonder → L{clan.buildings.wonderLevel + 1} ({fmt(nextWonder.gold)}g + {fmt(nextWonder.each)} each)
-                  </Btn>
-                </ReqTip>
-              </CmdForm>
-            )}
-          </div>
-          {isLeader && (
-            <div style={{ marginTop: 10 }}>
-              <b style={{ fontSize: 13.5, textTransform: "uppercase", color: "var(--wood-light)" }}>Declare war</b>
-              <div style={{ marginTop: 4 }}>
-                <CmdForm name="clanDeclareWar" path="/clan">
-                  <select name="clanId" aria-label="Clan to declare war on" style={{ font: "14.5px Verdana" }}>
-                    {Object.values(world.clans)
-                      .filter((c) => c.id !== clan.id)
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                  </select>
-                  <ReqTip
-                    heading="Declare war"
-                    body="Open a clan war on the chosen banner. Both clans deal +100% damage to each other until one side wins — first to net +200 kills over losses takes it."
-                    note="Leaders only. A declared war can't be called off — fight it out."
-                  >
-                    <Btn className="btn" style={{ background: "linear-gradient(var(--warn),var(--warn))", borderColor: "#511207" }}>
-                      Declare War (+100% damage both ways)
-                    </Btn>
-                  </ReqTip>
-                </CmdForm>
-              </div>
-            </div>
-          )}
-        </Panel>
-      )}
+      {/* ── Members ───────────────────────────────────────────────────── */}
+      <Panel title={`Clan Members — ${clan.members.length}/${memberCap(clan)}`}>
+        <ClanMembers world={world} clan={clan} viewerId={p.id} />
+        {isLeadership && (
+          <details className="clan-manage-wrap">
+            <summary>⚜ Manage roster {clan.leaderId === p.id ? "(appoint, remove, pass the mantle)" : "(remove members below you)"}</summary>
+            <ClanManage world={world} clan={clan} viewerId={p.id} path="/clan" />
+          </details>
+        )}
+        <CmdForm name="clanLeave" path="/clan">
+          <ReqTip
+            heading="Leave the clan"
+            body={`Abandon ${clan.name}. You forfeit every resource you have deposited into the pool, and can't join another clan for 48 hours.`}
+            note={clan.leaderId === p.id && clan.members.length > 1 ? "As Leader you must pass the mantle first (Manage roster → Crown)." : "A departure also counts against your per-era limit."}
+            disabledReason={clan.leaderId === p.id && clan.members.length > 1 ? "Pass the leadership to another member before leaving." : undefined}
+          >
+            <Btn className="btn" style={{ background: "linear-gradient(#a8853f,#7c5426)", borderColor: "#4e3113", marginTop: 8 }}>
+              Leave (forfeits deposits, 48h cooldown)
+            </Btn>
+          </ReqTip>
+        </CmdForm>
+      </Panel>
     </>
   );
 }

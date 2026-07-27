@@ -6,6 +6,7 @@ import { Flash } from "@/components/Flash";
 import { Info } from "@/components/Info";
 import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
+import { ResearchStatus } from "@/components/ResearchStatus";
 import {
   MAX_FIELD_LEVEL,
   RESEARCH_FIELDS,
@@ -113,10 +114,33 @@ export default async function ResearchPage({
     return ["th", "st", "nd", "rd"][n % 10] ?? "th";
   };
 
+  // Headline status: laboring on a field, idle-but-ready, or no scholars at all.
+  const scholars = p.workers.researchers;
+  const activeLvl = active ? researchLevel(p, active) : 0;
+  const activeMaxed = active ? activeLvl >= MAX_FIELD_LEVEL : false;
+  const activeBanked = active ? (p.research.banked[active] ?? 0) : 0;
+  const activeEtaTurns = active && rate > 0 && !activeMaxed ? Math.ceil((nextCost - activeBanked) / rate) : 0;
+  const status: ResearchStatus =
+    rate === 0
+      ? { state: "silent" }
+      : active && !activeMaxed
+        ? {
+            state: "active",
+            fid: active,
+            name: META[active].name,
+            level: activeLvl,
+            percent: Math.min(100, Math.round((activeBanked / nextCost) * 100)),
+            eta: etaLabel(activeEtaTurns),
+            rate,
+            scholars,
+          }
+        : { state: "idle", scholars };
+
   return (
     <>
       <Flash err={err} ok={ok} />
       <LearnLink href="/guide#grow">Research, specialisation &amp; score</LearnLink>
+      <ResearchStatus {...status} />
 
       {/* ── The trunk: the Collegium (sets the SPEED, never the ceiling) ──── */}
       <Panel

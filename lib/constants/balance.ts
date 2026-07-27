@@ -386,6 +386,11 @@ export const HALL = [
 export const WONDER_DISCOUNT_PER_LEVEL = 0.1; // frac/level off merc/troop/siege costs
 export const WONDER_REQUIRES_STORAGE = { 1: 4, 2: 7, 3: 10 } as const;
 
+/** Mending a bombarded clan work costs this fraction of its current-level build
+ *  cost, scaled by the damage taken (1 − integrity). Mirrors the empire wall
+ *  repair factor. Paid from the clan pool. */
+export const CLAN_REPAIR_COST_FACTOR = 0.5;
+
 /** Clan build costs — pure data (`each` = wood AND stone AND ore, per level).
  *  hall[1].gold is the solo founding fee. Derived accessors in clans.ts. */
 export const CLAN_BUILD_COSTS = {
