@@ -7,6 +7,7 @@ import {
   MAX_FIELD_LEVEL,
   RACES,
   SETTLEMENT_TITLES,
+  PRODUCTION_PER_WORKER_PER_LEVEL,
   SLOTS_PER_BUILDING_LEVEL,
   STORAGE_BUILDING,
   STORAGE_PER_LEVEL,
@@ -15,12 +16,13 @@ import {
   WALL_NAMES,
   WAR_FOUNDRY_LADDER,
   catchableOpLevel,
+  GUILD_EFFECT_PER_LEVEL,
   maxLevel,
 } from "../constants";
 import type { BuildingId } from "../constants/buildings";
 import type { ResearchField } from "../constants/research";
 import { civilianLevels, popPerDay, vacantHousing } from "./dailyReset";
-import { baseOutputPerProducer, effectiveProducers, foodUpkeepPerTurn, taxIncomePerTurn } from "./tick";
+import { foodUpkeepPerTurn, productionPerWorker, taxIncomePerTurn } from "./tick";
 import {
   buildingIntegrity,
   civilians,
@@ -41,23 +43,20 @@ const LINES: { role: WorkerRole; building: BuildingId; resource: Resource; field
 ];
 
 export function productionRates(p: Player): Record<Resource, number> {
-  const base = baseOutputPerProducer(p);
   const race = RACES[p.race];
   const out = { food: 0, wood: 0, stone: 0, ore: 0 };
   for (const { role, building, resource, field } of LINES) {
-    const n = effectiveProducers(p, role, building);
+    const n = p.workers[role]; // uncapped
+    const per = productionPerWorker(p, building); // level-scaled per-worker output
     const fieldMult = 1 + researchLevel(p, field) * EFFECT_PER_LEVEL;
-    out[resource] = n * base * race.production[resource] * fieldMult * buildingIntegrity(p, building);
+    out[resource] = n * per * race.production[resource] * fieldMult * buildingIntegrity(p, building);
   }
   return out;
 }
 
 export function researchRate(p: Player): number {
-  return (
-    effectiveProducers(p, "researchers", "collegium") *
-    baseOutputPerProducer(p) *
-    buildingIntegrity(p, "collegium")
-  );
+  // Researchers are uncapped; the Collegium level scales each scholar's output.
+  return p.workers.researchers * productionPerWorker(p, "collegium") * buildingIntegrity(p, "collegium");
 }
 
 export function settlementTitle(p: Player): string {
@@ -253,21 +252,27 @@ export function buildingUpgradeBenefit(p: Player, id: BuildingId): string | null
   const next = cur + 1;
   if (next > maxLevel(id)) return null;
 
-  // Slot-based civilian buildings.
+  // Resource producers: the level lifts each worker's output (workers uncapped).
   const word = PRODUCER_WORD[id];
+  if (word && (id === "grange" || id === "masons_quarry" || id === "deepvein_mine" || id === "sawyers_mill")) {
+    return `each ${word} produces ${PRODUCTION_PER_WORKER_PER_LEVEL * cur} → ${PRODUCTION_PER_WORKER_PER_LEVEL * next}/turn (before tax & bonuses)`;
+  }
+
+  // The other unit halls — uncapped too; the level makes each unit BETTER.
   if (word) {
-    const jobs = `${SLOTS_PER_BUILDING_LEVEL * cur} → ${SLOTS_PER_BUILDING_LEVEL * next}`;
     if (id === "market_square") {
-      return `${jobs} merchant jobs, and each caravan carries ${num(cur * 1000)} → ${num(next * 1000)} goods`;
+      return `each caravan carries ${num(cur * 1000)} → ${num(next * 1000)} goods (merchants unlimited)`;
     }
     if (id === "collegium") {
-      const unlocks = next % 2 === 1 ? ` — unlocks tier ${(next + 1) / 2} of research` : "";
-      return `${jobs} scholar jobs${unlocks}`;
+      return `each scholar makes ${PRODUCTION_PER_WORKER_PER_LEVEL * cur} → ${PRODUCTION_PER_WORKER_PER_LEVEL * next} research/turn (scholars unlimited)`;
     }
     if (id === "rangers_lodge") {
-      return `${jobs} scout jobs, and now catches enemy spy ops up to level ${catchableOpLevel(next) || 0}`;
+      return `scouts sharpen — now catch enemy spy ops up to level ${catchableOpLevel(next) || 0} (scouts unlimited)`;
     }
-    return `${jobs} ${word} jobs`;
+    if (id === "shadow_guild") {
+      return `each spy op bites +${Math.round(cur * GUILD_EFFECT_PER_LEVEL * 100)}% → +${Math.round(next * GUILD_EFFECT_PER_LEVEL * 100)}% deeper (spies unlimited)`;
+    }
+    return `each ${word} grows more effective`;
   }
 
   const stored = STORAGE_WORD[id];

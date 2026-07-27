@@ -93,12 +93,14 @@ accumulation.
 > does not bend this: it issues ordinary build commands when they become
 > affordable; people are never queued or buffered.)
 >
-> The same rule covers every specialist: merchants need Market Square slots,
-> researchers need Collegium slots, spies and scouts need guild/lodge slots
-> (20 per level, all of them). No free slot, no training — the building level
-> always comes first. Only plain workers (farm/quarry/mine/mill labor) can be
-> assigned as long as production slots allow, and those too are capped at
-> 20 per building level.
+> **Workers/specialists are UNLIMITED** — there are no slot caps. You only need
+> the relevant building to exist (level ≥ 1); its **level scales how effective
+> each worker/unit is**, not how many you may have: farmers/quarrymen/miners/
+> lumberjacks and researchers make `50 × level`/turn (economy.md, research.md);
+> each Market Square level adds 1,000 to every caravan's capacity (market.md);
+> each Shadow Guild / Ranger's Lodge level makes every spy / scout more effective
+> (espionage.md). Housing (Hearthstead) and barracks (Muster Hall) beds are the
+> only real caps — population and standing-army size.
 
 ### Growth rate (peasants/day)
 
@@ -132,17 +134,20 @@ wallPenalty = 1 − 0.5 × damagedFraction     // damagedFraction ∈ [0, 1]
 
 ### Population roles
 
-| Role         | Capacity gate                        | Function                        |
-|--------------|--------------------------------------|---------------------------------|
-| Idle peasant | Hearthsteads (10 each)               | Awaiting assignment             |
-| Farmer       | The Grange: 20 slots/level           | Food production                 |
-| Quarryman    | Mason's Quarry: 20 slots/level       | Stone production                |
-| Miner        | Deepvein Mine: 20 slots/level        | Ore production                  |
-| Lumberjack   | Sawyer's Mill: 20 slots/level        | Wood production                 |
-| Merchant     | Market Square: 20 slots/level        | Trade caravans, 1k × lvl capacity (`market.md`) |
-| Researcher   | The Collegium: 20 slots/level        | Research points                 |
-| Spy          | Shadow Guild: 20 slots/level         | Espionage                       |
-| Scout        | Ranger's Lodge: 20 slots/level       | Reconnaissance                  |
+All worker/unit roles are **unlimited** — you only need the building; its level
+scales the per-unit effect.
+
+| Role         | Needs (level ≥ 1)  | Building level scales…                          |
+|--------------|--------------------|-------------------------------------------------|
+| Idle peasant | Hearthsteads (10 each — the one real cap) | Awaiting assignment      |
+| Farmer       | The Grange         | Food/farmer: 50 × level/turn                     |
+| Quarryman    | Mason's Quarry     | Stone/quarryman: 50 × level/turn                 |
+| Miner        | Deepvein Mine      | Ore/miner: 50 × level/turn                        |
+| Lumberjack   | Sawyer's Mill      | Wood/lumberjack: 50 × level/turn                 |
+| Merchant     | Market Square      | Caravan capacity: 1,000 × level (`market.md`)    |
+| Researcher   | The Collegium      | Research/scholar: 50 × level/turn                |
+| Spy          | Shadow Guild       | Spy-mission effect (`espionage.md`)              |
+| Scout        | Ranger's Lodge     | Recon sharpness & spy-catch level (`espionage.md`) |
 | Troop        | Muster Hall: 10 per hall             | Combat                          |
 
 ---
@@ -171,19 +176,19 @@ by cost.
 
 | # | Building           | Levels | Per level                       | Function                                   |
 |---|--------------------|--------|---------------------------------|--------------------------------------------|
-| 1 | **The Grange**     | 1–10   | +20 farmer slots                | Food production                            |
-| 2 | **Mason's Quarry** | 1–10   | +20 quarryman slots             | Stone production                           |
-| 3 | **Deepvein Mine**  | 1–10   | +20 miner slots                 | Ore production                             |
-| 4 | **Sawyer's Mill**  | 1–10   | +20 lumberjack slots            | Wood production                            |
+| 1 | **The Grange**     | 1–10   | +50 food/turn per farmer        | Food production (farmers unlimited)        |
+| 2 | **Mason's Quarry** | 1–10   | +50 stone/turn per quarryman    | Stone production (quarrymen unlimited)     |
+| 3 | **Deepvein Mine**  | 1–10   | +50 ore/turn per miner          | Ore production (miners unlimited)          |
+| 4 | **Sawyer's Mill**  | 1–10   | +50 wood/turn per lumberjack    | Wood production (lumberjacks unlimited)    |
 | 5 | **Granary**        | 1–10   | +20,000 protected capacity      | Food storage                               |
 | 6 | **Timberyard**     | 1–10   | +20,000 protected capacity      | Wood storage                               |
 | 7 | **Mason's Yard**   | 1–10   | +20,000 protected capacity      | Stone storage                              |
 | 8 | **Ironhold**       | 1–10   | +20,000 protected capacity      | Ore storage                                |
 | 9 | **Counting House** | 1–10   | +20,000 protected gold capacity | Bank — protects gold from sieges           |
-| 10| **Market Square**  | 1–10   | +20 merchant slots, +1k caravan capacity | Grand Bazaar access (`market.md`)   |
-| 11| **The Collegium**  | 1–10   | +20 researcher slots            | Research / technologies                    |
-| 12| **Shadow Guild**   | 1–10   | +20 spy slots                   | Train & run spies                          |
-| 13| **Ranger's Lodge** | 1–10   | +20 scout slots                 | Train & run scouts                         |
+| 10| **Market Square**  | 1–10   | +1,000 caravan capacity per merchant | Grand Bazaar access (`market.md`); merchants unlimited |
+| 11| **The Collegium**  | 1–10   | +50 research/turn per scholar   | Research / technologies (scholars unlimited) |
+| 12| **Shadow Guild**   | 1–10   | +10% spy-mission effect         | Train & run spies (spies unlimited)        |
+| 13| **Ranger's Lodge** | 1–10   | sharper recon & higher spy-catch | Train & run scouts (scouts unlimited)     |
 | — | **Hearthstead**    | counted| houses 10 people each           | Population cap; growth stops when full     |
 
 All 13 levelled buildings contribute equally to pop/day (≈ +0.76 per level);

@@ -12,9 +12,17 @@ set by the player at any time (instant, `cmd:setTax`).
 **Gold and production trade off inversely:**
 
 ```
-goldPerCivilian   = 0.4 × taxRate         // 0.4 g/turn at 100% tax
-outputPerProducer = 20 × (1 − taxRate)    // 20 units/turn at 0% tax
+goldPerCivilian   = 0.4 × taxRate                          // 0.4 g/turn at 100% tax
+outputPerProducer = 50 × buildingLevel × (1 − taxRate)     // per worker; 50/turn per level at 0% tax
 ```
+
+**Production buildings are UNCAPPED and level-scaled.** The Grange, Mason's
+Quarry, Deepvein Mine, and Sawyer's Mill do **not** limit worker slots — you may
+assign as many farmers/quarrymen/miners/lumberjacks as your population allows.
+Instead each **building level lifts every worker's output**: a worker produces
+`50 × buildingLevel` units/turn at 0% tax — **50/turn at level 1 up to 500/turn
+at level 10** (`PRODUCTION_PER_WORKER_PER_LEVEL = 50`). Merchants and researchers
+are still slot-capped by their halls (Market Square / Collegium, 20 × level).
 
 | Tax rate | Gold / civilian / turn | Gold / civilian / DAY |
 |----------|------------------------|------------------------|
@@ -24,7 +32,8 @@ outputPerProducer = 20 × (1 − taxRate)    // 20 units/turn at 0% tax
 | 75%      | 0.3                    | 43.2                   |
 | 100%     | 0.4                    | 57.6                   |
 
-(Producer output is unchanged: `20 × (1 − taxRate)` units/turn.)
+(Producer output per worker is `50 × buildingLevel × (1 − taxRate)` units/turn,
+before race and research bonuses.)
 
 > **Rebalanced (was 40 g at 100%, sim-driven, twice):** at 40 g an idle
 > 100-pop empire banked ~700k gold in three days; at 4 g the 60-day sim
@@ -44,18 +53,18 @@ outputPerProducer = 20 × (1 − taxRate)    // 20 units/turn at 0% tax
 - **Softening the penalty:** Statecraft research multiplies post-tax output
   (`research.md`), and the Clan Hall reduces the penalty itself — 100% felt
   at hall 1 down to 50% at hall 4 (`clans.md`). Both stack:
-  `output = 20 × (1 − taxRate × hallPenaltyFactor) × statecraftMult`.
+  `output = 50 × buildingLevel × (1 − taxRate × hallPenaltyFactor) × statecraftMult`.
 
-## Producer outputs (at 0% tax, before race bonuses)
+## Producer outputs (per worker, at 0% tax, before race bonuses)
 
-| Producer   | Works at        | Output / turn        |
-|------------|-----------------|----------------------|
-| Farmer     | The Grange      | 20 food              |
-| Quarryman  | Mason's Quarry  | 20 stone             |
-| Miner      | Deepvein Mine   | 20 ore               |
-| Lumberjack | Sawyer's Mill   | 20 wood              |
+| Producer   | Works at        | Output / turn (per worker)        |
+|------------|-----------------|-----------------------------------|
+| Farmer     | The Grange      | 50 × Grange level food (50 at L1 → 500 at L10) |
+| Quarryman  | Mason's Quarry  | 50 × Quarry level stone           |
+| Miner      | Deepvein Mine   | 50 × Mine level ore               |
+| Lumberjack | Sawyer's Mill   | 50 × Mill level wood              |
 | Merchant   | Market Square   | runs trade caravans — carries 1,000 × Market Square level in goods (see `market.md`) |
-| Researcher | The Collegium   | 20 research points   |
+| Researcher | The Collegium   | 20 research points (slot-capped)  |
 
 - All outputs scale by `(1 − taxRate)` and are then modified by race bonuses.
 - Merchants produce no resources — they haul caravans to the Grand Bazaar and

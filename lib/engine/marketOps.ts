@@ -18,10 +18,11 @@ export function activeListings(orders: MarketOrder[], sellerId: string): number 
   return orders.filter((o) => o.sellerId === sellerId && o.remaining > 0).length;
 }
 
-/** One merchant per listed caravan — more merchants, more simultaneous listings. */
+/** One merchant per listed caravan — more merchants, more simultaneous listings.
+ *  Merchants are uncapped (the Market Square level scales each caravan's capacity,
+ *  not the merchant count); a merchant is "free" when not already on the road. */
 export function freeMerchants(p: Player, orders: MarketOrder[]): number {
-  return Math.min(p.workers.merchants, SLOTS_PER_BUILDING_LEVEL * level(p, "market_square")) -
-    activeListings(orders, p.id);
+  return p.workers.merchants - activeListings(orders, p.id);
 }
 
 export function postOrder(

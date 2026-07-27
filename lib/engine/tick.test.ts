@@ -21,14 +21,14 @@ describe("turn tick", () => {
     expect(player.resources.food).toBe(990);
   });
 
-  it("produces 10/turn per producer at 50% tax, capped by building slots", () => {
+  it("output scales with building level and is UNCAPPED by slots (50×level per worker)", () => {
     const p = fresh();
-    p.buildings.grange = 1; // 20 slots
-    p.workers.farmers = 30; // 10 over cap
+    p.buildings.grange = 1;
+    p.workers.farmers = 30; // no slot cap — all 30 produce
     p.idlePeasants = 50;
     const { player } = processTurnTick(p);
-    // 20 effective farmers × 20 × (1−0.5) × 1.25 human = 250 food, minus upkeep 10
-    expect(player.resources.food).toBe(1000 + 250 - 10);
+    // 30 farmers × (50 × 1 level × (1−0.5) tax) × 1.25 human = 937.5 food; upkeep 10 taken first.
+    expect(player.resources.food).toBe(1000 - 10 + 937.5);
   });
 
   it("a bombarded production building yields proportionally less", () => {
@@ -38,8 +38,8 @@ describe("turn tick", () => {
     p.idlePeasants = 60;
     p.buildingIntegrity = { grange: 0.5 }; // cracked to the floor
     const { player } = processTurnTick(p);
-    // 20 × 20 × 0.5 × 0.5 integrity × 1.25 human = 125 food, minus upkeep 10
-    expect(player.resources.food).toBe(1000 + 125 - 10);
+    // 20 × (50 × 1 × 0.5 tax) × 0.5 integrity × 1.25 human = 312.5 food, minus upkeep 10
+    expect(player.resources.food).toBe(1000 - 10 + 312.5);
   });
 
   it("a cracked Collegium banks research slower", () => {
@@ -50,8 +50,8 @@ describe("turn tick", () => {
     p.research.activeField = "masonry";
     p.buildingIntegrity = { collegium: 0.5 };
     const { player } = processTurnTick(p);
-    // 20 × 20 × 0.5 × 0.5 integrity = 100 RP
-    expect(player.research.banked.masonry).toBe(100);
+    // 20 scholars × (50 × 1 level × 0.5 tax) × 0.5 integrity = 250 RP
+    expect(player.research.banked.masonry).toBe(250);
   });
 
   it("research needs no Collegium gate — any level completes when the RP is banked", () => {
@@ -84,8 +84,8 @@ describe("turn tick", () => {
     p.workers.farmers = 20;
     p.research.levels.statecraft = 5;
     const { player } = processTurnTick(p);
-    // 20 × 20 × 0.5 × 2 × 1.25 human = 500 food, minus upkeep 12 (120 pop: farmers added on top)
-    expect(player.resources.food).toBe(1000 + 500 - 12);
+    // 20 × (50 × 2 level × 0.5 tax × 2 statecraft) × 1.25 human = 2500 food, minus upkeep 12
+    expect(player.resources.food).toBe(1000 - 12 + 2500);
   });
 
   it("the granary vault feeds the people when loose food runs dry", () => {

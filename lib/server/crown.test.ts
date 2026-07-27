@@ -82,6 +82,24 @@ describe("§14.3 — event-driven, ms-accurate hold clocks", () => {
     expect(overlordHold(w, 10_000).cumMs).toBe(0);
   });
 
+  it("logs a Chronicle tiding when a ruler's Grand Overlord clock starts and stops", () => {
+    const a = bigPop("A");
+    const b = newEmpire({ id: "B", name: "B", race: "human" });
+    b.idlePeasants = 100;
+    const w = worldWith(a, b);
+
+    updateCrown(w, 0); // A becomes the eligible #1 → clock starts
+    const gained = (w.inbox["A"] ?? []).some(
+      (i) => i.event.type === "crownClock" && i.event.scope === "overlord" && i.event.gained,
+    );
+    expect(gained).toBe(true);
+
+    b.idlePeasants = 60_000; // B overtakes A
+    updateCrown(w, 1_000);
+    expect((w.inbox["A"] ?? []).some((i) => i.event.type === "crownClock" && !i.event.gained)).toBe(true);
+    expect((w.inbox["B"] ?? []).some((i) => i.event.type === "crownClock" && i.event.gained)).toBe(true);
+  });
+
   it("declares a winner once cumulative AND streak thresholds are met", () => {
     const a = bigPop("A");
     const w = worldWith(a, newEmpire({ id: "B", name: "B", race: "human" }));

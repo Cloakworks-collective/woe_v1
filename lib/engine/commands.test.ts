@@ -175,13 +175,17 @@ describe("economy commands", () => {
     expect(setTax(fresh(), 0.75).player.taxRate).toBe(0.75);
   });
 
-  it("worker assignment respects building slots", () => {
+  it("all workers are uncapped — you only need the building (no slot limits)", () => {
     const p = fresh();
-    expect(() => assignWorkers(p, "farmers", 5)).toThrowError(/slots/i); // no Grange
+    p.idlePeasants = 500;
+    expect(() => assignWorkers(p, "farmers", 5)).toThrowError(/build the grange/i); // no Grange
     p.buildings.grange = 1;
-    const { player } = assignWorkers(p, "farmers", 20);
-    expect(player.workers.farmers).toBe(20);
-    expect(() => assignWorkers(player, "farmers", 1)).toThrowError(/slots/i);
+    const farmed = assignWorkers(p, "farmers", 200).player; // no slot cap — 200 > any slot count
+    expect(farmed.workers.farmers).toBe(200);
+    // Merchants and researchers are uncapped too — just need their hall.
+    farmed.buildings.market_square = 1;
+    const merch = assignWorkers(farmed, "merchants", 100).player;
+    expect(merch.workers.merchants).toBe(100);
   });
 
   it("banking respects Counting House capacity", () => {

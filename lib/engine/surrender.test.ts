@@ -31,13 +31,13 @@ describe("surrender — production penalty", () => {
     const surrendered = build();
     surrendered.surrendered = true;
     const flagged = processTurnTick(surrendered).player;
-    // Normal produces 20 × 20 × (1−0.5 tax) × 1.25 human = 250 food; surrender
-    // halves the production to 125 (upkeep, a flat 10, is the same for both).
-    const normalGain = normal.resources.food - 1000; // 250 − 10 upkeep = 240
-    const flaggedGain = flagged.resources.food - 1000; // 125 − 10 upkeep = 115
-    expect(normalGain).toBe(240);
-    expect(flaggedGain).toBe(115);
-    expect(normalGain - flaggedGain).toBe(125); // exactly half the production
+    // Normal produces 20 × (50 × 1 × (1−0.5 tax)) × 1.25 human = 625 food;
+    // surrender halves the production to 312.5 (upkeep, a flat 10, is the same).
+    const normalGain = normal.resources.food - 1000; // 625 − 10 upkeep = 615
+    const flaggedGain = flagged.resources.food - 1000; // 312.5 − 10 upkeep = 302.5
+    expect(normalGain).toBe(615);
+    expect(flaggedGain).toBe(302.5);
+    expect(normalGain - flaggedGain).toBe(312.5); // exactly half the production
   });
 });
 

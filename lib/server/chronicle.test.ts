@@ -1,5 +1,31 @@
 import { describe, expect, it } from "vitest";
 import { eraReset, seedWorld } from "./world";
+import { pushInbox } from "./store";
+
+describe("the Chronicle (per-player inbox) is a focused war/crown log", () => {
+  it("records only attacks, spy ops, and crown-clock tidings — nothing else", () => {
+    const w = seedWorld();
+    w.inbox = {};
+    // Kept:
+    pushInbox(w, "p", { type: "attacked", byId: "x", byName: "X", mode: "raid", battleId: "b" });
+    pushInbox(w, "p", { type: "battleResult", battleId: "b", victor: "attacker", mode: "siege" });
+    pushInbox(w, "p", { type: "spyReport", op: "torch_stores", targetName: "X", caught: false, detail: "…" });
+    pushInbox(w, "p", { type: "spiesCaught", attackerName: "X", executed: 3, op: "torch_stores" });
+    pushInbox(w, "p", { type: "sabotaged", detail: "…" });
+    pushInbox(w, "p", { type: "crownClock", scope: "overlord", gained: true, who: "P" });
+    // Dropped:
+    pushInbox(w, "p", { type: "researchComplete", field: "masonry", level: 2 });
+    pushInbox(w, "p", { type: "buildComplete", building: "granary", level: 3 });
+    pushInbox(w, "p", { type: "marketSale", resource: "wood", amount: 100, goldNet: 500 });
+    pushInbox(w, "p", { type: "dailyRecruitment", arrived: 10, turnedAway: 0 });
+    pushInbox(w, "p", { type: "clanEvent", detail: "war declared" });
+
+    const kinds = (w.inbox["p"] ?? []).map((i) => i.event.type).sort();
+    expect(kinds).toEqual(
+      ["attacked", "battleResult", "crownClock", "sabotaged", "spiesCaught", "spyReport"].sort(),
+    );
+  });
+});
 
 describe("the grand chronicle (Annals)", () => {
   it("seeds an opening entry for the new age", () => {

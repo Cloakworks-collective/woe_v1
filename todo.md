@@ -27,6 +27,19 @@ shield-drop-on-attack, spy-block vs protected players.
       replaced in tick/ResearchView/research page/eraTables. UI banner + per-node
       "your Nth research" cost. Spec updated; 4 tests.
 
+## Uncapped worker/unit buildings — DONE (this pass)
+- [x] Removed all "20×level" slot caps; every worker/unit is unlimited (need only
+      the building). Building level scales per-unit effect: producers + researchers
+      50×level/turn (productionPerWorker); Market Square +1k caravan cap/level
+      (freeMerchants uncapped); Guild/Lodge already scale spy/scout effect. tick +
+      reports + assignWorkers/trainSpies/trainScouts + UI + specs; tests reworked.
+
+## Chronicle focus + zenith badge — DONE (this pass)
+- [x] pushInbox whitelists 5 categories (attacked/battleResult/spyReport/
+      spiesCaught/sabotaged/crownClock); new crownClock event emitted from
+      updateCrown (overlord + clan clock start/stop). Live inboxes pruned. 2 tests.
+- [x] Maxed buildings show a gold "★ ZENITH" badge (was plain italic text).
+
 ## Defensive siege rework — DONE (this pass)
 - [x] Defensive counters are purchasable crewed gear (SIEGE_COUNTERS,
       buySiegeCounter, ArmyState.siegeCounters + migration). Engineers man them

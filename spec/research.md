@@ -1,8 +1,10 @@
 # War of Empires — Research (The Collegium)
 
-Research is conducted by **researchers** (20 slots per Collegium level, max
-200 at Collegium 10), each producing **20 research points (RP) per turn at 0%
-tax**, scaled by `(1 − taxRate)` like all producers (see `economy.md`).
+Research is conducted by **researchers** — **unlimited** in number (no slot cap;
+you only need a Collegium). Each Collegium level lifts how much research every
+scholar makes: **50 × Collegium level RP per turn at 0% tax** (50 at level 1 up
+to 500 at level 10), scaled by `(1 − taxRate)` and Statecraft like all producers
+(see `economy.md`). A cracked Collegium slows every scholar proportionally.
 
 ---
 
@@ -46,10 +48,11 @@ next dearer, so **what you research first is the strategy**.
 ### The Collegium sets speed, never a ceiling
 
 There is **no level gate** — every field level is researchable at any time. The
-**Collegium sets only the speed**: it caps researcher slots (20 × level), so a
-small library still learns anything, it just crawls. Combined with the rising
-cost, a level-1 Collegium can eventually research anything — it just takes a very
-long time. Raise the Collegium (and assign scholars) to go faster.
+**Collegium sets only the speed**: scholars are unlimited, and each Collegium
+level lifts every scholar's RP/turn (50 × level). A small library still learns
+anything, it just crawls; combined with the rising cost, a level-1 Collegium can
+eventually research anything — it just takes a very long time. Raise the
+Collegium (and assign more scholars) to go faster.
 
 ---
 

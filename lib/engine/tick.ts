@@ -8,6 +8,7 @@ import {
   GOLD_PER_CIVILIAN_AT_FULL_TAX,
   MERC_UPKEEP_GOLD_PER_TURN,
   OUTPUT_PER_PRODUCER_AT_ZERO_TAX,
+  PRODUCTION_PER_WORKER_PER_LEVEL,
   RACES,
   SLOTS_PER_BUILDING_LEVEL,
   STAMINA,
@@ -74,9 +75,23 @@ export function foodUpkeepPerTurn(p: Player): number {
   return FOOD_UPKEEP_PER_PERSON * (civilians(p) + military(p));
 }
 
-/** Effective producers of a role: capped by building slots (20 × level). */
+/** Effective producers of a role: capped by building slots (20 × level).
+ *  Used for researchers/merchants/spies/scouts — NOT resource producers, which
+ *  are uncapped (their output scales with building level instead). */
 export function effectiveProducers(p: Player, role: WorkerRole, building: BuildingId): number {
   return Math.min(p.workers[role], SLOTS_PER_BUILDING_LEVEL * level(p, building));
+}
+
+/**
+ * Output PER resource-producer per turn, before race/research/integrity: the
+ * production building's level lifts every worker (50 × level at 0% tax), and the
+ * tax/statecraft dial applies as usual. Level 0 (no building) → 0. See economy.md.
+ */
+export function productionPerWorker(p: Player, building: BuildingId, hallPenaltyFactor = 1): number {
+  const lvl = level(p, building);
+  if (lvl === 0) return 0;
+  const statecraft = 1 + researchLevel(p, "statecraft") * EFFECT_PER_LEVEL;
+  return PRODUCTION_PER_WORKER_PER_LEVEL * lvl * (1 - p.taxRate * hallPenaltyFactor) * statecraft;
 }
 
 export interface TickOptions {
@@ -142,25 +157,29 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
       }
     }
 
-    // 3. Production.
+    // 3. Production. Workers are UNCAPPED — the building level lifts each
+    //    worker's output (50/turn at L1 → 500 at L10; economy.md).
     const race = RACES[p.race];
-    const base = baseOutputPerProducer(p, hallPenaltyFactor) * unrestMult * surrenderMult;
     for (const { role, building, resource, field } of PRODUCTION) {
-      const n = effectiveProducers(p, role, building);
+      const n = p.workers[role];
       if (n === 0) continue;
+      const per = productionPerWorker(p, building, hallPenaltyFactor) * unrestMult * surrenderMult;
+      if (per === 0) continue; // no building, no output
       const fieldMult = 1 + researchLevel(p, field) * EFFECT_PER_LEVEL;
       // A bombarded production building yields proportionally less.
-      p.resources[resource] += n * base * race.production[resource] * fieldMult * buildingIntegrity(p, building);
+      p.resources[resource] += n * per * race.production[resource] * fieldMult * buildingIntegrity(p, building);
     }
 
-    // Research points → active field; levels complete when cost is paid
-    // and the Collegium gate (level ≥ 2N − 1) is met.
-    const researchers = effectiveProducers(p, "researchers", "collegium");
+    // Research points → active field. Researchers are UNCAPPED too — the
+    // Collegium level lifts how much each scholar produces (same 50×level model),
+    // and a cracked Collegium slows them (research.md). Levels complete when the
+    // (global, progressive) cost is paid.
+    const researchers = p.workers.researchers;
     const field = p.research.activeField;
-    if (researchers > 0 && field) {
-      // A cracked Collegium slows the scholars.
+    const rpPerScholar = productionPerWorker(p, "collegium", hallPenaltyFactor) * unrestMult * surrenderMult;
+    if (researchers > 0 && field && rpPerScholar > 0) {
       p.research.banked[field] =
-        (p.research.banked[field] ?? 0) + researchers * base * buildingIntegrity(p, "collegium");
+        (p.research.banked[field] ?? 0) + researchers * rpPerScholar * buildingIntegrity(p, "collegium");
     }
     if (field) {
       let lvl = researchLevel(p, field);

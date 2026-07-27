@@ -265,7 +265,25 @@ export async function saveWorld(world: World): Promise<void> {
   fs.renameSync(tmp, WORLD_FILE);
 }
 
+/**
+ * The Chronicle is a focused war/espionage/crown log — NOT a catch-all. It
+ * records only: attacks on you (`attacked`) and by you (`battleResult`), spy
+ * ops against you (`spiesCaught`/`sabotaged`) and by you (`spyReport`), and your
+ * (and your clan's) victory hold-clock starting or stopping (`crownClock`).
+ * Everything else (economy, growth, research, building, market, clan notices) is
+ * surfaced on its own page and never clutters the Chronicle.
+ */
+const CHRONICLE_EVENTS: ReadonlySet<GameEvent["type"]> = new Set([
+  "attacked",
+  "battleResult",
+  "spyReport",
+  "spiesCaught",
+  "sabotaged",
+  "crownClock",
+]);
+
 export function pushInbox(world: World, playerId: string, event: GameEvent): void {
+  if (!CHRONICLE_EVENTS.has(event.type)) return; // keep the Chronicle to the five war/crown categories
   const list = world.inbox[playerId] ?? (world.inbox[playerId] = []);
   list.unshift({ tick: world.meta.tickNumber, event, at: new Date().toISOString() });
   if (list.length > 60) list.length = 60;

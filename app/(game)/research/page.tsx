@@ -118,9 +118,11 @@ export default async function ResearchPage({
       >
         <p style={{ fontSize: 14.5, marginBottom: 8 }}>
           <b>Every field is researchable at any time</b> — the Collegium sets only the <b>speed</b>,
-          not the ceiling: a small library still learns anything, it just crawls (raise it for more
-          scholar slots). But research grows <b>progressively dearer</b> — each level you earn, in
-          any field, makes the next one cost more — so the <b>order you research in is the strategy</b>.
+          not the ceiling: a small library still learns anything, it just crawls. Scholars are{" "}
+          <b>unlimited</b>, and each Collegium level lifts how much research every one of them makes
+          (50/turn at L1 up to 500 at L10). But research grows <b>progressively dearer</b> — each
+          level you earn, in any field, makes the next cost more — so the{" "}
+          <b>order you research in is the strategy</b>.
           Scholars study one field at a time, and <b>switching abandons half</b> the progress banked
           toward the current field&apos;s next level.
         </p>
@@ -140,8 +142,8 @@ export default async function ResearchPage({
         </div>
         {rate === 0 && (
           <p style={{ fontSize: 14.5, color: "var(--warn)", fontWeight: 700, marginTop: 8 }}>
-            No scholars at work — assign researchers on the Workers page (raise the Collegium for
-            more slots).
+            No scholars at work — assign researchers on the Workers page (raise the Collegium to make
+            each one faster).
           </p>
         )}
       </Panel>

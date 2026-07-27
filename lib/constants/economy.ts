@@ -17,8 +17,19 @@ export const TICKS_PER_HOUR = 6;
  */
 export const GOLD_PER_CIVILIAN_AT_FULL_TAX = 0.4;
 
-/** Units per producer per turn at 0% tax (all producers incl. researchers). */
+/** Research points per researcher per turn at 0% tax (the Collegium still caps
+ *  researcher slots at 20 × level — see research.md). */
 export const OUTPUT_PER_PRODUCER_AT_ZERO_TAX = 20;
+
+/**
+ * Resource-production model (spec/economy.md): the production buildings (Grange,
+ * Mason's Quarry, Deepvein Mine, Sawyer's Mill) do NOT cap worker slots — you may
+ * assign as many farmers/quarrymen/miners/lumberjacks as your population allows.
+ * Instead, each **building level lifts every worker's output**: a worker makes
+ * `PRODUCTION_PER_WORKER_PER_LEVEL × building level` units per turn at 0% tax —
+ * 50/turn at level 1, up to 500/turn at level 10. (Tunable placeholder.)
+ */
+export const PRODUCTION_PER_WORKER_PER_LEVEL = 50;
 
 export const DEFAULT_TAX_RATE = 0.5;
 

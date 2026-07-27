@@ -189,7 +189,13 @@ function BuildingCards({ ids, player, path }: { ids: string[]; player: Player; p
               {cost ? (
                 <CostList cost={cost} />
               ) : (
-                <span className="bcard-zenith">at its zenith — fully built</span>
+                <span className="zenith-badge" title="Fully built — this building is at its maximum level">
+                  <span className="zenith-star" aria-hidden="true">★</span>
+                  <span className="zenith-body">
+                    <b>ZENITH</b>
+                    <small>max level {maxLevel(bid)}</small>
+                  </span>
+                </span>
               )}
             </div>
             {cost && (

@@ -1256,6 +1256,39 @@ select:focus-visible {
   align-self: center;
 }
 
+/* A gold "ZENITH" badge for a fully-built (max-level) building. */
+.zenith-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: center;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #f6dc86, #cc9a2d);
+  border: 1px solid #a7791d;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 1px 3px rgba(60, 40, 10, 0.35);
+  color: #4a3410;
+}
+.zenith-star {
+  font-size: 22px;
+  line-height: 1;
+  color: #7a5310;
+  text-shadow: 0 0 7px rgba(255, 244, 190, 0.95);
+}
+.zenith-body {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.12;
+}
+.zenith-body b {
+  font: 800 13px Verdana, sans-serif;
+  letter-spacing: 0.09em;
+}
+.zenith-body small {
+  font-size: 10.5px;
+  opacity: 0.85;
+}
+
 /* ── Level track — a segmented pip ladder under a building name.
    Owned levels fill solid, the next level glows gold, the rest sit empty.
    Counted (unbounded) buildings show a tally badge instead. */

@@ -23,11 +23,20 @@ export function eventLine(e: GameEvent): string {
     case "scoutReport": return `👁 Our scouts spied out ${e.targetName}: ${e.detail}`;
     case "marketSale": return `⚖ At the Bazaar, ${fmt(e.amount)} ${e.resource} fetched ${fmt(e.goldNet)} gold (the fee taken).`;
     case "clanEvent": return `🛡 ${e.detail}`;
+    case "crownClock":
+      if (e.scope === "overlord") {
+        return e.gained
+          ? "👑 You reign as #1 above the floor — your Grand Overlord clock is now ticking!"
+          : "👑 You are no longer the eligible #1 — your Grand Overlord clock has stopped.";
+      }
+      return e.gained
+        ? `🛡 Your clan ${e.who} leads the realm — the Clan Victory clock is now ticking!`
+        : `🛡 Your clan ${e.who} has lost the lead — the Clan Victory clock has stopped.`;
     case "info": return e.detail;
   }
 }
 
-export type EventTone = "war" | "shadow" | "danger" | "growth" | "trade" | "clan" | "info";
+export type EventTone = "war" | "shadow" | "danger" | "growth" | "trade" | "clan" | "crown" | "info";
 
 /** Colour family for a tiding, so the Chronicle reads at a glance. */
 export function eventTone(e: GameEvent): EventTone {
@@ -53,6 +62,8 @@ export function eventTone(e: GameEvent): EventTone {
       return "trade";
     case "clanEvent":
       return "clan";
+    case "crownClock":
+      return "crown";
     case "info":
       return "info";
   }

@@ -106,9 +106,10 @@ export function assignWorkers(input: Player, role: WorkerRole, count: number): E
   if (count > 0) {
     if (p.idlePeasants < count) throw new EngineError("peasants", "Not enough idle peasants");
     const building = WORKER_BUILDING[role]!;
-    const slots = SLOTS_PER_BUILDING_LEVEL * level(p, building);
-    if (p.workers[role] + count > slots) {
-      throw new EngineError("slots", `No free slots — raise the ${building} first`);
+    // Every worker role is UNCAPPED — you only need the building (level ≥ 1); its
+    // level scales the worker's effectiveness, not the number of slots (economy.md).
+    if (level(p, building) === 0) {
+      throw new EngineError("building", `Build the ${building} first`);
     }
     p.idlePeasants -= count;
     p.workers[role] += count;
@@ -191,8 +192,9 @@ export function trainSpies(input: Player, count: number): EngineResult {
   const p = structuredClone(input);
   if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
   if (p.idlePeasants < count) throw new EngineError("peasants", "Not enough idle peasants");
-  const slots = SLOTS_PER_BUILDING_LEVEL * level(p, "shadow_guild");
-  if (p.army.spies + count > slots) throw new EngineError("slots", "Shadow Guild too small");
+  // Spies are uncapped — you need a Shadow Guild, whose level makes each spy more
+  // effective (not more slots; espionage.md).
+  if (level(p, "shadow_guild") === 0) throw new EngineError("building", "Build the Shadow Guild first");
   pay(p, scale(TRAINING_COSTS.spy, count));
   p.idlePeasants -= count;
   p.army.spies += count;
@@ -203,8 +205,9 @@ export function trainScouts(input: Player, count: number): EngineResult {
   const p = structuredClone(input);
   if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
   if (p.idlePeasants < count) throw new EngineError("peasants", "Not enough idle peasants");
-  const slots = SLOTS_PER_BUILDING_LEVEL * level(p, "rangers_lodge");
-  if (p.army.scouts + count > slots) throw new EngineError("slots", "Ranger's Lodge too small");
+  // Scouts are uncapped — you need a Ranger's Lodge, whose level makes each scout
+  // sharper at recon and catching enemy spies (not more slots; espionage.md).
+  if (level(p, "rangers_lodge") === 0) throw new EngineError("building", "Build the Ranger's Lodge first");
   pay(p, scale(TRAINING_COSTS.scout, count));
   p.idlePeasants -= count;
   p.army.scouts += count;

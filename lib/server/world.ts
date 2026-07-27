@@ -509,6 +509,14 @@ export function updateCrown(world: World, nowMs = Date.now()): void {
 
   // Only the #1, and only while above the population floor, accrues.
   const overlordEligible = totalPopulation(top) >= POPULATION_FLOORS.GRAND_OVERLORD ? top.id : undefined;
+  // Tell the affected rulers whenever their Grand Overlord clock starts/stops.
+  const prevOverlord = world.meta.overlordAccruing?.id;
+  if (prevOverlord !== overlordEligible) {
+    if (prevOverlord)
+      pushInbox(world, prevOverlord, { type: "crownClock", scope: "overlord", gained: false, who: world.players[prevOverlord]?.name ?? "" });
+    if (overlordEligible)
+      pushInbox(world, overlordEligible, { type: "crownClock", scope: "overlord", gained: true, who: world.players[overlordEligible]?.name ?? "" });
+  }
   world.meta.overlordClocksMs ??= {};
   world.meta.overlordAccruing = advanceAccrual(world.meta.overlordClocksMs, world.meta.overlordAccruing ?? null, overlordEligible, nowMs);
 
@@ -530,6 +538,17 @@ export function updateCrown(world: World, nowMs = Date.now()): void {
   const clanPop = topClan.members.reduce((sum, id) => sum + (world.players[id] ? totalPopulation(world.players[id]) : 0), 0);
   const frozen = (topClan.clockFrozenUntilTick ?? 0) > world.meta.tickNumber;
   const clanEligible = clanPop >= POPULATION_FLOORS.CLAN && !frozen ? topClan.id : undefined;
+  // Tell every member of the affected clan when the Clan Victory clock starts/stops.
+  const prevClan = world.meta.clanAccruing?.id;
+  if (prevClan !== clanEligible) {
+    const notify = (clanId: string, gained: boolean) => {
+      const c = world.clans[clanId];
+      if (!c) return;
+      for (const m of c.members) pushInbox(world, m, { type: "crownClock", scope: "clan", gained, who: c.name });
+    };
+    if (prevClan) notify(prevClan, false);
+    if (clanEligible) notify(clanEligible, true);
+  }
   world.meta.clanClocksMs ??= {};
   world.meta.clanAccruing = advanceAccrual(world.meta.clanClocksMs, world.meta.clanAccruing ?? null, clanEligible, nowMs);
 

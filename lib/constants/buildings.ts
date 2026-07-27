@@ -33,19 +33,19 @@ export interface BuildingMeta {
 }
 
 export const CIVILIAN_BUILDINGS: BuildingMeta[] = [
-  { id: "grange", name: "The Grange", desc: "+20 farmer slots per level — food production" },
-  { id: "masons_quarry", name: "Mason's Quarry", desc: "+20 quarryman slots per level — stone production" },
-  { id: "deepvein_mine", name: "Deepvein Mine", desc: "+20 miner slots per level — ore production" },
-  { id: "sawyers_mill", name: "Sawyer's Mill", desc: "+20 lumberjack slots per level — wood production" },
+  { id: "grange", name: "The Grange", desc: "Each level lifts every farmer's food output (50/turn at L1 → 500 at L10). Farmers are unlimited." },
+  { id: "masons_quarry", name: "Mason's Quarry", desc: "Each level lifts every quarryman's stone output (50→500/turn). Quarrymen are unlimited." },
+  { id: "deepvein_mine", name: "Deepvein Mine", desc: "Each level lifts every miner's ore output (50→500/turn). Miners are unlimited." },
+  { id: "sawyers_mill", name: "Sawyer's Mill", desc: "Each level lifts every lumberjack's wood output (50→500/turn). Lumberjacks are unlimited." },
   { id: "granary", name: "Granary", desc: "+20,000 protected food capacity per level" },
   { id: "timberyard", name: "Timberyard", desc: "+20,000 protected wood capacity per level" },
   { id: "masons_yard", name: "Mason's Yard", desc: "+20,000 protected stone capacity per level" },
   { id: "ironhold", name: "Ironhold", desc: "+20,000 protected ore capacity per level" },
   { id: "counting_house", name: "Counting House", desc: "Bank — +20,000 protected gold capacity per level" },
-  { id: "market_square", name: "Market Square", desc: "+20 merchant slots, +1,000 caravan capacity per level" },
-  { id: "collegium", name: "The Collegium", desc: "+20 researcher slots per level — research" },
-  { id: "shadow_guild", name: "Shadow Guild", desc: "+20 spy slots per level — espionage" },
-  { id: "rangers_lodge", name: "Ranger's Lodge", desc: "+20 scout slots per level — recon & counter-espionage" },
+  { id: "market_square", name: "Market Square", desc: "Merchants are unlimited; each level lets every caravan carry +1,000 goods" },
+  { id: "collegium", name: "The Collegium", desc: "Researchers are unlimited; each level lifts every scholar's research (50→500/turn)" },
+  { id: "shadow_guild", name: "Shadow Guild", desc: "Spies are unlimited; each level makes every spy mission bite deeper" },
+  { id: "rangers_lodge", name: "Ranger's Lodge", desc: "Scouts are unlimited; each level sharpens recon & catches higher-level enemy spies" },
 ];
 
 export const CIVILIAN_LEVELLED_IDS = CIVILIAN_BUILDINGS.map((b) => b.id);

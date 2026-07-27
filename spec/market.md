@@ -10,7 +10,8 @@ Bazaar*, never with a named player.
 
 ## What merchants do
 
-A **merchant** (Market Square slot-holder, see `buildings.md`) runs caravans:
+A **merchant** (unlimited; you only need a Market Square, whose level scales each
+caravan's capacity — see `buildings.md`) runs caravans:
 
 - Each merchant can carry **1,000 × Market Square level** worth of goods —
   1k at level 1 up to **10k at level 10**.

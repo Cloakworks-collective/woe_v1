@@ -6,7 +6,7 @@ import { LearnLink } from "@/components/LearnLink";
 import { Info } from "@/components/Info";
 import { Panel } from "@/components/Panel";
 import { ResIcon } from "@/components/ResIcon";
-import { SLOTS_PER_BUILDING_LEVEL, TRAINING_COSTS, UNIT_GUIDE, UNIT_INFO } from "@/lib/constants";
+import { GUILD_EFFECT_PER_LEVEL, PRODUCTION_PER_WORKER_PER_LEVEL, TRAINING_COSTS, UNIT_GUIDE, UNIT_INFO, catchableOpLevel } from "@/lib/constants";
 import { level, type Player, type WorkerRole } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
@@ -77,7 +77,7 @@ const MUSTER = (p: Player) =>
       cmd: "trainSpies",
       current: p.army.spies,
       cost: TRAINING_COSTS.spy.gold,
-      capacity: `${SLOTS_PER_BUILDING_LEVEL * level(p, "shadow_guild")} Shadow Guild slots`,
+      capacity: `unlimited — Shadow Guild L${level(p, "shadow_guild")} makes each mission +${Math.round(level(p, "shadow_guild") * GUILD_EFFECT_PER_LEVEL * 100)}% effective`,
     },
     {
       unit: "scout" as const,
@@ -85,7 +85,7 @@ const MUSTER = (p: Player) =>
       cmd: "trainScouts",
       current: p.army.scouts,
       cost: TRAINING_COSTS.scout.gold,
-      capacity: `${SLOTS_PER_BUILDING_LEVEL * level(p, "rangers_lodge")} Ranger's Lodge slots`,
+      capacity: `unlimited — Ranger's Lodge L${level(p, "rangers_lodge")} catches spy ops up to level ${catchableOpLevel(level(p, "rangers_lodge")) || 0}`,
     },
   ];
 
@@ -119,13 +119,18 @@ export default async function TrainPage({
 
       <Panel
         title="The Assignment Hall"
-        info="Worker assignment is free and reversible — assign idle peasants in, or recall them back to idle. No free slot, no assignment: the building always comes first."
+        info="Worker assignment is free and reversible. EVERY worker is UNLIMITED — you only need the building. Its level raises how effective each worker is: farmers/quarrymen/miners/lumberjacks and researchers make 50/turn at L1 up to 500 at L10; each Market Square level lets every caravan carry another 1,000 goods."
         guide="/guide#grow"
       >
         <div className="card-grid">
           {ROLES.map(({ role, label, building, buildingId }) => {
-            const slots = SLOTS_PER_BUILDING_LEVEL * level(p, buildingId);
+            const lvl = level(p, buildingId);
             const assigned = p.workers[role];
+            // Every worker is uncapped; the building level lifts the per-worker effect.
+            const effect =
+              role === "merchants"
+                ? `each caravan carries ${(1000 * lvl).toLocaleString("en-US")} goods`
+                : `each makes ${PRODUCTION_PER_WORKER_PER_LEVEL * lvl}/turn`;
             return (
               <div className="bcard" key={role}>
                 <div className="bcard-head">
@@ -140,7 +145,15 @@ export default async function TrainPage({
                   </span>
                   <div className="bcard-body">
                     <p style={{ margin: "0 0 7px" }}>
-                      <b>{assigned}</b> assigned · {slots} slot{slots === 1 ? "" : "s"}
+                      {lvl === 0 ? (
+                        <>
+                          <b>{assigned}</b> at work — build the <b>{building}</b> to employ any
+                        </>
+                      ) : (
+                        <>
+                          <b>{assigned}</b> at work · <b>unlimited</b> — {effect} ({building} L{lvl})
+                        </>
+                      )}
                     </p>
                     <AssignRecall role={role} assigned={assigned} />
                   </div>

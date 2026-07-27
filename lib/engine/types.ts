@@ -265,6 +265,9 @@ export type GameEvent =
   | { type: "scoutReport"; targetName: string; detail: string }
   | { type: "marketSale"; resource: Resource; amount: number; goldNet: number }
   | { type: "clanEvent"; detail: string }
+  /** A victory hold-clock started or stopped for you (Grand Overlord) or your
+   *  clan (Clan Victory) — you became / stopped being the eligible #1. */
+  | { type: "crownClock"; scope: "overlord" | "clan"; gained: boolean; who: string }
   | { type: "info"; detail: string };
 
 export interface EngineResult {
