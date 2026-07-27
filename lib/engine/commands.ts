@@ -13,7 +13,7 @@ import {
   SIEGE_GEAR,
   SIEGE_COUNTERS,
   STAMINA,
-  STORAGE_PER_LEVEL,
+  storageShelterAtLevel,
   TIER_COST_MULT,
   TRAINING_COSTS,
   TROOPS_PER_MUSTER_HALL,
@@ -273,7 +273,7 @@ export function bankGold(input: Player, amount: number): EngineResult {
   if (!Number.isFinite(amount) || amount === 0) throw new EngineError("amount", "Invalid amount");
   if (amount > 0) {
     if (p.gold < amount) throw new EngineError("gold", "Not enough gold on hand");
-    const capacity = STORAGE_PER_LEVEL * level(p, "counting_house");
+    const capacity = storageShelterAtLevel(level(p, "counting_house"));
     if (p.bankedGold + amount > capacity) {
       throw new EngineError("capacity", "Counting House is full");
     }
@@ -288,14 +288,14 @@ export function bankGold(input: Player, amount: number): EngineResult {
 }
 
 /** Move goods into/out of their storage building's vault (negative = withdraw).
- *  Deposits cap at level × STORAGE_PER_LEVEL, like the Counting House. */
+ *  Deposits cap at the storage-shelter curve, like the Counting House. */
 export function bankResource(input: Player, r: Resource, amount: number): EngineResult {
   const p = structuredClone(input);
   if (!Number.isFinite(amount) || amount === 0) throw new EngineError("amount", "Invalid amount");
   const banked = { ...bankedRes(p) };
   if (amount > 0) {
     if (p.resources[r] < amount) throw new EngineError("resources", `Not enough loose ${r}`);
-    const capacity = STORAGE_PER_LEVEL * level(p, STORAGE_BUILDING[r]);
+    const capacity = storageShelterAtLevel(level(p, STORAGE_BUILDING[r]));
     if (banked[r] + amount > capacity) {
       throw new EngineError("capacity", "That store is full");
     }

@@ -9,7 +9,7 @@ import { LearnLink } from "@/components/LearnLink";
 import { Info } from "@/components/Info";
 import { Panel } from "@/components/Panel";
 import { ResIcon } from "@/components/ResIcon";
-import { GUILD_EFFECT_PER_LEVEL, PRODUCTION_PER_WORKER_PER_LEVEL, TRAINING_COSTS, UNIT_GUIDE, UNIT_INFO, catchableOpLevel } from "@/lib/constants";
+import { GUILD_EFFECT_PER_LEVEL, workerOutputAtLevel, TRAINING_COSTS, UNIT_GUIDE, UNIT_INFO, catchableOpLevel } from "@/lib/constants";
 import { caravanDeliveryTurns, level, type Player, type WorkerRole } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
@@ -170,7 +170,7 @@ export default async function TrainPage({
             const effect =
               role === "merchants"
                 ? `each caravan carries ${(1000 * lvl).toLocaleString("en-US")} goods · ${caravanDeliveryTurns(lvl)}-turn road to the Bazaar`
-                : `each makes ${PRODUCTION_PER_WORKER_PER_LEVEL * lvl}/turn`;
+                : `each makes ${workerOutputAtLevel(lvl)}/turn`;
             return (
               <div className="bcard" key={role}>
                 <div className="bcard-head">

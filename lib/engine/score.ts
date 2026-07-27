@@ -7,6 +7,7 @@ import {
   RESEARCH_FIELDS,
   SCORE,
   TIER_POWER,
+  wallsScoreAtLevel,
 } from "../constants";
 import type { BuildingId } from "../constants/buildings";
 import { level, type Player } from "./types";
@@ -35,9 +36,8 @@ export function rankingScore(p: Player): number {
     score += corps.heavy * SCORE.PER_TROOP_BASE * TIER_POWER.heavy;
   }
 
-  // Walls & buildings — walls score by level² × integrity.
-  const wallLvl = level(p, "walls");
-  score += wallLvl * wallLvl * SCORE.WALLS_PER_LEVEL_SQ * p.wallIntegrity;
+  // Walls & buildings — WALLS_SCORE_CURVE at the wall level, × integrity.
+  score += wallsScoreAtLevel(level(p, "walls")) * p.wallIntegrity;
   for (const id of [...CIVILIAN_LEVELLED_IDS, ...LEVELLED_MILITARY]) {
     score += level(p, id) * SCORE.PER_BUILDING_LEVEL;
   }

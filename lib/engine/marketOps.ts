@@ -3,9 +3,7 @@
 
 import {
   CARAVAN_CAPACITY_PER_MARKET_LEVEL,
-  CARAVAN_DELIVERY_BASE,
-  CARAVAN_DELIVERY_MIN_TURNS,
-  CARAVAN_DELIVERY_PER_LEVEL,
+  caravanDeliveryTurnsAt,
   MARKET_FEE,
   MARKET_PRICE_MAX,
   MARKET_PRICE_MIN,
@@ -17,12 +15,10 @@ export function caravanCapacity(p: Player): number {
 }
 
 /** Turns a fresh caravan takes to reach the Bazaar, by Market Square level:
- *  level 1 → 100 turns, level 10 → 10 (floored). A level-0 market can't trade. */
+ *  CARAVAN_DELIVERY_CURVE, floored — level 1 → 100 turns, level 10 → 10 by
+ *  default. A level-0 market can't trade. */
 export function caravanDeliveryTurns(marketLevel: number): number {
-  return Math.max(
-    CARAVAN_DELIVERY_MIN_TURNS,
-    CARAVAN_DELIVERY_BASE - CARAVAN_DELIVERY_PER_LEVEL * marketLevel,
-  );
+  return caravanDeliveryTurnsAt(marketLevel);
 }
 
 /** Has a caravan reached the market yet? Legacy orders (no arrivesAtTick) count

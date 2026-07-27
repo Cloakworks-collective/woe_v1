@@ -29,7 +29,7 @@ import {
   catchableOpLevel,
   STAMINA,
   STORAGE_BUILDING,
-  STORAGE_PER_LEVEL,
+  storageShelterAtLevel,
   SURRENDER_DAYS_PER_ERA,
   SURRENDER_TICKS_PER_ERA,
   TURNS_PER_DAY,
@@ -103,7 +103,7 @@ export default async function CommandView({
     const building = STORAGE_BUILDING[key];
     const loose = key === "gold" ? p.gold : p.resources[key];
     const vaulted = key === "gold" ? p.bankedGold : bankedRes(p)[key];
-    const fullCap = STORAGE_PER_LEVEL * level(p, building);
+    const fullCap = storageShelterAtLevel(level(p, building));
     const integrity = buildingIntegrity(p, building);
     const protectedCap = Math.floor(fullCap * integrity);
     const spilled = Math.max(0, vaulted - protectedCap);

@@ -4,7 +4,6 @@ import {
   BASE_COSTS,
   CIVILIAN_BANDS,
   CIVILIAN_LEVELLED_IDS,
-  COST_GROWTH,
   GOLD_COST_SHARE,
   MILITARY_BANDS,
   TIERED_BAND_INDEX,
@@ -13,6 +12,7 @@ import {
   type BuildingId,
   type RatioBand,
 } from "../constants/buildings";
+import { buildingCostMultiplier } from "../constants/derived";
 import { WALL_REPAIR_COST_FACTOR } from "../constants/combat";
 
 export interface Cost {
@@ -40,14 +40,14 @@ export function buildingCost(id: BuildingId, targetLevel: number): Cost {
     return split(BASE_COSTS.muster_hall, MILITARY_BANDS[0]);
   }
   if (CIVILIAN_LEVELLED_IDS.includes(id)) {
-    const res = BASE_COSTS.civilian * COST_GROWTH ** (targetLevel - 1);
+    const res = BASE_COSTS.civilian * buildingCostMultiplier(targetLevel);
     return split(res, CIVILIAN_BANDS[bandIndex(targetLevel)]);
   }
   // Military: tiered trainers map levels 1/2/3 to bands 1–3 / 4–6 / 9–10.
   const band = TIERED_BUILDING_IDS.includes(id)
     ? MILITARY_BANDS[TIERED_BAND_INDEX[targetLevel]]
     : MILITARY_BANDS[bandIndex(targetLevel)];
-  const res = BASE_COSTS.military * COST_GROWTH ** (targetLevel - 1);
+  const res = BASE_COSTS.military * buildingCostMultiplier(targetLevel);
   return split(res, band);
 }
 

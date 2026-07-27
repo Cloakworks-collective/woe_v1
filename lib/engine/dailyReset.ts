@@ -3,7 +3,7 @@
 
 import {
   CIVILIAN_LEVELLED_IDS,
-  GROWTH,
+  growthPerDayAt,
   HOUSING_PER_HEARTHSTEAD,
   SCATTERING,
   WALL_DAMAGE_POP_PENALTY,
@@ -22,13 +22,10 @@ export function civilianLevels(p: Player): number {
   return CIVILIAN_LEVELLED_IDS.reduce((sum, id) => sum + level(p, id), 0);
 }
 
-/** Raw peasants/day before wall penalty and housing cap. */
+/** Raw peasants/day before wall penalty and housing cap — GROWTH_CURVE
+ *  evaluated at the empire's total civilian building levels. */
 export function rawGrowthPerDay(p: Player): number {
-  const L = civilianLevels(p);
-  return (
-    GROWTH.BASE_PER_DAY +
-    (GROWTH.MAX_PER_DAY - GROWTH.BASE_PER_DAY) * (L / GROWTH.TOTAL_CIVILIAN_LEVELS)
-  );
+  return growthPerDayAt(civilianLevels(p));
 }
 
 /** Damaged walls scare settlers: 1 − 0.5 × damagedFraction. Intact/absent = 1. */

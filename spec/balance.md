@@ -18,12 +18,12 @@ NOT balance: types, display text, and structural identity.
 |---|---------|---------------------|
 | 1 | Time & pacing | turn length, turns/day, era peace days, newcomer shield |
 | 2 | Starting empire | `START`: gold, resources, peasants, footmen, founding buildings |
-| 3 | Population & growth | growth curve, housing/bed, wall settler penalty, scattering, settlement titles |
-| 4 | Economy | tax gold rate, production/worker/level, food upkeep, surrender factors, merc price/cap/upkeep, storage shelter |
-| 5 | Building costs | base costs, 1.5× growth, gold share, ratio bands, muster beds, repair factor |
-| 6 | Research | ordinal base & growth, switch loss, max level, effect/level |
+| 3 | Population & growth | growth curve (settlers/day), housing/bed, wall settler penalty, scattering, settlement titles |
+| 4 | Economy | tax gold rate, worker-output curve, food upkeep, surrender factors, merc price/cap/upkeep, storage shelter |
+| 5 | Building costs | base costs, cost-multiplier curve, gold share, ratio bands, muster beds, repair factor |
+| 6 | Research | research-cost curve, switch loss, max level, effect/level |
 | 7 | Units & training | `UNIT_STATS`, tier power, training costs, tier cost mult |
-| 8 | Battle | action turns, stamina, lethality, break threshold, luck, wall bonus, engine fire, escalade, XP bands, loot, revenge window, bombard params |
+| 8 | Battle | action turns, stamina, lethality, break threshold, luck, wall-bonus curve, engine fire, escalade, XP bands, loot, revenge window, bombard params |
 | 9 | Siege equipment | offensive gear + defensive counter cost/crew/foundry tables |
 | 10 | Espionage | op effects, catch model, guild/pathfinding scaling, unrest |
 | 11 | Market | caravan capacity & delivery curve, fee, price band |
@@ -40,12 +40,62 @@ NOT balance: types, display text, and structural identity.
    reason. `CLAN_BUILD_COSTS` is the data; the `BUILD_COSTS` accessor shape
    lives in `clans.ts`.)
 2. **Every value carries a unit comment** (`/turn`, `frac`, `gold`, `hours`…).
-3. **Formula SHAPES live in the engine**, only their *parameters* live here.
-   Want a different curve (not just different coefficients)? That's an engine
-   change, by design.
+3. **Curve-shaped knobs are Curve descriptors** (see §Curves below) — the
+   SHAPE itself is data you can swap. Multi-variable formulas (the full
+   production equation, combat resolution) stay engine-shaped compositions
+   *of* those curves.
 4. **What stays out:** display text (`descriptions.ts`, names, tips),
    structural identity (building/field IDs, counter pairings, foundry ladder,
    phase order), monetization (Charter price).
+
+## Curves — pluggable formula shapes
+
+Eight sites are governed by a `Curve` descriptor (`lib/constants/curves.ts`)
+instead of a fixed formula. A curve is pure data describing `y = f(x)`; pick
+any kind per site:
+
+| kind | meaning |
+|------|---------|
+| `constant` | `y = value` |
+| `linear` | `y = base + perX·x` |
+| `geometric` | `y = base · ratio^x` |
+| `exponential` | `y = base · e^(rate·x)` |
+| `polynomial` | `y = c0 + c1·x + c2·x² + …` |
+| `steps` | lookup table — y of the last `[x, y]` point at or below x |
+| `expr` | **your own equation as a string** — `"2000 * 1.3 ^ (x - 1)"` |
+
+`expr` is parsed by our own ~150-line whitelist evaluator (`compileExpr`) —
+no `eval()`, deterministic, only numbers, `+ - * / ^ ( )`, the functions
+`min max floor ceil round sqrt abs log exp`, and the variable `x` (aliases
+`level`, `n`). `-2^2 = −4`; `^` is right-associative. Malformed formulas
+throw loudly at first evaluation.
+
+The curve-governed sites (each names its `x` in balance.ts):
+
+| Descriptor | x | Default |
+|---|---|---|
+| `GROWTH_CURVE` | total civilian levels | `"1 + 99 * x / 130"` (1→100/day) |
+| `BUILDING_COST_CURVE` | target level | `"1.5 ^ (x - 1)"` (×1.5/level) |
+| `RESEARCH_COST_CURVE` | Nth research overall | `"2000 * 1.3 ^ (x - 1)"` |
+| `WORKER_OUTPUT_CURVE` | building level | linear 50·level |
+| `CARAVAN_DELIVERY_CURVE` | Market Sq level | linear 110 − 10·level (floor 10) |
+| `WALL_BONUS_CURVE` | wall level | linear 0.1·level |
+| `WALLS_SCORE_CURVE` | wall level | polynomial level²·100 |
+| `STORAGE_SHELTER_CURVE` | store level | linear 20 000·level |
+
+Each is evaluated in exactly ONE place — the matching helper in
+`lib/constants/derived.ts` (`growthPerDayAt`, `buildingCostMultiplier`,
+`researchOrdinalCost`, `workerOutputAtLevel`, `caravanDeliveryTurnsAt`,
+`wallBonusAtLevel`, `wallsScoreAtLevel`, `storageShelterAtLevel`) — which both
+the engine and the UI consume, so displayed numbers always match charged
+numbers. Clamps and rounding (the 1-settler floor, whole-turn delivery,
+integer RP) stay engine-side and survive any curve you write.
+
+Swapping a shape is one edit — e.g. a linear-research era:
+
+```ts
+export const RESEARCH_COST_CURVE: Curve = { kind: "linear", base: 0, perX: 2000 };
+```
 
 ## Tweaking an era (build phase)
 

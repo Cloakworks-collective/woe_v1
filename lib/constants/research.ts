@@ -2,7 +2,8 @@
 // The field LIST (structure + display text + ranked flags) lives here; every
 // number lives in balance.ts — THE tuning file.
 
-import { RESEARCH_ORDINAL_BASE, RESEARCH_ORDINAL_GROWTH } from "./balance";
+import { RESEARCH_COST_CURVE } from "./balance";
+import { evalCurve } from "./curves";
 
 export type ResearchField =
   | "crop_rotation"
@@ -40,12 +41,12 @@ export const RESEARCH_FIELDS: ResearchFieldMeta[] = [
 export {
   MAX_FIELD_LEVEL,
   EFFECT_PER_LEVEL,
-  RESEARCH_ORDINAL_BASE,
-  RESEARCH_ORDINAL_GROWTH,
+  RESEARCH_COST_CURVE,
   RESEARCH_SWITCH_LOSS,
 } from "./balance";
 
-/** RP to complete your `order`-th research level overall (1-based). */
+/** RP to complete your `order`-th research level overall (1-based) —
+ *  RESEARCH_COST_CURVE evaluated at x = order, rounded to whole points. */
 export function researchOrdinalCost(order: number): number {
-  return Math.round(RESEARCH_ORDINAL_BASE * RESEARCH_ORDINAL_GROWTH ** Math.max(0, order - 1));
+  return Math.round(evalCurve(RESEARCH_COST_CURVE, Math.max(1, order)));
 }

@@ -7,11 +7,11 @@ import {
   MAX_FIELD_LEVEL,
   RACES,
   SETTLEMENT_TITLES,
-  PRODUCTION_PER_WORKER_PER_LEVEL,
+  workerOutputAtLevel,
   STORAGE_BUILDING,
-  STORAGE_PER_LEVEL,
+  storageShelterAtLevel,
   TROOPS_PER_MUSTER_HALL,
-  WALL_BONUS_PER_LEVEL,
+  wallBonusAtLevel,
   WALL_NAMES,
   WAR_FOUNDRY_LADDER,
   catchableOpLevel,
@@ -94,7 +94,7 @@ export function theWallName(p: Player): string {
 
 export function protectedCapacity(p: Player, r: Resource): number {
   const building = STORAGE_BUILDING[r];
-  return STORAGE_PER_LEVEL * level(p, building) * buildingIntegrity(p, building);
+  return storageShelterAtLevel(level(p, building)) * buildingIntegrity(p, building);
 }
 
 // ── Public battle view (the War Ledger) ─────────────────────────────────────
@@ -239,7 +239,7 @@ export function advisorCounsel(p: Player): AdvisorCounsel {
   const civ = civilians(p);
   const mil = military(p);
   const wallLvl = level(p, "walls");
-  const wallBonus = wallLvl * WALL_BONUS_PER_LEVEL * 100;
+  const wallBonus = wallBonusAtLevel(wallLvl) * 100;
   const n = (x: number) => Math.floor(x).toLocaleString("en-US");
 
   // ── Defensive ──
@@ -357,7 +357,7 @@ export function buildingUpgradeBenefit(p: Player, id: BuildingId): string | null
   // Resource producers: the level lifts each worker's output (workers uncapped).
   const word = PRODUCER_WORD[id];
   if (word && (id === "grange" || id === "masons_quarry" || id === "deepvein_mine" || id === "sawyers_mill")) {
-    return `each ${word} produces ${PRODUCTION_PER_WORKER_PER_LEVEL * cur} → ${PRODUCTION_PER_WORKER_PER_LEVEL * next}/turn (before tax & bonuses)`;
+    return `each ${word} produces ${workerOutputAtLevel(cur)} → ${workerOutputAtLevel(next)}/turn (before tax & bonuses)`;
   }
 
   // The other unit halls — uncapped too; the level makes each unit BETTER.
@@ -366,7 +366,7 @@ export function buildingUpgradeBenefit(p: Player, id: BuildingId): string | null
       return `each caravan carries ${num(cur * 1000)} → ${num(next * 1000)} goods and reaches the Bazaar in ${caravanDeliveryTurns(cur)} → ${caravanDeliveryTurns(next)} turns (merchants unlimited)`;
     }
     if (id === "collegium") {
-      return `each scholar makes ${PRODUCTION_PER_WORKER_PER_LEVEL * cur} → ${PRODUCTION_PER_WORKER_PER_LEVEL * next} research/turn (scholars unlimited)`;
+      return `each scholar makes ${workerOutputAtLevel(cur)} → ${workerOutputAtLevel(next)} research/turn (scholars unlimited)`;
     }
     if (id === "rangers_lodge") {
       return `scouts sharpen — now catch enemy spy ops up to level ${catchableOpLevel(next) || 0} (scouts unlimited)`;
@@ -379,7 +379,7 @@ export function buildingUpgradeBenefit(p: Player, id: BuildingId): string | null
 
   const stored = STORAGE_WORD[id];
   if (stored) {
-    return `shelters ${stored} ${num(STORAGE_PER_LEVEL * cur)} → ${num(STORAGE_PER_LEVEL * next)} from raiders`;
+    return `shelters ${stored} ${num(storageShelterAtLevel(cur))} → ${num(storageShelterAtLevel(next))} from raiders`;
   }
 
   if (id === "hearthstead") return `housing for ${num(cur * HOUSING_PER_HEARTHSTEAD)} → ${num(next * HOUSING_PER_HEARTHSTEAD)} people`;
@@ -391,7 +391,7 @@ export function buildingUpgradeBenefit(p: Player, id: BuildingId): string | null
   if (id === "forge") return `stocks ${TIER_WORD[next]} weapons & armour (arms your ${TIER_WORD[next]} troops)`;
 
   if (id === "walls") {
-    return `wall defence +${Math.round(cur * WALL_BONUS_PER_LEVEL * 100)}% → +${Math.round(next * WALL_BONUS_PER_LEVEL * 100)}% for every defender`;
+    return `wall defence +${Math.round(wallBonusAtLevel(cur) * 100)}% → +${Math.round(wallBonusAtLevel(next) * 100)}% for every defender`;
   }
 
   if (id === "war_foundry") {

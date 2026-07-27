@@ -22,11 +22,11 @@ import {
   SIEGE_GEAR_LOSS_ON_DEFEAT,
   STAMINA,
   STORAGE_BUILDING,
-  STORAGE_PER_LEVEL,
+  storageShelterAtLevel,
   TIER_POWER,
   UNIT_STATS,
   WALL_BOMBARD_PIVOT,
-  WALL_BONUS_PER_LEVEL,
+  wallBonusAtLevel,
   WAR_FOUNDRY_LADDER,
   XP,
 } from "../constants";
@@ -156,7 +156,7 @@ function buildSide(p: Player, opts: { home: boolean; walls: boolean; warBonus: b
   // Defender wall bonus; the caller reduces it by the attacker's escalade.
   const wallBonus =
     opts.home && opts.walls
-      ? wallLvl * WALL_BONUS_PER_LEVEL * p.wallIntegrity * RACES[p.race].walls
+      ? wallBonusAtLevel(wallLvl) * p.wallIntegrity * RACES[p.race].walls
       : 0;
 
   // Regulars carry the empire's race/veterancy/research bonuses; mercs are
@@ -399,7 +399,7 @@ export function resolveBattle(
         aLuck;
       const applied = Math.max(0, Math.min(defender.wallIntegrity - wallDamage, grind));
       wallDamage += applied;
-      def.wallBonus = level(defender, "walls") * WALL_BONUS_PER_LEVEL *
+      def.wallBonus = wallBonusAtLevel(level(defender, "walls")) *
         Math.max(0, defender.wallIntegrity - wallDamage) * (1 - escalade);
 
       const engines = effTrebs + effBallistae + effRams;
@@ -821,7 +821,7 @@ export function resolveClanBombard(
  *  (integrity-scaled) capacity — a wrecked store spills. */
 export function unstored(p: Player, r: Resource): number {
   const building = STORAGE_BUILDING[r];
-  const cap = STORAGE_PER_LEVEL * level(p, building) * buildingIntegrity(p, building);
+  const cap = storageShelterAtLevel(level(p, building)) * buildingIntegrity(p, building);
   const spilled = Math.max(0, bankedRes(p)[r] - cap);
   return p.resources[r] + spilled;
 }
@@ -848,7 +848,7 @@ export function plunderGold(p: Player, amount: number): void {
 
 /** Gold outside the (integrity-scaled) Counting House. */
 export function unbankedGold(p: Player): number {
-  const cap = STORAGE_PER_LEVEL * level(p, "counting_house") * buildingIntegrity(p, "counting_house");
+  const cap = storageShelterAtLevel(level(p, "counting_house")) * buildingIntegrity(p, "counting_house");
   const spilled = Math.max(0, p.bankedGold - cap); // a wrecked bank spills
   return p.gold + spilled;
 }

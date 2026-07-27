@@ -18,6 +18,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import type { BuildingId } from "./buildings";
+import type { Curve } from "./curves";
 import type { Race, RaceModifiers } from "./races";
 
 // ─── 1 · TIME & PACING ──────────────────────────────────────────────────────
@@ -55,13 +56,10 @@ export const START = {
 
 // ─── 3 · POPULATION & GROWTH ────────────────────────────────────────────────
 
-/** Settlers/day: BASE at 0 civilian levels, MAX at all TOTAL levels built.
- *  Arrivals beyond empty Hearthstead beds are LOST, never queued. */
-export const GROWTH = {
-  BASE_PER_DAY: 1, // settlers/day
-  MAX_PER_DAY: 100, // settlers/day
-  TOTAL_CIVILIAN_LEVELS: 130, // 13 buildings × 10 levels
-};
+/** Settlers/day as a CURVE of x = total civilian building levels (0–130).
+ *  Default: linear 1/day at 0 levels → 100/day at all 130. Arrivals beyond
+ *  empty Hearthstead beds are LOST, never queued. (Engine floors at 1.) */
+export const GROWTH_CURVE: Curve = { kind: "expr", formula: "1 + 99 * x / 130" };
 
 export const HOUSING_PER_HEARTHSTEAD = 10; // beds per hearthstead
 
@@ -95,11 +93,11 @@ export const DEFAULT_TAX_RATE = 0.5; // frac
 
 /**
  * The production model: workers are UNLIMITED; each building level lifts every
- * worker's output. A worker makes `50 × building level` units/turn at 0% tax —
- * 50/turn at level 1 up to 500/turn at level 10. Also the per-scholar research
- * rate (× Collegium level).
+ * worker's output. y = units/turn per worker at 0% tax, as a CURVE of
+ * x = building level. Default: linear 50 × level — 50/turn at level 1 up to
+ * 500/turn at level 10. Also the per-scholar research rate (× Collegium level).
  */
-export const PRODUCTION_PER_WORKER_PER_LEVEL = 50; // units/turn per building level
+export const WORKER_OUTPUT_CURVE: Curve = { kind: "linear", base: 0, perX: 50 };
 
 /** Food consumed per person (civilians + regular troops) per turn. */
 export const FOOD_UPKEEP_PER_PERSON = 0.1; // food/turn
@@ -117,14 +115,16 @@ export const MERC_UPKEEP_GOLD_PER_TURN = 1; // gold/turn; unpaid mercs all defec
 export const MERC_CAP_RATIO = 0.25; // frac of regular army headcount
 export const MERC_PRICE_GOLD = 500; // gold, light tier; × race mercCost × wonder discount
 
-/** Protected capacity per storage-building level (× integrity). */
-export const STORAGE_PER_LEVEL = 20000; // units
+/** Protected capacity as a CURVE of x = storage-building level (× integrity
+ *  applied by the engine). Default: linear 20,000 per level. */
+export const STORAGE_SHELTER_CURVE: Curve = { kind: "linear", base: 0, perX: 20000 };
 
 // ─── 5 · BUILDING COSTS ─────────────────────────────────────────────────────
-// resourceCost(level) = baseCost × COST_GROWTH^(level−1), split by ratio bands.
-// goldCost(level)     = GOLD_COST_SHARE × resourceCost(level).
+// resourceCost(level) = baseCost × BUILDING_COST_CURVE(level), split by ratio
+// bands. goldCost(level) = GOLD_COST_SHARE × resourceCost(level).
 
-export const COST_GROWTH = 1.5; // × per level
+/** Cost MULTIPLIER as a curve of x = target level. Default: ×1.5 per level. */
+export const BUILDING_COST_CURVE: Curve = { kind: "expr", formula: "1.5 ^ (x - 1)" };
 export const GOLD_COST_SHARE = 0.5; // frac of the resource cost, paid in gold
 
 export const BASE_COSTS = {
@@ -170,12 +170,12 @@ export const MAX_FIELD_LEVEL = 5; // levels per field (10 fields)
 export const EFFECT_PER_LEVEL = 0.2; // frac
 
 /**
- * Research cost is GLOBAL and progressive: your Nth level overall (any field)
- * costs ORDINAL_BASE × ORDINAL_GROWTH^(N−1) research points — the ORDER you
- * research in is the strategy.
+ * Research cost is GLOBAL and progressive: the price of your x-th research
+ * level overall (any field) is this CURVE, in research points — the ORDER you
+ * research in is the strategy. Default: geometric 2000 × 1.3^(x−1). (Engine
+ * rounds to whole points.)
  */
-export const RESEARCH_ORDINAL_BASE = 2000; // research points
-export const RESEARCH_ORDINAL_GROWTH = 1.3; // × per level earned
+export const RESEARCH_COST_CURVE: Curve = { kind: "expr", formula: "2000 * 1.3 ^ (x - 1)" };
 
 /** Fraction of the CURRENT field's banked progress LOST when the scholars are
  *  re-pointed to a different field. */
@@ -239,7 +239,10 @@ export const K_LETHALITY = 2; // casualties = damage / (k × effective defence)
 export const BREAK_THRESHOLD = 0.3; // frac — a side breaks below 30% strength
 export const LUCK_SWING = 0.1; // frac — ±10% rolled per side per round
 
-export const WALL_BONUS_PER_LEVEL = 0.1; // frac/level — Citadel (10) = +100%
+/** Wall defence bonus (frac) as a curve of x = wall level (× integrity and
+ *  race walls factor applied by the engine). Default: +10%/level, Citadel
+ *  (10) = +100%. */
+export const WALL_BONUS_CURVE: Curve = { kind: "linear", base: 0, perX: 0.1 };
 
 /** Siege engine fire per crewed engine per round. */
 export const ENGINE_FIRE = {
@@ -351,11 +354,11 @@ export const RECON_FUZZ = 0.2; // frac
 /** Caravan capacity per merchant = this × Market Square level. */
 export const CARAVAN_CAPACITY_PER_MARKET_LEVEL = 1000; // units
 
-/** Delivery: a caravan takes max(MIN, BASE − PER_LEVEL × marketLevel) turns to
- *  reach the Bazaar — 100 turns at L1 down to 10 at L10. Goods aren't buyable
- *  (and don't count toward price/supply) until they arrive. */
-export const CARAVAN_DELIVERY_BASE = 110; // turns
-export const CARAVAN_DELIVERY_PER_LEVEL = 10; // turns/level
+/** Delivery time (turns) as a curve of x = Market Square level, floored at
+ *  MIN_TURNS by the engine. Default: 110 − 10×level — 100 turns at L1 down to
+ *  10 at L10. Goods aren't buyable (and don't count toward price/supply)
+ *  until they arrive. */
+export const CARAVAN_DELIVERY_CURVE: Curve = { kind: "linear", base: 110, perX: -10 };
 export const CARAVAN_DELIVERY_MIN_TURNS = 10; // turns floor
 
 /** Fee on every sale, paid by the seller, BURNED (the gold sink). */
@@ -436,7 +439,6 @@ export const POPULATION_FLOORS = {
 export const SCORE = {
   PER_CIVILIAN: 10, // pts
   PER_TROOP_BASE: 10, // pts × tier power (1 / 1.8 / 3)
-  WALLS_PER_LEVEL_SQ: 100, // pts — walls score = level² × this × integrity
   PER_BUILDING_LEVEL: 200, // pts, levelled buildings (civilian + military)
   PER_COUNTED_BUILDING: 50, // pts — hearthsteads, muster halls
   GOLD_DIVISOR: 100, // pts = gold ÷ this
@@ -444,6 +446,10 @@ export const SCORE = {
   PER_XP_POINT: 100, // pts, army experience 0–100
   PER_RESEARCH_LEVEL: 1000, // pts, ranked fields only (7 of 10)
 };
+
+/** Walls ranking score (pts) as a curve of x = wall level (× integrity applied
+ *  by the engine). Default: quadratic level² × 100. */
+export const WALLS_SCORE_CURVE: Curve = { kind: "polynomial", coefficients: [0, 0, 100] };
 
 /** Clan score adds building points × integrity. */
 export const CLAN_BUILDING_POINTS = {

@@ -7,11 +7,11 @@ import {
   FOOD_UPKEEP_PER_PERSON,
   GOLD_PER_CIVILIAN_AT_FULL_TAX,
   MERC_UPKEEP_GOLD_PER_TURN,
-  PRODUCTION_PER_WORKER_PER_LEVEL,
+  workerOutputAtLevel,
   RACES,
   STAMINA,
   STORAGE_BUILDING,
-  STORAGE_PER_LEVEL,
+  storageShelterAtLevel,
   SURRENDER_TAX_FACTOR,
   SURRENDER_PRODUCTION_FACTOR,
   SURRENDER_TICKS_PER_ERA,
@@ -72,7 +72,7 @@ export function productionPerWorker(p: Player, building: BuildingId, hallPenalty
   const lvl = level(p, building);
   if (lvl === 0) return 0;
   const statecraft = 1 + researchLevel(p, "statecraft") * EFFECT_PER_LEVEL;
-  return PRODUCTION_PER_WORKER_PER_LEVEL * lvl * (1 - p.taxRate * hallPenaltyFactor) * statecraft;
+  return workerOutputAtLevel(lvl) * (1 - p.taxRate * hallPenaltyFactor) * statecraft;
 }
 
 export interface TickOptions {
@@ -188,7 +188,7 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
     const banked = { ...bankedRes(p) };
     let vaulted = false;
     for (const r of ["food", "wood", "stone", "ore"] as const) {
-      const cap = STORAGE_PER_LEVEL * level(p, STORAGE_BUILDING[r]);
+      const cap = storageShelterAtLevel(level(p, STORAGE_BUILDING[r]));
       const move = Math.min(p.resources[r], Math.max(0, cap - banked[r]));
       if (move > 0) {
         p.resources[r] -= move;

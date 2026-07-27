@@ -15,7 +15,7 @@ import { pushInbox, saveWorld } from "@/lib/server/store";
 import { eraReset, getWorld, runOneTick } from "@/lib/server/world";
 import {
   STORAGE_BUILDING,
-  STORAGE_PER_LEVEL,
+  storageShelterAtLevel,
   TICKS_PER_HOUR,
   type BuildingId,
 } from "@/lib/constants";
@@ -308,7 +308,7 @@ export async function adminBackfillStorage(): Promise<void> {
     if (!p.bankedResources) {
       const banked = { food: 0, wood: 0, stone: 0, ore: 0 };
       for (const r of ["food", "wood", "stone", "ore"] as const) {
-        const cap = STORAGE_PER_LEVEL * (p.buildings[STORAGE_BUILDING[r]] ?? 0);
+        const cap = storageShelterAtLevel(p.buildings[STORAGE_BUILDING[r]] ?? 0);
         const move = Math.min(p.resources[r], cap);
         p.resources[r] -= move;
         banked[r] = move;

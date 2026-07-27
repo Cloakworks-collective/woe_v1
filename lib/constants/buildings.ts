@@ -74,7 +74,7 @@ export const TIERED_BUILDING_IDS: BuildingId[] = [
 // ── Every tunable number, from THE tuning file ─────────────────────────────
 
 export {
-  COST_GROWTH,
+  BUILDING_COST_CURVE,
   GOLD_COST_SHARE,
   BASE_COSTS,
   type RatioBand,
@@ -83,8 +83,8 @@ export {
   TIERED_BAND_INDEX,
   HOUSING_PER_HEARTHSTEAD,
   TROOPS_PER_MUSTER_HALL,
-  STORAGE_PER_LEVEL,
-  GROWTH,
+  STORAGE_SHELTER_CURVE,
+  GROWTH_CURVE,
   WALL_DAMAGE_POP_PENALTY,
   SETTLEMENT_TITLES,
   TRAINING_COSTS,
