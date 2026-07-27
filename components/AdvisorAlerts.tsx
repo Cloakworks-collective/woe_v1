@@ -1,5 +1,15 @@
 import Link from "next/link";
-import { buildingIntegrity, civilians, level, military, totalPopulation, wallName, type Player } from "@/lib/engine";
+import {
+  buildingIntegrity,
+  civilians,
+  level,
+  military,
+  popPerDay,
+  theWallName,
+  totalPopulation,
+  vacantHousing,
+  type Player,
+} from "@/lib/engine";
 import type { BuildingId } from "@/lib/constants/buildings";
 
 const STORE_NAMES: { id: BuildingId; name: string }[] = [
@@ -88,7 +98,7 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
       title: "Marshal Aldric: the walls are breached",
       body: (
         <>
-          The {wallName(p)} is battered to <b>{Math.round(p.wallIntegrity * 100)}%</b> — its defence
+          {theWallName(p)} is battered to <b>{Math.round(p.wallIntegrity * 100)}%</b> — its defence
           bonus is gutted and the rubble frightens off up to half your daily settlers. A repair costs
           only half the damage in materials; send the masons before the next assault.
         </>
@@ -101,7 +111,34 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
     });
   }
 
-  // 4 · Storehouses bombarded — cracked vaults shelter less and spill goods
+  // 4 · Housing can't fit the dawn's settlers — arrivals above the vacant beds
+  //     are LOST, not queued (Steward Maren). arrived = min(perDay, vacant).
+  const perDay = popPerDay(p);
+  const vacant = vacantHousing(p);
+  if (!p.starving && vacant < perDay) {
+    const turnedAway = perDay - vacant;
+    alerts.push({
+      key: "housing",
+      variant: "warn",
+      icon: "🏠",
+      title: "Steward Maren: there are no beds for the dawn's settlers",
+      body: (
+        <>
+          <b>{perDay}</b> settlers will arrive at dawn but only <b>{vacant}</b> bed
+          {vacant === 1 ? "" : "s"} stand{vacant === 1 ? "s" : ""} empty — the other{" "}
+          <b>{turnedAway}</b> will find no roof and walk on, <b>lost for good</b> (arrivals are never
+          queued). Every Hearthstead houses 10; raise them ahead of the crowd.
+        </>
+      ),
+      ctas: [
+        { href: "/buildings#housing", label: "🏠 Raise Hearthsteads", primary: true },
+        { href: "/advisors#population", label: "Ask Steward Maren →" },
+        { href: "/guide#grow", label: "📜 Field Manual" },
+      ],
+    });
+  }
+
+  // 5 · Storehouses bombarded — cracked vaults shelter less and spill goods
   //     back into the open (Treasurer Poll).
   const brokenStores = STORE_NAMES.filter(({ id }) => level(p, id) > 0 && buildingIntegrity(p, id) < 0.999);
   if (!p.starving && brokenStores.length > 0) {

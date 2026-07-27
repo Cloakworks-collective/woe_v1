@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ElderAgesIndex } from "@/components/ElderAges";
 import { EraTablesView } from "@/components/EraRecords";
+import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { getGame } from "@/lib/server/session";
 import { battleTables } from "@/lib/server/eraTables";
@@ -18,6 +19,7 @@ export default async function AnnalsPage() {
 
   return (
     <>
+      <LearnLink href="/guide#winning">How an era is won &amp; named</LearnLink>
       <p style={{ margin: "0 0 8px", fontSize: 13.5 }}>
         The age still burning is elsewhere: <Link href="/battles">🌍 World News</Link> ·{" "}
         <Link href="/rankings/records">🏆 Records of the Age ({world.meta.eraName})</Link>

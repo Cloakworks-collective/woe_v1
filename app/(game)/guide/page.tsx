@@ -4,7 +4,11 @@ import { Panel } from "@/components/Panel";
 import {
   ERA_PEACE_DAYS,
   HOLD_CLOCKS,
+  MARKET_FEE,
+  MARKET_PRICE_MAX,
+  MARKET_PRICE_MIN,
   POPULATION_FLOORS,
+  REVENGE_WINDOW_HOURS,
   TURNS_PER_DAY,
 } from "@/lib/constants";
 
@@ -57,6 +61,16 @@ export default function GuidePage() {
           <Link href="#clans">🛡️ Clans</Link>
           <Link href="#defense">🏰 Defending the Realm</Link>
           <Link href="#strategy">🎯 Strategy &amp; First Days</Link>
+        </div>
+        <p style={{ fontSize: 13.5, fontWeight: 700, margin: "12px 0 4px", color: "var(--heading)" }}>
+          ⚔️ The Advanced Manual — mastering the endgame
+        </p>
+        <div className="guide-toc">
+          <Link href="#regulars">💀 Saving &amp; Killing Regulars</Link>
+          <Link href="#clocks">👑 Ranking &amp; Starting the Clocks</Link>
+          <Link href="#revenge">🗡️ Effective Revenge</Link>
+          <Link href="#market-mastery">⚖️ Using the Market</Link>
+          <Link href="#rich">💰 Getting Rich</Link>
         </div>
       </Panel>
 
@@ -144,10 +158,15 @@ export default function GuidePage() {
         </p>
         <h4>Research — the Collegium</h4>
         <p>
-          <Link href="/research">The Collegium</Link> has <b>10 fields × 5 levels</b>, each level
-          five times costlier than the last, so you must <b>specialise</b>. Seven fields (farming,
+          <Link href="/research">The Collegium</Link> has <b>10 fields × 5 levels</b>. Any field is
+          researchable at any time — the Collegium only sets the <b>speed</b> (its level lifts how
+          much research each of your scholars banks per turn). But every level you earn, in{" "}
+          <i>any</i> field, makes the <b>next one costlier</b> — a single global, escalating price —
+          so the <b>order you research is the strategy</b>, and you can never master all ten.
+          Assign researchers on the <Link href="/train">Workers</Link> page; switching fields
+          forfeits <b>half</b> the progress banked toward the current one. Seven fields (farming,
           forestry, masonry, smelting, and the war arts) also raise your ranking score; the three
-          shadow fields do not.
+          shadow fields (Siegecraft, Tradecraft, Pathfinding) do not.
         </p>
         <p className="guide-tip">
           💡 Early game: raise housing + production, keep food positive, pick <b>one</b> research
@@ -229,10 +248,11 @@ export default function GuidePage() {
         </ul>
         <h4>How a battle resolves (per round)</h4>
         <p>
-          Four phases in order: <b>1. siege weapons</b> (grind walls; the defender&apos;s counters cut
-          paired engines by 75%) → <b>2. archers</b> → <b>3. cavalry charge</b> → <b>4. footmen</b>.
-          A side breaks when it drops <b>below 30% strength</b>. Every battle has ±10% luck. Raids
-          skip the siege phase and give no wall bonus.
+          Four phases in order: <b>1. siege weapons</b> (grind walls; each crewed defensive counter
+          the defender fields <b>cancels one incoming enemy engine</b> of its paired weapon) →{" "}
+          <b>2. archers</b> → <b>3. cavalry charge</b> → <b>4. footmen</b>. A side breaks when it
+          drops <b>below 30% strength</b>. Every battle has ±10% luck. Raids skip the siege phase
+          and give no wall bonus.
         </p>
         <h4>Killing population — the real weapon</h4>
         <p>
@@ -269,11 +289,12 @@ export default function GuidePage() {
 
       <Guide id="clans" title="🛡️ Clans — strength in numbers" illo="clan/crest">
         <p>
-          On the <Link href="/clan">Clan</Link> page you can found (5 founders) or join a clan of up
-          to 20. Members feed a shared pool that leadership spends on clan buildings:{" "}
-          <b>Clan Storage</b> → <b>Clan Hall</b> (raises the member cap and shrinks the tax
-          penalty, down to 50%) → <b>Clan Wonder</b> (discounts troop, merc &amp; siege costs for
-          every member).
+          On the <Link href="/clan">Clan</Link> page you can <b>found a clan for 50,000 gold</b>{" "}
+          (you lead it alone) or petition to join one. A clan holds <b>up to 5 members</b> at first,
+          rising to <b>20</b> as the Hall is raised. Members feed a shared pool that leadership
+          spends on clan buildings: <b>Clan Storage</b> → <b>Clan Hall</b> (raises the member cap
+          and shrinks the tax penalty members feel, down to 50%) → <b>Clan Wonder</b> (discounts
+          troop, merc &amp; siege costs for every member).
         </p>
         <p>
           <b>Clan wars double battle damage both ways.</b> Winning a war siphons tribute and freezes
@@ -290,8 +311,9 @@ export default function GuidePage() {
             so <b>repair them</b>.
           </li>
           <li>
-            <b>Install defensive counters</b> at the <Link href="/siege">Siege Works</Link> — each
-            cuts a paired enemy engine by 75%.
+            <b>Buy &amp; crew defensive counters</b> at the <Link href="/siege">Siege Works</Link> —
+            bought and manned by engineers just like your offensive gear; on defence each crewed
+            counter <b>cancels one incoming enemy engine</b> of its paired weapon.
           </li>
           <li>
             <b>Store your resources &amp; bank your gold</b> — only what&apos;s sheltered survives a
@@ -373,6 +395,213 @@ export default function GuidePage() {
             And above all — <b>it&apos;s a game</b>. Raid boldly, defend cleverly, and have fun.
           </li>
         </ul>
+      </Guide>
+
+      <Panel title="⚔️ The Advanced Manual — mastering the endgame">
+        <p style={{ fontSize: 14.5, lineHeight: 1.6 }}>
+          You know the rules; now the deep game. These chapters are how the crown is actually won —
+          protecting your real population, striking where it hurts, and turning a bulk economy into
+          a war chest.
+        </p>
+      </Panel>
+
+      <Guide id="regulars" title="💀 Saving & Killing Regulars — the population war" illo="units/footman">
+        <p>
+          <b>Regular troops are real population.</b> Every regular is a citizen who counts toward
+          your score and the victory population floor, carries hard-won <b>experience</b>, and{" "}
+          <b>cannot be re-bought</b> — kill one and it&apos;s gone for good, experience and all.
+          Mercenaries are the opposite: pure gold, invisible to the ladder, endlessly replaceable.
+          The whole endgame turns on this asymmetry.
+        </p>
+        <h4>Saving your own regulars</h4>
+        <ul>
+          <li>
+            <b>Put a merc shield in front.</b> Hire mercenaries in the same arm and a tier{" "}
+            <i>below</i> your regulars — they <b>die first</b>, soaking the losses. Dead mercs you
+            re-buy with gold; dead regulars take your veterancy to the grave.
+          </li>
+          <li>
+            <b>Fight rested, and don&apos;t bleed even wins.</b> Every round still kills some of the
+            winning side — pick fights you win <i>decisively</i> (punch 10–20% down), rest to full
+            stamina first, and never grind an even fight that trades your veterans away.
+          </li>
+          <li>
+            <b>Discharge only with a bed free.</b> Sending a soldier home needs an empty Hearthstead
+            bed and holds the 30% guard line — the Army page shows how many are safe to discharge.
+          </li>
+        </ul>
+        <h4>Killing the enemy&apos;s regulars</h4>
+        <ul>
+          <li>
+            <b>Punch through the merc shield.</b> Their mercenaries die before their regulars, so
+            you must bring <i>enough</i> force — heavy troops, full stamina — to grind past the
+            hirelings and into the real population.
+          </li>
+          <li>
+            <b>Use Revenge</b> (next chapter) — the one mode built to kill troops rather than loot.
+          </li>
+          <li>
+            <b>The reward is permanent.</b> Each regular you kill is population they can never
+            re-buy: their score drops, their army loses experience, and if you push them below{" "}
+            <b>30% troops-to-civilians</b>, the rest of their peasants <b>scatter</b> at the next
+            dawn — a score collapse that can freeze a victory clock.
+          </li>
+        </ul>
+      </Guide>
+
+      <Guide id="clocks" title="👑 Ranking & Starting the Clocks — how the crown is held" illo="buildings/ironhold">
+        <p>
+          Winning is a <b>race on the ladder</b>, and the finish line is two clocks. But the clocks
+          don&apos;t even start until you&apos;ve built a big enough <i>visible</i> empire.
+        </p>
+        <h4>1 · Build the score</h4>
+        <p>
+          Ranking score is the empire a passing traveller would see: <b>civilian population, regular
+          troops, walls</b> (level² × integrity), <b>levelled buildings, banked treasury</b> (gold +
+          resources), <b>army experience</b>, and the <b>7 ranked research fields</b>. Siege gear,
+          spies, scouts, mercenaries and the 3 shadow research fields add <b>nothing</b> — power in
+          the shadows brings no prestige.
+        </p>
+        <h4>2 · Cross the population floor</h4>
+        <p>
+          The clocks only tick while you sit at <b>#1</b> <i>and</i> hold above{" "}
+          <b>{fmt(POPULATION_FLOORS.GRAND_OVERLORD)}</b> population (civilians + regulars — mercs
+          never count). Below the floor the clocks <b>freeze</b> even at #1 (the ladder footer tells
+          you when a leader is frozen).
+        </p>
+        <h4>3 · Run the two clocks</h4>
+        <ul>
+          <li>
+            <b>{HOLD_CLOCKS.CUMULATIVE_HOURS}h cumulative</b> at #1 — this clock <b>never resets</b>,
+            it just adds up every hour you spend on top.
+          </li>
+          <li>
+            <b>{HOLD_CLOCKS.STREAK_HOURS}h unbroken</b> at #1 — this streak <b>resets to zero</b> the
+            moment anyone knocks you off the throne.
+          </li>
+          <li>
+            So the game isn&apos;t <i>reaching</i> #1 — it&apos;s <b>defending</b> it. Expect rivals
+            to bombard your walls, revenge-kill your regulars, and scatter your peasants to break
+            your streak and drop you below the floor.
+          </li>
+        </ul>
+        <h4>The clan clock</h4>
+        <p>
+          A clan wins on the same two clocks for the <b>#1 clan</b> (score = every member&apos;s
+          score + clan buildings), held above <b>{fmt(POPULATION_FLOORS.CLAN)}</b> total population.
+          Beating the leading clan in a <b>clan war freezes their clocks for 48h</b> — a direct play
+          against their win.
+        </p>
+      </Guide>
+
+      <Guide id="revenge" title="🗡️ Effective Revenge — the troop-killer's tool" illo="units/cavalry">
+        <p>
+          <b>Revenge</b> opens for <b>{REVENGE_WINDOW_HOURS} hours</b> after <i>anyone</i> attacks
+          you, and it&apos;s the single most surgical weapon in the game — launch it from that
+          empire&apos;s <b>⚔ Act</b> console on the <Link href="/rankings">ladder</Link>.
+        </p>
+        <h4>Why it&apos;s special</h4>
+        <ul>
+          <li>
+            It <b>ignores the rules that stop normal attacks</b>: their surrender, their exhaustion,
+            their broken walls, and even the &ldquo;too strong to attack&rdquo; refusal — so you can
+            strike a target far <i>above</i> your weight.
+          </li>
+          <li>
+            It takes <b>no loot</b>. Its only purpose is to <b>kill regulars</b> — the deepest wound
+            in the game (permanent population, score, and experience loss for them).
+          </li>
+          <li>
+            It <b>chains</b>: striking re-arms <i>their</i> revenge window back at you, so a revenge
+            trade goes both ways — make yours count and be ready to defend the return blow.
+          </li>
+        </ul>
+        <h4>Landing it well</h4>
+        <ul>
+          <li>
+            Bring <b>enough force to punch through their mercs</b> into the regulars — rest to full
+            stamina and field your heaviest troops for the most kills per bed.
+          </li>
+          <li>
+            <b>Anti-Overlord combo:</b> revenge the leader repeatedly to drop their regulars below
+            the <b>30%-of-civilians</b> guard line; their peasants then scatter at dawn, crashing
+            the score and freezing the victory clock. This is how a pack pulls down a runaway #1.
+          </li>
+        </ul>
+      </Guide>
+
+      <Guide id="market-mastery" title="⚖️ Using the Market — the Grand Bazaar" illo="workers/merchants">
+        <p>
+          The <Link href="/market">Grand Bazaar</Link> is one <b>anonymous, server-wide</b> market —
+          you always trade with <i>the Bazaar</i>, never a named player, and all supply is other
+          empires&apos; caravans.
+        </p>
+        <h4>Selling</h4>
+        <ul>
+          <li>
+            Assign <b>merchants</b> on the <Link href="/train">Workers</Link> page, then send a
+            caravan: pick a resource, an amount (≤ capacity = <b>1,000 × Market Square level</b>),
+            and an ask price per unit — a whole number in the <b>{MARKET_PRICE_MIN}–{MARKET_PRICE_MAX}</b>{" "}
+            gold band. One merchant rides per caravan.
+          </li>
+          <li>
+            <b>Caravans travel before they sell.</b> Goods don&apos;t hit the Bazaar the instant you
+            dispatch — the road takes <b>100 turns at Market Square level 1, down to 10 at level 10</b>.
+            The market page shows each caravan&apos;s journey and ETA; en-route goods aren&apos;t
+            buyable and don&apos;t count toward price or supply yet.
+          </li>
+        </ul>
+        <h4>Buying</h4>
+        <ul>
+          <li>
+            Each resource shows one number — the <b>cheapest arrived ask</b>. You buy N units and it
+            fills <b>cheapest-first</b>, climbing into pricier caravans as the cheap ones empty.
+            Caravans still on the road can&apos;t fill you.
+          </li>
+          <li>
+            A <b>{MARKET_FEE * 100}% fee on every sale is burned</b> — the gold sink that keeps
+            prices meaningful. Recalling a caravan returns its goods and frees the merchant, even
+            mid-journey.
+          </li>
+        </ul>
+      </Guide>
+
+      <Guide id="rich" title="💰 Getting Rich — turning bulk into a war chest" illo="resources/gold">
+        <p>
+          <b>Gold is scarce; resources are bulk.</b> Taxes trickle gold, but the fastest fortunes
+          are <i>traded</i>, not taxed — the market is how you convert a mountain of ore into the
+          gold that buys armies.
+        </p>
+        <ul>
+          <li>
+            <b>Overproduce, then sell the surplus.</b> Stack farmers/quarrymen/miners/lumberjacks,
+            keep tax moderate so producers stay productive, and ship everything you don&apos;t need
+            to the Bazaar for gold you could never mint from tax alone.
+          </li>
+          <li>
+            <b>Undercut to sell first.</b> Buyers fill the cheapest ask first, so set your price a
+            hair <i>below</i> the current lowest — your caravan clears before pricier rivals&apos; do.
+          </li>
+          <li>
+            <b>Buy low, sell high.</b> Peace-time gluts crash prices; war zones starve and prices
+            spike. Watch the <Link href="/market">price-history charts</Link>: stockpile cheap in
+            quiet times, dump into the wartime spike.
+          </li>
+          <li>
+            <b>Invest in the Market Square.</b> Each level means bigger caravans <i>and</i> a faster
+            road — you flip more goods, more often. It compounds: a merchant empire out-earns a
+            tax-only one many times over.
+          </li>
+          <li>
+            <b>Bank your winnings.</b> Gold sitting loose is lootable — park it in the{" "}
+            <b>Counting House</b> so a raid can&apos;t take it, then spend on troops, mercs, and
+            siege gear.
+          </li>
+        </ul>
+        <p className="guide-tip">
+          💡 The merchant&apos;s loop: mass producers → moderate tax → undercut the market →
+          bank the gold → raise the Market Square → repeat, bigger each time.
+        </p>
       </Guide>
 
       <Panel title="Ready?">

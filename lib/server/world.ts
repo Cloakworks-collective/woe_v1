@@ -382,7 +382,7 @@ export function runOneTick(world: World, nowMs = Date.now()): void {
     world.priceHistory ??= { food: [], wood: [], stone: [], ore: [] };
     for (const r of ["food", "wood", "stone", "ore"] as const) {
       const series = world.priceHistory[r];
-      series.push({ t: tick, p: marketPrice(world.orders, r) });
+      series.push({ t: tick, p: marketPrice(world.orders, r, tick) });
       if (series.length > 336) series.splice(0, series.length - 336);
     }
   }

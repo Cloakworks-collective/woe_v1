@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Art } from "@/components/Art";
 import { ClanMembers } from "@/components/ClanMembers";
+import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { memberCap, wonderDiscount } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
@@ -32,6 +33,7 @@ export default async function ClanViewPage({
 
   return (
     <>
+      <LearnLink href="/guide#clans">How clans work &amp; win together</LearnLink>
       <Panel title={`${clan.name} — #${rank} of the clans`}>
         <span className="guide-illo">
           <Art path="clan/crest" size={96} title={`${clan.name} crest`} />

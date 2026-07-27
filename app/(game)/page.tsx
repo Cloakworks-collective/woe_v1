@@ -1,3 +1,4 @@
+import { Btn } from "@/components/Btn";
 import Link from "next/link";
 import { Art } from "@/components/Art";
 import { Census } from "@/components/Census";
@@ -5,6 +6,7 @@ import { CmdForm } from "@/components/CmdForm";
 import { Flash } from "@/components/Flash";
 import { HealthBar } from "@/components/HealthBar";
 import { Info } from "@/components/Info";
+import { LearnLink } from "@/components/LearnLink";
 import { Meter } from "@/components/Meter";
 import { Panel } from "@/components/Panel";
 import { ResIcon } from "@/components/ResIcon";
@@ -17,7 +19,9 @@ import { VictoryTracker } from "@/components/VictoryTracker";
 import {
   ACTION_GUIDE,
   ACTION_INFO,
+  CIVILIAN_BUILDINGS,
   HOUSING_PER_HEARTHSTEAD,
+  MILITARY_BUILDINGS,
   RACES,
   RACE_NAMES,
   SIEGE_GEAR,
@@ -143,8 +147,48 @@ export default async function CommandView({
   return (
     <>
       <Flash err={err} ok={ok} />
+      <LearnLink href="/guide#clocks">The crown race — ranking &amp; starting the clocks</LearnLink>
       <RegentCharges player={p} />
       <VictoryTracker world={world} me={p} />
+      {(() => {
+        // Anything cracked by bombardment, surfaced where the ruler actually looks.
+        const NAME = new Map<string, string>([
+          ...CIVILIAN_BUILDINGS.map((b) => [b.id, b.name] as [string, string]),
+          ...MILITARY_BUILDINGS.map((b) => [b.id, b.name] as [string, string]),
+          ["hearthstead", "Hearthstead"],
+          ["walls", "The Walls"],
+        ]);
+        const damaged: { id: string; integrity: number }[] = [
+          ...(p.wallIntegrity < 1 ? [{ id: "walls", integrity: p.wallIntegrity }] : []),
+          ...Object.entries(p.buildingIntegrity ?? {})
+            .filter(([, integ]) => (integ as number) < 1)
+            .map(([id, integ]) => ({ id, integrity: integ as number })),
+        ].sort((a, b) => a.integrity - b.integrity);
+        if (damaged.length === 0) return null;
+        return (
+          <div className="damage-strip" role="status">
+            <span className="damage-strip-icon" aria-hidden="true">🔨</span>
+            <div className="damage-strip-body">
+              <b>
+                {damaged.length} structure{damaged.length === 1 ? "" : "s"} cracked by bombardment
+              </b>{" "}
+              — a wrecked store shelters less, a producer yields less, cracked walls slow recruitment.
+              <span className="damage-strip-bars">
+                {damaged.slice(0, 4).map((d) => (
+                  <span key={d.id} className="damage-strip-item">
+                    <HealthBar integrity={d.integrity} label={NAME.get(d.id) ?? d.id} />
+                    <span>{NAME.get(d.id) ?? d.id}</span>
+                  </span>
+                ))}
+                {damaged.length > 4 && <span className="damage-strip-item">+{damaged.length - 4} more</span>}
+              </span>
+            </div>
+            <Link className="btn" href="/buildings">
+              🔨 Repair
+            </Link>
+          </div>
+        );
+      })()}
       <Panel title={`The ${settlementTitle(p)} of ${p.name} — ${RACE_NAMES[p.race]}`}>
         <div className="throne">
           <span className="throne-portrait">
@@ -196,13 +240,13 @@ export default async function CommandView({
             <div className="throne-flag">
               <CmdForm name="surrender" path="/">
                 <input type="hidden" name="flag" value={flagUp ? "" : "1"} />
-                <button
+                <Btn
                   className="btn"
                   style={{ background: "linear-gradient(#a8853f,#7c5426)", borderColor: "#4e3113" }}
                   disabled={!flagUp && surrenderBudgetSpent}
                 >
                   {p.surrendered ? "Lift the white flag" : p.surrenderQueued ? "Cancel queued surrender" : "🏳 Surrender"}
-                </button>
+                </Btn>
               </CmdForm>
               <span style={p.surrendered ? { color: "var(--warn)" } : undefined}>
                 {p.surrendered
@@ -259,17 +303,26 @@ export default async function CommandView({
             <StatTile
               icon="🧺"
               label="Settlers / day"
-              value={p.starving ? "0" : `+${fmt(popPerDay(p))}`}
+              value={
+                p.starving
+                  ? "0"
+                  : vacantHousing(p) < popPerDay(p)
+                    ? // arrivals = min(perDay, vacant beds) — the rest walk on, lost
+                      `+${fmt(Math.min(popPerDay(p), vacantHousing(p)))} of ${fmt(popPerDay(p))}`
+                    : `+${fmt(popPerDay(p))}`
+              }
               sub={
                 p.starving
                   ? "halted — the people starve"
                   : vacantHousing(p) === 0
-                    ? "housing full — arrivals turned away"
-                    : wallPenalty(p) < 1
-                      ? "damaged walls scare settlers"
-                      : `room for ${fmt(vacantHousing(p))} more`
+                    ? "housing FULL — every arrival walks on, lost"
+                    : vacantHousing(p) < popPerDay(p)
+                      ? `only ${fmt(vacantHousing(p))} beds — the rest are lost`
+                      : wallPenalty(p) < 1
+                        ? "damaged walls scare settlers"
+                        : `room for ${fmt(vacantHousing(p))} more`
               }
-              tone={p.starving ? "bad" : vacantHousing(p) === 0 || wallPenalty(p) < 1 ? "warn" : "good"}
+              tone={p.starving ? "bad" : vacantHousing(p) < popPerDay(p) || wallPenalty(p) < 1 ? "warn" : "good"}
             />
           </div>
           <div style={{ marginTop: 8 }}>
@@ -355,7 +408,7 @@ export default async function CommandView({
                         <CmdForm name={h.key === "gold" ? "bank" : "bankRes"} path="/">
                           {h.key !== "gold" && <input type="hidden" name="what" value={h.key} />}
                           <input type="hidden" name="amount" value={h.bankMax} />
-                          <button
+                          <Btn
                             className="btn"
                             style={{ padding: "3px 10px", fontSize: 13 }}
                             disabled={h.bankMax <= 0}
@@ -368,7 +421,7 @@ export default async function CommandView({
                             }
                           >
                             Store all
-                          </button>
+                          </Btn>
                         </CmdForm>
                       </td>
                     )}

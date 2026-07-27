@@ -7,6 +7,26 @@ spy-vs-spy sweeps. Rejected: caravan raiding. Decided: scattering exemption
 departures per era. Open proposals awaiting confirmation:
 shield-drop-on-attack, spy-block vs protected players.
 
+## UX & content batch — DONE (this pass)
+- [x] ReqTip/CostTip tooltips on every acting button (what/cost/why-disabled);
+      top-bar rate popovers + dawn explainer + live next-turn countdown.
+- [x] Nav regroup: sidebar = own empire (Court/Realm/War incl. Clan); top bar =
+      wider world (Rankings/World/Annals/Forum). Mobile drawer mirrors.
+- [x] Caravan delivery time: max(10, 110−10×lvl) turns; arrivesAtTick gates
+      price/supply/buys; road graphic + ETA; specs + API + 2 tests.
+- [x] Field Manual de-staled + Advanced Manual (regulars/clocks/revenge/market/
+      rich); every page deep-links its chapter.
+- [x] Btn pending hourglass, animated Flash, CountInput +10/+100/Max, unified
+      muster cards (:has tier highlight), meters, damage strip, anchors, empty
+      states, reduced-motion.
+- [x] BARE per-arm merc-screen warnings (census/troops/black market + advisor).
+- [x] Records of the Age trophy hall (dais + laurel SVG + pennants + medals +
+      charter cards; Elder Ages get medals free).
+- [x] Pixel art enlarged (market 3×, troops 3×, buildings 2×, advisors 2×);
+      advisors now bulleted multi-counsel (advisorCounsel engine fn).
+- [x] Housing shortfall surfaced (min(perDay,vacant) tile + Steward banner);
+      settlement ZENITH ribbons; theWallName fixes "The The Barbican".
+
 ## Military model — DONE (this pass)
 - [x] Removed the "warrior" middle step: peasants train straight into
       footmen/archers/cavalry by tier (`trainTroops`), discharge straight home

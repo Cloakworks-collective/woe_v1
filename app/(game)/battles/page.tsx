@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LearnLink } from "@/components/LearnLink";
 import { Pager } from "@/components/Pager";
 import { Panel } from "@/components/Panel";
 import { ToneGlyph } from "@/components/ToneGlyph";
@@ -66,6 +67,7 @@ export default async function WorldNewsPage({
 
   return (
     <>
+      <LearnLink href="/guide#battle">How battles &amp; wars are fought</LearnLink>
       <Panel
         title="⚔ Wars Afoot — banner against banner"
         info="Heralds carry the broad tale: which banners are at war, and who has fallen upon whom. Army composition and plunder stay with the combatants — send scouts and spies if you would know more. For your own story, ride to your Chronicle."

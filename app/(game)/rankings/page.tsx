@@ -1,9 +1,11 @@
+import { Btn } from "@/components/Btn";
 import Link from "next/link";
 import { Art } from "@/components/Art";
 import { BattleReportPanel } from "@/components/BattleReportPanel";
 import { Flash } from "@/components/Flash";
 import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
+import { ReqTip } from "@/components/CostTip";
 import { TargetActions } from "@/components/TargetActions";
 import { Pager } from "@/components/Pager";
 import { HOLD_CLOCKS, RACE_NAMES } from "@/lib/constants";
@@ -91,7 +93,9 @@ export default async function RankingsPage({
             placeholder="Search name, race, clan, or title…"
             style={{ padding: "3px 8px", border: "1px solid var(--border)", background: "var(--input-bg)", font: "14.5px Verdana", width: 240 }}
           />
-          <button className="btn">Search</button>
+          <ReqTip heading="Search the ladder" body="Filter to empires matching your query — by empire name, race, clan, or settlement title. Leave blank to see everyone.">
+            <Btn className="btn">Search</Btn>
+          </ReqTip>
         </form>
         <table className="tbl">
           <thead>
@@ -100,8 +104,24 @@ export default async function RankingsPage({
               <th>Empire</th>
               <th className="num">ID</th>
               <th>Clan</th>
-              <th>Troops</th>
-              <th className="num">Population</th>
+              <th>
+                <ReqTip
+                  down
+                  heading="Troop strength — a traveller's guess"
+                  body="Read as a passer-by would judge it: None · Weak · Moderate · Strong · Heavy. Exact counts are for spies — run an op from ⚔ Act to see the real muster."
+                >
+                  <span className="tip-under">Troops</span>
+                </ReqTip>
+              </th>
+              <th className="num">
+                <ReqTip
+                  down
+                  heading="Population — the victory fuel"
+                  body="Civilians + regular troops (mercenaries never count). Ranking score also weighs walls, buildings, treasury, experience, and 7 of the 10 research fields — and the victory clocks only tick above the population floor."
+                >
+                  <span className="tip-under">Population</span>
+                </ReqTip>
+              </th>
               <th>Act</th>
             </tr>
           </thead>

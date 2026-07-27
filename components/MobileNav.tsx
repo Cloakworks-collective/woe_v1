@@ -37,9 +37,16 @@ export function MobileNav({ premium }: { premium: boolean }) {
 
   const groups: Group[] = [
     {
-      head: "Your Empire",
+      head: "The Court · your seat & council",
       items: [
         { href: "/", label: "🏰 Command" },
+        { href: "/chronicle", label: "📖 Chronicle" },
+        { href: "/advisors", label: "🧙 Advisors" },
+      ],
+    },
+    {
+      head: "The Realm · economy",
+      items: [
         { href: "/buildings", label: "🏗️ Buildings" },
         { href: "/train", label: "👥 Workers & Levy" },
         { href: "/research", label: "📚 Research" },
@@ -47,22 +54,20 @@ export function MobileNav({ premium }: { premium: boolean }) {
       ],
     },
     {
-      head: "War",
+      head: "The War · military",
       items: [
         { href: "/troops", label: "⚔️ The Army" },
         { href: "/siege", label: "🏹 Siege Works" },
-        { href: "/rankings", label: "🔥 Rankings — the ladder" },
-        { href: "/rankings/clans", label: "🛡️ Clan Ranks" },
-        { href: "/rankings/records", label: "🏆 Records of the Age" },
-        { href: "/battles", label: "🌍 World" },
-        { href: "/clan", label: "🛡️ Your Clan" },
+        { href: "/clan", label: "🛡️ Clan" },
       ],
     },
     {
-      head: "Chronicle & Council",
+      head: "The Wider World",
       items: [
-        { href: "/chronicle", label: "📖 Chronicle" },
-        { href: "/advisors", label: "🧙 Advisors" },
+        { href: "/rankings", label: "📜 Empire Ranks — the ladder" },
+        { href: "/rankings/clans", label: "🛡️ Clan Ranks" },
+        { href: "/rankings/records", label: "🏆 Records of the Age" },
+        { href: "/battles", label: "🌍 World" },
         { href: "/annals", label: "📚 Annals — sealed ages" },
         { href: "/forum", label: "🕯️ Forum" },
       ],
@@ -87,6 +92,7 @@ export function MobileNav({ premium }: { premium: boolean }) {
         className="mnav-burger"
         aria-expanded={open}
         aria-controls="mnav-drawer"
+        title={open ? "Close the menu" : "Open the navigation menu"}
         onClick={() => setOpen((o) => !o)}
       >
         <span className="mnav-burger-icon">{open ? "✕" : "☰"}</span> Menu

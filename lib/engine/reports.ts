@@ -22,6 +22,7 @@ import {
 import type { BuildingId } from "../constants/buildings";
 import type { ResearchField } from "../constants/research";
 import { civilianLevels, popPerDay, vacantHousing } from "./dailyReset";
+import { caravanDeliveryTurns } from "./marketOps";
 import { foodUpkeepPerTurn, productionPerWorker, taxIncomePerTurn } from "./tick";
 import {
   buildingIntegrity,
@@ -30,6 +31,7 @@ import {
   military,
   researchLevel,
   totalPopulation,
+  troopTotal,
   type Player,
   type Resource,
   type WorkerRole,
@@ -83,6 +85,12 @@ export function troopStrengthLabel(p: Player): string {
 
 export function wallName(p: Player): string {
   return WALL_NAMES[level(p, "walls")] || "No walls";
+}
+
+/** Sentence-ready wall name: "The Timber Palisade", but never "The The Barbican". */
+export function theWallName(p: Player): string {
+  const n = wallName(p);
+  return n.startsWith("The ") ? n : `The ${n}`;
 }
 
 export function protectedCapacity(p: Player, r: Resource): number {
@@ -155,13 +163,13 @@ export function advisorReport(p: Player): AdvisorReport {
       "We stand undefended, sire — not one course of stone rings the town, so a siege reaches us at full force. Raise The Walls (Buildings → Military): even a Timber Palisade adds +10% to every defender, and each level makes storming us costlier.";
   } else if (p.wallIntegrity < 0.7) {
     defensive =
-      `The ${wallName(p)} is battered to ${Math.round(p.wallIntegrity * 100)}% — its defence bonus is cut to +${Math.round(wallBonus * p.wallIntegrity)}%, and damaged walls also frighten off up to half our daily settlers. Send the masons at once; a repair costs only half the damage.`;
+      `${theWallName(p)} is battered to ${Math.round(p.wallIntegrity * 100)}% — its defence bonus is cut to +${Math.round(wallBonus * p.wallIntegrity)}%, and damaged walls also frighten off up to half our daily settlers. Send the masons at once; a repair costs only half the damage.`;
   } else if (p.wallIntegrity < 1) {
     defensive =
-      `The ${wallName(p)} took some knocks (${Math.round(p.wallIntegrity * 100)}%). Repair it when gold allows to restore the full +${wallBonus}% and stop settlers shying from the rubble. Otherwise it still stands proud.`;
+      `${theWallName(p)} took some knocks (${Math.round(p.wallIntegrity * 100)}%). Repair it when gold allows to restore the full +${wallBonus}% and stop settlers shying from the rubble. Otherwise it still stands proud.`;
   } else {
     defensive =
-      `The ${wallName(p)} holds firm — +${wallBonus}% to our defenders. ${wallLvl < 10 ? "Another course of stone (and the War Foundry counters that pair with it) would make an enemy's engines break upon us." : "The Citadel is complete; keep the War Foundry counters current so their siege gear shatters against it."}`;
+      `${theWallName(p)} holds firm — +${wallBonus}% to our defenders. ${wallLvl < 10 ? "Another course of stone (and the War Foundry counters that pair with it) would make an enemy's engines break upon us." : "The Citadel is complete; keep the War Foundry counters current so their siege gear shatters against it."}`;
   }
 
   // ── Military ───────────────────────────────────────────────────────────
@@ -218,6 +226,101 @@ export function advisorReport(p: Player): AdvisorReport {
   return { defensive, military: military_, economic, population };
 }
 
+/** The Council Chamber's bulleted counsel — several short, numbered advises per
+ *  advisor, drawn from the same live figures as the one-line advisorReport
+ *  (which the top-of-page banners and the API keep using). */
+export interface AdvisorCounsel {
+  defensive: string[];
+  military: string[];
+  economic: string[];
+  population: string[];
+}
+
+export function advisorCounsel(p: Player): AdvisorCounsel {
+  const civ = civilians(p);
+  const mil = military(p);
+  const wallLvl = level(p, "walls");
+  const wallBonus = wallLvl * WALL_BONUS_PER_LEVEL * 100;
+  const n = (x: number) => Math.floor(x).toLocaleString("en-US");
+
+  // ── Defensive ──
+  const defensive: string[] = [];
+  if (wallLvl === 0) {
+    defensive.push("Not one course of stone rings the town — raise The Walls; even a Timber Palisade adds +10% to every defender.");
+  } else if (p.wallIntegrity < 1) {
+    defensive.push(`${theWallName(p)} stands at ${Math.round(p.wallIntegrity * 100)}% — its bonus is cut to +${Math.round(wallBonus * p.wallIntegrity)}%, and rubble scares off up to half the daily settlers. Repair costs only half the damage.`);
+  } else {
+    defensive.push(`${theWallName(p)} holds firm — +${Math.round(wallBonus)}% to every defender${wallLvl < 10 ? "; another course of stone would raise it further" : ""}.`);
+  }
+  const countersBuilt = Object.values(p.army.siegeCounters ?? {}).reduce((a, b) => a + b, 0);
+  defensive.push(
+    countersBuilt === 0
+      ? "No defensive counters stand on the ramparts — each crewed one cancels an enemy siege engine outright (Siege Works → Ramparts)."
+      : `${n(countersBuilt)} defensive counters built — your engineers man them when you defend, each cancelling one enemy engine.`,
+  );
+  if (p.gold > 10000) {
+    defensive.push(`${n(p.gold)} gold lies loose on the table — bank it in the Counting House before a siege takes it.`);
+  }
+
+  // ── Military ──
+  const militaryB: string[] = [];
+  const scatterLine = Math.ceil(0.3 * civ);
+  militaryB.push(
+    mil < scatterLine
+      ? `Only ${n(mil)} soldiers guard ${n(civ)} civilians — below the ${n(scatterLine)} the 30% line demands. Unguarded peasants scatter at dawn: raise troops now.`
+      : `${n(mil)} under arms against a guard line of ${n(scatterLine)} — the peasants sleep sound.`,
+  );
+  militaryB.push(
+    p.army.stamina < 40
+      ? `Stamina ${p.army.stamina}/100 — the army is spent and swings weak. Rest them before you march.`
+      : `Stamina ${p.army.stamina}/100 — fit to march. Fights within ±20% of your strength season the army fastest.`,
+  );
+  if (p.army.experience > 0) {
+    militaryB.push(`Experience +${p.army.experience}% — veterancy dies with the veterans, so screen your regulars.`);
+  }
+  const bare = (["footmen", "archers", "cavalry"] as const).filter(
+    (k) => troopTotal(p.army[k]) > 0 && troopTotal(p.army.mercenaries[k]) === 0,
+  );
+  if (bare.length > 0) {
+    militaryB.push(`Your ${bare.join(", ")} stand bare — no hired blades in front of them. Mercenaries of the same arm die first; buy the shield.`);
+  }
+
+  // ── Economic ──
+  const rates = productionRates(p);
+  const upkeep = foodUpkeepPerTurn(p);
+  const economic: string[] = [];
+  if (p.starving) {
+    economic.push("THE GRANARIES ARE EMPTY — everything is frozen until the people are fed. Buy food at the Bazaar or assign farmers this instant.");
+  } else if (rates.food < upkeep) {
+    economic.push(`Food runs ${n(rates.food)}/turn against ${n(upkeep)}/turn eaten — the stores are draining. Assign farmers or buy at the Bazaar.`);
+  } else {
+    economic.push(`Food holds: ${n(rates.food)}/turn grown against ${n(upkeep)}/turn eaten.`);
+  }
+  const worst = (Object.entries(rates) as [Resource, number][]).sort((a, b) => a[1] - b[1])[0];
+  economic.push(`The thinnest yield is ${worst[0]} at ${n(worst[1])}/turn — raise its building's level or assign more workers there.`);
+  economic.push(`Tax sits at ${Math.round(p.taxRate * 100)}% — lower it to speed production, raise it to bank war-gold. Statecraft softens the trade.`);
+  const surplus = (Object.entries(p.resources) as [Resource, number][]).sort((a, b) => b[1] - a[1])[0];
+  if (surplus[1] > 50000) {
+    economic.push(`${n(surplus[1])} ${surplus[0]} sits loose in the stores — caravans at the Bazaar turn surplus into gold.`);
+  }
+
+  // ── Population ──
+  const vacant = vacantHousing(p);
+  const perDay = popPerDay(p);
+  const population: string[] = [];
+  population.push(
+    vacant < perDay
+      ? `Housing is the bottleneck: ${n(perDay)} settlers arrive each dawn but only ${n(vacant)} beds stand empty — the rest walk on, lost. Raise Hearthsteads.`
+      : `${n(perDay)} settlers arrive daily with ${n(vacant)} beds free — no one is turned away.`,
+  );
+  if (p.idlePeasants > 0) {
+    population.push(`${n(p.idlePeasants)} peasants stand idle — idle hands produce nothing. Assign them in the Assignment Hall.`);
+  }
+  population.push(`Every civilian building level quickens the tide (~+0.76 settlers/day each) — the whole tree at level 10 reaches 100/day.`);
+
+  return { defensive, military: militaryB, economic, population };
+}
+
 // ── "What does the next level give me?" (Buildings page) ─────────────────────
 
 const PRODUCER_WORD: Partial<Record<BuildingId, string>> = {
@@ -261,7 +364,7 @@ export function buildingUpgradeBenefit(p: Player, id: BuildingId): string | null
   // The other unit halls — uncapped too; the level makes each unit BETTER.
   if (word) {
     if (id === "market_square") {
-      return `each caravan carries ${num(cur * 1000)} → ${num(next * 1000)} goods (merchants unlimited)`;
+      return `each caravan carries ${num(cur * 1000)} → ${num(next * 1000)} goods and reaches the Bazaar in ${caravanDeliveryTurns(cur)} → ${caravanDeliveryTurns(next)} turns (merchants unlimited)`;
     }
     if (id === "collegium") {
       return `each scholar makes ${PRODUCTION_PER_WORKER_PER_LEVEL * cur} → ${PRODUCTION_PER_WORKER_PER_LEVEL * next} research/turn (scholars unlimited)`;

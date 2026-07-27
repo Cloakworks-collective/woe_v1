@@ -5,10 +5,20 @@ import { usePathname } from "next/navigation";
 
 type Item = { href: string; label: string; desc: string };
 
-// The sidebar holds only the hands-on management of the empire — building,
-// training, and warring. Overview, the wider world, the council, and premium
-// all live in the horizontal TopNav so this column stays short.
+// The sidebar holds everything you manage in your OWN empire — overview,
+// economy, war, and your court. The wider world (rankings, the age's battles,
+// the annals, the forum) plus the meta links (manual, premium) live in the
+// horizontal TopNav.
 const SECTIONS: { head: string; sub: string; items: Item[] }[] = [
+  {
+    head: "The Court",
+    sub: "your seat & council",
+    items: [
+      { href: "/", label: "🏰 Command", desc: "Your empire at a glance — decrees & treasury" },
+      { href: "/chronicle", label: "📖 Chronicle", desc: "Your own tidings & battles" },
+      { href: "/advisors", label: "🧙 Advisors", desc: "Four councillors read your numbers" },
+    ],
+  },
   {
     head: "The Realm",
     sub: "economy",
@@ -25,6 +35,7 @@ const SECTIONS: { head: string; sub: string; items: Item[] }[] = [
     items: [
       { href: "/troops", label: "⚔️ The Army", desc: "Raise footmen/archers/cavalry; hire mercenaries" },
       { href: "/siege", label: "🏹 Siege Works", desc: "Build engines & see your defensive counters" },
+      { href: "/clan", label: "🛡️ Clan", desc: "Found or join a clan; shared storage and wars" },
     ],
   },
 ];

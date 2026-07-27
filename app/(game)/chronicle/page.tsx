@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LearnLink } from "@/components/LearnLink";
 import { Pager } from "@/components/Pager";
 import { Panel } from "@/components/Panel";
 import { ToneGlyph } from "@/components/ToneGlyph";
@@ -30,6 +31,7 @@ export default async function ChroniclePage({
 
   return (
     <>
+      <LearnLink href="/guide#revenge">Struck? How to take effective revenge</LearnLink>
       <Panel
         title={`The Chronicle of ${p.name} — as the scribes have set it down`}
         info="Your own tidings and battles. For the wider realm — clan wars and who is falling upon whom — ride to the World News."

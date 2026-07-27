@@ -8,9 +8,11 @@ import { CHRONICLE_GROUPS } from "@/lib/lore/elderAges";
 type Item = { href: string; label: string; title: string };
 
 /**
- * The desktop top bar of secondary destinations. Kept to a handful of entries —
- * four direct links plus three themed dropdowns (Rankings, World, Court) — so
- * the row always fits on one line and never wraps. On mobile it's hidden and
+ * The desktop top bar for the WIDER WORLD and meta links — everything that
+ * isn't managing your own empire (that all lives in the left SideNav now:
+ * Command, economy, war, and your court). Kept to a handful of entries —
+ * two direct links plus two themed dropdowns (Rankings, Annals) — so the row
+ * always fits on one line and never wraps. On mobile it's hidden and
  * MobileNav's burger takes over. The premium entry always reads "Premium"; it
  * routes to the Royal Charter buy page until owned, then to the Steward manager
  * (the Charter's automation) — one product, one nav label.
@@ -41,9 +43,8 @@ export function TopNav({ premium }: { premium: boolean }) {
     };
   }, []);
 
-  const command: Item = { href: "/", label: "🏰 Command", title: "Your empire at a glance — decrees, treasury, chronicle" };
-  const clan: Item = { href: "/clan", label: "🛡️ Clan", title: "Found or join a clan; shared storage and wars" };
   const worldItem: Item = { href: "/battles", label: "🌍 World", title: "The living age — clan wars, the latest battles, and the grand chronicle" };
+  const forum: Item = { href: "/forum", label: "🕯️ Forum", title: "The Forum — era chat & permanent letters with other empires" };
   const guide: Item = { href: "/guide", label: "📜 Field Manual", title: "How to win: growth, battle strategy, the whole game" };
   const premiumItem: Item = premium
     ? { href: "/steward", label: "👑 Premium", title: "Your Royal Charter — the Steward's build/research queues, standing orders & auto-banking" }
@@ -64,17 +65,13 @@ export function TopNav({ premium }: { premium: boolean }) {
 
   const rankingsActive = pathname.startsWith("/rankings");
   const annalsActive = pathname.startsWith("/annals");
-  const courtActive =
-    pathname.startsWith("/chronicle") || pathname.startsWith("/advisors") || pathname.startsWith("/forum");
   const closeMenu = (e: MouseEvent<HTMLAnchorElement>) =>
     e.currentTarget.closest("details")?.removeAttribute("open");
 
   return (
-    <nav className="topnav" aria-label="The wider world and your court">
+    <nav className="topnav" aria-label="The wider world">
       <div className="topnav-inner">
         <div className="topnav-group">
-          {render(command)}
-
           <details className="topnav-dd">
             <summary className={rankingsActive ? "active" : ""} title="The ladder — empire ranks, clan ranks, and your war console">
               📜 Rankings ▾
@@ -91,8 +88,6 @@ export function TopNav({ premium }: { premium: boolean }) {
               </Link>
             </div>
           </details>
-
-          {render(clan)}
 
           {render(worldItem)}
 
@@ -113,22 +108,7 @@ export function TopNav({ premium }: { premium: boolean }) {
             </div>
           </details>
 
-          <details className="topnav-dd">
-            <summary className={courtActive ? "active" : ""} title="Your court — your chronicle, your councillors, and the forum">
-              🕯️ Court ▾
-            </summary>
-            <div className="topnav-menu" role="menu">
-              <Link href="/chronicle" onClick={closeMenu}>
-                📖 Chronicle <span className="topnav-menu-sub">your own tidings & battles</span>
-              </Link>
-              <Link href="/advisors" onClick={closeMenu}>
-                🧙 Advisors <span className="topnav-menu-sub">four councillors read your numbers</span>
-              </Link>
-              <Link href="/forum" onClick={closeMenu}>
-                🕯️ Forum <span className="topnav-menu-sub">era chat & permanent letters</span>
-              </Link>
-            </div>
-          </details>
+          {render(forum)}
         </div>
 
         <div className="topnav-group topnav-meta">

@@ -42,7 +42,7 @@ export const CIVILIAN_BUILDINGS: BuildingMeta[] = [
   { id: "masons_yard", name: "Mason's Yard", desc: "+20,000 protected stone capacity per level" },
   { id: "ironhold", name: "Ironhold", desc: "+20,000 protected ore capacity per level" },
   { id: "counting_house", name: "Counting House", desc: "Bank — +20,000 protected gold capacity per level" },
-  { id: "market_square", name: "Market Square", desc: "Merchants are unlimited; each level lets every caravan carry +1,000 goods" },
+  { id: "market_square", name: "Market Square", desc: "Merchants are unlimited; each level lets every caravan carry +1,000 goods AND reach the Bazaar faster (L1: 100 turns → L10: 10)" },
   { id: "collegium", name: "The Collegium", desc: "Researchers are unlimited; each level lifts every scholar's research (50→500/turn)" },
   { id: "shadow_guild", name: "Shadow Guild", desc: "Spies are unlimited; each level makes every spy mission bite deeper" },
   { id: "rangers_lodge", name: "Ranger's Lodge", desc: "Scouts are unlimited; each level sharpens recon & catches higher-level enemy spies" },

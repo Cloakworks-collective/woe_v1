@@ -3,6 +3,9 @@
 
 import {
   CARAVAN_CAPACITY_PER_MARKET_LEVEL,
+  CARAVAN_DELIVERY_BASE,
+  CARAVAN_DELIVERY_MIN_TURNS,
+  CARAVAN_DELIVERY_PER_LEVEL,
   MARKET_FEE,
   MARKET_PRICE_MAX,
   MARKET_PRICE_MIN,
@@ -12,6 +15,21 @@ import { EngineError, level, type MarketOrder, type Player, type Resource } from
 
 export function caravanCapacity(p: Player): number {
   return CARAVAN_CAPACITY_PER_MARKET_LEVEL * level(p, "market_square");
+}
+
+/** Turns a fresh caravan takes to reach the Bazaar, by Market Square level:
+ *  level 1 → 100 turns, level 10 → 10 (floored). A level-0 market can't trade. */
+export function caravanDeliveryTurns(marketLevel: number): number {
+  return Math.max(
+    CARAVAN_DELIVERY_MIN_TURNS,
+    CARAVAN_DELIVERY_BASE - CARAVAN_DELIVERY_PER_LEVEL * marketLevel,
+  );
+}
+
+/** Has a caravan reached the market yet? Legacy orders (no arrivesAtTick) count
+ *  as already arrived, so pre-existing worlds keep working. */
+export function caravanArrived(o: MarketOrder, currentTick: number): boolean {
+  return (o.arrivesAtTick ?? 0) <= currentTick;
 }
 
 export function activeListings(orders: MarketOrder[], sellerId: string): number {
@@ -62,6 +80,8 @@ export function postOrder(
     remaining: amount,
     pricePerUnit,
     createdTick: currentTick,
+    // The caravan rides for a while before its goods reach the Bazaar.
+    arrivesAtTick: currentTick + caravanDeliveryTurns(level(seller, "market_square")),
   };
   return { seller, order };
 }
@@ -78,11 +98,17 @@ export function cancelOrder(
   return { seller, orders: orders.filter((o) => o.id !== orderId) };
 }
 
-/** Current market price = lowest ask. Null when nothing is listed. */
-export function marketPrice(orders: MarketOrder[], resource: Resource): number | null {
+/** Current market price = lowest ask among caravans that have ARRIVED. Null when
+ *  nothing (arrived) is listed. Pass the current tick to exclude en-route
+ *  caravans; omit it to price the whole book (Infinity = all arrived). */
+export function marketPrice(
+  orders: MarketOrder[],
+  resource: Resource,
+  currentTick = Infinity,
+): number | null {
   let best: number | null = null;
   for (const o of orders) {
-    if (o.resource === resource && o.remaining > 0) {
+    if (o.resource === resource && o.remaining > 0 && caravanArrived(o, currentTick)) {
       if (best === null || o.pricePerUnit < best) best = o.pricePerUnit;
     }
   }
@@ -107,13 +133,21 @@ export function buyFromMarket(
   ordersIn: MarketOrder[],
   resource: Resource,
   amount: number,
+  currentTick = Infinity,
 ): { buyer: Player; orders: MarketOrder[]; fills: Fill[]; totalCost: number } {
   const buyer = structuredClone(buyerIn);
   const orders = structuredClone(ordersIn);
   if (!Number.isInteger(amount) || amount <= 0) throw new EngineError("amount", "Invalid amount");
 
+  // Only ARRIVED caravans can fill an order — en-route goods aren't at the Bazaar yet.
   const book = orders
-    .filter((o) => o.resource === resource && o.remaining > 0 && o.sellerId !== buyer.id)
+    .filter(
+      (o) =>
+        o.resource === resource &&
+        o.remaining > 0 &&
+        o.sellerId !== buyer.id &&
+        caravanArrived(o, currentTick),
+    )
     .sort((a, b) => a.pricePerUnit - b.pricePerUnit || a.createdTick - b.createdTick);
 
   const fills: Fill[] = [];

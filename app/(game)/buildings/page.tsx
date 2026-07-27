@@ -1,3 +1,4 @@
+import { Btn } from "@/components/Btn";
 import { Art } from "@/components/Art";
 import { CmdForm } from "@/components/CmdForm";
 import { CostTip } from "@/components/CostTip";
@@ -43,16 +44,16 @@ const HEARTHSTEAD: BuildingMeta = {
 const CIV = Object.fromEntries(CIVILIAN_BUILDINGS.map((b) => [b.id, b])) as Record<string, BuildingMeta>;
 const MIL = Object.fromEntries(MILITARY_BUILDINGS.map((b) => [b.id, b])) as Record<string, BuildingMeta>;
 
-const CIVILIAN_GROUPS: { title: string; note: string; ids: string[] }[] = [
-  { title: "🌾 Production — the resource engines", note: "Each level adds 20 worker slots. A bombarded producer yields proportionally less until repaired.", ids: ["grange", "masons_quarry", "deepvein_mine", "sawyers_mill"] },
-  { title: "🏛 Storage — protect the wealth", note: "Protected capacity = 20,000 × level × integrity. What sits above capacity is lootable.", ids: ["granary", "timberyard", "masons_yard", "ironhold", "counting_house"] },
-  { title: "📚 Knowledge & Trade", note: "The Collegium researches slower when cracked; the others hold slots for merchants, spies, and scouts.", ids: ["market_square", "collegium", "shadow_guild", "rangers_lodge"] },
-  { title: "🏘 Housing", note: "Settlers arrive at dawn and walk on if no bed is free — build ahead of growth.", ids: ["hearthstead"] },
+const CIVILIAN_GROUPS: { slug: string; title: string; note: string; ids: string[] }[] = [
+  { slug: "production", title: "🌾 Production — the resource engines", note: "Workers are unlimited — each building level makes every worker produce more (50 × level per turn). A bombarded producer yields proportionally less until repaired.", ids: ["grange", "masons_quarry", "deepvein_mine", "sawyers_mill"] },
+  { slug: "storage", title: "🏛 Storage — protect the wealth", note: "Protected capacity = 20,000 × level × integrity. What sits above capacity is lootable.", ids: ["granary", "timberyard", "masons_yard", "ironhold", "counting_house"] },
+  { slug: "knowledge", title: "📚 Knowledge & Trade", note: "The Collegium researches slower when cracked; the Market Square speeds caravans; the Guild and Lodge sharpen every spy and scout.", ids: ["market_square", "collegium", "shadow_guild", "rangers_lodge"] },
+  { slug: "housing", title: "🏘 Housing", note: "Settlers arrive at dawn and walk on if no bed is free — build ahead of growth.", ids: ["hearthstead"] },
 ];
 
-const MILITARY_GROUPS: { title: string; note: string; ids: string[] }[] = [
-  { title: "⚔ Barracks & Tiers", note: "Muster Halls house 10 troops each; the trainers + Forge gate light → medium → heavy.", ids: ["muster_hall", "drill_yard", "fletchers_range", "knights_stables", "forge"] },
-  { title: "🏰 Siege & Defence", note: "The Walls blunt sieges (and bombard hits them first); the War Foundry's ladder lives in the Siege Works.", ids: ["war_foundry", "walls"] },
+const MILITARY_GROUPS: { slug: string; title: string; note: string; ids: string[] }[] = [
+  { slug: "barracks", title: "⚔ Barracks & Tiers", note: "Muster Halls house 10 troops each; the trainers + Forge gate light → medium → heavy.", ids: ["muster_hall", "drill_yard", "fletchers_range", "knights_stables", "forge"] },
+  { slug: "defence", title: "🏰 Siege & Defence", note: "The Walls blunt sieges (and bombard hits them first); the War Foundry's ladder lives in the Siege Works.", ids: ["war_foundry", "walls"] },
 ];
 
 // Which tab a building's card lives on, so the repair list can point to it.
@@ -154,27 +155,27 @@ function BuildingCards({ ids, player, path }: { ids: string[]; player: Player; p
                     <CmdForm name="build" path={path}>
                       <input type="hidden" name="id" value={bid} />
                       <CostTip heading={`${counted ? "Build" : lvl === 0 ? "Found" : "Upgrade"} ${b.name}`} cost={cost} have={have}>
-                        <button className={affordable(player, cost) ? "btn" : "btn btn-no"} disabled={!affordable(player, cost)}>
+                        <Btn className={affordable(player, cost) ? "btn" : "btn btn-no"} disabled={!affordable(player, cost)}>
                           {counted ? "Build" : lvl === 0 ? "Found" : "Upgrade"}
-                        </button>
+                        </Btn>
                       </CostTip>
                     </CmdForm>
                   )}
                   {cost && player.premium && (
                     <CmdForm name="queueBuild" path={path}>
                       <input type="hidden" name="id" value={bid} />
-                      <button className="btn" title="Queue for the Steward — built when affordable">
+                      <Btn className="btn" title="Queue for the Steward — built when affordable">
                         🪶
-                      </button>
+                      </Btn>
                     </CmdForm>
                   )}
                   {needsRepair && rcost && (
                     <CmdForm name={bid === "walls" ? "repairWalls" : "repairBuilding"} path={path}>
                       {bid !== "walls" && <input type="hidden" name="id" value={bid} />}
                       <CostTip heading={`Repair ${b.name} to full (now ${Math.round(integrity * 100)}%)`} cost={rcost} have={have}>
-                        <button className={affordable(player, rcost) ? "btn" : "btn btn-no"} disabled={!affordable(player, rcost)}>
+                        <Btn className={affordable(player, rcost) ? "btn" : "btn btn-no"} disabled={!affordable(player, rcost)}>
                           🔨 Repair
-                        </button>
+                        </Btn>
                       </CostTip>
                     </CmdForm>
                   )}
@@ -184,7 +185,7 @@ function BuildingCards({ ids, player, path }: { ids: string[]; player: Player; p
             <p className="bcard-desc">{b.desc}</p>
             <div className="bcard-main">
               <span className="bcard-art">
-                <Art path={`buildings/${bid}`} size={104} title={info.title} />
+                <Art path={`buildings/${bid}`} size={208} title={info.title} />
               </span>
               {cost ? (
                 <CostList cost={cost} />
@@ -282,10 +283,21 @@ export default async function BuildingsPage({
         </Panel>
       )}
 
+      {/* Jump straight to a group — the page runs long. */}
+      <nav className="anchor-row" aria-label="Building groups">
+        {groups.map((g) => (
+          <a key={g.slug} href={`#${g.slug}`}>
+            {g.title.split("—")[0].trim()}
+          </a>
+        ))}
+      </nav>
+
       {groups.map((g) => (
-        <Panel key={g.title} title={g.title} info={g.note} guide="/guide#grow">
-          <BuildingCards ids={g.ids} player={p} path={path} />
-        </Panel>
+        <div key={g.title} id={g.slug}>
+          <Panel title={g.title} info={g.note} guide="/guide#grow">
+            <BuildingCards ids={g.ids} player={p} path={path} />
+          </Panel>
+        </div>
       ))}
 
       {military && (

@@ -1,6 +1,8 @@
 "use client";
 
+import { Btn } from "./Btn";
 import { useState } from "react";
+import { ReqTip } from "./CostTip";
 
 /**
  * Tax dial as a live slider. Lives inside the setTax CmdForm (the hidden
@@ -38,9 +40,15 @@ export function TaxSlider({ taxRate, civilians }: { taxRate: number; civilians: 
             }
           }}
         />
-        <button className="btn" style={{ opacity: changed ? 1 : 0.6 }}>
-          Decree
-        </button>
+        <ReqTip
+          heading="Decree the tax rate"
+          body={`Set tax to ${Math.round(rate * 100)}% — the crown skims about ${goldPerTurn}🪙/turn from your people, but producers work at ${outputPct}% output. Higher tax, more gold, less production.`}
+          note={changed ? undefined : "Drag the slider to a new rate first — this applies the shown value."}
+        >
+          <Btn className="btn" style={{ opacity: changed ? 1 : 0.6 }}>
+            Decree
+          </Btn>
+        </ReqTip>
       </div>
     </div>
   );

@@ -1,4 +1,6 @@
+import { Btn } from "@/components/Btn";
 import { CmdForm } from "@/components/CmdForm";
+import { ReqTip } from "@/components/CostTip";
 import { Flash } from "@/components/Flash";
 import { Panel } from "@/components/Panel";
 import {
@@ -55,7 +57,9 @@ function QueueCancel({ name, index, path }: { name: string; index: number; path:
   return (
     <CmdForm name={name} path={path}>
       <input type="hidden" name="index" value={index} />
-      <button className="btn" aria-label="Remove from queue">✕</button>
+      <ReqTip heading="Remove from queue" body="Drop this entry from the Steward's queue — it won't be built or studied, and later entries move up.">
+        <Btn className="btn" aria-label="Remove from queue">✕</Btn>
+      </ReqTip>
     </CmdForm>
   );
 }
@@ -168,7 +172,9 @@ export default async function StewardPage({
                   <td style={{ width: 40 }}>
                     <CmdForm name="orderRemove" path="/steward">
                       <input type="hidden" name="orderId" value={o.id} />
-                      <button className="btn" aria-label="Remove standing order">✕</button>
+                      <ReqTip heading="Cancel this standing order" body="The Steward will stop watching for this condition and never fire the action.">
+                        <Btn className="btn" aria-label="Remove standing order">✕</Btn>
+                      </ReqTip>
                     </CmdForm>
                   </td>
                 </tr>
@@ -255,7 +261,13 @@ export default async function StewardPage({
               the full count is reached. Build and tax orders fire once.
             </p>
           </fieldset>
-          <button className="btn">🪶 Give the order</button>
+          <ReqTip
+            heading="Give the Steward this order"
+            body="File an “once X, do Y” instruction. The Steward checks it every turn and fires the action automatically the moment the condition is met."
+            note="Training orders fulfil partially as resources and slots allow; build and tax orders fire once."
+          >
+            <Btn className="btn">🪶 Give the order</Btn>
+          </ReqTip>
         </CmdForm>
       </Panel>
     </>

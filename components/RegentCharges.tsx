@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { waiveOnboarding } from "@/app/actions";
 import { chargeStatuses, chargesProgress, isOnboardingActive, type Grant, type Player } from "@/lib/engine";
+import { Btn } from "./Btn";
+import { ReqTip } from "./CostTip";
 import { ResIcon, type ResKind } from "./ResIcon";
 
 const ORDER: ResKind[] = ["gold", "food", "wood", "stone", "ore"];
@@ -74,7 +76,12 @@ export function RegentCharges({ player }: { player: Player }) {
           })}
         </ol>
         <form action={waiveOnboarding} className="charges-waive">
-          <button type="submit">I rule unaided — dismiss &amp; keep the bounty</button>
+          <ReqTip
+            heading="Dismiss the checklist"
+            body="Hide the Regent's Charges for good. You keep every bounty already sealed, and the panel won't come back — you're on your own from here."
+          >
+            <Btn type="submit" className="">I rule unaided — dismiss &amp; keep the bounty</Btn>
+          </ReqTip>
         </form>
       </div>
     </section>

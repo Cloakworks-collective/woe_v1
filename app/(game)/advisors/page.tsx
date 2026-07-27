@@ -2,9 +2,10 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import Link from "next/link";
 import { Art } from "@/components/Art";
+import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { RACE_NAMES } from "@/lib/constants";
-import { advisorReport } from "@/lib/engine";
+import { advisorCounsel } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
@@ -57,59 +58,53 @@ const ADVISORS = [
 
 export default async function AdvisorsPage() {
   const { player: p } = await getGame();
-  const report = advisorReport(p);
+  const counsel = advisorCounsel(p);
   const race = RACE_NAMES[p.race];
 
   return (
     <>
+      <LearnLink href="/guide#strategy">Strategy &amp; a veteran&apos;s counsel</LearnLink>
       <Panel title="The Council Chamber">
-        <p style={{ fontSize: 15.5, lineHeight: 1.5 }}>
+        <p style={{ fontSize: 14.5, lineHeight: 1.5 }}>
           Four voices of your own <b>{race}</b>, four appetites for your gold. They speak from your
           empire&apos;s real numbers — when two agree, listen; when all four shout at once, you are
-          already in trouble. The red and amber banners atop every page are these same councillors
-          calling for your attention; follow one here for the full counsel, then to the{" "}
-          <Link href="/guide">Field Manual</Link> for the how.
+          already in trouble. The red and amber banners atop every page are these same councillors;
+          the <Link href="/guide">Field Manual</Link> holds the how.
         </p>
       </Panel>
-      <div className="panel-row">
-        {ADVISORS.map((a) => (
-          <section
-            className="panel"
-            key={a.key}
-            id={a.key}
-            style={{ scrollMarginTop: 12, borderLeft: `5px solid ${a.accent}` }}
-          >
-            <h3>{a.title}</h3>
-            <div className="body" style={{ display: "flex", gap: 16 }}>
-              <div
-                style={{
-                  border: `2px solid ${a.accent}`,
-                  background: "var(--panel-alt)",
-                  padding: 3,
-                  alignSelf: "flex-start",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.22)",
-                }}
-              >
-                <Art path={advisorArt(p.race, a.key)} size={168} title={`${a.name} — ${race}`} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <b style={{ font: "700 19.5px Georgia", color: a.accent }}>{a.name}</b>
-                <div style={{ fontSize: 13.5, fontStyle: "italic", color: "var(--ink-soft)", marginBottom: 8 }}>
-                  {a.charge}
-                </div>
-                <p style={{ fontSize: 17.5, lineHeight: 1.5, color: a.accent, fontWeight: 600 }}>
-                  “{report[a.key]}”
-                </p>
-                <p style={{ marginTop: 10 }}>
-                  <Link className="learn-link" href={a.guide}>
-                    📜 Field Manual: {a.guideLabel} →
-                  </Link>
-                </p>
-              </div>
+      {ADVISORS.map((a) => (
+        <section
+          className="panel advisor-card"
+          key={a.key}
+          id={a.key}
+          style={{ scrollMarginTop: 12, borderLeft: `5px solid ${a.accent}` }}
+        >
+          <h3>{a.title}</h3>
+          <div className="body advisor-body">
+            <div className="advisor-portrait" style={{ borderColor: a.accent }}>
+              <Art path={advisorArt(p.race, a.key)} size={336} title={`${a.name} — ${race}`} />
             </div>
-          </section>
-        ))}
-      </div>
+            <div className="advisor-words">
+              <b className="advisor-name" style={{ color: a.accent }}>
+                {a.name}
+              </b>
+              <div className="advisor-charge">{a.charge}</div>
+              <ul className="advisor-counsel">
+                {counsel[a.key].map((line, i) => (
+                  <li key={i} style={{ ["--advisor-accent" as string]: a.accent }}>
+                    {line}
+                  </li>
+                ))}
+              </ul>
+              <p style={{ marginTop: 10, marginBottom: 0 }}>
+                <Link className="learn-link" href={a.guide}>
+                  📜 Field Manual: {a.guideLabel} →
+                </Link>
+              </p>
+            </div>
+          </div>
+        </section>
+      ))}
     </>
   );
 }

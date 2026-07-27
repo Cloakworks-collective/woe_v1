@@ -245,6 +245,9 @@ export interface MarketOrder {
   remaining: number;
   pricePerUnit: number; // gold
   createdTick: number;
+  /** Tick the caravan reaches the Bazaar; until then it's en route and not
+   *  buyable. Legacy orders lack it — treated as already arrived. */
+  arrivesAtTick?: number;
 }
 
 // ── Events ──────────────────────────────────────────────────────────────────

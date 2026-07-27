@@ -11,15 +11,34 @@ Bazaar*, never with a named player.
 ## What merchants do
 
 A **merchant** (unlimited; you only need a Market Square, whose level scales each
-caravan's capacity — see `buildings.md`) runs caravans:
+caravan's capacity **and delivery speed** — see `buildings.md`) runs caravans:
 
 - Each merchant can carry **1,000 × Market Square level** worth of goods —
   1k at level 1 up to **10k at level 10**.
 - One caravan = one listing = one resource type (food, wood, stone, or ore).
-- While their caravan is listed, the merchant is **busy** — more merchants
-  means more simultaneous listings.
-- Canceling a listing returns the goods and frees the merchant.
+- A dispatched caravan must **travel to the Bazaar** before its goods go on
+  sale (see *Delivery time* below).
+- While their caravan is out (traveling **or** listed), the merchant is
+  **busy** — more merchants means more simultaneous caravans.
+- Canceling returns the goods and frees the merchant — even mid-journey.
 - Merchants pay tax like every civilian; caravans themselves are free to send.
+
+## Delivery time (Market Square level)
+
+Goods are **not** listed the instant you dispatch — the caravan rides to the
+Bazaar first, and a bigger Market Square keeps faster roads and runners.
+Delivery time falls **linearly** with the Market Square level:
+
+```
+caravanDeliveryTurns(level) = max(10, 110 − 10 × level)
+// level 1 → 100 turns, level 5 → 60, level 10 → 10 (floor)
+```
+
+Until a caravan **arrives** (`arrivesAtTick = createdTick + caravanDeliveryTurns`),
+its goods do **not** count toward market price or supply and **cannot be
+bought**. The market UI shows each of your caravans' journey and its ETA.
+Raising the Market Square is therefore a double win: bigger loads *and* fresher
+goods reaching the market sooner.
 
 ## How trading works
 
@@ -27,17 +46,19 @@ caravan's capacity — see `buildings.md`) runs caravans:
 1. Load a caravan: pick a resource, an amount (≤ capacity), and an **ask price
    per unit in gold** — a **whole number** in the **2–50** band
    (`MARKET_PRICE_MIN`..`MARKET_PRICE_MAX`; no fractions, floor is 2).
-2. The caravan joins the Bazaar's anonymous order book. Nobody sees your name,
-   only the aggregate supply.
+2. The caravan **travels** to the Bazaar (delivery time above). On arrival it
+   joins the anonymous order book. Nobody sees your name, only the aggregate
+   supply.
 3. As your goods sell, gold arrives immediately; the merchant frees up when
    the caravan sells out or is recalled.
 
 **Buying:**
 - Buyers never see or choose individual listings. Each resource shows one
-  number: the **market price** (the current cheapest ask).
+  number: the **market price** (the current cheapest **arrived** ask).
 - You buy N units *from the market*; the order fills from the cheapest asks
   upward, crossing into higher-priced caravans as cheaper ones empty.
-- Goods deliver instantly. Partial fills of a caravan are normal.
+  En-route caravans are skipped — only arrived goods can fill you.
+- Goods deliver to the buyer instantly. Partial fills of a caravan are normal.
 
 **Price discovery:** the market price moves as supply dictates — sellers
 undercut each other to be the ask that fills next; heavy buying eats the
@@ -46,8 +67,9 @@ gluts crash them. The UI shows current market price and recent price history
 per resource, never counterparties.
 
 ```
-caravanCapacity = 1,000 × marketSquareLevel      // per merchant
-marketPrice     = lowest ask currently listed    // per resource
+caravanCapacity     = 1,000 × marketSquareLevel        // per merchant
+caravanDeliveryTurns = max(10, 110 − 10 × marketLevel)  // travel time to Bazaar
+marketPrice         = lowest ARRIVED ask listed        // per resource
 ```
 
 ## Market fee (gold sink — tunable)

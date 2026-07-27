@@ -1,10 +1,14 @@
+import { Btn } from "@/components/Btn";
 import Link from "next/link";
 import { Art } from "@/components/Art";
 import { ClanMembers } from "@/components/ClanMembers";
+import { CountInput } from "@/components/CountInput";
 import { CmdForm } from "@/components/CmdForm";
+import { ReqTip } from "@/components/CostTip";
 import { Flash } from "@/components/Flash";
 import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
+import { ResIcon } from "@/components/ResIcon";
 import { ACTION_INFO, BUILD_COSTS, CHURN, HALL, STORAGE_CAP_PER_LEVEL } from "@/lib/constants";
 import { memberCap, withdrawableNow, wonderDiscount, type ClanResource } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
@@ -39,7 +43,15 @@ export default async function ClanPage({
           </p>
           <CmdForm name="clanCreate" path="/clan">
             <input name="name" placeholder="Clan name…" aria-label="Clan name" maxLength={40} style={{ font: "14.5px Verdana", padding: 3 }} />
-            <button className="btn">Found (50k gold)</button>
+            <ReqTip
+              heading="Found a clan"
+              body="Raise your own banner — a clan you lead. Members pool resources in a shared store and fight your wars together."
+              rows={[{ icon: <ResIcon kind="gold" size={16} />, label: "Gold", need: 50000, have: p.gold }]}
+              note="You become its leader; others may petition to join."
+              disabledReason={p.gold < 50000 ? "Not enough gold — founding a clan costs 50,000." : undefined}
+            >
+              <Btn className="btn">Found (50k gold)</Btn>
+            </ReqTip>
           </CmdForm>
         </Panel>
         <Panel title="Standing Banners">
@@ -71,7 +83,20 @@ export default async function ClanPage({
                   <td>
                     <CmdForm name="clanJoin" path="/clan">
                       <input type="hidden" name="clanId" value={c.id} />
-                      <button className="btn">Join</button>
+                      <ReqTip
+                        heading={`Join ${c.name}`}
+                        body="Petition to march under this banner — you share its storage pool and fight its wars."
+                        note="Leaving a clan later forfeits your deposits and starts a 48-hour cooldown."
+                        disabledReason={
+                          (p.clanJoinableAtTick ?? 0) > tick
+                            ? `On cooldown — you can join again at turn ${p.clanJoinableAtTick}.`
+                            : c.members.length >= memberCap(c)
+                              ? "This clan is full."
+                              : undefined
+                        }
+                      >
+                        <Btn className="btn">Join</Btn>
+                      </ReqTip>
                     </CmdForm>
                   </td>
                 </tr>
@@ -193,7 +218,15 @@ export default async function ClanPage({
                             <CmdForm name="clanBombard" path="/clan">
                               <input type="hidden" name="clanId" value={enemy.id} />
                               <input type="hidden" name="which" value={r.key} />
-                              <button className="btn">Bombard (10 turns)</button>
+                              <ReqTip
+                                heading={`Bombard ${enemy.name}'s ${r.label}`}
+                                body={`Fire your crewed trebuchets at this structure, cracking its integrity (now ${Math.round(r.integ * 100)}%). Any member may fire.`}
+                                rows={[{ icon: <span className="costtip-ico">⏳</span>, label: "Action turns", need: 10, have: p.turnsAvailable }]}
+                                note="Also needs at least one crewed trebuchet (a trebuchet with its engineers). Each strike hands the enemy clan one revenge."
+                                disabledReason={p.turnsAvailable < 10 ? "Not enough action turns — a bombardment costs 10." : undefined}
+                              >
+                                <Btn className="btn">Bombard (10 turns)</Btn>
+                              </ReqTip>
                             </CmdForm>
                           ) : (
                             <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>cracked to the floor</span>
@@ -212,9 +245,15 @@ export default async function ClanPage({
       <Panel title={`Clan Members — ${clan.members.length}`}>
         <ClanMembers world={world} clan={clan} viewerId={p.id} />
         <CmdForm name="clanLeave" path="/clan">
-          <button className="btn" style={{ background: "linear-gradient(#a8853f,#7c5426)", borderColor: "#4e3113", marginTop: 8 }}>
-            Leave (forfeits deposits, 48h cooldown)
-          </button>
+          <ReqTip
+            heading="Leave the clan"
+            body={`Abandon ${clan.name}. You forfeit every resource you have deposited into the pool, and can't join another clan for 48 hours.`}
+            note="A departure also counts against your per-era limit."
+          >
+            <Btn className="btn" style={{ background: "linear-gradient(#a8853f,#7c5426)", borderColor: "#4e3113", marginTop: 8 }}>
+              Leave (forfeits deposits, 48h cooldown)
+            </Btn>
+          </ReqTip>
         </CmdForm>
       </Panel>
 
@@ -244,15 +283,27 @@ export default async function ClanPage({
                 <td>
                   <CmdForm name="clanDeposit" path="/clan">
                     <input type="hidden" name="what" value={r} />
-                    <input name="amount" placeholder="#" aria-label={`${r} to deposit`} size={6} style={{ font: "13.5px Verdana", padding: 2 }} />
-                    <button className="btn">Give</button>
+                    <CountInput name="amount" ariaLabel={`${r} to deposit`} size={6} max={r === "gold" ? p.gold : p.resources[r]} />
+                    <ReqTip
+                      heading={`Deposit ${r}`}
+                      body="Give this resource to the clan pool for any member to draw on."
+                      note="Deposits raise your own withdrawal cap — the 3× rule lets you later take up to triple what you've given."
+                    >
+                      <Btn className="btn">Give</Btn>
+                    </ReqTip>
                   </CmdForm>
                 </td>
                 <td>
                   <CmdForm name="clanWithdraw" path="/clan">
                     <input type="hidden" name="what" value={r} />
-                    <input name="amount" placeholder="#" aria-label={`${r} to withdraw`} size={6} style={{ font: "13.5px Verdana", padding: 2 }} />
-                    <button className="btn">Take</button>
+                    <CountInput name="amount" ariaLabel={`${r} to withdraw`} size={6} max={Math.floor(Math.min(clan.storage[r], withdrawableNow(clan, p.id, r)))} />
+                    <ReqTip
+                      heading={`Withdraw ${r}`}
+                      body="Draw this resource from the clan pool into your treasury."
+                      note={`Capped by the 3× rule — you may take up to ${fmt(Math.min(clan.storage[r], withdrawableNow(clan, p.id, r)))} ${r} right now.`}
+                    >
+                      <Btn className="btn">Take</Btn>
+                    </ReqTip>
                   </CmdForm>
                 </td>
               </tr>
@@ -267,25 +318,49 @@ export default async function ClanPage({
             {nextStorage && (
               <CmdForm name="clanBuild" path="/clan">
                 <input type="hidden" name="which" value="storage" />
-                <button className="btn">
-                  Storage → L{clan.buildings.storageLevel + 1} ({fmt(nextStorage.gold)}g + {fmt(nextStorage.each)} each)
-                </button>
+                <ReqTip
+                  heading={`Clan Storage → L${clan.buildings.storageLevel + 1}`}
+                  body={`Deepen the shared store — more pooled capacity per resource (now ${fmt(storageCap)} each).`}
+                  rows={[{ icon: <ResIcon kind="gold" size={16} />, label: "Gold (from pool)", need: nextStorage.gold, have: clan.storage.gold }]}
+                  note={`Plus ${fmt(nextStorage.each)} of every other resource, paid from the clan pool.`}
+                  disabledReason={clan.storage.gold < nextStorage.gold ? "The clan pool is short on gold for this." : undefined}
+                >
+                  <Btn className="btn">
+                    Storage → L{clan.buildings.storageLevel + 1} ({fmt(nextStorage.gold)}g + {fmt(nextStorage.each)} each)
+                  </Btn>
+                </ReqTip>
               </CmdForm>
             )}
             {nextHall && (
               <CmdForm name="clanBuild" path="/clan">
                 <input type="hidden" name="which" value="hall" />
-                <button className="btn">
-                  Hall → L{clan.buildings.hallLevel + 1} ({fmt(nextHall.gold)}g + {fmt(nextHall.each)} each)
-                </button>
+                <ReqTip
+                  heading={`Clan Hall → L${clan.buildings.hallLevel + 1}`}
+                  body="Raise the Hall — softens the tax penalty every member feels, so their treasuries fill faster."
+                  rows={[{ icon: <ResIcon kind="gold" size={16} />, label: "Gold (from pool)", need: nextHall.gold, have: clan.storage.gold }]}
+                  note={`Plus ${fmt(nextHall.each)} of every other resource, paid from the clan pool.`}
+                  disabledReason={clan.storage.gold < nextHall.gold ? "The clan pool is short on gold for this." : undefined}
+                >
+                  <Btn className="btn">
+                    Hall → L{clan.buildings.hallLevel + 1} ({fmt(nextHall.gold)}g + {fmt(nextHall.each)} each)
+                  </Btn>
+                </ReqTip>
               </CmdForm>
             )}
             {nextWonder && (
               <CmdForm name="clanBuild" path="/clan">
                 <input type="hidden" name="which" value="wonder" />
-                <button className="btn">
-                  Wonder → L{clan.buildings.wonderLevel + 1} ({fmt(nextWonder.gold)}g + {fmt(nextWonder.each)} each)
-                </button>
+                <ReqTip
+                  heading={`Clan Wonder → L${clan.buildings.wonderLevel + 1}`}
+                  body="Raise the Wonder — deepens the discount on every member's war costs (siege gear, troops, and mercenaries)."
+                  rows={[{ icon: <ResIcon kind="gold" size={16} />, label: "Gold (from pool)", need: nextWonder.gold, have: clan.storage.gold }]}
+                  note={`Plus ${fmt(nextWonder.each)} of every other resource, paid from the clan pool.`}
+                  disabledReason={clan.storage.gold < nextWonder.gold ? "The clan pool is short on gold for this." : undefined}
+                >
+                  <Btn className="btn">
+                    Wonder → L{clan.buildings.wonderLevel + 1} ({fmt(nextWonder.gold)}g + {fmt(nextWonder.each)} each)
+                  </Btn>
+                </ReqTip>
               </CmdForm>
             )}
           </div>
@@ -303,9 +378,15 @@ export default async function ClanPage({
                         </option>
                       ))}
                   </select>
-                  <button className="btn" style={{ background: "linear-gradient(var(--warn),var(--warn))", borderColor: "#511207" }}>
-                    Declare War (+100% damage both ways)
-                  </button>
+                  <ReqTip
+                    heading="Declare war"
+                    body="Open a clan war on the chosen banner. Both clans deal +100% damage to each other until one side wins — first to net +200 kills over losses takes it."
+                    note="Leaders only. A declared war can't be called off — fight it out."
+                  >
+                    <Btn className="btn" style={{ background: "linear-gradient(var(--warn),var(--warn))", borderColor: "#511207" }}>
+                      Declare War (+100% damage both ways)
+                    </Btn>
+                  </ReqTip>
                 </CmdForm>
               </div>
             </div>

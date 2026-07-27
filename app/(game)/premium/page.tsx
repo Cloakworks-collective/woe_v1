@@ -12,7 +12,11 @@ const price = `$${(CHARTER_PRICE_CENTS / 100).toFixed(2)}`;
 /** The purchase control, struck as the Charter card itself. */
 function CharterCard() {
   return (
-    <button className="cc-btn" aria-label={`Pay ${price} — the Royal Charter for this age`}>
+    <button
+      className="cc-btn"
+      aria-label={`Pay ${price} — the Royal Charter for this age`}
+      title={`Pay ${price} to buy the Royal Charter for this age — unlocks the Steward: build & research queues, standing orders, and auto-banking while you're away.`}
+    >
       <span className="cc-top">
         <span>👑 ROYAL CHARTER</span>
         <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#cdb977" strokeWidth="2" strokeLinecap="round" aria-hidden>
@@ -154,7 +158,7 @@ export default async function PremiumPage({
                     required
                   />
                 </span>
-                <button className="cc-pay">PAY {price}</button>
+                <button className="cc-pay" title={`Charge the test card ${price} and grant the Royal Charter (payment emulator — no real money moves).`}>PAY {price}</button>
               </span>
             </div>
           </form>

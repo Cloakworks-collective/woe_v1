@@ -1,5 +1,7 @@
+import { Btn } from "@/components/Btn";
 import { Art } from "@/components/Art";
 import { CmdForm } from "@/components/CmdForm";
+import { ReqTip } from "@/components/CostTip";
 import { Flash } from "@/components/Flash";
 import { Info } from "@/components/Info";
 import { LearnLink } from "@/components/LearnLink";
@@ -68,7 +70,7 @@ const queuedLevels = (p: Player, field: ResearchField) =>
 // A 5-segment level track: owned levels solid, the next actionable, the rest
 // future. Nothing is ever locked — every level is researchable at any time; the
 // Collegium only sets how fast (spec/research.md).
-function PipTrack({ lvl }: { lvl: number }) {
+function PipTrack({ fid, lvl }: { fid: ResearchField; lvl: number }) {
   return (
     <span className="rpips" aria-label={`Level ${lvl} of ${MAX_FIELD_LEVEL}`}>
       {Array.from({ length: MAX_FIELD_LEVEL }, (_, i) => {
@@ -77,7 +79,11 @@ function PipTrack({ lvl }: { lvl: number }) {
         const isNext = n === lvl + 1;
         const cls = owned ? "owned" : isNext ? "next" : "future";
         return (
-          <span key={n} className={`rpip ${cls}`} title={owned ? `Level ${n} — earned` : `Level ${n}`}>
+          <span
+            key={n}
+            className={`rpip ${cls}`}
+            title={`Level ${n}${owned ? " (earned)" : ""} — ${researchLevelEffect(fid, n)}`}
+          >
             {n}
           </span>
         );
@@ -183,7 +189,7 @@ export default async function ResearchPage({
                           </Info>
                           {!f.ranked && <span className="rnode-shadow-tag">shadow</span>}
                         </div>
-                        <PipTrack lvl={lvl} />
+                        <PipTrack fid={fid} lvl={lvl} />
                       </div>
                     </div>
 
@@ -220,24 +226,30 @@ export default async function ResearchPage({
                           ) : (
                             <CmdForm name="setResearch" path="/research">
                               <input type="hidden" name="field" value={fid} />
-                              <button
-                                className="btn"
-                                title={
-                                  active && active !== fid
-                                    ? `Switch the scholars here — abandons half of ${META[active].name}'s progress toward its next level`
-                                    : "Set the scholars to study this field"
-                                }
-                              >
-                                {active && active !== fid ? "Switch here" : "Study this"}
-                              </button>
+                              {active && active !== fid ? (
+                                <ReqTip
+                                  heading={`Switch scholars to ${f.name}`}
+                                  body={`Redirect your scholars here. Points already banked toward ${f.name} are kept — but you forfeit half of ${META[active].name}'s progress toward its next level.`}
+                                  note="Switching back later costs half again; study one field to the level you need before moving on."
+                                >
+                                  <Btn className="btn">Switch here</Btn>
+                                </ReqTip>
+                              ) : (
+                                <ReqTip
+                                  heading={`Study ${f.name}`}
+                                  body="Set your scholars to work this field — they bank research points toward its next level every turn. No gold cost; progress comes from your researchers."
+                                >
+                                  <Btn className="btn">Study this</Btn>
+                                </ReqTip>
+                              )}
                             </CmdForm>
                           )}
                           {p.premium && (
                             <CmdForm name="queueResearch" path="/research">
                               <input type="hidden" name="field" value={fid} />
-                              <button className="btn" title="Queue a level for the Steward">
+                              <Btn className="btn" title="Queue a level for the Steward">
                                 🪶{queuedLevels(p, fid) > 0 ? ` +${queuedLevels(p, fid)}` : ""}
-                              </button>
+                              </Btn>
                             </CmdForm>
                           )}
                         </div>

@@ -1,13 +1,16 @@
+import { Btn } from "@/components/Btn";
 import { cmd } from "@/app/actions";
 import { Art } from "@/components/Art";
 import { CmdForm } from "@/components/CmdForm";
+import { CostTip, ReqTip } from "@/components/CostTip";
+import { CountInput } from "@/components/CountInput";
 import { Flash } from "@/components/Flash";
 import { LearnLink } from "@/components/LearnLink";
 import { Info } from "@/components/Info";
 import { Panel } from "@/components/Panel";
 import { ResIcon } from "@/components/ResIcon";
 import { GUILD_EFFECT_PER_LEVEL, PRODUCTION_PER_WORKER_PER_LEVEL, TRAINING_COSTS, UNIT_GUIDE, UNIT_INFO, catchableOpLevel } from "@/lib/constants";
-import { level, type Player, type WorkerRole } from "@/lib/engine";
+import { caravanDeliveryTurns, level, type Player, type WorkerRole } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
@@ -23,18 +26,32 @@ const ROLES: { role: WorkerRole; label: string; building: string; buildingId: Pa
 
 /** One input, two verbs: assign idle peasants in, or recall them to idle. The
  *  clicked submit button carries __cmd, so the same form drives both. */
-function AssignRecall({ role, assigned }: { role: WorkerRole; assigned: number }) {
+function AssignRecall({ role, label, assigned, idle }: { role: WorkerRole; label: string; assigned: number; idle: number }) {
   return (
     <form action={cmd} className="assign-form">
       <input type="hidden" name="__path" value="/train" />
       <input type="hidden" name="role" value={role} />
-      <input name="count" placeholder="#" aria-label={`Number of ${role}`} size={4} style={{ font: "14.5px Verdana", padding: 2 }} />
-      <button className="btn" name="__cmd" value="assignWorkers">
-        Assign
-      </button>
-      <button className="btn btn-recall" name="__cmd" value="recallWorkers" disabled={assigned === 0} title="Send workers back to the idle pool">
-        Recall
-      </button>
+      <CountInput ariaLabel={`Number of ${role}`} max={idle} />
+      <ReqTip
+        heading={`Assign ${label}`}
+        body="Put idle peasants to work here — they produce every turn while assigned."
+        rows={[{ icon: <span className="costtip-ico">👥</span>, label: "Idle peasants", need: 1, have: idle }]}
+        note="1 idle peasant per worker. Assigning is free and reversible — recall them any time. Needs the building at level 1+."
+        disabledReason={idle === 0 ? "No idle peasants — recall workers elsewhere or wait for dawn's settlers." : undefined}
+      >
+        <Btn className="btn" name="__cmd" value="assignWorkers" disabled={idle === 0}>
+          Assign
+        </Btn>
+      </ReqTip>
+      <ReqTip
+        heading={`Recall ${label}`}
+        body="Send these workers back to the idle pool — they stop producing, ready to reassign or train into soldiers."
+        disabledReason={assigned === 0 ? "None assigned here to recall." : undefined}
+      >
+        <Btn className="btn btn-recall" name="__cmd" value="recallWorkers" disabled={assigned === 0}>
+          Recall
+        </Btn>
+      </ReqTip>
     </form>
   );
 }
@@ -45,6 +62,9 @@ function CountForm({
   label,
   extra,
   afford = true,
+  heading,
+  goldEach,
+  haveGold,
 }: {
   name: string;
   path: string;
@@ -52,19 +72,39 @@ function CountForm({
   extra?: Record<string, string>;
   /** Can the empire afford at least one? false → dull-red, disabled button. */
   afford?: boolean;
+  /** When set, the button carries a hover cost table (gold-per-one vs on hand). */
+  heading?: string;
+  goldEach?: number;
+  haveGold?: number;
 }) {
+  const btn = (
+    <Btn className={afford ? "btn" : "btn btn-no"} disabled={!afford}>
+      {label}
+    </Btn>
+  );
   return (
     <CmdForm name={name} path={path}>
       {extra &&
         Object.entries(extra).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
-      <input name="count" placeholder="#" aria-label={`${label} count`} size={4} style={{ font: "14.5px Verdana", padding: 2 }} disabled={!afford} />
-      <button
-        className={afford ? "btn" : "btn btn-no"}
+      <CountInput
+        ariaLabel={`${label} count`}
         disabled={!afford}
-        title={afford ? undefined : "Not enough gold to train even one"}
-      >
-        {label}
-      </button>
+        max={goldEach != null && haveGold != null && goldEach > 0 ? Math.floor(haveGold / goldEach) : undefined}
+      />
+      {goldEach != null && haveGold != null ? (
+        <CostTip
+          heading={heading}
+          body="Trained from your treasury — gold only, no peasants."
+          cost={{ gold: goldEach, wood: 0, stone: 0, ore: 0 }}
+          have={{ gold: haveGold, wood: 0, stone: 0, ore: 0 }}
+          note="Gold shown is per one — × the number you enter."
+          disabledReason={afford ? undefined : "Not enough gold to train even one."}
+        >
+          {btn}
+        </CostTip>
+      ) : (
+        btn
+      )}
     </CmdForm>
   );
 }
@@ -119,7 +159,7 @@ export default async function TrainPage({
 
       <Panel
         title="The Assignment Hall"
-        info="Worker assignment is free and reversible. EVERY worker is UNLIMITED — you only need the building. Its level raises how effective each worker is: farmers/quarrymen/miners/lumberjacks and researchers make 50/turn at L1 up to 500 at L10; each Market Square level lets every caravan carry another 1,000 goods."
+        info="Worker assignment is free and reversible. EVERY worker is UNLIMITED — you only need the building. Its level raises how effective each worker is: farmers/quarrymen/miners/lumberjacks and researchers make 50/turn at L1 up to 500 at L10; each Market Square level lets every caravan carry another 1,000 goods AND shortens the road to the Bazaar (100 turns at L1 down to 10 at L10)."
         guide="/guide#grow"
       >
         <div className="card-grid">
@@ -129,7 +169,7 @@ export default async function TrainPage({
             // Every worker is uncapped; the building level lifts the per-worker effect.
             const effect =
               role === "merchants"
-                ? `each caravan carries ${(1000 * lvl).toLocaleString("en-US")} goods`
+                ? `each caravan carries ${(1000 * lvl).toLocaleString("en-US")} goods · ${caravanDeliveryTurns(lvl)}-turn road to the Bazaar`
                 : `each makes ${PRODUCTION_PER_WORKER_PER_LEVEL * lvl}/turn`;
             return (
               <div className="bcard" key={role}>
@@ -155,7 +195,7 @@ export default async function TrainPage({
                         </>
                       )}
                     </p>
-                    <AssignRecall role={role} assigned={assigned} />
+                    <AssignRecall role={role} label={label} assigned={assigned} idle={p.idlePeasants} />
                   </div>
                 </div>
               </div>
@@ -186,7 +226,15 @@ export default async function TrainPage({
                       <ResIcon kind="gold" size={20} /> {cost} each
                     </li>
                   </ul>
-                  <CountForm name={cmd} path="/train" label="Train" afford={p.gold >= cost} />
+                  <CountForm
+                    name={cmd}
+                    path="/train"
+                    label="Train"
+                    afford={p.gold >= cost}
+                    heading={`Train ${UNIT_INFO[unit].title}`}
+                    goldEach={cost}
+                    haveGold={p.gold}
+                  />
                 </div>
               </div>
               <div className="bcard-gain">

@@ -384,7 +384,7 @@ function dispatch(
       return;
     }
     case "marketBuy": {
-      const r = buyFromMarket(player, world.orders, args.resource as Resource, num(args.amount));
+      const r = buyFromMarket(player, world.orders, args.resource as Resource, num(args.amount), tick);
       put(r.buyer);
       world.orders = r.orders;
       // Pay sellers their net (the 5% fee is burned) — anonymously.

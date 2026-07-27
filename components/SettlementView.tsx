@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Art } from "@/components/Art";
-import { BUILDING_INFO, type BuildingId } from "@/lib/constants";
+import { BUILDING_INFO, maxLevel, type BuildingId } from "@/lib/constants";
 import { level, type Player } from "@/lib/engine";
 
 // The settlement, laid out as it would rise from the ground: hearth & walls at
@@ -27,20 +27,25 @@ export function SettlementView({ player }: { player: Player }) {
         {ALL_IDS.map((id) => {
           const l = lvl(id);
           const built = l > 0;
+          // Hearthstead & Muster Hall are counted (built again and again), so
+          // only the LEVELLED structures can truly reach their zenith.
+          const counted = id === "hearthstead" || id === "muster_hall";
+          const zenith = built && !counted && l >= maxLevel(id);
           // Key structures and higher levels stand a little taller.
           const size = built ? (id === "walls" || id === "hearthstead" ? 88 : 70 + Math.min(l, 4) * 3) : 60;
           return (
             <Link
               key={id}
               href="/buildings"
-              className={`vplot${built ? " built" : ""}`}
-              title={`${BUILDING_INFO[id].title}${built ? ` — level ${l}` : " — not yet raised"}. ${BUILDING_INFO[id].tip}`}
+              className={`vplot${built ? " built" : ""}${zenith ? " zenith" : ""}`}
+              title={`${BUILDING_INFO[id].title}${zenith ? ` — ZENITH, at its pinnacle (level ${l})` : built ? ` — level ${l}` : " — not yet raised"}. ${BUILDING_INFO[id].tip}`}
             >
               <span className="vplot-art">
                 <Art path={`buildings/${id}`} size={size} title={BUILDING_INFO[id].title} />
-                {built && <span className="vplot-lv">{l}</span>}
+                {built && (zenith ? <span className="vplot-lv vplot-zenith">★</span> : <span className="vplot-lv">{l}</span>)}
               </span>
               <span className="vplot-name">{BUILDING_INFO[id].title}</span>
+              {zenith && <span className="vplot-zenith-ribbon">zenith</span>}
             </Link>
           );
         })}

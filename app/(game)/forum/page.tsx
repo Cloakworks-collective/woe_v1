@@ -1,4 +1,6 @@
+import { Btn } from "@/components/Btn";
 import { CmdForm } from "@/components/CmdForm";
+import { ReqTip } from "@/components/CostTip";
 import { Flash } from "@/components/Flash";
 import { Panel } from "@/components/Panel";
 import { dmChannel } from "@/lib/server/store";
@@ -59,7 +61,9 @@ export default async function ForumPage({
                   </option>
                 ))}
               </select>
-              <button className="btn">Open letters</button>
+              <ReqTip heading="Open letters" body="Open your private, permanent letter thread with the chosen correspondent.">
+                <Btn className="btn">Open letters</Btn>
+              </ReqTip>
             </form>
           )}
         </div>
@@ -102,7 +106,13 @@ export default async function ForumPage({
                   maxLength={800}
                   style={{ font: "14.5px Verdana", padding: 3, width: 320 }}
                 />
-                <button className="btn">Post</button>
+                <ReqTip
+                  heading="Post your message"
+                  body="Send this message to the current channel for others to read."
+                  note="Era and clan chat are wiped when the era ends; letters are kept forever."
+                >
+                  <Btn className="btn">Post</Btn>
+                </ReqTip>
               </CmdForm>
             </div>
           </>

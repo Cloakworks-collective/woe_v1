@@ -97,7 +97,8 @@ accumulation.
 > the relevant building to exist (level ≥ 1); its **level scales how effective
 > each worker/unit is**, not how many you may have: farmers/quarrymen/miners/
 > lumberjacks and researchers make `50 × level`/turn (economy.md, research.md);
-> each Market Square level adds 1,000 to every caravan's capacity (market.md);
+> each Market Square level adds 1,000 to every caravan's capacity AND shortens the
+> road to the Bazaar (100 turns to arrive at L1 → 10 at L10) (market.md);
 > each Shadow Guild / Ranger's Lodge level makes every spy / scout more effective
 > (espionage.md). Housing (Hearthstead) and barracks (Muster Hall) beds are the
 > only real caps — population and standing-army size.
@@ -144,7 +145,7 @@ scales the per-unit effect.
 | Quarryman    | Mason's Quarry     | Stone/quarryman: 50 × level/turn                 |
 | Miner        | Deepvein Mine      | Ore/miner: 50 × level/turn                        |
 | Lumberjack   | Sawyer's Mill      | Wood/lumberjack: 50 × level/turn                 |
-| Merchant     | Market Square      | Caravan capacity: 1,000 × level (`market.md`)    |
+| Merchant     | Market Square      | Caravan capacity 1,000 × level; delivery `max(10,110−10×level)` turns (`market.md`) |
 | Researcher   | The Collegium      | Research/scholar: 50 × level/turn                |
 | Spy          | Shadow Guild       | Spy-mission effect (`espionage.md`)              |
 | Scout        | Ranger's Lodge     | Recon sharpness & spy-catch level (`espionage.md`) |
@@ -185,7 +186,7 @@ by cost.
 | 7 | **Mason's Yard**   | 1–10   | +20,000 protected capacity      | Stone storage                              |
 | 8 | **Ironhold**       | 1–10   | +20,000 protected capacity      | Ore storage                                |
 | 9 | **Counting House** | 1–10   | +20,000 protected gold capacity | Bank — protects gold from sieges           |
-| 10| **Market Square**  | 1–10   | +1,000 caravan capacity per merchant | Grand Bazaar access (`market.md`); merchants unlimited |
+| 10| **Market Square**  | 1–10   | +1,000 caravan capacity & −10 turns delivery time per merchant | Grand Bazaar access (`market.md`); merchants unlimited; caravan reaches market in 100 turns @L1 → 10 @L10 |
 | 11| **The Collegium**  | 1–10   | +50 research/turn per scholar   | Research / technologies (scholars unlimited) |
 | 12| **Shadow Guild**   | 1–10   | +10% spy-mission effect         | Train & run spies (spies unlimited)        |
 | 13| **Ranger's Lodge** | 1–10   | sharper recon & higher spy-catch | Train & run scouts (scouts unlimited)     |

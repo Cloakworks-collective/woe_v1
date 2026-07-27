@@ -1,9 +1,10 @@
 import { civilians, mercTotal, military, totalPopulation, troopTotal, type Player } from "@/lib/engine";
 import { Art } from "./Art";
+import { BareBadge } from "./BareBadge";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
-type Row = { key: string; art?: string; glyph?: string; label: string; count: number; muted?: boolean };
+type Row = { key: string; art?: string; glyph?: string; label: string; count: number; muted?: boolean; bare?: boolean };
 
 /**
  * The census — who your population actually is, told in three estates:
@@ -23,10 +24,15 @@ export function Census({ player: p }: { player: Player }) {
     { key: "scouts", art: "units/scout", label: "Scouts", count: p.army.scouts },
   ];
 
+  // An arm whose regulars have no hired blades of the same arm in front of them
+  // is BARE — in battle those blows land on real population.
+  const bareArm = (key: "footmen" | "archers" | "cavalry") =>
+    troopTotal(p.army[key]) > 0 && troopTotal(p.army.mercenaries[key]) === 0;
+
   const armyRows: Row[] = [
-    { key: "footmen", art: "units/footman", label: "Footmen", count: troopTotal(p.army.footmen) },
-    { key: "archers", art: "units/archer", label: "Archers", count: troopTotal(p.army.archers) },
-    { key: "cavalry", art: "units/cavalry", label: "Cavalry", count: troopTotal(p.army.cavalry) },
+    { key: "footmen", art: "units/footman", label: "Footmen", count: troopTotal(p.army.footmen), bare: bareArm("footmen") },
+    { key: "archers", art: "units/archer", label: "Archers", count: troopTotal(p.army.archers), bare: bareArm("archers") },
+    { key: "cavalry", art: "units/cavalry", label: "Cavalry", count: troopTotal(p.army.cavalry), bare: bareArm("cavalry") },
     { key: "engineers", art: "units/engineer", label: "Siege engineers", count: p.army.siegeEngineers },
   ];
 
@@ -45,7 +51,10 @@ export function Census({ player: p }: { player: Player }) {
           <span className="census-ic">
             {r.art ? <Art path={r.art} size={52} title={r.label} /> : <span className="census-glyph">{r.glyph}</span>}
           </span>
-          <span className="census-label">{r.label}</span>
+          <span className="census-label">
+            {r.label}
+            {r.bare && <BareBadge arm={r.label.toLowerCase()} count={r.count} />}
+          </span>
           <span className="census-count">{fmt(r.count)}</span>
         </li>
       ))}

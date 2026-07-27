@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buyFromMarket, cancelOrder, marketPrice, postOrder } from "./marketOps";
+import { buyFromMarket, cancelOrder, caravanDeliveryTurns, marketPrice, postOrder } from "./marketOps";
 import { newEmpire } from "./newEmpire";
 import type { MarketOrder, Player } from "./types";
 
@@ -67,6 +67,29 @@ describe("the Grand Bazaar", () => {
     const { buyer: b2, fills } = buyFromMarket(buyer, orders, "food", 1000);
     expect(fills[0].amount).toBe(25);
     expect(b2.gold).toBe(0);
+  });
+
+  it("delivery time falls with Market Square level: L1 → 100 turns, L10 → 10", () => {
+    expect(caravanDeliveryTurns(1)).toBe(100);
+    expect(caravanDeliveryTurns(5)).toBe(60);
+    expect(caravanDeliveryTurns(10)).toBe(10);
+    expect(caravanDeliveryTurns(11)).toBe(10); // floored
+  });
+
+  it("a posted caravan is en route — its goods don't reach the Bazaar instantly", () => {
+    const s = seller("s1"); // Market Square level 2 → 90-turn road
+    const { order } = postOrder(s, [], "wood", 1000, 3, "o1", 10);
+    expect(order.arrivesAtTick).toBe(10 + caravanDeliveryTurns(2)); // 100
+
+    const buyer = newEmpire({ id: "b1", name: "Buyer", race: "human" });
+    buyer.gold = 10000;
+    // While en route (tick 50 < 100) it isn't priced or buyable…
+    expect(marketPrice([order], "wood", 50)).toBeNull();
+    expect(() => buyFromMarket(buyer, [order], "wood", 500, 50)).toThrowError(/cannot fill/);
+    // …but once it arrives (tick 100) it's live.
+    expect(marketPrice([order], "wood", 100)).toBe(3);
+    const { fills } = buyFromMarket(buyer, [order], "wood", 500, 100);
+    expect(fills[0].amount).toBe(500);
   });
 
   it("cancel returns the goods and frees the merchant", () => {

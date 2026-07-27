@@ -1,5 +1,11 @@
+import { cmd } from "@/app/actions";
+import { BareBadge } from "@/components/BareBadge";
+import { Btn } from "@/components/Btn";
 import { Art } from "@/components/Art";
 import { CmdForm } from "@/components/CmdForm";
+import { CountInput } from "@/components/CountInput";
+import { Meter } from "@/components/Meter";
+import { ReqTip, type Req } from "@/components/CostTip";
 import { Flash } from "@/components/Flash";
 import { LearnLink } from "@/components/LearnLink";
 import { Info } from "@/components/Info";
@@ -67,6 +73,36 @@ function CostBits({ cost, mult = 1 }: { cost: Cost; mult?: number }) {
   );
 }
 
+// Resource requirement rows (icon + need vs have) for a hover cost table.
+function resReqs(cost: Cost, have: Cost): Req[] {
+  const order: [ResKind, string][] = [
+    ["wood", "Wood"],
+    ["stone", "Stone"],
+    ["ore", "Ore"],
+    ["gold", "Gold"],
+  ];
+  return order
+    .filter(([k]) => (cost[k as keyof Cost] ?? 0) > 0)
+    .map(([k, label]) => ({
+      icon: <ResIcon kind={k} size={16} />,
+      label,
+      need: cost[k as keyof Cost],
+      have: have[k as keyof Cost],
+    }));
+}
+const PEASANT_ROW = (need: number, have: number): Req => ({
+  icon: <span className="costtip-ico">👥</span>,
+  label: "Idle peasant",
+  need,
+  have,
+});
+const BED_ROW = (need: number, have: number): Req => ({
+  icon: <span className="costtip-ico">🛏</span>,
+  label: "Muster Hall bed",
+  need,
+  have,
+});
+
 export default async function TroopsPage({
   searchParams,
 }: {
@@ -84,6 +120,7 @@ export default async function TroopsPage({
   const housingFree = level(p, "hearthstead") * 10 - civilians(p);
   const safeDischarge = safeDischargeCount(p);
   const foundry = level(p, "war_foundry");
+  const have: Cost = { gold: p.gold, wood: p.resources.wood, stone: p.resources.stone, ore: p.resources.ore };
 
   // Can we afford at least one of a priced thing? (Green button / dull-red when
   // short — recomputed each render, since the page reloads after every action.)
@@ -110,67 +147,86 @@ export default async function TroopsPage({
             <div className="bcard" key={type}>
               <div className="bcard-head">
                 <span className="bcard-art">
-                  <Art path={`units/${type}`} size={72} title={label} />
+                  <Art path={`units/${type}`} size={216} title={label} />
                 </span>
                 <div>
                   <Info tip={UNIT_INFO[type].tip} title={UNIT_INFO[type].title} guide={UNIT_GUIDE[type]}>
                     <span className="bcard-name">{label}</span>
                   </Info>
+                  {troopTotal(p.army[key]) > 0 && troopTotal(p.army.mercenaries[key]) === 0 && (
+                    <BareBadge arm={label.toLowerCase()} count={troopTotal(p.army[key])} />
+                  )}
                   <div className="bcard-sub">trained at the {trainer}</div>
                 </div>
               </div>
 
-              {/* Cost per tier — one bullet each, resources shown as pixel tokens. */}
-              <ul className="cost-list">
-                {TIERS.map((t) => (
-                  <li key={t}>
-                    <span className="cost-tier">{t}</span>
-                    <span className="cost-have">have {p.army[key][t]}</span>
-                    <CostBits cost={TRAINING_COSTS[type]} mult={TIER_COST_MULT[t]} />
-                  </li>
-                ))}
-              </ul>
+              {/* One muster form: pick the tier ONCE — the cost row lights up to
+                  match — then Train or Discharge with the same count. The clicked
+                  button carries __cmd (the AssignRecall pattern). */}
+              <form action={cmd} className="muster-form">
+                <input type="hidden" name="__path" value="/troops" />
+                <input type="hidden" name="type" value={type} />
 
-              <div className="troop-form">
-                <div className="troop-form-block">
-                  <span className="troop-form-label">Train — from idle peasants</span>
-                  <CmdForm name="trainTroops" path="/troops">
-                    <input type="hidden" name="type" value={type} />
-                    <div className="troop-form-line">
-                      <Pills
-                        name="tier"
-                        ariaLabel={`${label} tier to train`}
-                        options={TIERS.map((t) => ({ value: t, label: t, title: TIER_INFO[t] }))}
-                      />
-                      <input name="count" placeholder="#" aria-label={`${label} to train`} size={3} style={{ font: "13.5px Verdana", padding: 3 }} />
-                      <button
-                        className={canTrainOne(type) ? "btn" : "btn btn-no"}
-                        disabled={!canTrainOne(type)}
-                        title={
-                          canTrainOne(type)
-                            ? undefined
-                            : "Can't raise even one light — need an idle peasant, a free Muster Hall bed, and the gold/ore"
-                        }
-                      >
-                        Train
-                      </button>
-                    </div>
-                  </CmdForm>
+                {/* Cost per tier; the selected tier's row is highlighted via :has(). */}
+                <ul className="cost-list">
+                  {TIERS.map((t) => (
+                    <li key={t} className={`tier-li tier-li-${t}`}>
+                      <span className="cost-tier">{t}</span>
+                      <span className="cost-have">have {p.army[key][t]}</span>
+                      <CostBits cost={TRAINING_COSTS[type]} mult={TIER_COST_MULT[t]} />
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="troop-form-line" style={{ marginTop: 6 }}>
+                  <Pills
+                    name="tier"
+                    ariaLabel={`${label} tier`}
+                    options={TIERS.map((t) => ({ value: t, label: t, title: TIER_INFO[t] }))}
+                  />
+                  <CountInput ariaLabel={`${label} count`} size={3} />
                 </div>
-                <div className="troop-form-block">
-                  <span className="troop-form-label">Discharge — send home (gear lost)</span>
-                  <CmdForm name="dischargeTroops" path="/troops">
-                    <input type="hidden" name="type" value={type} />
-                    <div className="troop-form-line">
-                      <Pills name="tier" ariaLabel={`${label} tier to discharge`} options={TIERS.map((t) => ({ value: t, label: t }))} />
-                      <input name="count" placeholder="#" aria-label={`${label} to discharge`} size={3} style={{ font: "13.5px Verdana", padding: 3 }} />
-                      <button className="btn" style={{ background: "linear-gradient(#a8853f,#7c5426)", borderColor: "#4e3113" }}>
-                        Discharge
-                      </button>
-                    </div>
-                  </CmdForm>
+                <div className="troop-form-line" style={{ marginTop: 5 }}>
+                  <ReqTip
+                    heading={`Train ${label}`}
+                    body="Raise idle peasants straight into this corps at the picked tier."
+                    rows={[
+                      PEASANT_ROW(1, p.idlePeasants),
+                      BED_ROW(1, Math.max(0, musterFree)),
+                      ...resReqs(TRAINING_COSTS[type], have),
+                    ]}
+                    note="Costs shown per light soldier — medium ×2, heavy ×4. Higher tiers also need the trainer + Forge at that level."
+                    disabledReason={
+                      canTrainOne(type)
+                        ? undefined
+                        : p.idlePeasants < 1
+                          ? "No idle peasants — grow your population or recall workers."
+                          : musterFree < 1
+                            ? "No free Muster Hall bed — build more Muster Halls."
+                            : "Not enough gold/ore for even one light soldier."
+                    }
+                  >
+                    <Btn
+                      name="__cmd"
+                      value="trainTroops"
+                      className={canTrainOne(type) ? "btn" : "btn btn-no"}
+                      disabled={!canTrainOne(type)}
+                    >
+                      ⚔ Train
+                    </Btn>
+                  </ReqTip>
+                  <ReqTip
+                    heading={`Discharge ${label}`}
+                    body="Send these soldiers home to the idle-peasant pool. Their gear is lost — retraining them costs full price again."
+                    rows={[{ icon: <span className="costtip-ico">🛏</span>, label: "Empty Hearthstead beds", need: 1, have: Math.max(0, housingFree) }]}
+                    note={`They only leave if a bed stands empty and the 30% guard line holds — ${safeDischarge} safe to discharge now.`}
+                  >
+                    <Btn name="__cmd" value="dischargeTroops" className="btn btn-recall">
+                      Discharge
+                    </Btn>
+                  </ReqTip>
                 </div>
-              </div>
+              </form>
             </div>
           ))}
 
@@ -178,7 +234,7 @@ export default async function TroopsPage({
           <div className="bcard" key="engineer">
             <div className="bcard-head">
               <span className="bcard-art">
-                <Art path="units/engineer" size={72} title="Siege Engineer" />
+                <Art path="units/engineer" size={216} title="Siege Engineer" />
               </span>
               <div>
                 <Info tip={UNIT_INFO.engineer.tip} title={UNIT_INFO.engineer.title} guide={UNIT_GUIDE.engineer}>
@@ -204,13 +260,39 @@ export default async function TroopsPage({
                 <span className="troop-form-label">Recruit — from idle peasants</span>
                 <CmdForm name="trainEngineers" path="/troops">
                   <div className="troop-form-line">
-                    <input name="count" placeholder="#" aria-label="Engineers to train" size={3} style={{ font: "13.5px Verdana", padding: 3 }} />
+                    <CountInput
+                      ariaLabel="Engineers to train"
+                      size={3}
+                      max={Math.min(p.idlePeasants, Math.max(0, musterFree), Math.floor(p.gold / (TRAINING_COSTS.siegeEngineer.gold || 1)))}
+                    />
                     {(() => {
                       const canEng = foundry >= 1 && p.idlePeasants >= 1 && musterFree >= 1 && canAfford(TRAINING_COSTS.siegeEngineer);
                       return (
-                        <button className={canEng ? "btn" : "btn btn-no"} disabled={!canEng}>
-                          Train
-                        </button>
+                        <ReqTip
+                          heading="Recruit Siege Engineers"
+                          body="Raise idle peasants into the crews that work your siege engines — an engine with no crew can't fire."
+                          rows={[
+                            PEASANT_ROW(1, p.idlePeasants),
+                            BED_ROW(1, Math.max(0, musterFree)),
+                            ...resReqs(TRAINING_COSTS.siegeEngineer, have),
+                          ]}
+                          note="Per engineer — × the number you enter. Also needs the War Foundry."
+                          disabledReason={
+                            canEng
+                              ? undefined
+                              : foundry < 1
+                                ? "Found the War Foundry first (Buildings → Military)."
+                                : p.idlePeasants < 1
+                                  ? "No idle peasants to recruit."
+                                  : musterFree < 1
+                                    ? "No free Muster Hall bed."
+                                    : "Not enough gold for even one engineer."
+                          }
+                        >
+                          <Btn className={canEng ? "btn" : "btn btn-no"} disabled={!canEng}>
+                            Train
+                          </Btn>
+                        </ReqTip>
                       );
                     })()}
                   </div>
@@ -225,14 +307,40 @@ export default async function TroopsPage({
           </div>
         </div>
 
-        <p style={{ fontSize: 13.5, marginTop: 10 }}>
-          🔥 Stamina {p.army.stamina}/100 · 🎖 Experience {p.army.experience}/100 ·{" "}
+        <div className="army-meters">
+          <ReqTip
+            heading="Stamina"
+            body="Fighting drains it (attacker −8/round, defender −5); tired troops swing weaker and guard worse. Recovers 1/turn passively, or +20 from a Rest. Rest before a hard fight."
+          >
+            <div>
+              <Meter label="Stamina" value={p.army.stamina} max={100} icon="🔥" />
+            </div>
+          </ReqTip>
+          <ReqTip
+            heading="Army experience"
+            body="Earned in battle, up to +100% power at 100. But veterancy lives in the veterans — losing regulars loses experience, while dead mercenaries cost none."
+          >
+            <div>
+              <Meter label="Experience" value={p.army.experience} max={100} icon="🎖" />
+            </div>
+          </ReqTip>
+          <ReqTip
+            heading="Muster Hall beds"
+            body={`Each Muster Hall houses ${TROOPS_PER_MUSTER_HALL} soldiers — the hard cap on your standing army. Build more halls to raise more troops.`}
+          >
+            <div>
+              <Meter label="Muster beds" value={military(p)} max={level(p, "muster_hall") * TROOPS_PER_MUSTER_HALL} icon="🛏" />
+            </div>
+          </ReqTip>
+        </div>
+        <p style={{ fontSize: 13.5, marginTop: 8 }}>
           <b>Safe to discharge</b> {safeDischarge} (capped by {housingFree} free bed
-          {housingFree === 1 ? "" : "s"} and the 30% guard line)
+          {housingFree === 1 ? "" : "s"} and the 30% guard line) ·{" "}
+          <a href="/guide#regulars">📜 saving &amp; killing regulars</a>
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}>
           <CmdForm name="rest" path="/troops">
-            <button className="btn">Rest the army (5 turns + 0.2 food/troop → +20 stamina)</button>
+            <Btn className="btn">Rest the army (5 turns + 0.2 food/troop → +20 stamina)</Btn>
           </CmdForm>
           <Info tip={ACTION_INFO.rest} guide={ACTION_GUIDE.rest} />
         </div>
@@ -241,7 +349,7 @@ export default async function TroopsPage({
       <Panel title="The Black Market — hired blades">
         <div style={{ float: "right" }}>
           <Info tip={UNIT_INFO.mercenary.tip} title={UNIT_INFO.mercenary.title} guide={UNIT_GUIDE.mercenary}>
-            <Art path="units/mercenary" size={80} title="Mercenary" />
+            <Art path="units/mercenary" size={240} title="Mercenary" />
           </Info>
         </div>
         <p style={{ fontSize: 14, maxWidth: 460, margin: "0 0 8px" }}>
@@ -284,6 +392,21 @@ export default async function TroopsPage({
           ))}
         </ul>
 
+        {(() => {
+          const bare = CORPS.filter(
+            (c) => troopTotal(p.army[c.key]) > 0 && troopTotal(p.army.mercenaries[c.key]) === 0,
+          );
+          if (bare.length === 0) return null;
+          return (
+            <p className="bare-line">
+              <span className="bare-badge">
+                <span aria-hidden="true">🛡</span>✗ bare
+              </span>{" "}
+              Your {bare.map((c) => c.label.toLowerCase()).join(", ")} have no hired blades in front
+              of them — those regulars die first. Hire a screen below.
+            </p>
+          );
+        })()}
         <div className="troop-form">
           <div className="troop-form-block">
             <span className="troop-form-label">Hire — gold only, no peasants</span>
@@ -299,20 +422,33 @@ export default async function TroopsPage({
                   ariaLabel="Mercenary tier to hire"
                   options={TIERS.map((t) => ({ value: t, label: t, title: TIER_INFO[t] }))}
                 />
-                <input name="count" placeholder="#" aria-label="Mercenaries to hire" size={4} style={{ font: "14.5px Verdana", padding: 4 }} />
-                <button
-                  className={canHireMerc ? "btn" : "btn btn-no"}
-                  disabled={!canHireMerc}
-                  title={
+                <CountInput
+                  ariaLabel="Mercenaries to hire"
+                  max={Math.min(Math.max(0, mercCap - mercInService), Math.floor(p.gold / Math.max(1, mercPriceLight)))}
+                />
+                <ReqTip
+                  heading="Hire mercenaries (light)"
+                  body="Rent sellswords in the arm and tier picked above — gold only, no peasants. They die before your matching regulars but drain gold every turn."
+                  rows={[
+                    { icon: <ResIcon kind="gold" size={16} />, label: "Gold", need: mercPriceLight, have: p.gold },
+                    { icon: <span className="costtip-ico">🗡</span>, label: "Free merc slots", need: 1, have: Math.max(0, mercCap - mercInService) },
+                  ]}
+                  note="Gold-only, per blade at light tier — medium ×2, heavy ×4. Capped at 25% of your regulars."
+                  disabledReason={
                     canHireMerc
                       ? undefined
                       : mercInService >= mercCap
-                        ? "Mercenary cap reached (25% of your regulars)"
-                        : "Not enough gold to hire even one"
+                        ? "Mercenary cap reached — raise more regulars to lift the 25% ceiling."
+                        : "Not enough gold to hire even one."
                   }
                 >
-                  Hire
-                </button>
+                  <Btn
+                    className={canHireMerc ? "btn" : "btn btn-no"}
+                    disabled={!canHireMerc}
+                  >
+                    Hire
+                  </Btn>
+                </ReqTip>
                 <Info tip={ACTION_INFO.hireMercs} guide={ACTION_GUIDE.hireMercs} />
               </div>
             </CmdForm>
@@ -327,7 +463,7 @@ export default async function TroopsPage({
 
       <Panel title="The Siege Train">
         <p style={{ fontSize: 14.5 }}>
-          <Art path="siege/trebuchets" size={56} title="Siege Works" /> Engineers are recruited above,
+          <Art path="siege/trebuchets" size={168} title="Siege Works" /> Engineers are recruited above,
           alongside your footmen, archers, and cavalry. The <b>engines</b> they crew and the foundry
           ladder live in the <a href="/siege">Siege Works</a> — you hold{" "}
           {Object.values(p.army.siegeGear).reduce((a, b) => a + b, 0)} pieces of gear.

@@ -1,5 +1,7 @@
+import { Btn } from "./Btn";
 import Link from "next/link";
 import { CmdForm } from "@/components/CmdForm";
+import { ReqTip } from "@/components/CostTip";
 import { Pills } from "@/components/Pills";
 import { ATTACK_MODE_INFO, SPY_OPS } from "@/lib/constants";
 
@@ -44,7 +46,12 @@ export function TargetActions({
                 { value: "bombard", label: "Bombard", title: ATTACK_MODE_INFO.bombard.tip },
               ]}
             />
-            <button className="btn act-go">Strike (10 turns)</button>
+            <ReqTip
+              heading={`Strike ${target.name}`}
+              body="March your army in the mode picked above — raid for loot, siege to wreck buildings, bombard to break walls from afar, or take a revenge blow. Costs 10 action turns."
+            >
+              <Btn className="btn act-go">Strike (10 turns)</Btn>
+            </ReqTip>
           </CmdForm>
         </div>
 
@@ -69,14 +76,25 @@ export function TargetActions({
                 placeholder="# spies"
                 aria-label="Spies to send"
                 size={6}
+                inputMode="numeric"
                 className="act-input"
               />
-              <button className="btn">Send (5 turns)</button>
+              <ReqTip
+                heading={`Send spies against ${target.name}`}
+                body="Run the operation chosen above with the number of spies you commit — more spies means a bigger blow, but spies caught are executed and name you to your victim. Costs 5 action turns."
+              >
+                <Btn className="btn">Send (5 turns)</Btn>
+              </ReqTip>
             </div>
           </CmdForm>
           <CmdForm name="scout" path="/rankings" inline={false}>
             <input type="hidden" name="targetId" value={target.id} />
-            <button className="btn act-ghost">Scout — recon (safe)</button>
+            <ReqTip
+              heading={`Scout ${target.name}`}
+              body="Send a reconnaissance party to size up their army and defences. Safe — your scouts are never lost, though a strong Ranger's Lodge may still spot them."
+            >
+              <Btn className="btn act-ghost">Scout — recon (safe)</Btn>
+            </ReqTip>
           </CmdForm>
         </div>
 

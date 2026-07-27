@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Art } from "@/components/Art";
+import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { PublicBattleTable } from "@/components/PublicBattleTable";
 import { TargetActions } from "@/components/TargetActions";
@@ -58,6 +59,7 @@ export default async function EmpireProfilePage({
 
   return (
     <>
+      <LearnLink href="/guide#battle">Attacking, raiding &amp; revenge</LearnLink>
       <Panel title={`The ${settlementTitle(p)} of ${p.name} — ${RACE_NAMES[p.race]}`}>
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ border: "1px solid var(--border-light)", background: "var(--panel-alt)", padding: 2, alignSelf: "flex-start" }}>

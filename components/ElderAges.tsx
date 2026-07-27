@@ -20,8 +20,25 @@ function victorMark(a: ElderAge) {
   return a.victorIsEmpire ? " 🛡" : a.victorRace ? ` ${RACE_ICON[a.victorRace] ?? ""}` : "";
 }
 
+/** A rosette medal for the top three of any ranked leaderboard. */
+export function MedalSVG({ tone }: { tone: "gold" | "silver" | "bronze" }) {
+  const fill = tone === "gold" ? "#c9a227" : tone === "silver" ? "#9aa1ab" : "#a56a3a";
+  const rim = tone === "gold" ? "#8a6d15" : tone === "silver" ? "#6b7480" : "#6e421f";
+  return (
+    <svg viewBox="0 0 24 24" className="medal" aria-hidden="true">
+      <path d="M 8.5 12 L 6 22 L 12 18.5 L 18 22 L 15.5 12 Z" fill={rim} opacity="0.8" />
+      <circle cx="12" cy="9" r="7" fill={fill} stroke={rim} strokeWidth="1.4" />
+      <circle cx="12" cy="9" r="4.2" fill="none" stroke={rim} strokeWidth="1" opacity="0.55" />
+    </svg>
+  );
+}
+
+const MEDAL_TONE = ["gold", "silver", "bronze"] as const;
+
 export function LeaderTable({ t }: { t: ElderTable }) {
   const numeric = new Set(t.numeric ?? []);
+  // Ranked tables (first column "#") earn medals for their top three.
+  const ranked = t.headers[0] === "#";
   return (
     <div className="elder-table-wrap">
       <div className="elder-table-title">
@@ -39,21 +56,26 @@ export function LeaderTable({ t }: { t: ElderTable }) {
           </tr>
         </thead>
         <tbody>
-          {t.rows.map((row, ri) => (
-            <tr key={ri}>
-              {row.map((cell, ci) => (
-                <td key={ci} className={numeric.has(ci) ? "num" : undefined}>
-                  {typeof cell === "object" && cell !== null ? (
-                    <Link href={cell.href}>{cell.text}</Link>
-                  ) : cell === "" ? (
-                    "—"
-                  ) : (
-                    cell
-                  )}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {t.rows.map((row, ri) => {
+            const place = ranked && typeof row[0] === "number" ? (row[0] as number) : 0;
+            return (
+              <tr key={ri} className={place >= 1 && place <= 3 ? `medal-row medal-row-${place}` : undefined}>
+                {row.map((cell, ci) => (
+                  <td key={ci} className={numeric.has(ci) ? "num" : undefined}>
+                    {ranked && ci === 0 && place >= 1 && place <= 3 ? (
+                      <MedalSVG tone={MEDAL_TONE[place - 1]} />
+                    ) : typeof cell === "object" && cell !== null ? (
+                      <Link href={cell.href}>{cell.text}</Link>
+                    ) : cell === "" ? (
+                      "—"
+                    ) : (
+                      cell
+                    )}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

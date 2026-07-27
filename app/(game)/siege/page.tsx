@@ -1,5 +1,8 @@
+import { Btn } from "@/components/Btn";
 import { Art } from "@/components/Art";
+import { CountInput } from "@/components/CountInput";
 import { CmdForm } from "@/components/CmdForm";
+import { ReqTip, type Req } from "@/components/CostTip";
 import { Flash } from "@/components/Flash";
 import { LearnLink } from "@/components/LearnLink";
 import { Info } from "@/components/Info";
@@ -83,6 +86,35 @@ function Fielded({ owned, crewed }: { owned: number; crewed: number }) {
   );
 }
 
+type Cost = { gold: number; wood: number; stone: number; ore: number };
+
+/** How many of a priced thing the stores could pay for right now. */
+function maxAffordable(cost: Cost, have: Cost): number {
+  let m = Infinity;
+  for (const k of ["gold", "wood", "stone", "ore"] as const) {
+    if ((cost[k] ?? 0) > 0) m = Math.min(m, Math.floor(have[k] / cost[k]));
+  }
+  return Number.isFinite(m) ? m : 0;
+}
+
+// Resource requirement rows (icon + need vs have) for a hover cost table.
+function resReqs(cost: Cost, have: Cost): Req[] {
+  const order: [ResKind, string][] = [
+    ["wood", "Wood"],
+    ["stone", "Stone"],
+    ["ore", "Ore"],
+    ["gold", "Gold"],
+  ];
+  return order
+    .filter(([k]) => (cost[k as keyof Cost] ?? 0) > 0)
+    .map(([k, label]) => ({
+      icon: <ResIcon kind={k} size={16} />,
+      label,
+      need: cost[k as keyof Cost],
+      have: have[k as keyof Cost],
+    }));
+}
+
 export default async function SiegePage({
   searchParams,
 }: {
@@ -93,6 +125,7 @@ export default async function SiegePage({
   const clan = p.clanId ? world.clans[p.clanId] : undefined;
   const discount = wonderDiscount(clan);
   const foundry = level(p, "war_foundry");
+  const have: Cost = { gold: p.gold, wood: p.resources.wood, stone: p.resources.stone, ore: p.resources.ore };
   const crewed = crewGear(p.army.siegeGear, p.army.siegeEngineers);
   // How many counters your engineers would man on defense (they crew counters
   // first). A display estimate — in a real defence, spares also fire your engines.
@@ -191,21 +224,30 @@ export default async function SiegePage({
                   Recruit engineers ({engCost.gold}
                   <ResIcon kind="gold" size={13} /> each)
                 </span>
-                <input
-                  name="count"
-                  placeholder="#"
-                  aria-label="Engineers to train"
+                <CountInput
+                  ariaLabel="Engineers to train"
                   size={3}
-                  style={{ font: "13.5px Verdana", padding: 3 }}
                   disabled={!canTrainEngineer}
+                  max={Math.min(p.idlePeasants, Math.max(0, musterFree), maxAffordable(engCost, have))}
                 />
-                <button
-                  className={canTrainEngineer ? "btn" : "btn btn-no"}
-                  disabled={!canTrainEngineer}
-                  title={canTrainEngineer ? "Train siege engineers to crew your engines" : engineerBlockReason}
+                <ReqTip
+                  heading="Recruit Siege Engineers"
+                  body="Raise idle peasants into the crews that man your engines — counters and engines both sit idle until crewed."
+                  rows={[
+                    { icon: <span className="costtip-ico">👥</span>, label: "Idle peasant", need: 1, have: p.idlePeasants },
+                    { icon: <span className="costtip-ico">🛏</span>, label: "Muster Hall bed", need: 1, have: Math.max(0, musterFree) },
+                    ...resReqs(engCost, have),
+                  ]}
+                  note="Per engineer — × the number you enter. Also needs the War Foundry."
+                  disabledReason={canTrainEngineer ? undefined : engineerBlockReason}
                 >
-                  🔧 Train
-                </button>
+                  <Btn
+                    className={canTrainEngineer ? "btn" : "btn btn-no"}
+                    disabled={!canTrainEngineer}
+                  >
+                    🔧 Train
+                  </Btn>
+                </ReqTip>
               </CmdForm>
               <span className="siege-train-note">
                 Engineers are also raised in <a href="/troops">The Army</a> alongside your troops.
@@ -259,10 +301,18 @@ export default async function SiegePage({
                     <div className="bcard-btns">
                       <CmdForm name="buySiegeGear" path={path}>
                         <input type="hidden" name="type" value={t} />
-                        <input name="count" placeholder="#" size={3} aria-label={`${step.name} to forge`} style={{ padding: 3 }} />
-                        <button className="btn" disabled={!unlocked}>
-                          Forge
-                        </button>
+                        <CountInput ariaLabel={`${step.name} to forge`} size={3} max={maxAffordable(g, have)} />
+                        <ReqTip
+                          heading={`Forge ${step.name}`}
+                          body={ENGINE_TIP[t]}
+                          rows={resReqs(g, have)}
+                          note={`Per engine — × the number you enter. Each needs ${g.crew} engineer${g.crew > 1 ? "s" : ""} to crew.`}
+                          disabledReason={!unlocked ? `Needs War Foundry level ${step.level} — raise it in Buildings → Military.` : undefined}
+                        >
+                          <Btn className="btn" disabled={!unlocked}>
+                            Forge
+                          </Btn>
+                        </ReqTip>
                       </CmdForm>
                     </div>
                   </div>
@@ -302,7 +352,7 @@ export default async function SiegePage({
         <Panel
           title="🛡 The Ramparts — defensive engines"
           info="Defensive engines are bought and crewed just like offensive gear — but your engineers man them when you DEFEND (counters first, then spares fire your own engines back). Each crewed engine cancels one incoming enemy engine of its paired weapon; the surplus still fires, so field enough to blunt an assault."
-          guide="/guide#defend"
+          guide="/guide#defense"
         >
           <div className="card-grid">
             {DEFENSE_ORDER.map((ct) => {
@@ -321,7 +371,7 @@ export default async function SiegePage({
                       <Info
                         tip={`Cancels one incoming ${WEAPON_NAME[c.counters]} per crewed engine when you defend. Crew of ${c.crew} engineers each.`}
                         title={c.name}
-                        guide="/guide#defend"
+                        guide="/guide#defense"
                       >
                         <span className="bcard-name">{c.name}</span>
                       </Info>
@@ -336,10 +386,18 @@ export default async function SiegePage({
                     <div className="bcard-btns">
                       <CmdForm name="buySiegeCounter" path={path}>
                         <input type="hidden" name="type" value={ct} />
-                        <input name="count" placeholder="#" size={3} aria-label={`${c.name} to forge`} style={{ padding: 3 }} />
-                        <button className="btn" disabled={!unlocked}>
-                          Forge
-                        </button>
+                        <CountInput ariaLabel={`${c.name} to forge`} size={3} max={maxAffordable(c, have)} />
+                        <ReqTip
+                          heading={`Forge ${c.name}`}
+                          body={`Cancels one incoming ${WEAPON_NAME[c.counters]} per crewed engine when you defend — the surplus still fires, so field enough to blunt an assault.`}
+                          rows={resReqs(c, have)}
+                          note={`Per engine — × the number you enter. Each needs ${c.crew} engineer${c.crew > 1 ? "s" : ""} to crew on defence.`}
+                          disabledReason={!unlocked ? `Needs War Foundry level ${c.foundryLevel} — raise it in Buildings → Military.` : undefined}
+                        >
+                          <Btn className="btn" disabled={!unlocked}>
+                            Forge
+                          </Btn>
+                        </ReqTip>
                       </CmdForm>
                     </div>
                   </div>
