@@ -7,10 +7,8 @@ import {
   FOOD_UPKEEP_PER_PERSON,
   GOLD_PER_CIVILIAN_AT_FULL_TAX,
   MERC_UPKEEP_GOLD_PER_TURN,
-  OUTPUT_PER_PRODUCER_AT_ZERO_TAX,
   PRODUCTION_PER_WORKER_PER_LEVEL,
   RACES,
-  SLOTS_PER_BUILDING_LEVEL,
   STAMINA,
   STORAGE_BUILDING,
   STORAGE_PER_LEVEL,
@@ -52,18 +50,8 @@ const PRODUCTION: {
   { role: "lumberjacks", building: "sawyers_mill", resource: "wood", field: "forestry" },
 ];
 
-/**
- * Output per producer per turn, before per-resource research and race bonuses:
- * 20 × (1 − taxRate × hallPenaltyFactor) × statecraft multiplier.
- */
-export function baseOutputPerProducer(p: Player, hallPenaltyFactor = 1): number {
-  const statecraft = 1 + researchLevel(p, "statecraft") * EFFECT_PER_LEVEL;
-  return (
-    OUTPUT_PER_PRODUCER_AT_ZERO_TAX * (1 - p.taxRate * hallPenaltyFactor) * statecraft
-  );
-}
-
-/** Tax income per turn: every civilian pays 40 × taxRate (halved surrendered). */
+/** Tax income per turn: every civilian pays GOLD_PER_CIVILIAN_AT_FULL_TAX ×
+ *  taxRate (halved surrendered). */
 export function taxIncomePerTurn(p: Player): number {
   let income = civilians(p) * GOLD_PER_CIVILIAN_AT_FULL_TAX * p.taxRate;
   if (p.surrendered) income *= SURRENDER_TAX_FACTOR;
@@ -73,13 +61,6 @@ export function taxIncomePerTurn(p: Player): number {
 /** Food upkeep per turn: 0.1 × (civilians + regular troops). Mercs feed themselves. */
 export function foodUpkeepPerTurn(p: Player): number {
   return FOOD_UPKEEP_PER_PERSON * (civilians(p) + military(p));
-}
-
-/** Effective producers of a role: capped by building slots (20 × level).
- *  Used for researchers/merchants/spies/scouts — NOT resource producers, which
- *  are uncapped (their output scales with building level instead). */
-export function effectiveProducers(p: Player, role: WorkerRole, building: BuildingId): number {
-  return Math.min(p.workers[role], SLOTS_PER_BUILDING_LEVEL * level(p, building));
 }
 
 /**

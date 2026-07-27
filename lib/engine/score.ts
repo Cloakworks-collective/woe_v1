@@ -35,8 +35,9 @@ export function rankingScore(p: Player): number {
     score += corps.heavy * SCORE.PER_TROOP_BASE * TIER_POWER.heavy;
   }
 
-  // Walls & buildings.
-  score += SCORE.WALLS(level(p, "walls"), p.wallIntegrity);
+  // Walls & buildings — walls score by level² × integrity.
+  const wallLvl = level(p, "walls");
+  score += wallLvl * wallLvl * SCORE.WALLS_PER_LEVEL_SQ * p.wallIntegrity;
   for (const id of [...CIVILIAN_LEVELLED_IDS, ...LEVELLED_MILITARY]) {
     score += level(p, id) * SCORE.PER_BUILDING_LEVEL;
   }

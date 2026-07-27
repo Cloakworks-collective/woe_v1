@@ -1,4 +1,8 @@
 // Research — The Collegium (spec/research.md). 10 fields × 5 levels.
+// The field LIST (structure + display text + ranked flags) lives here; every
+// number lives in balance.ts — THE tuning file.
+
+import { RESEARCH_ORDINAL_BASE, RESEARCH_ORDINAL_GROWTH } from "./balance";
 
 export type ResearchField =
   | "crop_rotation"
@@ -33,28 +37,15 @@ export const RESEARCH_FIELDS: ResearchFieldMeta[] = [
   { id: "statecraft", name: "Statecraft", desc: "Multiplies post-tax producer output, ×2 at level 5", ranked: true },
 ];
 
-export const MAX_FIELD_LEVEL = 5;
-
-/** Each level = +20% of the field's max effect. */
-export const EFFECT_PER_LEVEL = 0.2;
-
-/**
- * Research cost is GLOBAL and progressive (spec/research.md): the price of a
- * level depends on how many levels you've already earned across ALL fields, not
- * on which field it is. Your Nth research level overall costs
- * `RESEARCH_ORDINAL_BASE × RESEARCH_ORDINAL_GROWTH^(N−1)` — so each level makes
- * the next one dearer, and the ORDER you research in is the strategy.
- * (Tunable placeholders.)
- */
-export const RESEARCH_ORDINAL_BASE = 2000;
-export const RESEARCH_ORDINAL_GROWTH = 1.3;
+export {
+  MAX_FIELD_LEVEL,
+  EFFECT_PER_LEVEL,
+  RESEARCH_ORDINAL_BASE,
+  RESEARCH_ORDINAL_GROWTH,
+  RESEARCH_SWITCH_LOSS,
+} from "./balance";
 
 /** RP to complete your `order`-th research level overall (1-based). */
 export function researchOrdinalCost(order: number): number {
   return Math.round(RESEARCH_ORDINAL_BASE * RESEARCH_ORDINAL_GROWTH ** Math.max(0, order - 1));
 }
-
-/** Fraction of the current field's banked progress toward its next level that is
- *  LOST when you switch the scholars to a different field — the cost of a
- *  wandering research programme. 0.5 = you keep half (spec/research.md). */
-export const RESEARCH_SWITCH_LOSS = 0.5;

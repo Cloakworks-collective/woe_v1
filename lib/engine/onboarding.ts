@@ -5,7 +5,6 @@
 // and dismissing the charges grants every remaining reward — an experienced
 // regent who waves the tutorial away still receives the same bounty.
 
-import { SLOTS_PER_BUILDING_LEVEL } from "../constants";
 import { level, military, totalPopulation, type Player } from "./types";
 
 export type Grant = Partial<Record<"gold" | "food" | "wood" | "stone" | "ore", number>>;
@@ -40,11 +39,12 @@ const PRODUCERS: { id: "sawyers_mill" | "masons_quarry" | "deepvein_mine"; name:
   { id: "deepvein_mine", name: "Deepvein Mine" },
 ];
 
-/** Suggested opening farmer levy — enough to fill the Grange's jobs, capped by
- *  the idle peasants on hand. */
+/** Suggested opening farmer levy — a UI heuristic only (workers are uncapped):
+ *  ~20 farmers per Grange level, capped by the idle peasants on hand. */
+const SUGGESTED_FARMERS_PER_GRANGE_LEVEL = 20;
 function suggestFarmers(p: Player): number {
-  const slots = SLOTS_PER_BUILDING_LEVEL * level(p, "grange");
-  return Math.max(1, Math.min(p.idlePeasants, slots || SLOTS_PER_BUILDING_LEVEL));
+  const suggested = SUGGESTED_FARMERS_PER_GRANGE_LEVEL * level(p, "grange");
+  return Math.max(1, Math.min(p.idlePeasants, suggested || SUGGESTED_FARMERS_PER_GRANGE_LEVEL));
 }
 
 /** The ordered charges. Each `done` is a pure predicate over live state; the

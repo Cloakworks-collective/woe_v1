@@ -1,6 +1,8 @@
-// Starting conditions for a new empire (spec/architecture.md).
+// Starting conditions for a new empire — every number from START in
+// lib/constants/balance.ts (THE tuning file).
 
 import { ACTION_TURNS, DEFAULT_TAX_RATE, NEWCOMER_SHIELD_HOURS, TICKS_PER_HOUR } from "../constants";
+import { START } from "../constants/balance";
 import type { Race } from "../constants/races";
 import { emptyMercForce, type Player } from "./types";
 
@@ -19,7 +21,7 @@ export function newEmpire(opts: {
     isBot: opts.isBot,
     clanDepartures: 0,
 
-    idlePeasants: 80,
+    idlePeasants: START.IDLE_PEASANTS,
     workers: {
       farmers: 0,
       quarrymen: 0,
@@ -29,7 +31,7 @@ export function newEmpire(opts: {
       researchers: 0,
     },
     army: {
-      footmen: { light: 20, medium: 0, heavy: 0 },
+      footmen: { light: START.LIGHT_FOOTMEN, medium: 0, heavy: 0 },
       archers: { light: 0, medium: 0, heavy: 0 },
       cavalry: { light: 0, medium: 0, heavy: 0 },
       siegeEngineers: 0,
@@ -38,32 +40,28 @@ export function newEmpire(opts: {
       spies: 0,
       scouts: 0,
       mercenaries: emptyMercForce(),
-      stamina: 100,
+      stamina: START.STAMINA,
       experience: 0,
     },
 
-    gold: 5000,
+    gold: START.GOLD,
     bankedGold: 0,
     taxRate: DEFAULT_TAX_RATE,
-    resources: { food: 1000, wood: 1000, stone: 1000, ore: 1000 },
+    resources: {
+      food: START.RESOURCES_EACH,
+      wood: START.RESOURCES_EACH,
+      stone: START.RESOURCES_EACH,
+      ore: START.RESOURCES_EACH,
+    },
     bankedResources: { food: 0, wood: 0, stone: 0, ore: 0 },
     turnsAvailable: ACTION_TURNS.START,
     surrendered: false,
     surrenderTicksUsed: 0,
     starving: false,
 
-    // Every empire founds with level-1 banking: the Counting House vault for
-    // gold and one shelter per resource, so day-one raids can't strip a
-    // newcomer bare.
-    buildings: {
-      hearthstead: 15,
-      muster_hall: 2,
-      counting_house: 1,
-      granary: 1,
-      timberyard: 1,
-      masons_yard: 1,
-      ironhold: 1,
-    },
+    // Founding structures (START.BUILDINGS): level-1 banking so day-one raids
+    // can't strip a newcomer bare, plus homes and barracks.
+    buildings: { ...START.BUILDINGS },
     wallIntegrity: 1,
     buildingIntegrity: {}, // absent entries = full health
 

@@ -25,7 +25,8 @@ import {
   RACES,
   RACE_NAMES,
   SIEGE_GEAR,
-  SLOTS_PER_BUILDING_LEVEL,
+  GUILD_EFFECT_PER_LEVEL,
+  catchableOpLevel,
   STAMINA,
   STORAGE_BUILDING,
   STORAGE_PER_LEVEL,
@@ -523,13 +524,13 @@ export default async function CommandView({
               icon={<Art path="units/spy" size={46} title="Spies" />}
               label="Spies"
               value={fmt(p.army.spies)}
-              sub={`${fmt(SLOTS_PER_BUILDING_LEVEL * level(p, "shadow_guild"))} slots in the Shadow Guild`}
+              sub={`unlimited — Guild L${level(p, "shadow_guild")} missions +${Math.round(level(p, "shadow_guild") * GUILD_EFFECT_PER_LEVEL * 100)}%`}
             />
             <StatTile
               icon={<Art path="units/scout" size={46} title="Scouts" />}
               label="Scouts"
               value={fmt(p.army.scouts)}
-              sub={`${fmt(SLOTS_PER_BUILDING_LEVEL * level(p, "rangers_lodge"))} slots in the Ranger's Lodge`}
+              sub={`unlimited — Lodge L${level(p, "rangers_lodge")} catches ops to L${catchableOpLevel(level(p, "rangers_lodge")) || 0}`}
             />
             <StatTile
               icon={<Art path="buildings/shadow_guild" size={46} title="Shadow Guild" />}

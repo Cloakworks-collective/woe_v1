@@ -9,7 +9,6 @@ import {
   MARKET_FEE,
   MARKET_PRICE_MAX,
   MARKET_PRICE_MIN,
-  SLOTS_PER_BUILDING_LEVEL,
 } from "../constants";
 import { EngineError, level, type MarketOrder, type Player, type Resource } from "./types";
 

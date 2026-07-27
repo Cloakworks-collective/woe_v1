@@ -1,4 +1,5 @@
-// Espionage — spies & scouts (spec/espionage.md). All tunable.
+// Espionage — spies & scouts (spec/espionage.md). The op LIST (structure +
+// display text) lives here; every number lives in balance.ts — THE tuning file.
 
 export interface SpyOp {
   level: number; // Tradecraft level required
@@ -15,27 +16,18 @@ export const SPY_OPS: SpyOp[] = [
   { level: 5, id: "incite_unrest", name: "Incite Unrest", desc: "24h: tax −25%, production −25%, pop growth halted" },
 ];
 
-export const SABOTAGE_PER_SPY = 0.5; // gear destroyed = spiesSent / 2
-export const TORCH_PCT_PER_SPY = 0.01;
-export const TORCH_CAP = 0.25;
-export const UNREST = { HOURS: 24, TAX_PENALTY: 0.25, PRODUCTION_PENALTY: 0.25 };
-
-/** Mission effect × (1 + 0.1 × Shadow Guild level). */
-export const GUILD_EFFECT_PER_LEVEL = 0.1;
-
-/** ±20% luck on mission effect and catch roll (twice battle variance). */
-export const SPY_LUCK_SWING = 0.2;
+export {
+  SABOTAGE_PER_SPY,
+  TORCH_PCT_PER_SPY,
+  TORCH_CAP,
+  UNREST,
+  GUILD_EFFECT_PER_LEVEL,
+  SPY_LUCK_SWING,
+  CATCH,
+  RECON_FUZZ,
+} from "./balance";
 
 /** catchableOpLevel = ceil(lodgeLevel / 2). */
 export function catchableOpLevel(lodgeLevel: number): number {
   return Math.ceil(lodgeLevel / 2);
 }
-
-export const CATCH = {
-  PER_SPY_PER_LODGE_LEVEL: 0.005, // spiesSent × 0.5% × lodgeLevel
-  MAX: 0.9,
-  PATHFINDING_PER_LEVEL: 0.2, // × (1 + 0.2 × pathfindingLevel)
-};
-
-/** Scout recon: fuzzy army size ±20%; Pathfinding tightens toward exact. */
-export const RECON_FUZZ = 0.2;
