@@ -97,6 +97,42 @@ Swapping a shape is one edit — e.g. a linear-research era:
 export const RESEARCH_COST_CURVE: Curve = { kind: "linear", base: 0, perX: 2000 };
 ```
 
+## Seeing & tuning the numbers — the two balance pages
+
+Two pages read this catalog (`lib/balance/catalog.ts`, a client-safe
+description of every curve, scalar, and reference table — each with a
+plain-language `desc` — plus readers for their compiled values). Both split the
+material into six **category tabs** (`CATEGORIES`: Growth & People, Economy &
+Trade, Research, War & Army, Victory & Rank, World & Races) so no screen is a
+wall of numbers, and both render each curve through `components/CurvePanel.tsx`:
+a large chart (`CurveChart.tsx`, a pure SVG sampler over `evalCurve`) beside an
+explanation — what the two axes mean in words, an "at a glance" table of sample
+values across the domain, and the prose `desc`. A chart on either page always
+plots the exact function the engine runs.
+
+- **`/almanac` — The Codex of Balance (public, read-only).** No login. A
+  masthead, the category tabs (as `?c=<key>` links), and per category: the
+  curve panels, the one-off scalars as described cards, and the domain's
+  reference tables (training, tiers, siege, counters, clan hall, XP, loot,
+  races). Linked from the **Guides ▾** nav dropdown (TopNav + MobileNav)
+  alongside the Field Manual.
+- **`/admin/balance` — the Balance Workbench (Crown-gated).** The same catalog,
+  editable, same tabs (a per-tab badge counts that category's pending edits).
+  Each curve panel adds a shape selector + parameter fields; the chart redraws
+  on every keystroke and ghosts the compiled default behind the edited curve so
+  you see exactly what changed ("settlers at 130 levels went 100 → 200").
+  `CurvePanel` diffs against a `baseline` prop (the compiled default) rather than
+  its starting value, so edits stay flagged and survive tab switches. Scalars are
+  inline number inputs with their descriptions. A sticky bar counts all pending
+  changes and exports a **sparse `{curves, scalars}` diff** — the exact shape
+  destined for `world.meta.balanceOverrides`. Edits are preview-only today
+  (nothing writes to the running game); apply one by matching it in `balance.ts`.
+
+Access: `lib/server/admin.ts` opens the whole `/admin` tree to everyone during
+the build phase — `devOpenAdmin()` is true when no `ADMIN_PASSWORD` is set and
+`NODE_ENV !== "production"`. Set `ADMIN_PASSWORD` (as in `.env.local`) to seal
+it behind the Crown login again.
+
 ## Tweaking an era (build phase)
 
 1. Edit `balance.ts`.

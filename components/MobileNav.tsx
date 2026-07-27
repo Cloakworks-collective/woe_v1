@@ -73,9 +73,10 @@ export function MobileNav({ premium }: { premium: boolean }) {
       ],
     },
     {
-      head: "Help & Account",
+      head: "Guides & Account",
       items: [
         { href: "/guide", label: "📜 Field Manual" },
+        { href: "/almanac", label: "⚖ Codex of Balance" },
         premium
           ? { href: "/steward", label: "👑 Premium" }
           : { href: "/premium", label: "👑 Premium" },

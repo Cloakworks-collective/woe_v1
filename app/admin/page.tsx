@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AdminLoginForm } from "@/components/AdminLoginForm";
 import { Flash } from "@/components/Flash";
 import { Panel } from "@/components/Panel";
@@ -58,9 +59,14 @@ export default async function AdminPage({
     <div className="frame" style={{ maxWidth: 980, flexDirection: "column", paddingTop: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <div style={{ font: "bold 24px Georgia", color: "var(--heading)" }}>👑 The Crown Chamber</div>
-        <form action={adminLogout}>
-          <button className="btn">Leave quietly</button>
-        </form>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <Link href="/admin/balance" style={{ fontSize: 14, color: "var(--gold)" }}>
+            ⚖ Balance Workbench →
+          </Link>
+          <form action={adminLogout}>
+            <button className="btn">Leave quietly</button>
+          </form>
+        </div>
       </div>
       <Flash err={err} ok={ok} />
 

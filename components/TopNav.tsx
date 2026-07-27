@@ -45,7 +45,6 @@ export function TopNav({ premium }: { premium: boolean }) {
 
   const worldItem: Item = { href: "/battles", label: "🌍 World", title: "The living age — clan wars, the latest battles, and the grand chronicle" };
   const forum: Item = { href: "/forum", label: "🕯️ Forum", title: "The Forum — era chat & permanent letters with other empires" };
-  const guide: Item = { href: "/guide", label: "📜 Field Manual", title: "How to win: growth, battle strategy, the whole game" };
   const premiumItem: Item = premium
     ? { href: "/steward", label: "👑 Premium", title: "Your Royal Charter — the Steward's build/research queues, standing orders & auto-banking" }
     : { href: "/premium", label: "👑 Premium", title: "The Royal Charter (premium) — the Steward: queues, standing orders & auto-banking while you're away" };
@@ -65,6 +64,7 @@ export function TopNav({ premium }: { premium: boolean }) {
 
   const rankingsActive = pathname.startsWith("/rankings");
   const annalsActive = pathname.startsWith("/annals");
+  const guidesActive = pathname.startsWith("/guide") || pathname.startsWith("/almanac");
   const closeMenu = (e: MouseEvent<HTMLAnchorElement>) =>
     e.currentTarget.closest("details")?.removeAttribute("open");
 
@@ -112,7 +112,19 @@ export function TopNav({ premium }: { premium: boolean }) {
         </div>
 
         <div className="topnav-group topnav-meta">
-          {render(guide)}
+          <details className="topnav-dd">
+            <summary className={guidesActive ? "active" : ""} title="Guides — the Field Manual and the Codex of Balance">
+              📜 Guides ▾
+            </summary>
+            <div className="topnav-menu" role="menu">
+              <Link href="/guide" onClick={closeMenu}>
+                📜 Field Manual <span className="topnav-menu-sub">how to win — growth, war & the market</span>
+              </Link>
+              <Link href="/almanac" onClick={closeMenu}>
+                ⚖ Codex of Balance <span className="topnav-menu-sub">every curve & constant, charted</span>
+              </Link>
+            </div>
+          </details>
           {render(premiumItem)}
         </div>
       </div>
