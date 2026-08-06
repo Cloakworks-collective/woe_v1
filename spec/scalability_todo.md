@@ -333,3 +333,146 @@ logical writer** — every new feature mutates state only through
 **replay-safe** (derive everything from the world they're handed); and the
 tick remains a **pure function of wall-clock time**, so any missed schedule
 heals itself on the next command or cron.
+
+---
+
+## Appendix I — Where everything is hosted (and why Fly)
+
+```
+                    ┌─────────────────────────────────────────────┐
+ Players ──────────▶│  VERCEL — Next.js app                       │
+                    │  · all pages (server-rendered UI)           │
+                    │  · API routes (/api/cmd, /state, /market…)  │
+                    │  · Vercel Cron → /api/tick (*/10)           │
+                    │  · static assets / pixel art via CDN        │
+                    └──────────┬──────────────────┬───────────────┘
+                               │ commands+reads   │ persistence, snapshots
+                               ▼ (only in §14.2)  ▼
+                    ┌────────────────────┐   ┌─────────────────────────┐
+                    │  FLY.IO — world    │   │  SUPABASE — Postgres    │
+                    │  service (§14.2)   │   │  · world_docs blob      │
+                    │  · world in RAM    │   │  · spectator_snapshots  │
+                    │  · command queue   │   │  · 0001 normalized      │
+                    │  · snapshot + log  │   │    tables (future)      │
+                    │    on a Fly volume │   │  · auth refs, RLS       │
+                    └────────────────────┘   └─────────────────────────┘
+     Stripe (checkout/webhook → Vercel routes) · PixelLab (dev-time assets only)
+```
+
+**Today (§14.1) only Vercel + Supabase exist.** Fly enters when
+`WORLD_SERVICE_URL` flips on. Why a third host at all: the single-writer
+service is architecturally incompatible with serverless — it must be
+**exactly one always-on process** (Vercel spins many ephemeral instances by
+design), it holds **authoritative state in RAM** (function memory is
+disposable), it **ticks itself on a timer** (`main.ts:186` — no background
+loops in request-scoped serverless), and it **writes snapshots + a command
+log to local disk** (Vercel has no persistent filesystem). Nothing is
+Fly-magic — any always-on host runs the same Dockerfile:
+
+| Host | ~Cost/mo | Singleton | Disk | Notes |
+|---|---|---|---|---|
+| **Fly.io** (plan of record) | $3–7 | machines=1 | volume | `fly.toml` already written; pin near Supabase |
+| Railway | $5+ | replicas=1 | volume | nicest DX |
+| Render | $7+ | 1 instance | disk add-on | similar, pricier |
+| Hetzner/DO VPS | $4–6 | one box | native | most control, most ops |
+| GCP Cloud Run | ~$10–15 | min=max=1 | **none** — forces G1 early | managed, disk-less |
+| Home server + CF Tunnel | $0 | one box | native | beta only |
+
+In the 10k mega-world (§G) the topology keeps the same three boxes — the
+writer stops snapshotting to its volume and persists dirty rows to Supabase
+(G1), and Vercel's read paths stop touching the writer entirely (G4).
+
+---
+
+## Appendix II — Architecture alternatives considered (2026-07-27)
+
+The one architectural question: **where does the serialized authority live?**
+Somewhere, "5 attacks + a tick + a crown flip" must resolve in a definite
+order; everything else is commodity. Ranking is dominated by one constraint:
+the engine is **pure TypeScript over a world object** (`applyOneCommand`) —
+options that run TS reuse the game verbatim; options that don't mean
+rewriting the actual game.
+
+**A. Serverless + CAS blob (today's §14.1, Vercel+Supabase).** Already
+built; correct once A1 lands; structurally capped at ~hundreds of players
+(whole-blob I/O per command). *Keep as dev/fallback mode only.*
+
+**B. Single-writer service (§14.2 — PLAN OF RECORD).** One Node process
+owns the world; the MUD model. 100% engine reuse, zero changes, already
+written; scales to 10k per §G. Admission price: one always-on box + its ops.
+
+**C. Cloudflare Durable Objects — strongest alternative.** A DO is a
+globally-unique, single-threaded, stateful JS object — the world-service
+primitive *as a managed product*: input gates = the command queue; the
+Alarms API = the tick loop (no cron); per-DO SQLite = G1 per-entity
+persistence with fast post-eviction boot; native WebSockets (hibernation) =
+G4 push for free, which Vercel can never do. Fits the numbers (30–40MB world
+vs 128MB isolate; ~$5/mo Workers Paid). Costs: rewrite the service *shell*
+for the Workers runtime (engine ports cleanly), UI stays on Vercel or moves
+via OpenNext, real vendor lock-in. At 10k, one-DO-per-player + a crown DO is
+the G10 domain split with no servers. **Worth a weekend spike.**
+
+**D. Convex — best re-platform option.** Mutations are serializable ACID
+transactions in TS (a managed, correct `commitWithRetry`), built-in
+cron/scheduled functions (ticks), reactive queries (clients auto-subscribe —
+deletes the whole polling/snapshot read problem). Engine logic ports; the
+data model rebuilds Convex-style (per-player docs, ~1MB limits — i.e. the
+§B diet becomes mandatory, which we want anyway); migrates off Supabase
+entirely. Most capability per unit of ops; real migration cost.
+
+**E. Postgres-authoritative (Supabase-only, no third host ever).**
+① *Advisory-lock blob*: wrap each command in `pg_advisory_xact_lock` — a
+true global mutex in ~20 lines; kills CAS races but inherits §14.1's
+blob-I/O ceiling. Stopgap only. ② *Normalized + row locks (serious)*:
+decompose to the 0001 tables; each command `SELECT … FOR UPDATE`s only the
+2–3 rows it touches, applies the pure engine functions, commits; ticks via
+the D14 cursor. Serverless scales horizontally, Postgres serializes. Catch:
+the engine takes the *whole world* today (`validateAttack` peeks at
+meta/clans; `updateCrown` is global) → dependency-scoped loading refactor +
+a materialized ladder row + lock-ordering care. **Quiet convergence point:
+the blob diet (B), per-entity persistence (G1), and cursor ticks (D14) are
+~80% of this migration — we retain the option to delete the Fly box later
+without a rewrite.**
+
+**F. Queue-serialized serverless (Inngest/QStash/pgmq, concurrency=1).**
+A single writer with no server — but commands become *asynchronous*, and the
+UI awaits battle results in the response. Wrong shape for an interactive
+game; background jobs only.
+
+**G. Game-backend frameworks & exotic runtimes.** *Colyseus*: TS rooms
+would reuse the engine, but its realtime state-diff sync isn't what a
+10-min-tick SSR game needs, and a VM is still required — marginal over B.
+*Nakama*: full game BaaS, but authoritative logic in Go/Lua/interpreted-TS
+and framework-fighting for an SSR web game — overkill, wrong genre.
+*SpacetimeDB*: "the database is the game server" (WASM reducers in the DB,
+built for MMOs — BitCraft); conceptually the final form of E② but modules
+are Rust/C# → engine rewrite. Watch-this-space. *Elixir/Phoenix (OTP)*:
+culturally the right runtime for a MUD-like (GenServer per world, LiveView,
+legendary uptime) — and a 100% rewrite of everything. Only if starting over.
+
+**H. The boring monolith — one VPS.** Next standalone + world service +
+Postgres (or SQLite+Litestream) on a €4–8/mo Hetzner box behind Caddy. No
+Vercel, no Supabase, no Fly. Genuinely sufficient at 1.5k AND at 10k (one
+core, 40MB state, per §G math). Trades managed ergonomics (CDN, previews,
+PITR backups, Realtime) for total simplicity. Underrated.
+
+### Four coherent reference stacks
+
+1. **Plan of record:** Vercel + Fly + Supabase. Zero engine changes, three
+   vendors. *Default.*
+2. **All-Cloudflare:** OpenNext on Workers + Durable Objects (writer +
+   SQLite + WebSockets + alarms) + D1/R2. One vendor, ~$5/mo, no VM ops.
+   *Best challenger — spike-worthy.*
+3. **Supabase-only (E②):** Vercel + Supabase, row-lock transactions +
+   cursor ticks. Fewest moving parts, paid for with the dependency-scoped
+   engine refactor.
+4. **One box (H):** everything on a Hetzner VPS. Fewest vendors and
+   dollars.
+
+### Verdict
+
+Stay on stack 1 — the code is written and nothing beats "deploy what
+exists." Two cheap hedges: **spike the Durable Objects variant** (could
+eliminate the VM *and* solve WebSockets before G4 is built), and treat
+**E② as the convergence point** the already-planned B/G1/D14 work keeps
+open — the Fly box stays deletable, forever, without a rewrite.

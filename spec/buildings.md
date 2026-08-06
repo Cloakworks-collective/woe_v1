@@ -225,6 +225,24 @@ has teeth beyond storage:
 formula as walls) to restore full integrity. The UI shows a health bar per
 building.
 
+**A cracked work cannot be raised — repair first.** A building at less than
+100% integrity **cannot be upgraded** until it is mended (`build()` throws
+`damaged`). Masons will not add a storey to a broken one. This gives bombard a
+second bite: besides cutting output, it *stalls the victim's growth* until they
+pay the repair, so a raid costs the defender tempo as well as goods.
+
+- Applies to the Walls too (their integrity lives on `wallIntegrity`); use
+  `structureIntegrity()` when you mean "is this thing whole?" for any structure.
+- **Founding is never blocked** — only levels above the first, since a building
+  that doesn't exist yet cannot be damaged.
+- Hearthsteads and Muster Halls are unaffected in practice: they are not on the
+  `BOMBARDABLE` list, so they can never crack.
+- The Steward's build queue and standing orders go through the same `build()`,
+  so a damaged head simply **waits** (keeping its order) until you repair it —
+  exactly as it already waits on an unaffordable cost.
+- **Clan works follow the same rule** (`buildClanBuilding`): a bombarded Clan
+  Storage, Hall, or Wonder must be mended from the pool before it can be raised.
+
 ---
 
 ## Military Buildings

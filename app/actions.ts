@@ -19,26 +19,40 @@ import { emulatedCardOutcome, grantCharter, paymentMode } from "@/lib/server/pre
 import { runCommand } from "@/lib/server/pipeline";
 import { getWorld } from "@/lib/server/world";
 
-async function exec(path: string, name: string, args: Record<string, unknown>): Promise<never> {
+/** What a command tells the herald. `at` is a nonce so two identical results in
+ *  a row still register as fresh news on the client. */
+export type CmdResult = { ok: boolean; message?: string; at: number } | null;
+
+/**
+ * Run one command and RETURN its outcome rather than redirecting.
+ *
+ * Redirecting was the old way, and it cost the player their place on the page:
+ * a redirect is a navigation, and Next resets scroll to the top, so upgrading a
+ * building near the bottom of /buildings threw you back to the header. Returning
+ * instead means `revalidatePath` re-renders the server components in place —
+ * the numbers update, the scroll position never moves.
+ *
+ * Only a battle still navigates, because its report genuinely lives elsewhere.
+ */
+export async function cmdAction(_prev: CmdResult, formData: FormData): Promise<CmdResult> {
   const playerId = await currentPlayerId();
   if (!playerId) redirect("/login");
-  const result = await runCommand(playerId, name, args);
-  revalidatePath("/", "layout");
-  const sep = path.includes("?") ? "&" : "?"; // path may carry a tab param
-  if (!result.ok) redirect(`${path}${sep}err=${encodeURIComponent(result.message ?? "That did not work.")}`);
-  if (result.battleId) redirect(`/rankings?report=${result.battleId}`);
-  if (result.message) redirect(`${path}${sep}ok=${encodeURIComponent(result.message)}`);
-  redirect(path);
-}
 
-export async function cmd(formData: FormData): Promise<void> {
   const name = String(formData.get("__cmd") ?? "");
-  const path = String(formData.get("__path") ?? "/");
   const args: Record<string, unknown> = {};
   for (const [k, v] of formData.entries()) {
     if (!k.startsWith("__") && !k.startsWith("$")) args[k] = v;
   }
-  await exec(path, name, args);
+
+  const result = await runCommand(playerId, name, args);
+  revalidatePath("/", "layout");
+
+  if (result.battleId) redirect(`/rankings?report=${result.battleId}`);
+  return {
+    ok: result.ok,
+    message: result.ok ? result.message : (result.message ?? "That did not work."),
+    at: Date.now(),
+  };
 }
 
 // ── Session ─────────────────────────────────────────────────────────────────

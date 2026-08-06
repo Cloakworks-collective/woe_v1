@@ -1,5 +1,6 @@
 import { AdvisorAlerts } from "@/components/AdvisorAlerts";
 import { EventToasts, type ToastItem } from "@/components/EventToasts";
+import { FlashProvider } from "@/components/FlashProvider";
 import { MobileNav } from "@/components/MobileNav";
 import { ResourceBar } from "@/components/ResourceBar";
 import { SideNav } from "@/components/SideNav";
@@ -24,7 +25,7 @@ export default async function GameLayout({ children }: { children: React.ReactNo
   });
 
   return (
-    <>
+    <FlashProvider>
       <ResourceBar player={player} meta={world.meta} />
       <EventToasts playerId={player.id} items={toasts} />
       <TopNav premium={!!player.premium} />
@@ -52,6 +53,6 @@ export default async function GameLayout({ children }: { children: React.ReactNo
         One turn every 10 minutes · settlers arrive at dawn · the ladder is the world
       </div>
       <TourGuide active={isOnboardingActive(player) && !player.onboarding?.toured} />
-    </>
+    </FlashProvider>
   );
 }

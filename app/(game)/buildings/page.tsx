@@ -1,5 +1,5 @@
 import { Btn } from "@/components/Btn";
-import { Art } from "@/components/Art";
+import { BuildingArt } from "@/components/BuildingArt";
 import { CmdForm } from "@/components/CmdForm";
 import { CostTip } from "@/components/CostTip";
 import { Flash } from "@/components/Flash";
@@ -12,6 +12,7 @@ import {
   CIVILIAN_BUILDINGS,
   MILITARY_BUILDINGS,
   WALL_NAMES,
+  isCounted,
   maxLevel,
 } from "@/lib/constants";
 import { BUILDING_GUIDE, BUILDING_INFO } from "@/lib/constants";
@@ -121,7 +122,7 @@ function BuildingCards({ ids, player, path }: { ids: string[]; player: Player; p
         const capped = lvl >= maxLevel(bid);
         const cost = capped ? null : buildingCost(bid, lvl + 1);
         const benefit = buildingUpgradeBenefit(player, bid);
-        const counted = bid === "hearthstead" || bid === "muster_hall";
+        const counted = isCounted(bid);
         const name = bid === "walls" && lvl > 0 ? `${b.name} — ${WALL_NAMES[lvl]}` : b.name;
         const integrity = bid === "walls" ? player.wallIntegrity : buildingIntegrity(player, bid);
         const needsRepair = lvl > 0 && integrity < 1;
@@ -154,14 +155,26 @@ function BuildingCards({ ids, player, path }: { ids: string[]; player: Player; p
                   {cost && (
                     <CmdForm name="build" path={path}>
                       <input type="hidden" name="id" value={bid} />
-                      <CostTip heading={`${counted ? "Build" : lvl === 0 ? "Found" : "Upgrade"} ${b.name}`} cost={cost} have={have}>
-                        <Btn className={affordable(player, cost) ? "btn" : "btn btn-no"} disabled={!affordable(player, cost)}>
+                      <CostTip
+                        heading={`${counted ? "Build" : lvl === 0 ? "Found" : "Upgrade"} ${b.name}`}
+                        cost={cost}
+                        have={have}
+                        disabledReason={
+                          needsRepair
+                            ? "Cracked — mend it to full before raising it higher."
+                            : undefined
+                        }
+                      >
+                        <Btn
+                          className={affordable(player, cost) && !needsRepair ? "btn" : "btn btn-no"}
+                          disabled={!affordable(player, cost) || needsRepair}
+                        >
                           {counted ? "Build" : lvl === 0 ? "Found" : "Upgrade"}
                         </Btn>
                       </CostTip>
                     </CmdForm>
                   )}
-                  {cost && player.premium && (
+                  {cost && player.premium && !needsRepair && (
                     <CmdForm name="queueBuild" path={path}>
                       <input type="hidden" name="id" value={bid} />
                       <Btn className="btn" title="Queue for the Steward — built when affordable">
@@ -185,7 +198,7 @@ function BuildingCards({ ids, player, path }: { ids: string[]; player: Player; p
             <p className="bcard-desc">{b.desc}</p>
             <div className="bcard-main">
               <span className="bcard-art">
-                <Art path={`buildings/${bid}`} size={208} title={info.title} />
+                <BuildingArt id={bid} level={lvl} size={208} title={info.title} />
               </span>
               {cost ? (
                 <CostList cost={cost} />

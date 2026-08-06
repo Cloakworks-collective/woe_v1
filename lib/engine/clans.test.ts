@@ -81,8 +81,8 @@ describe("clan buildings", () => {
     const leader = member("lead");
     let clan = clanWith(leader);
     clan.storage = { gold: 400000, food: 0, wood: 200000, stone: 200000, ore: 200000 };
-    expect(() => buildClanBuilding(clan, "nobody", "storage")).toThrowError(/leadership/);
-    clan = buildClanBuilding(clan, "lead", "storage"); // L3: 300k gold + 150k each
+    expect(() => buildClanBuilding(clan, member("nobody"), "storage")).toThrowError(/leadership/);
+    clan = buildClanBuilding(clan, leader, "storage").clan; // L3: 300k gold + 150k each
     expect(clan.buildings.storageLevel).toBe(3);
     expect(clan.storage.gold).toBe(100000);
   });
@@ -92,7 +92,7 @@ describe("clan buildings", () => {
     const clan = clanWith(leader);
     clan.storage.gold = 10_000_000;
     clan.storage.wood = clan.storage.stone = clan.storage.ore = 10_000_000;
-    expect(() => buildClanBuilding(clan, "lead", "wonder")).toThrowError(/requires Clan Storage 4/);
+    expect(() => buildClanBuilding(clan, leader, "wonder")).toThrowError(/requires Clan Storage 4/);
   });
 });
 

@@ -1,6 +1,7 @@
 import { Btn } from "@/components/Btn";
 import Link from "next/link";
 import { Art } from "@/components/Art";
+import { BuildingArt } from "@/components/BuildingArt";
 import { Census } from "@/components/Census";
 import { CmdForm } from "@/components/CmdForm";
 import { Flash } from "@/components/Flash";
@@ -467,14 +468,14 @@ export default async function CommandView({
         <Panel title={`The Siege Train — ${enginesManned} of ${enginesBuilt} engines manned`}>
           <div className="stat-grid">
             <StatTile
-              icon={<Art path="units/engineer" size={46} title="Siege engineers" />}
+              icon={<Art path="units/engineer" size={46} title="Siege engineers" race={p.race} />}
               label="Engineer crews"
               value={fmt(p.army.siegeEngineers)}
               sub={`${fmt(engineersBusy)} manning · ${fmt(engineersIdleCount)} idle`}
               tone={enginesUnmanned > 0 ? "warn" : undefined}
             />
             <StatTile
-              icon={<Art path="buildings/war_foundry" size={46} title="War Foundry" />}
+              icon={<BuildingArt id="war_foundry" level={level(p, "war_foundry")} size={46} title="War Foundry" />}
               label="War Foundry"
               value={`level ${level(p, "war_foundry")} / 10`}
               sub={nextFoundryStep ? `next: ${nextFoundryStep.name}` : "the full ladder is forged"}
@@ -521,25 +522,25 @@ export default async function CommandView({
         <Panel title="The Shadow Work — spies & scouts">
           <div className="stat-grid">
             <StatTile
-              icon={<Art path="units/spy" size={46} title="Spies" />}
+              icon={<Art path="units/spy" size={46} title="Spies" race={p.race} />}
               label="Spies"
               value={fmt(p.army.spies)}
               sub={`unlimited — Guild L${level(p, "shadow_guild")} missions +${Math.round(level(p, "shadow_guild") * GUILD_EFFECT_PER_LEVEL * 100)}%`}
             />
             <StatTile
-              icon={<Art path="units/scout" size={46} title="Scouts" />}
+              icon={<Art path="units/scout" size={46} title="Scouts" race={p.race} />}
               label="Scouts"
               value={fmt(p.army.scouts)}
               sub={`unlimited — Lodge L${level(p, "rangers_lodge")} catches ops to L${catchableOpLevel(level(p, "rangers_lodge")) || 0}`}
             />
             <StatTile
-              icon={<Art path="buildings/shadow_guild" size={46} title="Shadow Guild" />}
+              icon={<BuildingArt id="shadow_guild" level={level(p, "shadow_guild")} size={46} title="Shadow Guild" />}
               label="Shadow Guild"
               value={`level ${level(p, "shadow_guild")}`}
               sub="steal ledgers, sabotage, torch stores"
             />
             <StatTile
-              icon={<Art path="buildings/rangers_lodge" size={46} title="Ranger's Lodge" />}
+              icon={<BuildingArt id="rangers_lodge" level={level(p, "rangers_lodge")} size={46} title="Ranger's Lodge" />}
               label="Ranger's Lodge"
               value={`level ${level(p, "rangers_lodge")}`}
               sub="recon rivals; catch their spies"

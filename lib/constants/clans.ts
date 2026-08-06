@@ -16,7 +16,19 @@ export {
   FOUNDING_MEMBERS,
   WAR,
   CHURN,
+  CHAT,
 } from "./balance";
+
+export type ClanWork = "storage" | "hall" | "wonder";
+
+/** Which of the three art stages a clan work wears at a given level, so the
+ *  banner's holdings visibly grow as the pool is poured into them. Each work
+ *  has its own ladder length (storage 1–10, hall 1–4, wonder 1–3). */
+export function clanArtStage(which: ClanWork, level: number): 1 | 2 | 3 {
+  if (which === "storage") return level >= 8 ? 3 : level >= 4 ? 2 : 1;
+  if (which === "hall") return level >= 4 ? 3 : level >= 2 ? 2 : 1;
+  return level >= 3 ? 3 : level >= 2 ? 2 : 1;
+}
 
 /** Build costs per level (gold, each = wood/stone/ore) — the shape the engine
  *  and UI consume; the underlying numbers are CLAN_BUILD_COSTS in balance.ts. */

@@ -16,6 +16,7 @@ import type { Race } from "../constants/races";
 import {
   civilians,
   hallPenaltyFactor,
+  lapseStaleWar,
   marketPrice,
   military,
   newClan,
@@ -377,6 +378,10 @@ export function runOneTick(world: World, nowMs = Date.now()): void {
     }
   }
 
+  // Wars nobody is fighting lapse (checked hourly — the clock is 72h, so this
+  // is plenty fine-grained and keeps it off the per-tick hot path).
+  if (tick % TICKS_PER_HOUR === 0) lapseQuietWars(world, tick);
+
   // Market price history — one sample per hour, ~2 weeks kept.
   if (tick % TICKS_PER_HOUR === 0) {
     world.priceHistory ??= { food: [], wood: [], stone: [], ore: [] };
@@ -397,6 +402,39 @@ export function runOneTick(world: World, nowMs = Date.now()): void {
   }
 
   updateCrown(world, nowMs);
+}
+
+/**
+ * End every war that has gone quiet for WAR.STALE_HOURS. Each pair is judged
+ * once: whoever led on net kills takes the record, and a war that never drew
+ * blood simply lapses with no winner and no loser.
+ */
+function lapseQuietWars(world: World, tick: number): void {
+  const seen = new Set<string>();
+  for (const clan of Object.values(world.clans)) {
+    for (const w of [...clan.wars]) {
+      const other = world.clans[w.clanId];
+      if (!other) continue;
+      const pair = [clan.id, other.id].sort().join(":");
+      if (seen.has(pair)) continue;
+      seen.add(pair);
+
+      const r = lapseStaleWar(clan, other, tick);
+      if (!r.lapsed) continue;
+      world.clans[clan.id] = r.a;
+      world.clans[other.id] = r.b;
+
+      const line = r.winner
+        ? `⚔ The war between ${clan.name} and ${other.name} lapses after ${WAR.STALE_HOURS}h of quiet — ${
+            world.clans[r.winner]?.name ?? "the leader"
+          } held the field and takes the win. No tribute is paid.`
+        : `⚔ The war between ${clan.name} and ${other.name} lapses after ${WAR.STALE_HOURS}h of quiet — no blood was drawn, so neither banner claims it.`;
+      pushChronicle(world, "war", line);
+      for (const m of [...r.a.members, ...r.b.members]) {
+        pushInbox(world, m, { type: "clanEvent", detail: line.replace(/^⚔ /, "") });
+      }
+    }
+  }
 }
 
 /** Process all wall-clock-due ticks (10 minutes each). Idempotent catch-up. */

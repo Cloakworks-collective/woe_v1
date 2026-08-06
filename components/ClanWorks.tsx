@@ -3,6 +3,7 @@
 // the NEXT level buys plus its pool cost. Read-only for outsiders; leadership
 // gets Build/Repair buttons (editable). Shared by /clan and /clan/[id].
 
+import { Art } from "@/components/Art";
 import { Btn } from "@/components/Btn";
 import { CmdForm } from "@/components/CmdForm";
 import { ReqTip } from "@/components/CostTip";
@@ -11,11 +12,15 @@ import { ResIcon } from "@/components/ResIcon";
 import {
   BUILD_COSTS,
   CLAN_BUILDING_INFO,
+  clanArtStage,
   HALL,
   STORAGE_CAP_PER_LEVEL,
   WONDER_REQUIRES_STORAGE,
 } from "@/lib/constants";
-import { clanRepairCost, wonderDiscount, type Clan } from "@/lib/engine";
+import { clanBuildFunding, clanRepairCost, wonderDiscount, type Clan, type Player } from "@/lib/engine";
+
+/** The four resources a clan work is paid in, in the order they're quoted. */
+const WORK_RES = ["gold", "wood", "stone", "ore"] as const;
 
 const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");
 const pct = (n: number) => `${Math.round(n * 100)}%`;
@@ -48,6 +53,7 @@ function Card({
   integrity,
   editable,
   path,
+  builder,
 }: {
   which: Which;
   clan: Clan;
@@ -55,6 +61,7 @@ function Card({
   integrity: number;
   editable: boolean;
   path: string;
+  builder?: Player;
 }) {
   const info = CLAN_BUILDING_INFO[which];
   const maxed = level >= MAX[which];
@@ -67,15 +74,30 @@ function Card({
   const reqStorage = which === "wonder" && !maxed ? WONDER_REQUIRES_STORAGE[next as 1 | 2 | 3] : 0;
   const reqMet = which !== "wonder" || maxed || clan.buildings.storageLevel >= reqStorage;
 
-  const buildDisabled =
-    !cost || clan.storage.gold < cost.gold || clan.storage.wood < cost.each || clan.storage.stone < cost.each || clan.storage.ore < cost.each
-      ? "The clan pool can't cover this yet."
-      : !reqMet
-        ? `Requires Clan Storage L${reqStorage} first.`
-        : undefined;
+  // The pool is spent first; the builder tops up the rest from their own stores.
+  const funding = cost && builder ? clanBuildFunding(clan, builder, cost) : null;
+  const topUp = funding ? WORK_RES.filter((r) => funding.own[r] > 0) : [];
+
+  const buildDisabled = cracked
+    ? "Cracked — mend it to full before raising it higher."
+    : !cost
+      ? "Already at its zenith."
+      : funding && !funding.affordable
+        ? "The pool and your own stores together can't cover this yet."
+        : !reqMet
+          ? `Requires Clan Storage L${reqStorage} first.`
+          : undefined;
 
   return (
     <div className={`clanwork${cracked ? " is-cracked" : ""}`}>
+      {/* The work itself — it grows through three forms as the pool builds it. */}
+      <span className={`clanwork-art${level <= 0 ? " is-unbuilt" : ""}`}>
+        <Art
+          path={`clan/${which}/${clanArtStage(which, level)}`}
+          size={188}
+          title={level > 0 ? `${info.title} — level ${level}` : `${info.title} — not yet raised`}
+        />
+      </span>
       <div className="clanwork-head">
         <span className="clanwork-icon" aria-hidden>{info.icon}</span>
         <b className="clanwork-title">{info.title}</b>
@@ -121,20 +143,42 @@ function Card({
               <span className="clanwork-next-arrow">→ Lv {next}:</span> {effect(which, next)}
             </div>
             <div className="clanwork-next-cost">
-              {fmt(cost!.gold)}g + {fmt(cost!.each)} each · from pool
+              {fmt(cost!.gold)}g + {fmt(cost!.each)} each · pool first
               {which === "wonder" && !reqMet && <span className="clanwork-req"> · needs Storage L{reqStorage}</span>}
             </div>
+            {topUp.length > 0 && (
+              <div className="clanwork-topup">
+                The pool falls short — you would add{" "}
+                {topUp.map((r, i) => (
+                  <span key={r}>
+                    {i > 0 && ", "}
+                    <b>{fmt(funding!.own[r])}</b> {r === "gold" ? "gold" : r}
+                  </span>
+                ))}{" "}
+                from your own treasury.
+              </div>
+            )}
             {editable && (
               <CmdForm name="clanBuild" path={path}>
                 <input type="hidden" name="which" value={which} />
                 <ReqTip
                   heading={`${info.title} → Lv ${next}`}
                   body={effect(which, next)}
-                  rows={[{ icon: <ResIcon kind="gold" size={16} />, label: "Gold (from pool)", need: cost!.gold, have: clan.storage.gold }]}
-                  note={`Plus ${fmt(cost!.each)} of every other resource, paid from the clan pool.${which === "wonder" ? ` Requires Clan Storage L${reqStorage}.` : ""}`}
+                  rows={[
+                    { icon: <ResIcon kind="gold" size={16} />, label: "Gold (from pool)", need: cost!.gold, have: clan.storage.gold },
+                  ]}
+                  note={
+                    topUp.length > 0
+                      ? `The pool is spent first; whatever it can't cover comes out of YOUR OWN treasury — ${topUp
+                          .map((r) => `${fmt(funding!.own[r])} ${r}`)
+                          .join(", ")}.`
+                      : `Plus ${fmt(cost!.each)} of every other resource, paid from the clan pool.${which === "wonder" ? ` Requires Clan Storage L${reqStorage}.` : ""}`
+                  }
                   disabledReason={buildDisabled}
                 >
-                  <Btn className="btn">Raise → Lv {next}</Btn>
+                  <Btn className={buildDisabled ? "btn btn-no" : "btn"} disabled={Boolean(buildDisabled)}>
+                    Raise → Lv {next}
+                  </Btn>
                 </ReqTip>
               </CmdForm>
             )}
@@ -145,12 +189,24 @@ function Card({
   );
 }
 
-export function ClanWorks({ clan, editable = false, path = "/clan" }: { clan: Clan; editable?: boolean; path?: string }) {
+export function ClanWorks({
+  clan,
+  editable = false,
+  path = "/clan",
+  builder,
+}: {
+  clan: Clan;
+  editable?: boolean;
+  path?: string;
+  /** The viewer, when they may build — used to quote the pool/own-purse split. */
+  builder?: Player;
+}) {
+  const common = { clan, editable, path, builder };
   return (
     <div className="clanworks">
-      <Card which="storage" clan={clan} level={clan.buildings.storageLevel} integrity={clan.buildings.integrity.storage} editable={editable} path={path} />
-      <Card which="hall" clan={clan} level={clan.buildings.hallLevel} integrity={clan.buildings.integrity.hall} editable={editable} path={path} />
-      <Card which="wonder" clan={clan} level={clan.buildings.wonderLevel} integrity={clan.buildings.integrity.wonder} editable={editable} path={path} />
+      <Card which="storage" level={clan.buildings.storageLevel} integrity={clan.buildings.integrity.storage} {...common} />
+      <Card which="hall" level={clan.buildings.hallLevel} integrity={clan.buildings.integrity.hall} {...common} />
+      <Card which="wonder" level={clan.buildings.wonderLevel} integrity={clan.buildings.integrity.wonder} {...common} />
     </div>
   );
 }

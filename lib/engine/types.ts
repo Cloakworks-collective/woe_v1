@@ -194,6 +194,9 @@ export interface Clan {
     clanId: string;
     regularKills: number; // our kills of their regulars
     regularLosses: number; // theirs of ours; net +200 = victory
+    /** Tick of the last blow struck between these two clans (declaration counts
+     *  as the first). A war that goes quiet for WAR.STALE_HOURS lapses. */
+    lastBloodTick?: number;
   }[];
   warRecord: { wins: number; losses: number };
   truceWithUntilTick: Record<string, number>; // clanId → truce end (post-defeat)
@@ -201,6 +204,13 @@ export interface Clan {
   tribute?: { toClanId: string; endsAtTick: number; collectedGoldEq: number };
   friendly: string[]; // mutual friendly clans
   pendingRevenge?: { againstClanId: string; memberSnapshot: string[]; expiresAtTick: number };
+  /** Petitions awaiting the Leader's or Vice's answer. */
+  joinRequests?: { playerId: string; atTick: number }[];
+  /** Standing invitations from the Leader or Vice — the player may walk in. */
+  invites?: { playerId: string; byId: string; atTick: number }[];
+  /** Players this banner has turned away. They may never petition it again —
+   *  but leadership can still change its mind and invite them. */
+  refused?: string[];
 }
 
 // ── Battle reports (spec/combat.md) ─────────────────────────────────────────
@@ -364,6 +374,13 @@ export function bankedRes(p: Player): Record<Resource, number> {
  *  thing that lowers it; repairs restore it (see combat.md / buildings.md). */
 export function buildingIntegrity(p: Player, id: BuildingId): number {
   return p.buildingIntegrity?.[id] ?? 1;
+}
+
+/** A structure's soundness, 0–1 — like buildingIntegrity, but the Walls keep
+ *  theirs on their own field, so this is the one to ask when you mean "is this
+ *  thing whole?" for ANY structure. */
+export function structureIntegrity(p: Player, id: BuildingId): number {
+  return id === "walls" ? p.wallIntegrity : buildingIntegrity(p, id);
 }
 
 export function researchLevel(p: Player, field: ResearchField): number {

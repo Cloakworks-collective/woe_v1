@@ -198,7 +198,106 @@ export function joinClan(playerIn: Player, clanIn: Clan, currentTick: number): {
   clan.members.push(player.id);
   // Rejoining starts the lifetime-deposit counter at zero (forfeiture is final).
   clan.memberLedger[player.id] = { deposited: { ...ZERO }, withdrawn: { ...ZERO } };
+  // Walking through the gate settles every question at it.
+  clan.joinRequests = (clan.joinRequests ?? []).filter((r) => r.playerId !== player.id);
+  clan.invites = (clan.invites ?? []).filter((i) => i.playerId !== player.id);
+  clan.refused = (clan.refused ?? []).filter((id) => id !== player.id);
   return { player, clan };
+}
+
+// ── Petitions & invitations ─────────────────────────────────────────────────
+//
+// A banner is not walked into: a player petitions, and the Leader or Vice
+// answers. Officers may kick, but they may not admit. A refused petitioner is
+// turned away for good — though leadership may still invite them later, which
+// is the deliberate escape hatch for a change of heart.
+
+/** Only the Leader and Vice may admit, refuse, or invite. */
+export function canAdmit(clan: Clan, playerId: string): boolean {
+  return clan.leaderId === playerId || clan.viceLeaderId === playerId;
+}
+
+export function hasRequested(clan: Clan, playerId: string): boolean {
+  return (clan.joinRequests ?? []).some((r) => r.playerId === playerId);
+}
+
+export function isRefused(clan: Clan, playerId: string): boolean {
+  return (clan.refused ?? []).includes(playerId);
+}
+
+export function invitedTo(clan: Clan, playerId: string): boolean {
+  return (clan.invites ?? []).some((i) => i.playerId === playerId);
+}
+
+/** Why this player can't petition this banner right now, or null if they may. */
+export function canRequestJoin(player: Player, clan: Clan, currentTick: number): string | null {
+  if (isRefused(clan, player.id)) return "This banner has turned you away — you cannot petition it again.";
+  if (hasRequested(clan, player.id)) return "Your petition already awaits their answer.";
+  return canJoin(player, clan, currentTick);
+}
+
+export function requestToJoin(playerIn: Player, clanIn: Clan, currentTick: number): Clan {
+  const err = canRequestJoin(playerIn, clanIn, currentTick);
+  if (err) throw new EngineError("request", err);
+  const clan = structuredClone(clanIn);
+  (clan.joinRequests ??= []).push({ playerId: playerIn.id, atTick: currentTick });
+  return clan;
+}
+
+/** Withdraw your own petition — not a refusal, so you may petition again. */
+export function withdrawJoinRequest(clanIn: Clan, playerId: string): Clan {
+  const clan = structuredClone(clanIn);
+  if (!hasRequested(clan, playerId)) throw new EngineError("request", "You have no petition before this banner");
+  clan.joinRequests = (clan.joinRequests ?? []).filter((r) => r.playerId !== playerId);
+  return clan;
+}
+
+/** Leader or Vice admits a petitioner. */
+export function acceptJoinRequest(
+  playerIn: Player,
+  clanIn: Clan,
+  actorId: string,
+  currentTick: number,
+): { player: Player; clan: Clan } {
+  if (!canAdmit(clanIn, actorId)) throw new EngineError("rank", "Only the Leader or Vice-Leader may admit members");
+  if (!hasRequested(clanIn, playerIn.id)) throw new EngineError("request", "No such petition");
+  return joinClan(playerIn, clanIn, currentTick);
+}
+
+/** Leader or Vice refuses a petitioner — for good. */
+export function denyJoinRequest(clanIn: Clan, actorId: string, targetId: string): Clan {
+  if (!canAdmit(clanIn, actorId)) throw new EngineError("rank", "Only the Leader or Vice-Leader may refuse petitions");
+  if (!hasRequested(clanIn, targetId)) throw new EngineError("request", "No such petition");
+  const clan = structuredClone(clanIn);
+  clan.joinRequests = (clan.joinRequests ?? []).filter((r) => r.playerId !== targetId);
+  (clan.refused ??= []).push(targetId);
+  return clan;
+}
+
+/** Leader or Vice invites a player to walk in. Works even on the refused. */
+export function invitePlayer(clanIn: Clan, actorId: string, target: Player, currentTick: number): Clan {
+  if (!canAdmit(clanIn, actorId)) throw new EngineError("rank", "Only the Leader or Vice-Leader may invite");
+  if (target.clanId) throw new EngineError("target", "They already march under a banner");
+  if (invitedTo(clanIn, target.id)) throw new EngineError("invite", "They already hold your invitation");
+  if (clanIn.members.length >= memberCap(clanIn)) throw new EngineError("cap", "Your Hall is full");
+  const clan = structuredClone(clanIn);
+  // An invitation is leadership changing its mind — it lifts an earlier refusal
+  // and answers any petition of theirs still standing.
+  clan.refused = (clan.refused ?? []).filter((id) => id !== target.id);
+  clan.joinRequests = (clan.joinRequests ?? []).filter((r) => r.playerId !== target.id);
+  (clan.invites ??= []).push({ playerId: target.id, byId: actorId, atTick: currentTick });
+  return clan;
+}
+
+export function acceptInvite(playerIn: Player, clanIn: Clan, currentTick: number): { player: Player; clan: Clan } {
+  if (!invitedTo(clanIn, playerIn.id)) throw new EngineError("invite", "You hold no invitation from this banner");
+  return joinClan(playerIn, clanIn, currentTick);
+}
+
+export function declineInvite(clanIn: Clan, playerId: string): Clan {
+  const clan = structuredClone(clanIn);
+  clan.invites = (clan.invites ?? []).filter((i) => i.playerId !== playerId);
+  return clan;
 }
 
 /** Leave or be kicked: deposits forfeited, 48h cooldown, counts toward 2/era. */
@@ -279,14 +378,58 @@ export function withdrawFromClan(
 
 // ── Clan buildings (leadership only; paid from the pool, bypasses the 3× cap) ─
 
+/** The four resources a clan work is paid in — no food. */
+const WORK_COSTS = ["gold", "wood", "stone", "ore"] as const;
+type WorkResource = (typeof WORK_COSTS)[number];
+
+const held = (p: Player, r: WorkResource): number => (r === "gold" ? p.gold : p.resources[r]);
+
+function spend(p: Player, r: WorkResource, n: number): void {
+  if (r === "gold") p.gold -= n;
+  else p.resources[r] -= n;
+}
+
+/** How a raise would be paid: the pool first, the builder's own purse for the
+ *  rest. Exported so the UI can quote the exact split before the button is
+ *  pressed — and `short` names anything neither can cover. */
+export function clanBuildFunding(
+  clan: Clan,
+  builder: Player,
+  cost: { gold: number; each: number },
+): {
+  pool: Record<WorkResource, number>;
+  own: Record<WorkResource, number>;
+  short: Record<WorkResource, number>;
+  affordable: boolean;
+} {
+  const pool = {} as Record<WorkResource, number>;
+  const own = {} as Record<WorkResource, number>;
+  const short = {} as Record<WorkResource, number>;
+  for (const r of WORK_COSTS) {
+    const need = r === "gold" ? cost.gold : cost.each;
+    pool[r] = Math.min(clan.storage[r], need);
+    const rest = need - pool[r];
+    own[r] = Math.min(held(builder, r), rest);
+    short[r] = rest - own[r];
+  }
+  return { pool, own, short, affordable: WORK_COSTS.every((r) => short[r] <= 0) };
+}
+
 export function buildClanBuilding(
   clanIn: Clan,
-  builderId: string,
+  builderIn: Player,
   which: "storage" | "hall" | "wonder",
-): Clan {
+): { player: Player; clan: Clan } {
   const clan = structuredClone(clanIn);
-  if (!isLeadership(clan, builderId)) {
+  const builder = structuredClone(builderIn);
+  if (!isLeadership(clan, builder.id)) {
     throw new EngineError("rank", "Only the five leadership positions may build");
+  }
+  // Same rule as a player's own works: mend a cracked one before raising it.
+  const built =
+    which === "storage" ? clan.buildings.storageLevel : which === "hall" ? clan.buildings.hallLevel : clan.buildings.wonderLevel;
+  if (built > 0 && clan.buildings.integrity[which] < 1) {
+    throw new EngineError("damaged", "Repair it to full before raising it higher");
   }
   let cost: { gold: number; each: number };
   if (which === "storage") {
@@ -306,18 +449,23 @@ export function buildClanBuilding(
     }
     cost = BUILD_COSTS.wonder[next]!;
   }
-  if (clan.storage.gold < cost.gold) throw new EngineError("gold", "The pool lacks gold");
-  for (const r of ["wood", "stone", "ore"] as const) {
-    if (clan.storage[r] < cost.each) throw new EngineError(r, `The pool lacks ${r}`);
+  // The pool pays as far as it reaches; the builder makes up the rest out of
+  // their own stores. Priced in full BEFORE anything is deducted, so a shortfall
+  // in the last resource can't leave the first ones already spent.
+  const funding = clanBuildFunding(clan, builder, cost);
+  if (!funding.affordable) {
+    const r = WORK_COSTS.find((k) => funding.short[k] > 0)!;
+    throw new EngineError(r, `The pool and your own ${r} together fall short`);
   }
-  clan.storage.gold -= cost.gold;
-  clan.storage.wood -= cost.each;
-  clan.storage.stone -= cost.each;
-  clan.storage.ore -= cost.each;
+  for (const r of WORK_COSTS) {
+    clan.storage[r] -= funding.pool[r];
+    spend(builder, r, funding.own[r]);
+  }
+
   if (which === "storage") clan.buildings.storageLevel += 1;
   else if (which === "hall") clan.buildings.hallLevel += 1;
   else clan.buildings.wonderLevel += 1;
-  return clan;
+  return { player: builder, clan };
 }
 
 // ── War ─────────────────────────────────────────────────────────────────────
@@ -328,9 +476,53 @@ export function declareWar(clanIn: Clan, targetId: string, currentTick: number):
   if ((clan.truceWithUntilTick[targetId] ?? 0) > currentTick) {
     throw new EngineError("truce", "The truce still holds — you cannot re-declare yet");
   }
-  clan.wars.push({ clanId: targetId, regularKills: 0, regularLosses: 0 });
+  clan.wars.push({ clanId: targetId, regularKills: 0, regularLosses: 0, lastBloodTick: currentTick });
   clan.friendly = clan.friendly.filter((f) => f !== targetId);
   return clan;
+}
+
+/**
+ * A war nobody is fighting should not sit on the books forever. If no blow has
+ * landed between the two clans for WAR.STALE_HOURS, the war lapses.
+ *
+ * Whoever is ahead on net regular kills takes the win — they did, after all,
+ * win the fighting that happened — and the loser serves the usual truce and
+ * frozen clocks. But a lapsed war pays **no tribute and no experience**: those
+ * spoils belong to a decisive +200 victory, and handing them out for a war that
+ * went quiet would make "declare, land one kill, disappear" a farming strategy.
+ *
+ * With no data to judge on — no kills either way, or a dead-even tally — it
+ * simply ends. No winner, no loser, nothing on either clan's record.
+ */
+export function lapseStaleWar(
+  aIn: Clan,
+  bIn: Clan,
+  currentTick: number,
+): { a: Clan; b: Clan; lapsed: boolean; winner?: string } {
+  const a = structuredClone(aIn);
+  const b = structuredClone(bIn);
+  const wa = a.wars.find((w) => w.clanId === b.id);
+  if (!wa) return { a, b, lapsed: false };
+
+  const wb = b.wars.find((w) => w.clanId === a.id);
+  // Either side's record of the last blow keeps the war alive.
+  const lastBlood = Math.max(wa.lastBloodTick ?? 0, wb?.lastBloodTick ?? 0);
+  if (currentTick - lastBlood < WAR.STALE_HOURS * TICKS_PER_HOUR) return { a, b, lapsed: false };
+
+  a.wars = a.wars.filter((w) => w.clanId !== b.id);
+  b.wars = b.wars.filter((w) => w.clanId !== a.id);
+
+  const net = wa.regularKills - wa.regularLosses;
+  if (net === 0) return { a, b, lapsed: true }; // nothing to judge — it just ends
+
+  const [winner, loser] = net > 0 ? [a, b] : [b, a];
+  winner.warRecord.wins += 1;
+  loser.warRecord.losses += 1;
+  const truceEnd = currentTick + WAR.TRUCE_HOURS * TICKS_PER_HOUR;
+  a.truceWithUntilTick[b.id] = truceEnd;
+  b.truceWithUntilTick[a.id] = truceEnd;
+  loser.clockFrozenUntilTick = truceEnd;
+  return { a, b, lapsed: true, winner: winner.id };
 }
 
 export function atWar(a: Clan | undefined, b: Clan | undefined): boolean {
@@ -361,6 +553,9 @@ export function recordWarKills(
   w1.regularLosses += ourLosses;
   w2.regularKills += ourLosses;
   w2.regularLosses += ourKills;
+  // Blood keeps the war alive — the 72h stale clock restarts from here.
+  w1.lastBloodTick = currentTick;
+  w2.lastBloodTick = currentTick;
 
   if (w1.regularKills - w1.regularLosses >= WAR.NET_REGULAR_KILLS_TO_WIN) {
     // Victory: end the war, set truce + frozen clocks + tribute siphon.

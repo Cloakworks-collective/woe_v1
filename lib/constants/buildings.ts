@@ -153,10 +153,28 @@ export const WALL_NAMES = [
   "The Citadel",
 ];
 
+/** Counted, not levelled: you raise MORE of these rather than upgrading one.
+ *  A tenth Hearthstead is another cottage, not a grander one. */
+export const COUNTED_BUILDING_IDS: BuildingId[] = ["hearthstead", "muster_hall"];
+
+export function isCounted(id: BuildingId): boolean {
+  return COUNTED_BUILDING_IDS.includes(id);
+}
+
 export function maxLevel(id: BuildingId): number {
-  if (id === "hearthstead" || id === "muster_hall") return Infinity;
+  if (isCounted(id)) return Infinity;
   if (TIERED_BUILDING_IDS.includes(id)) return 3;
   return 10;
+}
+
+/** Which of the three art stages a structure wears at a given level, so the
+ *  town visibly grows as you pour stone into it. The tiered trainers (max 3)
+ *  step every level; the 1–10 ladders step at 4 and 8. Counted buildings never
+ *  change shape — they only ever multiply — so they keep their single form. */
+export function artStage(id: BuildingId, level: number): 1 | 2 | 3 {
+  if (isCounted(id)) return 1;
+  if (TIERED_BUILDING_IDS.includes(id)) return level >= 3 ? 3 : level >= 2 ? 2 : 1;
+  return level >= 8 ? 3 : level >= 4 ? 2 : 1;
 }
 
 // ── Bombard targets & integrity effects (spec/combat.md) ────────────────────

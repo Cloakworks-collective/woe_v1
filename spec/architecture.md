@@ -707,7 +707,21 @@ no env keys. Still pending: decomposing the world doc into the normalized
 0001 tables, Supabase Auth (a session cookie stands in), and Realtime
 (page-load refresh stands in). The `cmd:*` protocol is live at
 `POST /api/cmd/[name]`; UI forms use server actions calling the same
-pipeline (`lib/server/pipeline.ts`). `/api/tick` + Vercel Cron
+pipeline (`lib/server/pipeline.ts`).
+
+**Commands do not navigate.** `cmdAction` (`app/actions.ts`) runs the command,
+calls `revalidatePath("/", "layout")`, and **returns** `{ok, message}` rather
+than redirecting. Redirecting was a navigation, and Next resets scroll on
+navigation — so upgrading a building near the foot of a long page threw the
+reader back to the header. Returning instead lets React swap in the re-rendered
+server components in place: the numbers update, the scroll position holds, and
+no full document reload occurs. `CmdForm` is the one client component that
+drives this (`useActionState`), handing the result to `FlashProvider`, which
+pins the herald's banner to the viewport so it is visible wherever you are
+scrolled. The only command that still navigates is an attack, whose battle
+report genuinely lives at `/rankings?report=…`.
+
+`/api/tick` + Vercel Cron
 (`vercel.json`) do wall-clock catch-up ticks; without a `CRON_SECRET`,
 in-game dev time controls (+1 turn / +1 day) are enabled.
 

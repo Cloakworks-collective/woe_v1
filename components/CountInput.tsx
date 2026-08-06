@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useFormReset } from "@/components/CmdForm";
 
 /**
- * A count field for command forms: numeric keyboard on mobile, plus quick-fill
- * chips (+10 · +100 · Max) so large empires never type six digits by hand.
- * `max` (when known) powers the Max chip and caps the quick-adds; it's the
- * server that has the final word, so this is purely a convenience.
+ * A count field for command forms: numeric keyboard on mobile, plus a Max chip
+ * so large empires never type six digits by hand. `max` (when known) powers
+ * that chip; the server still has the final word, so this is a convenience.
+ *
+ * Empties itself once its form's command succeeds — commands no longer navigate,
+ * so nothing else would clear a spent amount out of the box.
  */
 export function CountInput({
   name = "count",
@@ -31,11 +34,13 @@ export function CountInput({
 }) {
   const [value, setValue] = useState("");
   const cap = max !== undefined && Number.isFinite(max) ? Math.max(0, Math.floor(max)) : undefined;
-  const add = (n: number) => {
-    const cur = parseInt(value, 10) || 0;
-    const next = cap !== undefined ? Math.min(cur + n, cap) : cur + n;
-    setValue(String(next));
-  };
+
+  // Bumped by the enclosing CmdForm each time its command lands successfully.
+  const doneCount = useFormReset();
+  useEffect(() => {
+    if (doneCount > 0) setValue("");
+  }, [doneCount]);
+
   return (
     <span className="countin">
       <input
@@ -51,19 +56,17 @@ export function CountInput({
         disabled={disabled}
         className="countin-field"
       />
-      {chips && !disabled && (
+      {chips && !disabled && cap !== undefined && cap > 0 && (
         <span className="countin-chips" aria-hidden="true">
-          <button type="button" className="chip" tabIndex={-1} onClick={() => add(10)}>
-            +10
+          <button
+            type="button"
+            className="chip chip-max"
+            tabIndex={-1}
+            title={`Max: ${cap.toLocaleString("en-US")}`}
+            onClick={() => setValue(String(cap))}
+          >
+            Max
           </button>
-          <button type="button" className="chip" tabIndex={-1} onClick={() => add(100)}>
-            +100
-          </button>
-          {cap !== undefined && cap > 0 && (
-            <button type="button" className="chip chip-max" tabIndex={-1} title={`Max: ${cap.toLocaleString("en-US")}`} onClick={() => setValue(String(cap))}>
-              Max
-            </button>
-          )}
         </span>
       )}
     </span>

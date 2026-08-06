@@ -7,6 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { CHAT } from "../constants";
 import type { BattleReport, Clan, EraRecords, GameEvent, MarketOrder, Player } from "../engine";
 import type { ElderTable } from "../lore/elderAges";
 import { worldServiceEnabled } from "./worldClient";
@@ -299,6 +300,31 @@ export function pushChronicle(world: World, tone: string, text: string): void {
   const list = world.chronicle ?? (world.chronicle = []);
   list.unshift({ tick: world.meta.tickNumber, at: new Date().toISOString(), tone, text });
   if (list.length > 250) list.length = 250;
+}
+
+/**
+ * Post to a channel and enforce retention. A clan hall remembers only its last
+ * CHAT.CLAN_HISTORY words — older ones are dropped for good — and CHAT.TOTAL_HISTORY
+ * is the backstop across every channel combined.
+ */
+export function pushMessage(world: World, msg: ForumMessage): void {
+  world.messages.push(msg);
+
+  if (msg.channel.startsWith("clan:")) {
+    let excess = world.messages.filter((m) => m.channel === msg.channel).length - CHAT.CLAN_HISTORY;
+    for (let i = 0; i < world.messages.length && excess > 0; ) {
+      if (world.messages[i].channel === msg.channel) {
+        world.messages.splice(i, 1);
+        excess--;
+      } else {
+        i++;
+      }
+    }
+  }
+
+  if (world.messages.length > CHAT.TOTAL_HISTORY) {
+    world.messages.splice(0, world.messages.length - CHAT.TOTAL_HISTORY);
+  }
 }
 
 export function dmChannel(a: string, b: string): string {

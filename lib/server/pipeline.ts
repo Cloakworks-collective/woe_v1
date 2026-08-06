@@ -23,9 +23,17 @@ import {
   hireMercenaries,
   buySiegeGear,
   buySiegeCounter,
+  acceptInvite,
+  acceptJoinRequest,
   canJoin,
+  canRequestJoin,
   clanBuildingLabel,
   clanRank,
+  declineInvite,
+  denyJoinRequest,
+  invitePlayer,
+  requestToJoin,
+  withdrawJoinRequest,
   crewGear,
   declareWar,
   departClan,
@@ -36,7 +44,6 @@ import {
   depositToClan,
   dischargeTroops,
   trainTroops,
-  joinClan,
   military,
   newClan,
   postOrder,
@@ -80,7 +87,7 @@ import {
   SURRENDER_TICKS_PER_ERA,
 } from "../constants";
 import type { Race } from "../constants/races";
-import { dmChannel, pushBattle, pushChronicle, pushInbox, type World } from "./store";
+import { dmChannel, pushBattle, pushChronicle, pushInbox, pushMessage, type World } from "./store";
 import {
   ERA_PEACE_TICKS,
   REVENGE_WINDOW_TICKS,
@@ -428,15 +435,76 @@ function dispatch(
       put(player);
       return { ok: true, message: `${nameStr} is founded (${FOUNDING_MEMBERS} founders required at launch).` };
     }
-    case "clanJoin": {
+    case "clanRequestJoin": {
+      const c = world.clans[str(args.clanId)];
+      if (!c) throw new EngineError("clan", "No such clan");
+      const err = canRequestJoin(player, c, tick);
+      if (err) throw new EngineError("request", err);
+      world.clans[c.id] = requestToJoin(player, c, tick);
+      // Only those who can answer it need to hear about it.
+      for (const id of [c.leaderId, c.viceLeaderId]) {
+        if (id) pushInbox(world, id, { type: "clanEvent", detail: `${player.name} petitions to join ${c.name}.` });
+      }
+      return { ok: true, message: `Your petition has been sent to ${c.name}.` };
+    }
+    case "clanWithdrawRequest": {
+      const c = world.clans[str(args.clanId)];
+      if (!c) throw new EngineError("clan", "No such clan");
+      world.clans[c.id] = withdrawJoinRequest(c, player.id);
+      return { ok: true, message: "Your petition has been withdrawn." };
+    }
+    case "clanAnswerRequest": {
+      if (!clan) throw new EngineError("clan", "You have no clan");
+      const targetId = str(args.targetId);
+      const target = world.players[targetId];
+      if (!target) throw new EngineError("target", "No such empire");
+      if (str(args.accept) === "1") {
+        const r = acceptJoinRequest(target, clan, player.id, tick);
+        put(r.player);
+        world.clans[clan.id] = r.clan;
+        for (const m of r.clan.members) {
+          pushInbox(world, m, { type: "clanEvent", detail: `${target.name} has joined ${clan.name}.` });
+        }
+        return { ok: true, message: `${target.name} now marches under your banner.` };
+      }
+      world.clans[clan.id] = denyJoinRequest(clan, player.id, targetId);
+      pushInbox(world, targetId, {
+        type: "clanEvent",
+        detail: `${clan.name} has refused your petition — you may not ask them again.`,
+      });
+      return { ok: true, message: `${target.name}'s petition is refused.` };
+    }
+    case "clanInvite": {
+      if (!clan) throw new EngineError("clan", "You have no clan");
+      const target = world.players[str(args.targetId)];
+      if (!target) throw new EngineError("target", "No such empire");
+      world.clans[clan.id] = invitePlayer(clan, player.id, target, tick);
+      pushInbox(world, target.id, {
+        type: "clanEvent",
+        detail: `${clan.name} invites you to march under their banner.`,
+      });
+      return { ok: true, message: `${target.name} has been invited.` };
+    }
+    case "clanAcceptInvite": {
       const c = world.clans[str(args.clanId)];
       if (!c) throw new EngineError("clan", "No such clan");
       const err = canJoin(player, c, tick);
       if (err) throw new EngineError("join", err);
-      const r = joinClan(player, c, tick);
+      const r = acceptInvite(player, c, tick);
       put(r.player);
       world.clans[c.id] = r.clan;
-      return;
+      for (const m of r.clan.members) {
+        if (m !== player.id) {
+          pushInbox(world, m, { type: "clanEvent", detail: `${player.name} has joined ${c.name}.` });
+        }
+      }
+      return { ok: true, message: `You now march under ${c.name}.` };
+    }
+    case "clanDeclineInvite": {
+      const c = world.clans[str(args.clanId)];
+      if (!c) throw new EngineError("clan", "No such clan");
+      world.clans[c.id] = declineInvite(c, player.id);
+      return { ok: true, message: "Invitation declined." };
     }
     case "clanLeave": {
       if (!clan) throw new EngineError("clan", "You have no clan");
@@ -464,7 +532,11 @@ function dispatch(
     }
     case "clanBuild": {
       if (!clan) throw new EngineError("clan", "You have no clan");
-      world.clans[clan.id] = buildClanBuilding(clan, player.id, args.which as never);
+      // The pool pays first; whatever it can't cover comes out of the builder's
+      // own treasury, so their player record changes too.
+      const r = buildClanBuilding(clan, player, args.which as never);
+      put(r.player);
+      world.clans[clan.id] = r.clan;
       return;
     }
     case "clanRepair": {
@@ -546,7 +618,7 @@ function dispatch(
       } else {
         channel = "era";
       }
-      world.messages.push({
+      pushMessage(world, {
         id: randomUUID(),
         channel,
         authorId: player.id,
@@ -554,7 +626,6 @@ function dispatch(
         body,
         tick,
       });
-      if (world.messages.length > 2000) world.messages.splice(0, world.messages.length - 2000);
       return;
     }
 

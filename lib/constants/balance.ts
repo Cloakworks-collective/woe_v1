@@ -420,11 +420,22 @@ export const WAR = {
   TRIBUTE_TURNS: 144, // …for one day…
   TRIBUTE_CAP_GOLD_EQ: 1000000, // …or until this gold-equivalent
   TRUCE_HOURS: 48, // loser can't be re-declared on; victory clocks frozen
+  /** A war with no blows struck between the two clans for this long lapses.
+   *  Whoever is ahead on net regular kills takes the record; a war that never
+   *  drew blood (or is dead even) ends with no winner and no loser at all. */
+  STALE_HOURS: 72,
 };
 
 export const CHURN = {
   REJOIN_COOLDOWN_HOURS: 48, // after leaving or being kicked
   MAX_DEPARTURES_PER_ERA: 2, // leaves + kicks both count
+};
+
+/** Chat retention. A clan hall keeps a rolling window of its own talk — older
+ *  words are dropped for good. TOTAL is the backstop across every channel. */
+export const CHAT = {
+  CLAN_HISTORY: 200, // messages kept per clan channel
+  TOTAL_HISTORY: 2000, // hard cap across all channels combined
 };
 
 // ─── 13 · VICTORY & RANKING ─────────────────────────────────────────────────

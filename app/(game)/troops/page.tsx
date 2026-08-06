@@ -1,4 +1,4 @@
-import { cmd } from "@/app/actions";
+
 import { BareBadge } from "@/components/BareBadge";
 import { Btn } from "@/components/Btn";
 import { Art } from "@/components/Art";
@@ -147,7 +147,7 @@ export default async function TroopsPage({
             <div className="bcard" key={type}>
               <div className="bcard-head">
                 <span className="bcard-art">
-                  <Art path={`units/${type}`} size={216} title={label} />
+                  <Art path={`units/${type}`} size={216} title={label} race={p.race} />
                 </span>
                 <div>
                   <Info tip={UNIT_INFO[type].tip} title={UNIT_INFO[type].title} guide={UNIT_GUIDE[type]}>
@@ -163,8 +163,7 @@ export default async function TroopsPage({
               {/* One muster form: pick the tier ONCE — the cost row lights up to
                   match — then Train or Discharge with the same count. The clicked
                   button carries __cmd (the AssignRecall pattern). */}
-              <form action={cmd} className="muster-form">
-                <input type="hidden" name="__path" value="/troops" />
+              <CmdForm path="/troops" className="muster-form" inline={false}>
                 <input type="hidden" name="type" value={type} />
 
                 {/* Cost per tier; the selected tier's row is highlighted via :has(). */}
@@ -226,7 +225,7 @@ export default async function TroopsPage({
                     </Btn>
                   </ReqTip>
                 </div>
-              </form>
+              </CmdForm>
             </div>
           ))}
 
@@ -234,7 +233,7 @@ export default async function TroopsPage({
           <div className="bcard" key="engineer">
             <div className="bcard-head">
               <span className="bcard-art">
-                <Art path="units/engineer" size={216} title="Siege Engineer" />
+                <Art path="units/engineer" size={216} title="Siege Engineer" race={p.race} />
               </span>
               <div>
                 <Info tip={UNIT_INFO.engineer.tip} title={UNIT_INFO.engineer.title} guide={UNIT_GUIDE.engineer}>
@@ -349,7 +348,7 @@ export default async function TroopsPage({
       <Panel title="The Black Market — hired blades">
         <div style={{ float: "right" }}>
           <Info tip={UNIT_INFO.mercenary.tip} title={UNIT_INFO.mercenary.title} guide={UNIT_GUIDE.mercenary}>
-            <Art path="units/mercenary" size={240} title="Mercenary" />
+            <Art path="units/mercenary" size={240} title="Mercenary" race={p.race} />
           </Info>
         </div>
         <p style={{ fontSize: 14, maxWidth: 460, margin: "0 0 8px" }}>

@@ -27,6 +27,32 @@ Regular members contribute resources and fight.
   removed member forfeits deposits, takes the 48h cooldown, and it counts toward
   their per-era departure limit.
 
+## The gate (petitions & invitations)
+
+**No one walks into a clan.** A bannerless player **petitions**, and only the
+**Leader or Vice-Leader** may answer it. Officers can kick, but they cannot
+admit — admission is the one power reserved above their rank.
+
+- **`clanRequestJoin`** — the player petitions a banner (`requestToJoin`). The
+  Leader and Vice are notified; the petition sits at the gate until answered.
+- **`clanWithdrawRequest`** — the petitioner takes it back before an answer
+  (`withdrawJoinRequest`). Withdrawing is *not* a refusal; they may petition
+  that banner again.
+- **`clanAnswerRequest`** — Leader/Vice admits (`acceptJoinRequest`) or refuses
+  (`denyJoinRequest`).
+- **A refusal is permanent.** A refused player is recorded in `clan.refused`
+  and **can never petition that clan again**. This is deliberate: it makes
+  turning someone away a real decision, and stops rejected players from
+  spamming the gate.
+- **`clanInvite`** — the Leader or Vice invites any bannerless empire
+  (`invitePlayer`). An invitation is the escape hatch from a refusal: issuing
+  one **lifts** an earlier refusal, because leadership is entitled to change
+  its mind. The invitee accepts (`clanAcceptInvite`) or declines
+  (`clanDeclineInvite`) in their own time.
+
+Every other gate rule (Hall member cap, the 48h cooldown, the two-departures
+limit) still applies at the moment of admission, not the moment of petition.
+
 ## Membership churn (joining & leaving)
 
 Clans are commitments, not revolving doors:
@@ -51,7 +77,13 @@ nothing else can be built until there's a treasury to build it from.
 ### 1. Clan Storage (levels 1–10) — build this first
 
 - All members can **deposit** gold/food/wood/stone/ore.
-- Capacity: **250,000 × level** per resource type.
+- Capacity: **250,000 × level** per resource type (scaled by storage integrity).
+- **Only LOOSE goods can be given.** Anything a member has vaulted in their own
+  storehouse (`bankResource` / `bankGold`) has left `player.resources` and must
+  be drawn out before it can be deposited. The clan page shows loose and vaulted
+  side by side, and the Max chip is capped by *both* what you hold loose and the
+  room left in the pool — a deposit larger than the pool's remaining capacity is
+  refused, which otherwise reads as a baffling "Storage is full" on an empty pool.
 - Every other clan building (and its upgrades) is paid from this pool.
 - **Withdrawals — anyone, capped at 3× what they donated** (lifetime, per
   resource, leader included):
@@ -70,7 +102,7 @@ withdrawableNow = 3 × lifetimeDeposited − lifetimeWithdrawn
 ### 2. Clan Hall (levels 1–4) — the roster & the tax shelter
 
 Founding a clan (**one player, 50,000 gold**) erects Hall level 1 (member cap 5);
-others petition to join.
+others petition to join (see **The gate**, above).
 
 Clan members help each other bear the tax burden: the Hall reduces the
 **production penalty from taxation** for every member — capped at a **50%
@@ -123,6 +155,9 @@ statement: this clan out-produced everyone.
   full integrity, paid from the pool — `CLAN_REPAIR_COST_FACTOR` (0.5) of the
   work's current-level build cost, scaled by the damage taken. `clanRepairCost`
   quotes the exact price the engine charges.
+- **A cracked work cannot be raised** until it is mended (`buildClanBuilding`
+  throws `damaged`) — the same rule players' own buildings follow, so bombarding
+  a clan's works stalls their building programme, not just their output.
 - **The price:** bombarding clan buildings grants the attacked clan **one
   revenge attack** — but it can be executed by **any member who was in the
   clan at that moment** (membership snapshot, 18h window, first to strike
@@ -146,6 +181,24 @@ than it has lost to the other, it **wins the war**. The spoils:
      cumulative take reaches 1M gold-equivalent (resources valued at 1 gold
      per unit for the cap, tunable).
 
+### A war nobody fights lapses
+
+If **no blow lands between the two clans for `WAR.STALE_HOURS` (72h)**, the war
+ends on its own (`lapseStaleWar`, checked hourly in `runOneTick`). Declaring war
+counts as the first "blow" for the clock; every recorded kill restarts it.
+
+- **If there is a tally to judge** — one side leads on net regular kills — that
+  side **takes the win**, the other the loss, and the loser serves the usual
+  48-hour truce with frozen victory clocks. But a lapsed war pays **no tribute
+  and no experience transfer**: those spoils are reserved for a decisive +200
+  victory. Otherwise "declare, land one kill, go quiet for three days" would be
+  the cheapest tribute farm in the game.
+- **If there is no data** — no kills either way, or a dead-even tally — the war
+  simply ends. **No winner, no loser**, nothing on either record, no truce.
+
+Either way the Chronicle records the lapse, and every member of both clans is
+told.
+
 The war ends on victory, followed by a **48-hour truce**:
 
 - The beaten clan **cannot be re-declared on by the victor** — but the truce
@@ -158,6 +211,14 @@ The war ends on victory, followed by a **48-hour truce**:
 
 Clan war records (wins/losses) are permanent and public — the clan's
 reputation across eras.
+
+## Clan chat
+
+Every clan has its own channel in the Forum (`clan:<clanId>`), readable and
+writable only by its members. The hall keeps a **rolling window of the last
+`CHAT.CLAN_HISTORY` (200) messages** — older words are deleted for good, and
+each clan's window is trimmed independently (`pushMessage`, `lib/server/store.ts`).
+`CHAT.TOTAL_HISTORY` (2,000) remains the backstop across all channels.
 
 ## Diplomacy
 

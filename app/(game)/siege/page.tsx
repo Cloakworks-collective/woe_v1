@@ -54,11 +54,11 @@ const ENGINE_TIP: Record<string, string> = {
 };
 
 // N engineer sprites = how many crew a single engine.
-function CrewCost({ crew }: { crew: number }) {
+function CrewCost({ crew, race }: { crew: number; race: string }) {
   return (
     <span className="crew-cost" title={`${crew} engineer${crew > 1 ? "s" : ""} crew one engine`}>
       {Array.from({ length: crew }, (_, i) => (
-        <Art key={i} path="units/engineer" size={24} title="Siege Engineer" />
+        <Art key={i} path="units/engineer" size={24} title="Siege Engineer" race={race} />
       ))}
       <span className="crew-cost-note">
         crew {crew > 1 ? "each" : "one"}
@@ -179,7 +179,7 @@ export default async function SiegePage({
         </p>
         <div className="corps">
           <span className="corps-art">
-            <Art path="units/engineer" size={104} title="Siege Engineer" />
+            <Art path="units/engineer" size={216} title="Siege Engineer" race={p.race} />
           </span>
           <div className="corps-body">
             <div className="corps-stats">
@@ -318,10 +318,10 @@ export default async function SiegePage({
                   </div>
                   <div className="bcard-main">
                     <span className="bcard-art">
-                      <Art path={GEAR_ART[t]} size={104} title={step.name} />
+                      <Art path={GEAR_ART[t]} size={216} title={step.name} />
                     </span>
                     <div className="bcard-body">
-                      <CrewCost crew={g.crew} />
+                      <CrewCost crew={g.crew} race={p.race} />
                       <Fielded owned={p.army.siegeGear[t]} crewed={crewed[t]} />
                       <ul className="bcard-costs" style={{ marginTop: 8 }}>
                         <li>
@@ -406,10 +406,10 @@ export default async function SiegePage({
                   </p>
                   <div className="bcard-main">
                     <span className="bcard-art">
-                      <Art path={COUNTER_ART[ct]} size={104} title={c.name} />
+                      <Art path={COUNTER_ART[ct]} size={216} title={c.name} />
                     </span>
                     <div className="bcard-body">
-                      <CrewCost crew={c.crew} />
+                      <CrewCost crew={c.crew} race={p.race} />
                       <Fielded owned={p.army.siegeCounters[ct]} crewed={counterCrewed[ct]} />
                       <ul className="bcard-costs" style={{ marginTop: 8 }}>
                         <li>

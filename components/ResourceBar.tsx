@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { ResIcon } from "@/components/ResIcon";
 import { ResourceDeltas } from "@/components/ResourceDeltas";
 import { TickCountdown } from "@/components/TickCountdown";
-import { ACTION_TURNS, TURNS_PER_DAY } from "@/lib/constants";
+import { ACTION_TURNS } from "@/lib/constants";
 import { bankedRes, foodUpkeepPerTurn, productionRates, taxIncomePerTurn, type Player } from "@/lib/engine";
 import type { WorldMeta } from "@/lib/server/store";
 import { leaveSession, toggleTheme } from "@/app/actions";
@@ -45,19 +45,7 @@ function ResTip({
   );
 }
 
-/** A5 — where we sit in the 144-turn day, and its name/glyph, for the sky band. */
-function timeOfDay(tickNumber: number): { t: number; phase: "dawn" | "day" | "dusk" | "night"; glyph: string; label: string } {
-  const t = (tickNumber % TURNS_PER_DAY) / TURNS_PER_DAY; // 0 = just after dawn → 1 = next dawn
-  if (t < 0.06) return { t, phase: "dawn", glyph: "🌅", label: "Dawn breaks" };
-  if (t < 0.5) return { t, phase: "day", glyph: "☀️", label: "Daylight" };
-  if (t < 0.62) return { t, phase: "dusk", glyph: "🌇", label: "Dusk" };
-  if (t < 0.9) return { t, phase: "night", glyph: "🌙", label: "Night" };
-  return { t, phase: "dawn", glyph: "🌄", label: "Dawn approaches" };
-}
-
 export async function ResourceBar({ player, meta }: { player: Player; meta: WorldMeta }) {
-  const ticksToDawn = TURNS_PER_DAY - (meta.tickNumber % TURNS_PER_DAY);
-  const sky = timeOfDay(meta.tickNumber);
   const dark = (await cookies()).get("woe_theme")?.value === "dark";
 
   // Per-turn truths for the popovers: production, tax, upkeep, and what's vaulted.
@@ -99,29 +87,11 @@ export async function ResourceBar({ player, meta }: { player: Player; meta: Worl
   );
 
   return (
-    <div className="topbar" data-daytime={sky.phase} style={{ ["--day-t" as string]: sky.t }}>
-      <div className="topbar-sky" aria-hidden="true">
-        <span className="topbar-sun" style={{ left: `${Math.round(sky.t * 100)}%` }}>
-          {sky.glyph}
-        </span>
-      </div>
+    <div className="topbar">
       <div className="title">
         WAR OF EMPIRES
         <small>
-          <span className="tip tip-down" tabIndex={0}>
-            <span style={{ cursor: "help" }}>
-              {sky.glyph} {meta.eraName} · turn {meta.tickNumber.toLocaleString()} · dawn in {ticksToDawn} turns
-            </span>
-            <span className="tip-pop costtip" role="tooltip">
-              <b>The turning of the world — {sky.label.toLowerCase()}</b>
-              <span className="costtip-body">
-                One turn every 10 minutes — production, research, and upkeep run each turn, even
-                while you sleep. At <b>dawn</b> (every {TURNS_PER_DAY} turns) the big events fire:
-                settlers arrive, mercenaries draw their wages, and unguarded peasants scatter if
-                your troops sit below the 30% line.
-              </span>
-            </span>
-          </span>
+          {meta.eraName} · turn {meta.tickNumber.toLocaleString()}
           <TickCountdown lastTickAt={meta.lastTickAt} />
         </small>
       </div>

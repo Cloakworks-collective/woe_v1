@@ -30,6 +30,7 @@ import {
   level,
   mercTotal,
   military,
+  structureIntegrity,
   totalPopulation,
   type EngineResult,
   type Player,
@@ -225,12 +226,17 @@ export function trainSiegeEngineers(input: Player, count: number): EngineResult 
   return { player: p, events: [] };
 }
 
-/** Build or upgrade a building. Instant — pay the cost, get the level. */
+/** Build or upgrade a building. Instant — pay the cost, get the level.
+ *  A cracked work must be mended first: masons will not raise a higher storey
+ *  on a broken one, so bombardment stalls your growth until you repair. */
 export function build(input: Player, id: BuildingId): EngineResult {
   const p = structuredClone(input);
   const current = level(p, id);
   const target = current + 1;
   if (target > maxLevel(id)) throw new EngineError("max_level", "Already at max level");
+  if (current > 0 && structureIntegrity(p, id) < 1) {
+    throw new EngineError("damaged", "Repair it to full before building higher");
+  }
   pay(p, buildingCost(id, target));
   p.buildings[id] = target;
   return { player: p, events: [{ type: "buildComplete", building: id, level: target }] };

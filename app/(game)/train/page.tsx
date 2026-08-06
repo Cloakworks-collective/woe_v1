@@ -1,5 +1,5 @@
 import { Btn } from "@/components/Btn";
-import { cmd } from "@/app/actions";
+
 import { Art } from "@/components/Art";
 import { CmdForm } from "@/components/CmdForm";
 import { CostTip, ReqTip } from "@/components/CostTip";
@@ -28,8 +28,7 @@ const ROLES: { role: WorkerRole; label: string; building: string; buildingId: Pa
  *  clicked submit button carries __cmd, so the same form drives both. */
 function AssignRecall({ role, label, assigned, idle }: { role: WorkerRole; label: string; assigned: number; idle: number }) {
   return (
-    <form action={cmd} className="assign-form">
-      <input type="hidden" name="__path" value="/train" />
+    <CmdForm path="/train" className="assign-form" inline={false}>
       <input type="hidden" name="role" value={role} />
       <CountInput ariaLabel={`Number of ${role}`} max={idle} />
       <ReqTip
@@ -52,7 +51,7 @@ function AssignRecall({ role, label, assigned, idle }: { role: WorkerRole; label
           Recall
         </Btn>
       </ReqTip>
-    </form>
+    </CmdForm>
   );
 }
 
@@ -181,7 +180,7 @@ export default async function TrainPage({
                 </div>
                 <div className="bcard-main">
                   <span className="bcard-art">
-                    <Art path={`workers/${role}`} size={88} title={label} />
+                    <Art path={`workers/${role}`} size={216} title={label} race={p.race} />
                   </span>
                   <div className="bcard-body">
                     <p style={{ margin: "0 0 7px" }}>
@@ -218,7 +217,7 @@ export default async function TrainPage({
               </div>
               <div className="bcard-main">
                 <span className="bcard-art">
-                  <Art path={art} size={88} title={UNIT_INFO[unit].title} />
+                  <Art path={art} size={216} title={UNIT_INFO[unit].title} race={p.race} />
                 </span>
                 <div className="bcard-body">
                   <ul className="bcard-costs" style={{ marginBottom: 7 }}>
