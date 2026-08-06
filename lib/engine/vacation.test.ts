@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SURRENDER_TICKS_PER_ERA, SURRENDER_REATTACK_COOLDOWN_TICKS } from "../constants";
+import { VACATION_TICKS_PER_ERA, VACATION_REATTACK_COOLDOWN_TICKS } from "../constants";
 import { validateAttack, type AttackContext } from "./combat";
 import { newEmpire } from "./newEmpire";
 import { processTurnTick } from "./tick";
@@ -15,11 +15,11 @@ const CTX: AttackContext = {
   eraPeaceTicks: 720,
   revengeWindowTicks: 108,
   clanWar: false,
-  surrenderReattackCooldownTicks: SURRENDER_REATTACK_COOLDOWN_TICKS,
+  vacationReattackCooldownTicks: VACATION_REATTACK_COOLDOWN_TICKS,
 };
 
-describe("surrender — production penalty", () => {
-  it("halves production while the white flag flies", () => {
+describe("vacation — production penalty", () => {
+  it("halves production while away", () => {
     const build = () => {
       const p = fresh();
       p.buildings.grange = 1; // 20 slots
@@ -28,11 +28,11 @@ describe("surrender — production penalty", () => {
       return p;
     };
     const normal = processTurnTick(build()).player;
-    const surrendered = build();
-    surrendered.surrendered = true;
-    const flagged = processTurnTick(surrendered).player;
+    const onVacation = build();
+    onVacation.onVacation = true;
+    const flagged = processTurnTick(onVacation).player;
     // Normal produces 20 × (50 × 1 × (1−0.5 tax)) × 1.25 human = 625 food;
-    // surrender halves the production to 312.5 (upkeep, a flat 10, is the same).
+    // vacation halves the production to 312.5 (upkeep, a flat 10, is the same).
     const normalGain = normal.resources.food - 1000; // 625 − 10 upkeep = 615
     const flaggedGain = flagged.resources.food - 1000; // 312.5 − 10 upkeep = 302.5
     expect(normalGain).toBe(615);
@@ -41,39 +41,39 @@ describe("surrender — production penalty", () => {
   });
 });
 
-describe("surrender — the era budget", () => {
-  it("spends a turn of the allowance each tick under the flag", () => {
+describe("vacation — the era budget", () => {
+  it("spends a turn of the allowance each tick while away", () => {
     const p = fresh();
-    p.surrendered = true;
+    p.onVacation = true;
     const { player } = processTurnTick(p);
-    expect(player.surrenderTicksUsed).toBe(1);
+    expect(player.vacationTicksUsed).toBe(1);
   });
 
-  it("lowers the flag on its own once the allowance is spent", () => {
+  it("ends on its own once the allowance is spent", () => {
     const p = fresh();
-    p.surrendered = true;
-    p.surrenderTicksUsed = SURRENDER_TICKS_PER_ERA - 1; // one turn left
+    p.onVacation = true;
+    p.vacationTicksUsed = VACATION_TICKS_PER_ERA - 1; // one turn left
     const { player, events } = processTurnTick(p);
-    expect(player.surrendered).toBe(false);
-    expect(player.surrenderLiftedAtTick).toBeDefined();
+    expect(player.onVacation).toBe(false);
+    expect(player.vacationEndedAtTick).toBeDefined();
     expect(events.some((e) => e.type === "info")).toBe(true);
   });
 });
 
-describe("surrender — the re-attack cooldown", () => {
-  it("blocks a raid right after lowering the flag", () => {
+describe("vacation — the re-attack cooldown", () => {
+  it("blocks a raid right after returning", () => {
     const a = fresh();
     const d = fresh();
     d.id = "d";
-    a.surrenderLiftedAtTick = CTX.currentTick - 1; // just lowered
-    expect(validateAttack(a, d, "raid", CTX)).toMatch(/standing down/i);
+    a.vacationEndedAtTick = CTX.currentTick - 1; // just got back
+    expect(validateAttack(a, d, "raid", CTX)).toMatch(/still mustering/i);
   });
 
   it("clears once the cooldown has elapsed", () => {
     const a = fresh();
     const d = fresh();
     d.id = "d";
-    a.surrenderLiftedAtTick = CTX.currentTick - SURRENDER_REATTACK_COOLDOWN_TICKS;
+    a.vacationEndedAtTick = CTX.currentTick - VACATION_REATTACK_COOLDOWN_TICKS;
     expect(validateAttack(a, d, "raid", CTX)).toBeNull();
   });
 
@@ -81,7 +81,7 @@ describe("surrender — the re-attack cooldown", () => {
     const a = fresh();
     const d = fresh();
     d.id = "d";
-    a.surrenderLiftedAtTick = CTX.currentTick - 1;
+    a.vacationEndedAtTick = CTX.currentTick - 1;
     a.recentAttackers = [{ playerId: "d", tick: CTX.currentTick - 10 }]; // open window
     expect(validateAttack(a, d, "revenge", CTX)).toBeNull();
   });

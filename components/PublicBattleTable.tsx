@@ -46,9 +46,11 @@ export function PublicBattleTable({ battles, highlightId }: { battles: PublicBat
               <td>
                 {b.victor === "none"
                   ? "engines traded fire"
-                  : b.victor === "attacker"
-                    ? `${b.attackerName} victorious (${b.rounds}r)`
-                    : `${b.defenderName} holds (${b.rounds}r)`}
+                  : b.yielded
+                    ? `${b.defenderName} yields — no fight`
+                    : b.victor === "attacker"
+                      ? `${b.attackerName} victorious (${b.rounds}r)`
+                      : `${b.defenderName} holds (${b.rounds}r)`}
               </td>
               <td className="num">
                 {b.attackerTroopsLost.toLocaleString("en-US")} / {b.defenderTroopsLost.toLocaleString("en-US")}

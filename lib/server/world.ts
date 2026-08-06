@@ -6,7 +6,7 @@ import {
   ERA_PEACE_DAYS,
   HOLD_CLOCKS,
   POPULATION_FLOORS,
-  SURRENDER_TICKS_PER_ERA,
+  VACATION_TICKS_PER_ERA,
   TICKS_PER_HOUR,
   TURNS_PER_DAY,
   TURN_MINUTES,
@@ -58,7 +58,7 @@ export function isOnline(p: Player, now = Date.now()): boolean {
 
 /** Does anyone still hold an open revenge against this player? True if some
  *  empire they attacked can still strike back (personal window), or a clan they
- *  bombarded holds a live clan-revenge against their banner. Gates surrender. */
+ *  bombarded holds a live clan-revenge against their banner. Gates vacation. */
 export function revengePendingOn(world: World, playerId: string, tick: number): boolean {
   for (const q of Object.values(world.players)) {
     if (q.id === playerId) continue;
@@ -357,23 +357,23 @@ export function runOneTick(world: World, nowMs = Date.now()): void {
     }
   }
 
-  // Queued surrenders: raise the flag once every revenge window has closed
-  // (and the era budget still has room). Done after the main pass so this
-  // tick's revenge windows are settled.
+  // Queued vacations: depart once every revenge window has closed (and the era
+  // budget still has room). Done after the main pass so this tick's revenge
+  // windows are settled.
   for (const p of Object.values(world.players)) {
-    if (!p.surrenderQueued || p.surrendered) continue;
-    if ((p.surrenderTicksUsed ?? 0) >= SURRENDER_TICKS_PER_ERA) {
-      p.surrenderQueued = false;
+    if (!p.vacationQueued || p.onVacation) continue;
+    if ((p.vacationTicksUsed ?? 0) >= VACATION_TICKS_PER_ERA) {
+      p.vacationQueued = false;
       pushInbox(world, p.id, {
         type: "info",
-        detail: "Your queued surrender is void — your surrender days for this age are spent.",
+        detail: "Your queued vacation is void — your vacation days for this age are spent.",
       });
     } else if (!revengePendingOn(world, p.id, tick)) {
-      p.surrendered = true;
-      p.surrenderQueued = false;
+      p.onVacation = true;
+      p.vacationQueued = false;
       pushInbox(world, p.id, {
         type: "info",
-        detail: "The last revenge window against you has closed — your queued surrender takes effect.",
+        detail: "The last revenge window against you has closed — you depart on vacation.",
       });
     }
   }

@@ -8,8 +8,9 @@ import { Panel } from "@/components/Panel";
 import { ReqTip } from "@/components/CostTip";
 import { TargetActions } from "@/components/TargetActions";
 import { Pager } from "@/components/Pager";
-import { HOLD_CLOCKS, RACE_NAMES } from "@/lib/constants";
+import { ATTACK_HISTORY_HOURS, ATTACK_HISTORY_TICKS, HOLD_CLOCKS, RACE_NAMES } from "@/lib/constants";
 import {
+  attacksByDefender,
   rankingScore,
   researchLevel,
   settlementTitle,
@@ -70,6 +71,9 @@ export default async function RankingsPage({
     for (const id of world.clans[rev.againstClanId]?.members ?? []) clanRevenge.add(id);
   }
   const warClanIds = new Set(myClan?.wars.map((w) => w.clanId) ?? []);
+  // Public raid history — who has been fed upon lately. Same facts the World
+  // News feed already publishes; the ladder just counts them per empire.
+  const raidHistory = attacksByDefender(world.battles, tick, ATTACK_HISTORY_TICKS);
 
   const leader = ladder[0];
   const oh = overlordHold(world);
@@ -134,12 +138,15 @@ export default async function RankingsPage({
               const revengeOpen = personalRevenge.has(p.id) || clanRevenge.has(p.id);
               const atWar = p.clanId ? warClanIds.has(p.clanId) : false;
               const refused = rankingScore(p) / myScore >= 1.75;
+              const hits = raidHistory.get(p.id) ?? [];
+              const raided = hits.length;
+              const raiders = new Set(hits.map((h) => h.attackerId)).size;
               const hint = shielded
                 ? "🛡 Under the newcomer shield — no attacks or spying."
                 : refused
                   ? "Far stronger than you — the army may refuse to march."
-                  : p.surrendered
-                    ? "🏳 Surrendered — only revenge may touch them."
+                  : p.onVacation
+                    ? "🏖 On vacation — only revenge may touch them."
                     : undefined;
               return (
                 <tr key={p.id} style={isMe ? { fontWeight: 700 } : undefined}>
@@ -164,8 +171,15 @@ export default async function RankingsPage({
                           {settlementTitle(p)} · {RACE_NAMES[p.race]}
                           {revengeOpen && <span style={{ color: "var(--warn)", fontWeight: 700 }}> · ⚔ revenge open</span>}
                           {atWar && <span style={{ color: "var(--warn)" }}> · 🔥 at war</span>}
-                          {p.surrendered && " · 🏳"}
+                          {p.onVacation && " · 🏖"}
                           {shielded && " · 🛡"}
+                        </div>
+                        <div style={{ fontSize: 13 }}>
+                          <Link href={`/empire/${p.id}/history`} style={{ color: raided > 0 ? "var(--warn)" : "var(--ink-soft)" }}>
+                            ⚔ {raided === 0
+                              ? `no attacks in ${ATTACK_HISTORY_HOURS}h`
+                              : `attacked ${raided}× by ${raiders} in ${ATTACK_HISTORY_HOURS}h`}
+                          </Link>
                         </div>
                       </span>
                     </span>
@@ -195,7 +209,9 @@ export default async function RankingsPage({
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 6 }}>
           Troops read as a traveler would guess them — None · Weak · Moderate · Strong · Heavy.
           Exact counts are for spies. Open <b>⚔ Act</b> on any empire to raid, siege, spy, or send a
-          letter. 🏳 surrendered · 🛡 newcomer shield · 🔥 your clan is at war.
+          letter. 🏖 on vacation · 🛡 newcomer shield · 🔥 your clan is at war. The ⚔ line under each
+          empire is their public war record — click it to see exactly who has been striking them
+          over the last {ATTACK_HISTORY_HOURS} hours.
         </p>
         {leader && (
           <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 6 }}>

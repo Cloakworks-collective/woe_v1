@@ -5,7 +5,7 @@ import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { PublicBattleTable } from "@/components/PublicBattleTable";
 import { TargetActions } from "@/components/TargetActions";
-import { RACE_NAMES } from "@/lib/constants";
+import { ATTACK_HISTORY_HOURS, RACE_NAMES } from "@/lib/constants";
 import { publicBattle, rankingScore, researchLevel, settlementTitle } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 import { REVENGE_WINDOW_TICKS } from "@/lib/server/world";
@@ -77,8 +77,14 @@ export default async function EmpireProfilePage({
             </dd>
             <dt>Standing</dt>
             <dd>
-              {p.surrendered ? "🏳 surrendered" : p.shieldUntilTick > tick ? "🛡 newcomer shield" : "at large"}
+              {p.onVacation ? "🏖 on vacation" : p.shieldUntilTick > tick ? "🛡 newcomer shield" : "at large"}
               {p.id === me.id && " (this is you)"}
+            </dd>
+            <dt>War record</dt>
+            <dd>
+              <Link href={`/empire/${p.id}/history`}>
+                ⚔ Who has been attacking them (last {ATTACK_HISTORY_HOURS}h)
+              </Link>
             </dd>
           </dl>
         </div>
@@ -91,8 +97,8 @@ export default async function EmpireProfilePage({
               hint={
                 p.shieldUntilTick > tick
                   ? "🛡 Under the newcomer shield — no attacks or spying."
-                  : p.surrendered
-                    ? "🏳 Surrendered — only revenge may touch them."
+                  : p.onVacation
+                    ? "🏖 On vacation — only revenge may touch them."
                     : undefined
               }
             />

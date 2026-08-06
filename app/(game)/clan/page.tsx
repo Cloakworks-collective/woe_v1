@@ -1,52 +1,36 @@
 import { Btn } from "@/components/Btn";
 import Link from "next/link";
 import { Art } from "@/components/Art";
-import { ClanBombardTargets } from "@/components/ClanBombardTargets";
-import { ClanChat } from "@/components/ClanChat";
 import { ClanManage } from "@/components/ClanManage";
 import { ClanMembers } from "@/components/ClanMembers";
 import { ClanPetitions } from "@/components/ClanPetitions";
-import { ClanWorks } from "@/components/ClanWorks";
-import { CountInput } from "@/components/CountInput";
+import { ClanTabs } from "@/components/ClanTabs";
 import { CmdForm } from "@/components/CmdForm";
 import { ReqTip } from "@/components/CostTip";
 import { Flash } from "@/components/Flash";
 import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { ResIcon } from "@/components/ResIcon";
-import { ACTION_INFO, CHAT, CHURN, HALL, STORAGE_CAP_PER_LEVEL, WAR } from "@/lib/constants";
-import {
-  bankedRes,
-  canAdmit,
-  clanRank,
-  hasRequested,
-  invitedTo,
-  isRefused,
-  memberCap,
-  withdrawableNow,
-  wonderDiscount,
-  type ClanResource,
-} from "@/lib/engine";
-import { getGame } from "@/lib/server/session";
+import { CHURN, HALL, WAR } from "@/lib/constants";
+import { canAdmit, hasRequested, invitedTo, isRefused, memberCap, wonderDiscount } from "@/lib/engine";
+import { clanBadges, getClanView, isClanLeadership } from "@/lib/server/clanView";
 import { clanScore } from "@/lib/server/world";
 
 export const dynamic = "force-dynamic";
 
 const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");
-const POOL: ClanResource[] = ["gold", "food", "wood", "stone", "ore"];
 
-export default async function ClanPage({
+export default async function ClanHallPage({
   searchParams,
 }: {
   searchParams: Promise<{ err?: string; ok?: string }>;
 }) {
   const { err, ok } = await searchParams;
-  const { world, player: p } = await getGame();
-  const clan = p.clanId ? world.clans[p.clanId] : undefined;
-  const tick = world.meta.tickNumber;
+  const { world, p, clan, tick } = await getClanView();
 
   if (!clan) {
-    // Banners that have already asked for you — an invitation skips the petition.
+    // No tab strip here on purpose — tabs to pages that don't apply to you are
+    // worse than a long page. Bannerless players get the joining flow, whole.
     const invitations = Object.values(world.clans).filter((c) => invitedTo(c, p.id));
     const joinBlocked = (c: (typeof invitations)[number]) =>
       (p.clanJoinableAtTick ?? 0) > tick
@@ -210,15 +194,7 @@ export default async function ClanPage({
     );
   }
 
-  // What the pool can hold per resource, and what the viewer has locked away in
-  // their own storehouses (vaulted goods can't be given until drawn out).
-  const poolCap = Math.floor(STORAGE_CAP_PER_LEVEL * clan.buildings.storageLevel * clan.buildings.integrity.storage);
-  const vault = bankedRes(p);
-  const clanChat = world.messages.filter((m) => m.channel === `clan:${clan.id}`).slice(-CHAT.CLAN_HISTORY);
-
-  const myRank = clanRank(clan, p.id);
-  const isLeadership = myRank >= 1;
-  const canDeclare = clan.leaderId === p.id || clan.viceLeaderId === p.id;
+  const isLeadership = isClanLeadership(clan, p.id);
   const score = clanScore(world, clan);
   const rank = Object.values(world.clans).map((c) => clanScore(world, c)).filter((s) => s > score).length + 1;
 
@@ -228,15 +204,12 @@ export default async function ClanPage({
       ? clan.pendingRevenge
       : undefined;
   const revengeAgainst = pendingRev ? world.clans[pendingRev.againstClanId] : undefined;
-  const enemyClans = clan.wars
-    .map((w) => world.clans[w.clanId])
-    .filter((c): c is NonNullable<typeof c> => Boolean(c));
-  const otherClans = Object.values(world.clans).filter((c) => c.id !== clan.id && !clan.wars.some((w) => w.clanId === c.id));
 
   return (
     <>
       <Flash err={err} ok={ok} />
       <LearnLink href="/guide#clans">How clans work &amp; win together</LearnLink>
+      <ClanTabs badges={clanBadges(world, clan, p, tick)} />
 
       {/* ── Banner header ─────────────────────────────────────────────── */}
       <Panel title={`${clan.name}`}>
@@ -288,6 +261,8 @@ export default async function ClanPage({
                 </span>
               );
             })}
+            {" · "}
+            <Link href="/clan/war">the War Front →</Link>
           </div>
         )}
         {pendingRev && (
@@ -296,154 +271,6 @@ export default async function ClanPage({
             bombarding your works — claim it from the <Link href="/rankings">ladder</Link> (first member to strike takes it).
           </div>
         )}
-      </Panel>
-
-      {/* ── War Front ─────────────────────────────────────────────────── */}
-      {enemyClans.length > 0 && (
-        <Panel title="War Front — break the enemy's works" info={ACTION_INFO.clanBombard} guide="/guide#clans">
-          <p className="panel-lede">
-            Any member may fire. A strike costs 10 action turns and crewed trebuchets (trebuchets with
-            engineers to work them), and cracks the target toward its 50% floor. Each strike hands the enemy
-            clan a single revenge — expect their strongest.
-          </p>
-          <ClanBombardTargets enemies={enemyClans} turnsAvailable={p.turnsAvailable} path="/clan" />
-        </Panel>
-      )}
-
-      {/* ── Clan Works ────────────────────────────────────────────────── */}
-      <Panel
-        title={isLeadership ? "Clan Works — raise & repair (paid from the pool)" : "Clan Works"}
-        info="The three great works of a clan. Levels are raised — and bombardment damage is mended — from the shared pool. Only the five leadership seats may build or repair."
-        guide="/guide#clans"
-      >
-        <ClanWorks clan={clan} editable={isLeadership} path="/clan" builder={isLeadership ? p : undefined} />
-      </Panel>
-
-      {/* ── Diplomacy ─────────────────────────────────────────────────── */}
-      {canDeclare && otherClans.length > 0 && (
-        <Panel title="Diplomacy — declare war" info="Leaders and Vice-Leaders may open a war. Both clans deal +100% damage until one side nets +200 regular kills. A declared war can't be called off." guide="/guide#clans">
-          <CmdForm name="clanDeclareWar" path="/clan">
-            <select name="clanId" aria-label="Clan to declare war on" style={{ font: "14.5px Verdana", padding: 3 }}>
-              {otherClans.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.members.length} members, {c.warRecord.wins}W/{c.warRecord.losses}L)
-                </option>
-              ))}
-            </select>
-            <ReqTip
-              heading="Declare war"
-              body="Open a clan war on the chosen banner. Both clans deal +100% damage to each other until one side wins — first to net +200 kills over losses takes it, plus tribute and frozen victory clocks for the loser."
-              note="Leaders and Vice only. A declared war can't be called off — fight it out."
-            >
-              <Btn className="btn" style={{ background: "linear-gradient(var(--warn),var(--warn))", borderColor: "#511207" }}>
-                Declare War (+100% damage both ways)
-              </Btn>
-            </ReqTip>
-          </CmdForm>
-        </Panel>
-      )}
-
-      {/* ── Storage ───────────────────────────────────────────────────── */}
-      <Panel
-        title="Clan Storage — mutual aid, not a piggy bank"
-        info="The 3× rule: withdraw at most triple your lifetime deposits. Building and repair spends bypass the cap — the clan's wealth doing the clan's work."
-        guide="/guide#clans"
-      >
-        {clan.buildings.storageLevel === 0 && (
-          <p className="panel-lede" style={{ color: "var(--warn)" }}>
-            No Clan Storage built yet — raise it in Clan Works before the pool can hold anything.
-          </p>
-        )}
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th>Resource</th>
-              <th className="num">In the pool</th>
-              <th className="num">You have loose</th>
-              <th className="num">You may withdraw</th>
-              <th>Give</th>
-              <th>Take</th>
-            </tr>
-          </thead>
-          <tbody>
-            {POOL.map((r) => {
-              // Only LOOSE goods can be given — anything vaulted in your own
-              // storehouse must be drawn out first, which is the usual reason a
-              // deposit is refused while the bar still shows a healthy total.
-              const loose = r === "gold" ? p.gold : p.resources[r];
-              const vaulted = r === "gold" ? (p.bankedGold ?? 0) : vault[r];
-              const room = Math.max(0, poolCap - clan.storage[r]);
-              const canGive = Math.min(loose, room);
-              const giveBlocked =
-                clan.buildings.storageLevel === 0
-                  ? "The clan has no Storage yet — raise it in Clan Works first."
-                  : room === 0
-                    ? `The pool is full of ${r} (cap ${fmt(poolCap)}).`
-                    : loose === 0
-                      ? vaulted > 0
-                        ? `Your ${r} is vaulted, not loose — withdraw it from your own store first (Empire → the vault).`
-                        : `You have no ${r} to give.`
-                      : undefined;
-              return (
-              <tr key={r}>
-                <td>
-                  <b style={{ textTransform: "capitalize" }}>{r}</b>
-                </td>
-                <td className="num">
-                  {fmt(clan.storage[r])}
-                  <small style={{ color: "var(--ink-soft)" }}> /{fmt(poolCap)}</small>
-                </td>
-                <td className="num">
-                  {fmt(loose)}
-                  {vaulted > 0 && (
-                    <small style={{ color: "var(--ink-soft)" }} title={`${fmt(vaulted)} ${r} is vaulted in your own store — draw it out before you can give it`}>
-                      {" "}+{fmt(vaulted)} vaulted
-                    </small>
-                  )}
-                </td>
-                <td className="num">{fmt(Math.min(clan.storage[r], withdrawableNow(clan, p.id, r)))}</td>
-                <td>
-                  <CmdForm name="clanDeposit" path="/clan">
-                    <input type="hidden" name="what" value={r} />
-                    <CountInput name="amount" ariaLabel={`${r} to deposit`} size={6} max={canGive} disabled={Boolean(giveBlocked)} />
-                    <ReqTip
-                      heading={`Deposit ${r}`}
-                      body="Give this resource to the clan pool for any member to draw on."
-                      note="Only loose goods can be given. Deposits raise your own withdrawal cap — the 3× rule lets you later take up to triple what you've given."
-                      disabledReason={giveBlocked}
-                    >
-                      <Btn className={giveBlocked ? "btn btn-no" : "btn"} disabled={Boolean(giveBlocked)}>
-                        Give
-                      </Btn>
-                    </ReqTip>
-                  </CmdForm>
-                </td>
-                <td>
-                  <CmdForm name="clanWithdraw" path="/clan">
-                    <input type="hidden" name="what" value={r} />
-                    <CountInput name="amount" ariaLabel={`${r} to withdraw`} size={6} max={Math.floor(Math.min(clan.storage[r], withdrawableNow(clan, p.id, r)))} />
-                    <ReqTip
-                      heading={`Withdraw ${r}`}
-                      body="Draw this resource from the clan pool into your treasury."
-                      note={`Capped by the 3× rule — you may take up to ${fmt(Math.min(clan.storage[r], withdrawableNow(clan, p.id, r)))} ${r} right now.`}
-                    >
-                      <Btn className="btn">Take</Btn>
-                    </ReqTip>
-                  </CmdForm>
-                </td>
-              </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </Panel>
-
-      {/* ── The hall's talk ───────────────────────────────────────────── */}
-      <Panel
-        title="The Hall — clan chat"
-        info={`Only your clan can read this. The hall keeps its last ${CHAT.CLAN_HISTORY} messages; older words are deleted for good.`}
-      >
-        <ClanChat messages={clanChat} viewerId={p.id} path="/clan" />
       </Panel>
 
       {/* ── The gate — petitions & invitations (Leader/Vice only) ─────── */}

@@ -112,6 +112,8 @@ export interface PublicBattle {
   defenderName: string;
   mode: string;
   victor: "attacker" | "defender" | "none";
+  /** The defender opened the gates rather than fight — the whole realm saw it. */
+  yielded?: boolean;
   rounds: number;
   attackerTroopsLost: number; // aggregate — composition stays secret
   defenderTroopsLost: number;
@@ -133,6 +135,7 @@ export function publicBattle(r: import("./types").BattleReport): PublicBattle {
     defenderName: r.defenderName,
     mode: r.mode,
     victor: r.victor,
+    yielded: r.yielded,
     rounds: r.rounds,
     attackerTroopsLost: total(r.attackerLosses),
     defenderTroopsLost: total(r.defenderLosses),
@@ -410,4 +413,70 @@ export function researchLevelEffect(field: ResearchField, curLevel: number): str
   const next = Math.min(MAX_FIELD_LEVEL, curLevel + 1) * 20;
   if (curLevel >= MAX_FIELD_LEVEL) return `Mastered — the full +${cur}% is yours.`;
   return `Now +${cur}% → +${next}% at level ${curLevel + 1}.`;
+}
+
+// ── Raid history (the ladder's war record) ──────────────────────────────────
+
+export interface AttackRecord {
+  attackerId: string;
+  attackerName: string;
+  mode: string;
+  tick: number;
+  /** The defender opened the gates rather than fight. */
+  yielded: boolean;
+}
+
+/** Every empire's recent attackers, keyed by defender and newest-first.
+ *
+ *  Public knowledge by design: these are exactly the facts the battle feed
+ *  already shows the whole realm (who hit whom, when, in what mode) — just
+ *  gathered per defender so the ladder can show who is being fed upon. No
+ *  troop composition, no loot, no army strength leaks through here.
+ *
+ *  Bounded by the battle log itself, which keeps the last 300 reports world-
+ *  wide; in a very busy age that may not reach the full window. */
+export function attacksByDefender(
+  battles: import("./types").BattleReport[],
+  currentTick: number,
+  windowTicks: number,
+): Map<string, AttackRecord[]> {
+  const out = new Map<string, AttackRecord[]>();
+  for (const b of battles) {
+    if (currentTick - b.tick > windowTicks) continue;
+    const list = out.get(b.defenderId) ?? [];
+    list.push({
+      attackerId: b.attackerId,
+      attackerName: b.attackerName,
+      mode: b.mode,
+      tick: b.tick,
+      yielded: !!b.yielded,
+    });
+    out.set(b.defenderId, list);
+  }
+  // world.battles is stored newest-first, but don't rely on it — the caller
+  // renders "how long ago", which must be monotonic.
+  for (const list of out.values()) list.sort((a, b) => b.tick - a.tick);
+  return out;
+}
+
+/** Collapse a defender's attackers into one row per aggressor, worst first. */
+export function summarizeAttackers(
+  records: AttackRecord[],
+): { attackerId: string; attackerName: string; times: number; lastTick: number }[] {
+  const by = new Map<string, { attackerId: string; attackerName: string; times: number; lastTick: number }>();
+  for (const r of records) {
+    const seen = by.get(r.attackerId);
+    if (seen) {
+      seen.times += 1;
+      seen.lastTick = Math.max(seen.lastTick, r.tick);
+    } else {
+      by.set(r.attackerId, {
+        attackerId: r.attackerId,
+        attackerName: r.attackerName,
+        times: 1,
+        lastTick: r.tick,
+      });
+    }
+  }
+  return [...by.values()].sort((a, b) => b.times - a.times || b.lastTick - a.lastTick);
 }

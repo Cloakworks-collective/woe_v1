@@ -92,12 +92,15 @@ players joining mid-era get a 72-hour shield.
 |-----------|-----------------------------|-----------------------------------------------------------------------|
 | Raid      | Steal anything outside storage (never gold) | Field army vs field army — no walls, no siege phase   |
 | Siege ("castle attack") | Steal gold + spilled/unstored goods | Full assault: siege weapons vs walls; the main offensive |
-| Revenge   | Kill troops                 | 18hr window after being attacked; ignores surrender, low stamina, broken walls; chains (revenge re-arms the victim's window) |
+| Revenge   | Kill troops                 | 18hr window after being attacked; ignores vacation, low stamina, broken walls, and the yield; chains (revenge re-arms the victim's window) |
 | Bombard   | Wreck walls, then the town   | Pure artillery duel: trebuchets vs Counter-Engine. Pounds walls first; once breached, stray fire cracks random buildings — storages, production, the Collegium. No target choice, no troops, no loot |
 
 - Attacking larger targets yields bonus loot; attacking much smaller targets yields less.
-- Raid, siege, and bombard cannot target surrendered or beaten-down (stamina < 25) players; revenge can.
-- Surrender: voluntary status — you can't attack, tax income halved, immune to all but revenge.
+- Raid, siege, and bombard cannot target players on vacation; revenge can.
+- Beaten-down (stamina < 25) or heavily outmatched (< 60% of the attacker's
+  strength) defenders **yield**: the attacker takes the stores, but their
+  regulars live. Revenge is never yielded to.
+- Vacation: voluntary status — you can't attack, tax and production halved, immune to all but revenge, 20 days per era.
 
 ## Buildings
 

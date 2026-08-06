@@ -48,7 +48,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       rank,
       battlesWon: p.battlesWon,
       battlesLost: p.battlesLost,
-      surrendered: p.surrendered,
+      onVacation: p.onVacation,
       shielded: p.shieldUntilTick > tick,
     },
     totals: { ...totals, battles: mine.length },

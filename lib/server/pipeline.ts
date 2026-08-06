@@ -82,9 +82,9 @@ import {
 } from "../engine";
 import {
   FOUNDING_MEMBERS,
-  SURRENDER_DAYS_PER_ERA,
-  SURRENDER_REATTACK_COOLDOWN_TICKS,
-  SURRENDER_TICKS_PER_ERA,
+  VACATION_DAYS_PER_ERA,
+  VACATION_REATTACK_COOLDOWN_TICKS,
+  VACATION_TICKS_PER_ERA,
 } from "../constants";
 import type { Race } from "../constants/races";
 import { dmChannel, pushBattle, pushChronicle, pushInbox, pushMessage, type World } from "./store";
@@ -272,8 +272,11 @@ function dispatch(
       return put(setResearch(player, args.field as never).player), undefined;
     case "rest":
       return put(restTroops(player).player), undefined;
+    // "surrender" is the pre-rename wire name — kept so existing CLI scripts
+    // and realm-token clients don't break. `flag` likewise aliases `away`.
+    case "vacation":
     case "surrender":
-      return doSurrender(world, player, Boolean(args.flag));
+      return doVacation(world, player, Boolean(args.away ?? args.flag));
     case "bank":
       return put(bankGold(player, num(args.amount)).player), undefined;
     case "bankRes": {
@@ -715,7 +718,7 @@ function doAttack(
     revengeWindowTicks: REVENGE_WINDOW_TICKS,
     clanWar,
     clanRevengeAuthorized,
-    surrenderReattackCooldownTicks: SURRENDER_REATTACK_COOLDOWN_TICKS,
+    vacationReattackCooldownTicks: VACATION_REATTACK_COOLDOWN_TICKS,
   });
   if (err) throw new EngineError("attack", err);
 
@@ -730,7 +733,7 @@ function doAttack(
   const d = outcome.defender;
 
   // The attack itself: 10 action turns; attacking drops your own newcomer
-  // shield. (You can't attack while surrendered, so there's no flag to lift.)
+  // shield. (You can't attack while onVacation, so there's no flag to lift.)
   a.turnsAvailable -= 10;
   a.shieldUntilTick = Math.min(a.shieldUntilTick, tick);
 
@@ -811,52 +814,54 @@ function doAttack(
 }
 
 /**
- * Raise or lower the white flag (spec/combat.md, economy.md). Surrender makes
- * you untouchable but for revenge, halves tax AND production, and spends an
- * era-limited budget of days. You can't surrender while a revenge hangs over
- * you — it queues instead, rising once every such window closes. Lowering the
- * flag starts a re-attack cooldown so surrender can't be a siege-dodge.
+ * Depart on, or return from, Vacation (spec/combat.md, economy.md). This is the
+ * *standing* withdrawal from the age — not a battlefield yield, which the engine
+ * decides for you mid-fight (see `resolveBattle`). Vacation makes you untouchable
+ * but for revenge, halves tax AND production, and spends an era-limited budget of
+ * days. You can't depart while a revenge hangs over you — it queues instead,
+ * taking effect once every such window closes. Returning starts a re-attack
+ * cooldown so vacation can't be used as a siege-dodge.
  */
-function doSurrender(world: World, player: Player, flag: boolean): CommandResult {
+function doVacation(world: World, player: Player, away: boolean): CommandResult {
   const tick = world.meta.tickNumber;
   const p = player;
 
-  if (!flag) {
-    const wasFlying = p.surrendered;
-    p.surrendered = false;
-    p.surrenderQueued = false;
-    if (wasFlying) p.surrenderLiftedAtTick = tick;
+  if (!away) {
+    const wasAway = p.onVacation;
+    p.onVacation = false;
+    p.vacationQueued = false;
+    if (wasAway) p.vacationEndedAtTick = tick;
     world.players[p.id] = p;
     return {
       ok: true,
-      message: wasFlying
-        ? "The white flag is lowered — your host stands ready again (no attacks for a short while)."
-        : "Surrender is called off.",
+      message: wasAway
+        ? "You are back in the world — your host stands ready again (no attacks for a short while)."
+        : "Departure called off.",
     };
   }
 
-  if (p.surrendered) return { ok: true, message: "You already fly the white flag." };
-  if ((p.surrenderTicksUsed ?? 0) >= SURRENDER_TICKS_PER_ERA) {
+  if (p.onVacation) return { ok: true, message: "You are already away." };
+  if ((p.vacationTicksUsed ?? 0) >= VACATION_TICKS_PER_ERA) {
     throw new EngineError(
-      "surrender",
-      `You have spent your ${SURRENDER_DAYS_PER_ERA} days of surrender for this age — there is no hiding now.`,
+      "vacation",
+      `You have spent your ${VACATION_DAYS_PER_ERA} days of vacation for this age — there is no hiding now.`,
     );
   }
   if (revengePendingOn(world, p.id, tick)) {
-    p.surrenderQueued = true;
+    p.vacationQueued = true;
     world.players[p.id] = p;
     return {
       ok: true,
       message:
-        "A revenge still hangs over you — surrender is queued. The white flag rises once every revenge window against you has closed.",
+        "A revenge still hangs over you — your vacation is queued. You depart once every revenge window against you has closed.",
     };
   }
-  p.surrendered = true;
-  p.surrenderQueued = false;
+  p.onVacation = true;
+  p.vacationQueued = false;
   world.players[p.id] = p;
   return {
     ok: true,
-    message: "The white flag is raised — untouchable but for revenge, at half tax and half production.",
+    message: "You have gone on vacation — untouchable but for revenge, at half tax and half production.",
   };
 }
 
@@ -883,7 +888,7 @@ function doClanBombard(
     throw new EngineError("target", "Choose a clan building to bombard");
   }
   const target = which as ClanBuilding;
-  if (attacker.surrendered) throw new EngineError("surrender", "You have surrendered — lift the white flag first");
+  if (attacker.onVacation) throw new EngineError("vacation", "You are on vacation — come back to the world first");
   if (attacker.starving) throw new EngineError("starving", "Starving armies will not march");
   if (tick - world.meta.eraStartedAtTick < ERA_PEACE_TICKS) {
     throw new EngineError("peace", "The era peace holds — no attacks in the first 5 days");
@@ -913,7 +918,7 @@ function doClanBombard(
 
   const a = outcome.attacker;
   a.turnsAvailable -= 10;
-  a.surrendered = false;
+  a.onVacation = false;
   a.shieldUntilTick = Math.min(a.shieldUntilTick, tick);
 
   const damaged = outcome.clan;

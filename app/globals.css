@@ -6674,3 +6674,23 @@ button.act-ghost {
   .rstat-spark, .rstat-z { display: none; }
   .rstat-aura, .rstat-glow { opacity: 0.6; }
 }
+
+/* Clan tab strip — the Rankings tabs plus a small count badge. The badge is
+   the reason the clan page was split at all: a leader should see "3 petitions"
+   without opening the page to find out. */
+.clan-tabs a {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.clan-tab-badge {
+  font: 400 12px Verdana, sans-serif;
+  color: var(--ink-soft);
+  border-left: 1px solid var(--border);
+  padding-left: 6px;
+}
+@media (max-width: 640px) {
+  .clan-tabs {
+    flex-wrap: wrap;
+  }
+}

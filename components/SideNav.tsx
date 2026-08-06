@@ -35,7 +35,7 @@ const SECTIONS: { head: string; sub: string; items: Item[] }[] = [
     items: [
       { href: "/troops", label: "⚔️ The Army", desc: "Raise footmen/archers/cavalry; hire mercenaries" },
       { href: "/siege", label: "🏹 Siege Works", desc: "Build engines & see your defensive counters" },
-      { href: "/clan", label: "🛡️ Clan", desc: "Found or join a clan; shared storage and wars" },
+      { href: "/clan", label: "🛡️ Clan", desc: "Your banner — hall, works & vault, chat, wars" },
     ],
   },
 ];

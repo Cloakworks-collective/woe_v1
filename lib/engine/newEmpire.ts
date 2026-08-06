@@ -55,8 +55,8 @@ export function newEmpire(opts: {
     },
     bankedResources: { food: 0, wood: 0, stone: 0, ore: 0 },
     turnsAvailable: ACTION_TURNS.START,
-    surrendered: false,
-    surrenderTicksUsed: 0,
+    onVacation: false,
+    vacationTicksUsed: 0,
     starving: false,
 
     // Founding structures (START.BUILDINGS): level-1 banking so day-one raids

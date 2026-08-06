@@ -12,10 +12,10 @@ import {
   STAMINA,
   STORAGE_BUILDING,
   storageShelterAtLevel,
-  SURRENDER_TAX_FACTOR,
-  SURRENDER_PRODUCTION_FACTOR,
-  SURRENDER_TICKS_PER_ERA,
-  SURRENDER_DAYS_PER_ERA,
+  VACATION_TAX_FACTOR,
+  VACATION_PRODUCTION_FACTOR,
+  VACATION_TICKS_PER_ERA,
+  VACATION_DAYS_PER_ERA,
   researchOrdinalCost,
   EFFECT_PER_LEVEL,
   MAX_FIELD_LEVEL,
@@ -51,10 +51,10 @@ const PRODUCTION: {
 ];
 
 /** Tax income per turn: every civilian pays GOLD_PER_CIVILIAN_AT_FULL_TAX ×
- *  taxRate (halved surrendered). */
+ *  taxRate (halved while on vacation). */
 export function taxIncomePerTurn(p: Player): number {
   let income = civilians(p) * GOLD_PER_CIVILIAN_AT_FULL_TAX * p.taxRate;
-  if (p.surrendered) income *= SURRENDER_TAX_FACTOR;
+  if (p.onVacation) income *= VACATION_TAX_FACTOR;
   return income;
 }
 
@@ -91,9 +91,9 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
   const events: EngineResult["events"] = [];
   // Incite Unrest (espionage.md): tax and production −25% while it lasts.
   const unrestMult = unrestActive(p, currentTick) ? 0.75 : 1;
-  // Surrender (economy.md): the town goes dormant — production drops by half
+  // Vacation (economy.md): the town goes dormant — production drops by half
   // (tax income is halved inside taxIncomePerTurn).
-  const surrenderMult = p.surrendered ? SURRENDER_PRODUCTION_FACTOR : 1;
+  const vacationMult = p.onVacation ? VACATION_PRODUCTION_FACTOR : 1;
 
   // 1. Food upkeep — before production, always. Loose food first; when it
   //    runs short the granary vault feeds the people (no starving beside a
@@ -144,7 +144,7 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
     for (const { role, building, resource, field } of PRODUCTION) {
       const n = p.workers[role];
       if (n === 0) continue;
-      const per = productionPerWorker(p, building, hallPenaltyFactor) * unrestMult * surrenderMult;
+      const per = productionPerWorker(p, building, hallPenaltyFactor) * unrestMult * vacationMult;
       if (per === 0) continue; // no building, no output
       const fieldMult = 1 + researchLevel(p, field) * EFFECT_PER_LEVEL;
       // A bombarded production building yields proportionally less.
@@ -157,7 +157,7 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
     // (global, progressive) cost is paid.
     const researchers = p.workers.researchers;
     const field = p.research.activeField;
-    const rpPerScholar = productionPerWorker(p, "collegium", hallPenaltyFactor) * unrestMult * surrenderMult;
+    const rpPerScholar = productionPerWorker(p, "collegium", hallPenaltyFactor) * unrestMult * vacationMult;
     if (researchers > 0 && field && rpPerScholar > 0) {
       p.research.banked[field] =
         (p.research.banked[field] ?? 0) + researchers * rpPerScholar * buildingIntegrity(p, "collegium");
@@ -178,8 +178,18 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
       }
     }
 
-    // 4. Stamina recovery (passive).
-    p.army.stamina = Math.min(STAMINA.MAX, p.army.stamina + STAMINA.PASSIVE_RECOVERY_PER_TURN);
+    // 4. Stamina recovery (passive) — the army mends on its own while you are
+    //    away, but only if there is food on the table to pay for it. An empire
+    //    scraping by feeds its people first; the soldiers stay tired. (The
+    //    active option, Rest, likewise costs food — see `restTroops`.)
+    if (p.army.stamina < STAMINA.MAX) {
+      const room = Math.min(STAMINA.PASSIVE_RECOVERY_PER_TURN, STAMINA.MAX - p.army.stamina);
+      const cost = STAMINA.PASSIVE_FOOD_PER_TROOP * military(p) * room;
+      if (p.resources.food >= cost) {
+        p.resources.food -= cost;
+        p.army.stamina += room;
+      }
+    }
   }
 
   // The Steward's vault duty (Royal Charter): loose goods flow into their
@@ -202,16 +212,16 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
   // Action turns accrue regardless (armies idle, the calendar doesn't).
   p.turnsAvailable = Math.min(ACTION_TURNS.CAP, p.turnsAvailable + ACTION_TURNS.PER_GAME_TURN);
 
-  // Surrender allowance: every turn under the white flag spends the era budget.
-  // When it runs dry the flag comes down on its own — you can hide no longer.
-  if (p.surrendered) {
-    p.surrenderTicksUsed = (p.surrenderTicksUsed ?? 0) + 1;
-    if (p.surrenderTicksUsed >= SURRENDER_TICKS_PER_ERA) {
-      p.surrendered = false;
-      p.surrenderLiftedAtTick = currentTick;
+  // Vacation allowance: every turn away spends the era budget.
+  // When it runs dry you are returned to the world — you can hide no longer.
+  if (p.onVacation) {
+    p.vacationTicksUsed = (p.vacationTicksUsed ?? 0) + 1;
+    if (p.vacationTicksUsed >= VACATION_TICKS_PER_ERA) {
+      p.onVacation = false;
+      p.vacationEndedAtTick = currentTick;
       events.push({
         type: "info",
-        detail: `Your ${SURRENDER_DAYS_PER_ERA} days of surrender for this age are spent — the white flag comes down of its own accord.`,
+        detail: `Your ${VACATION_DAYS_PER_ERA} days of vacation for this age are spent — you are back in the world whether you like it or not.`,
       });
     }
   }

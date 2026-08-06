@@ -237,8 +237,8 @@ export default function GuidePage() {
           </li>
           <li>
             <b>Revenge</b> — to <b>kill troops</b>. Opens for 18h after you&apos;re attacked; ignores
-            surrender, low stamina, and broken walls, and <b>chains</b> (revenge re-arms the
-            victim&apos;s window).
+            vacation, low stamina, and broken walls, gives the defender <b>no chance to yield</b>,
+            and <b>chains</b> (revenge re-arms the victim&apos;s window).
           </li>
           <li>
             <b>Bombard</b> — an artillery duel that wrecks <b>walls first</b>, then cracks random
@@ -297,6 +297,16 @@ export default function GuidePage() {
           troop, merc &amp; siege costs for every member).
         </p>
         <p>
+          Once you fly a banner the Clan page opens into four tabs:{" "}
+          <Link href="/clan">Hall</Link> (crest, roster, and the gate where petitions wait),{" "}
+          <Link href="/clan/works">Works &amp; Vault</Link> (raise and repair the three works, and
+          give to or draw from the shared pool that pays for them),{" "}
+          <Link href="/clan/chat">Chat</Link>, and{" "}
+          <Link href="/clan/war">War Front</Link> (declare war, and bombard an enemy&apos;s works).
+          The tabs carry counts — waiting petitions and the day&apos;s chat — so you can see what
+          needs you without opening each one.
+        </p>
+        <p>
           <b>Clan wars double battle damage both ways.</b> Winning a war siphons tribute and freezes
           the loser&apos;s victory clocks for 48h. Neutral is the default; friendly clans share online
           status and last-attacked times.
@@ -323,8 +333,10 @@ export default function GuidePage() {
             <b>Keep troops above 30% of civilians</b> so your people never scatter at the reset.
           </li>
           <li>
-            <b>Surrender</b> is an option (Command View): you can&apos;t attack and your tax halves,
-            but you become immune to everything except revenge.
+            <b>Vacation</b> is an option (Command View): you can&apos;t attack and your tax halves,
+            but you become immune to everything except revenge. Don&apos;t confuse it with{" "}
+            <b>yielding</b> — a yield is decided for you on the battlefield when you&apos;re
+            outmatched, and it saves your soldiers but not your stores.
           </li>
           <li>
             New empires get a <b>72-hour shield</b>, and the first <b>{ERA_PEACE_DAYS} days</b> of
@@ -503,9 +515,11 @@ export default function GuidePage() {
         <h4>Why it&apos;s special</h4>
         <ul>
           <li>
-            It <b>ignores the rules that stop normal attacks</b>: their surrender, their exhaustion,
+            It <b>ignores the rules that stop normal attacks</b>: their vacation, their exhaustion,
             their broken walls, and even the &ldquo;too strong to attack&rdquo; refusal — so you can
-            strike a target far <i>above</i> your weight.
+            strike a target far <i>above</i> your weight. Alone among attacks, it also gives them{" "}
+            <b>no chance to yield</b>: however beaten they are, the fight is real and their regulars
+            die.
           </li>
           <li>
             It takes <b>no loot</b>. Its only purpose is to <b>kill regulars</b> — the deepest wound

@@ -19,7 +19,7 @@ NOT balance: types, display text, and structural identity.
 | 1 | Time & pacing | turn length, turns/day, era peace days, newcomer shield |
 | 2 | Starting empire | `START`: gold, resources, peasants, footmen, founding buildings |
 | 3 | Population & growth | growth curve (settlers/day), housing/bed, wall settler penalty, scattering, settlement titles |
-| 4 | Economy | tax gold rate, worker-output curve, food upkeep, surrender factors, merc price/cap/upkeep, storage shelter |
+| 4 | Economy | tax gold rate, worker-output curve, food upkeep, vacation factors, merc price/cap/upkeep, storage shelter |
 | 5 | Building costs | base costs, cost-multiplier curve, gold share, ratio bands, muster beds, repair factor |
 | 6 | Research | research-cost curve, switch loss, max level, effect/level |
 | 7 | Units & training | `UNIT_STATS`, tier power, training costs, tier cost mult |

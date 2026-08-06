@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       population: totalPopulation(p),
       online: isOnline(p),
       score: rankingScore(p),
-      surrendered: p.surrendered,
+      onVacation: p.onVacation,
       shielded: p.shieldUntilTick > tick,
       you: p.id === playerId,
     }))

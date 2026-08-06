@@ -80,10 +80,36 @@ you can do to an enemy: every dead regular is dead
 - Spy missions are also blocked against protected players, otherwise the
   shield leaks through arson and sabotage (implemented provisionally).
 
-**Mercy rules:** raid, siege, and bombard cannot target a player who has
-**surrendered** or whose army stamina is **below 25** (beaten down).
-**Revenge ignores all of it** — surrender, low stamina, rubbled walls — and
-is available for **18 hours** after the original attack, once per attacker.
+**Mercy rules:** raid, siege, and bombard cannot target a player who is **away
+on Vacation**. A **beaten-down** defender (army stamina below 25) is no longer
+blocked — the attack lands, but they **yield** rather than fight (see below).
+**Revenge ignores all of it** — vacation, low stamina, rubbled walls, and the
+yield itself — and is available for **18 hours** after the original attack,
+once per attacker.
+
+**Battlefield yield** (decided by the engine, mid-attack — *not* the same thing
+as Vacation, which is a standing choice made out of combat). Before the first
+round, the defender lays down arms if either holds:
+
+- their **defensive power** — bodies × defence, lifted by the **walls on castle
+  attacks only** (raids are open-field, so walls count for nothing) and dragged
+  down by their stamina like every other combat stat — is below **60%** of the
+  attacker's offensive power; **or**
+- their army **stamina is below 25** (the mercy floor).
+
+A yield resolves as a real battle with `rounds: 0` and `victor: "attacker"`:
+
+- the attacker takes **full loot** for the mode (resources on a raid, resources
+  + gold on a siege);
+- the defending **regulars take no losses at all** — their sellswords cover the
+  retreat and lose 25%, which is what sellswords are paid for;
+- the attacker takes **no losses** and next to **no stamina drain** — there was
+  no fight to tire anyone;
+- **walls take no damage** and no siege gear is lost.
+
+**Revenge never yields.** However beaten a target is, a revenge strike is a real
+battle and their regulars die. It remains the only way to punish a player who
+turtles behind repeated yields.
 **Revenge chains:** a revenge attack is itself an attack — it opens a fresh
 18-hour revenge window for the side that just got revenged. Feuds don't end
 until someone lets the clock run out.
@@ -95,9 +121,14 @@ member who was in the clan at that moment can be the one to deliver it
 (membership snapshot, 18h window, first to strike uses it). You never know
 which knife is coming.
 
-**Surrender** (voluntary status): while surrendered you cannot attack, and
-tax income is halved (tribute and shame). Lift it any time; attacking lifts
-it automatically. Revenge still finds you.
+**Vacation** (voluntary status — renamed from "surrender", which collided with
+the battlefield yield above): while away you cannot attack, and both tax income
+and production are halved. Capped at **20 days per era**, cumulative; when the
+budget runs dry you are returned to the world automatically. You cannot depart
+while a revenge hangs over you — it **queues** and takes effect once every such
+window closes. Returning starts an **18-hour re-attack cooldown** so vacation
+can't be used to duck a siege and immediately swing back. Revenge still finds
+you.
 
 **Bombard** is the pure artillery duel: attacker sends trebuchets + crews
 (no army). **You do not choose a target** — the engines follow the siege's
@@ -203,10 +234,29 @@ to its starting strength. A side **breaks** below 30%.
 
 ### 4. Aftermath
 
-**Stamina:** −8/round for the attacker, −5/round for the defender.
-Recovery: +1/turn passive, or the **rest action** — 5 action turns +
-0.2 food per troop → **+20 stamina** for the whole army (tunable;
-unavailable while starving).
+**Stamina:** the drain scales with the **damage you dealt**, not with how long
+the battle ran. Each side pays
+
+```
+drain = MAX_DRAIN × min(1, damageDealt / enemyToughness)
+enemyToughness = Σ(count × defence) × k × (1 + defenceBonus)   // damage to wipe them out
+```
+
+with `MAX_DRAIN` = **80** for the attacker and **50** for the defender, both
+fixed at the start of the battle so a crumbling wall doesn't retroactively
+rescale the cost. Swinging hard tires an army out; standing in a shield wall
+absorbing blows does not. Cut the enemy down to the last man and you pay the
+full price; walk into a yield and you pay almost nothing. **Bombard drains no
+stamina from either side** — it is engines against masonry, not men.
+
+Recovery, both of which **cost food**:
+
+- **Passive** (offline): +1/turn, charged at 0.02 food per troop per point. An
+  empire that cannot feed the recovery doesn't get it — the soldiers stay tired.
+  Frozen entirely while starving.
+- **Rest** (the active choice): 5 action turns + 0.2 food per troop →
+  **+20 stamina** for the whole army. Blocked outright when the food isn't
+  there, and unavailable while starving.
 
 **Experience** (global army stat, 0–100): troops keep getting stronger up to
 **+100%** at 100 XP (`experienceMod` above). What the *attacker* earns

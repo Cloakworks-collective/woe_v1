@@ -102,7 +102,7 @@ export function ClanMembers({
                       {attacked && <b style={{ color: "var(--warn)" }} title="Recently attacked">✗ </b>}
                       <Link href={`/empire/${m.id}`}>{m.name}</Link>
                       {m.id === viewerId && " (you)"}
-                      {m.surrendered && " 🏳"}
+                      {m.onVacation && " 🏳"}
                       {role(m.id) && <i> ({role(m.id)})</i>}
                     </span>
                   </span>

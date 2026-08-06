@@ -112,9 +112,11 @@ export default async function WorldNewsPage({
               const outcome =
                 b.victor === "none"
                   ? "the engines merely traded fire"
-                  : b.victor === "attacker"
-                    ? `${b.attackerName} carried the day (${b.rounds}r)`
-                    : `${b.defenderName} held the field (${b.rounds}r)`;
+                  : b.yielded
+                    ? `${b.defenderName} laid down arms without a fight`
+                    : b.victor === "attacker"
+                      ? `${b.attackerName} carried the day (${b.rounds}r)`
+                      : `${b.defenderName} held the field (${b.rounds}r)`;
               const damage = [
                 b.wallDamage > 0 ? `🧱 −${Math.round(b.wallDamage * 100)}%` : "",
                 b.buildingsHit > 0 ? `🏚 ${b.buildingsHit}` : "",

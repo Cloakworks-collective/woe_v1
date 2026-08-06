@@ -9,6 +9,7 @@ import {
 } from "./combat";
 import { newEmpire } from "./newEmpire";
 import { seededRng } from "./rng";
+import { STAMINA } from "../constants";
 import { buildingIntegrity, type Player } from "./types";
 
 function empire(name: string, mods: (p: Player) => void): Player {
@@ -278,13 +279,26 @@ describe("attack validation", () => {
     expect(validateAttack(a, d, "raid", CTX)).toMatch(/shield/i);
   });
 
-  it("mercy rules spare the beaten — but revenge ignores them", () => {
+  it("a beaten-down defender no longer blocks the attack — they yield instead", () => {
     const a = empire("A", (p) => void (p.shieldUntilTick = 0));
     const d = empire("D", (p) => {
       p.shieldUntilTick = 0;
       p.army.stamina = 10;
     });
-    expect(validateAttack(a, d, "siege", CTX)).toMatch(/beaten down/i);
+    // The mercy floor used to reject the command outright. Now the attack
+    // lands and the engine resolves it as a yield (see the yield suite below).
+    expect(validateAttack(a, d, "siege", CTX)).toBeNull();
+    a.recentAttackers.push({ playerId: d.id, tick: 950 });
+    expect(validateAttack(a, d, "revenge", CTX)).toBeNull();
+  });
+
+  it("vacation still blocks everything but revenge", () => {
+    const a = empire("A", (p) => void (p.shieldUntilTick = 0));
+    const d = empire("D", (p) => {
+      p.shieldUntilTick = 0;
+      p.onVacation = true;
+    });
+    expect(validateAttack(a, d, "siege", CTX)).toMatch(/vacation/i);
     a.recentAttackers.push({ playerId: d.id, tick: 950 });
     expect(validateAttack(a, d, "revenge", CTX)).toBeNull();
   });
@@ -297,5 +311,129 @@ describe("attack validation", () => {
       p.army.experience = 100;
     });
     expect(validateAttack(a, d, "raid", CTX)).toMatch(/refuse/i);
+  });
+});
+
+describe("battlefield yield", () => {
+  // A host that cannot make a fight of it lays down arms: the stores are lost,
+  // the soldiers are not. Distinct from Vacation, which is chosen out of combat.
+  const strongHost = (p: Player) => {
+    p.army.footmen.light = 500;
+    p.shieldUntilTick = 0;
+  };
+
+  it("yields when defensive power falls below 60% of the attacker's", () => {
+    const a = empire("A", strongHost);
+    const d = empire("D", (p) => {
+      p.army.footmen.light = 10; // hopelessly outmatched
+      p.shieldUntilTick = 0;
+      p.resources.food = 5000;
+    });
+    const { report, defender } = resolveBattle(a, d, "raid", { ...OPTS, rng: seededRng(1) });
+    expect(report.yielded).toBe(true);
+    expect(report.victor).toBe("attacker");
+    expect(report.rounds).toBe(0);
+    // Regulars come through untouched.
+    expect(report.defenderLosses.footmen).toBe(0);
+    expect(defender.army.footmen.light).toBe(10);
+    // The attacker still walks off with the stores.
+    expect(report.loot.resources.food).toBeGreaterThan(0);
+  });
+
+  it("yields when the defender is below the stamina mercy floor, even if strong", () => {
+    const a = empire("A", strongHost);
+    const d = empire("D", (p) => {
+      p.army.footmen.light = 500; // an even match on paper...
+      p.army.stamina = 10; // ...but spent
+      p.shieldUntilTick = 0;
+    });
+    const { report } = resolveBattle(a, d, "raid", { ...OPTS, rng: seededRng(2) });
+    expect(report.yielded).toBe(true);
+    expect(report.defenderLosses.footmen).toBe(0);
+  });
+
+  it("spares the regulars but bleeds the sellswords", () => {
+    const a = empire("A", strongHost);
+    const d = empire("D", (p) => {
+      p.army.footmen.light = 10;
+      p.army.mercenaries.footmen.light = 100;
+      p.shieldUntilTick = 0;
+    });
+    const { report } = resolveBattle(a, d, "raid", { ...OPTS, rng: seededRng(3) });
+    expect(report.yielded).toBe(true);
+    expect(report.defenderLosses.footmen).toBe(0); // regulars untouched
+    expect(report.defenderLosses.mercenaries).toBe(25); // 25% screen the retreat
+  });
+
+  it("revenge is never yielded to — the fight is real", () => {
+    const a = empire("A", strongHost);
+    const d = empire("D", (p) => {
+      p.army.footmen.light = 10;
+      p.army.stamina = 1; // beaten down AND outmatched
+      p.shieldUntilTick = 0;
+    });
+    const { report } = resolveBattle(a, d, "revenge", { ...OPTS, rng: seededRng(4) });
+    expect(report.yielded).toBe(false);
+    expect(report.rounds).toBeGreaterThan(0);
+    expect(report.defenderLosses.footmen).toBeGreaterThan(0); // regulars die
+  });
+
+  it("costs the attacker almost no stamina — nobody swung hard", () => {
+    const a = empire("A", strongHost);
+    const d = empire("D", (p) => {
+      p.army.footmen.light = 10;
+      p.shieldUntilTick = 0;
+    });
+    const { report } = resolveBattle(a, d, "raid", { ...OPTS, rng: seededRng(5) });
+    expect(report.staminaLoss.attacker).toBeLessThan(5);
+    expect(report.staminaLoss.defender).toBe(0); // they never struck back
+  });
+});
+
+describe("stamina drain scales with damage dealt", () => {
+  it("a hard-fought battle drains both sides far more than a walkover", () => {
+    const even = (n: number) => (p: Player) => {
+      p.army.footmen.light = n;
+      p.army.archers.light = n;
+      p.shieldUntilTick = 0;
+    };
+    const a = empire("A", even(200));
+    const d = empire("D", even(200));
+    const hard = resolveBattle(a, d, "raid", { ...OPTS, rng: seededRng(7) }).report;
+
+    const weak = empire("W", (p) => {
+      p.army.footmen.light = 5;
+      p.shieldUntilTick = 0;
+    });
+    const walkover = resolveBattle(a, weak, "raid", { ...OPTS, rng: seededRng(7) }).report;
+
+    expect(hard.staminaLoss.attacker).toBeGreaterThan(walkover.staminaLoss.attacker);
+    expect(hard.staminaLoss.defender).toBeGreaterThan(0);
+  });
+
+  it("never exceeds the per-battle ceiling", () => {
+    const a = empire("A", (p) => {
+      p.army.cavalry.heavy = 5000; // overwhelming
+      p.shieldUntilTick = 0;
+    });
+    const d = empire("D", (p) => {
+      p.army.footmen.light = 400;
+      p.army.archers.light = 400;
+      p.shieldUntilTick = 0;
+    });
+    const { report } = resolveBattle(a, d, "revenge", { ...OPTS, rng: seededRng(8) });
+    expect(report.staminaLoss.attacker).toBeLessThanOrEqual(STAMINA.MAX_DRAIN_ATTACKER);
+    expect(report.staminaLoss.defender).toBeLessThanOrEqual(STAMINA.MAX_DRAIN_DEFENDER);
+  });
+
+  it("bombard drains no stamina from either side", () => {
+    const a = empire("A", (p) => {
+      p.army.siegeGear.trebuchets = 5;
+      p.army.siegeEngineers = 50;
+      p.shieldUntilTick = 0;
+    });
+    const d = empire("D", (p) => void (p.shieldUntilTick = 0));
+    const { report } = resolveBombard(a, d, { ...OPTS, rng: seededRng(9) });
+    expect(report.staminaLoss).toEqual({ attacker: 0, defender: 0 });
   });
 });

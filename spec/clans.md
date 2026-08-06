@@ -162,7 +162,7 @@ statement: this clan out-produced everyone.
   revenge attack** — but it can be executed by **any member who was in the
   clan at that moment** (membership snapshot, 18h window, first to strike
   uses it). The clan chooses its champion: expect their strongest.
-- Mercy rules still apply (surrender, stamina < 25) — except revenge, as always.
+- Mercy rules still apply (vacation blocks; low stamina yields) — except revenge, as always.
 - Peace: either leadership can offer; both must accept.
 
 ### Winning a clan war

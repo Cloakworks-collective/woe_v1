@@ -117,14 +117,14 @@ export interface Player {
    *  Charter holders auto-vault each tick. Absent on old saves = all zeros. */
   bankedResources?: Record<Resource, number>;
   turnsAvailable: number; // action turns
-  surrendered: boolean;
-  /** Cumulative turns spent surrendered this era; capped at SURRENDER_TICKS_PER_ERA. */
-  surrenderTicksUsed: number;
-  /** Queued surrender: the flag rises automatically once every revenge window
-   *  against you has closed (you can't surrender while owing revenge). */
-  surrenderQueued?: boolean;
-  /** Turn the white flag last came down — gates the re-attack cooldown. */
-  surrenderLiftedAtTick?: number;
+  onVacation: boolean;
+  /** Cumulative turns spent on vacation this era; capped at VACATION_TICKS_PER_ERA. */
+  vacationTicksUsed: number;
+  /** Queued vacation: you depart automatically once every revenge window
+   *  against you has closed (you can't leave while owing revenge). */
+  vacationQueued?: boolean;
+  /** Turn you last returned from vacation — gates the re-attack cooldown. */
+  vacationEndedAtTick?: number;
   starving: boolean; // food hit 0 — empire frozen until fed
 
   // Buildings: level for levelled/tiered buildings, count for counted ones
@@ -233,6 +233,10 @@ export interface BattleReport {
   mode: AttackMode;
   rounds: number;
   victor: "attacker" | "defender" | "none"; // bombard has no victor
+  /** The defender laid down arms rather than fight (outmatched, or stamina
+   *  below the mercy floor). The attacker takes the stores; the defending
+   *  regulars live. Never true for revenge, which offers no such mercy. */
+  yielded?: boolean;
   attackerLosses: UnitLosses;
   defenderLosses: UnitLosses;
   wallIntegrityDamage: number; // fraction of defender's wall destroyed
@@ -337,6 +341,28 @@ export function normalizePlayer(p: Player): Player {
   }
   // Defensive siege engines were added later — old armies have none.
   if (!p.army.siegeCounters) p.army.siegeCounters = emptySiegeCounters();
+  // "Surrender" was renamed to "Vacation" once battlefield yields arrived and
+  // the two senses started colliding. Carry legacy saves over.
+  const legacy = p as unknown as Record<string, unknown>;
+  if (legacy.surrendered !== undefined) {
+    p.onVacation = Boolean(legacy.surrendered);
+    delete legacy.surrendered;
+  }
+  if (legacy.surrenderTicksUsed !== undefined) {
+    p.vacationTicksUsed = Number(legacy.surrenderTicksUsed) || 0;
+    delete legacy.surrenderTicksUsed;
+  }
+  if (legacy.surrenderQueued !== undefined) {
+    p.vacationQueued = Boolean(legacy.surrenderQueued);
+    delete legacy.surrenderQueued;
+  }
+  if (legacy.surrenderLiftedAtTick !== undefined) {
+    p.vacationEndedAtTick = Number(legacy.surrenderLiftedAtTick);
+    delete legacy.surrenderLiftedAtTick;
+  }
+  // Fields that predate the rename entirely (a save from before either name).
+  p.onVacation = p.onVacation ?? false;
+  p.vacationTicksUsed = p.vacationTicksUsed ?? 0;
   return p;
 }
 

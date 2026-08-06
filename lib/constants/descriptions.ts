@@ -52,7 +52,7 @@ export const ATTACK_MODE_INFO: Record<string, { title: string; tip: string }> = 
   },
   revenge: {
     title: "Revenge",
-    tip: "A grudge-strike, open only for 18 hours after someone hits you. It ignores their surrender, their exhaustion, and the 'too strong to attack' rule — but takes no loot. The payment is dead soldiers, and killing their regulars is the worst wound you can deal, dragging their ranking down for days.",
+    tip: "A grudge-strike, open only for 18 hours after someone hits you. It ignores their vacation, their exhaustion, the 'too strong to attack' rule — and, alone among attacks, it gives them no chance to yield. The payment is dead soldiers, and killing their regulars is the worst wound you can deal, dragging their ranking down for days.",
   },
   bombard: {
     title: "Bombard",
@@ -62,8 +62,8 @@ export const ATTACK_MODE_INFO: Record<string, { title: string; tip: string }> = 
 
 export const ACTION_INFO: Record<string, string> = {
   tax: "The tax dial, from 0% to 100%. Crank it up and gold pours in while your workers down tools; ease it off and production surges while the treasury dries up. 50% is the balanced middle — high tax is a war chest, low tax is a rebuilding sprint.",
-  surrender:
-    "Raise the white flag to become untouchable by everything except revenge — a shelter for when you're outmatched, not a habit. The cost is steep: you cannot attack, and BOTH your tax income and your production fall by half while it flies. You may spend at most 20 days surrendered per era, total. You cannot raise it while a revenge hangs over you — it queues instead, and rises on its own once every revenge window against you has closed. Lower it whenever you like, but your army then stands down: no fresh attacks for 18 hours (revenge excepted), so you can't duck a siege and immediately swing back.",
+  vacation:
+    "Step away from the age entirely and become untouchable by everything except revenge — a shelter for when you're outmatched, not a habit. This is not the same as yielding a battle: a yield is decided for you on the field when you're outmatched, and costs you your stores. Vacation is a standing choice, and the cost is steep: you cannot attack, and BOTH your tax income and your production fall by half while you're away. You may spend at most 20 days on vacation per era, total. You cannot depart while a revenge hangs over you — it queues instead, taking effect once every revenge window against you has closed. Come back whenever you like, but your army then musters slowly: no fresh attacks for 18 hours (revenge excepted), so you can't duck a siege and immediately swing back.",
   bank: "Shelter gold and goods in the Counting House and storehouses. Each “Store all” button vaults the most it can hold — safe from raiders and spies. Loose stock left in the open is theirs to take. A bombarded store shelters less (capacity × its integrity) and its overflow spills back out.",
   rest: "Stand the army down to recover: 5 action turns and a little food buy back 20 stamina for every soldier. Tired troops swing weaker and guard worse, so rest before a hard fight — you can't rest while starving.",
   trainTroops: "Raise idle peasants straight into footmen, archers, or cavalry at the tier you choose — no warrior middle step. Tier needs the matching trainer AND a Forge at that same level, plus a free Muster Hall bed. Instant.",
@@ -165,7 +165,7 @@ export const ATTACK_MODE_GUIDE: Record<string, string> = {
 
 export const ACTION_GUIDE: Record<string, string> = {
   tax: "/guide#grow",
-  surrender: "/guide#defense",
+  vacation: "/guide#defense",
   bank: "/guide#grow",
   rest: "/guide#army",
   trainTroops: "/guide#army",

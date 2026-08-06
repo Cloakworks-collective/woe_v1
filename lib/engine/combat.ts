@@ -29,6 +29,7 @@ import {
   wallBonusAtLevel,
   WAR_FOUNDRY_LADDER,
   XP,
+  YIELD,
 } from "../constants";
 import type { BuildingId, CounterType } from "../constants/buildings";
 import { luck, type Rng } from "./rng";
@@ -222,6 +223,19 @@ function strength(s: Side): number {
   return s.groups.reduce((sum, g) => sum + g.count * g.atk, 0);
 }
 
+/** How much damage it would take to kill this side outright, at the given
+ *  defence bonus. The yardstick for "how hard did you actually swing" — a
+ *  battle's stamina drain scales with damage dealt against this. */
+function toughness(s: Side, defBonus: number): number {
+  return s.groups.reduce((sum, g) => sum + g.count * g.def, 0) * K_LETHALITY * (1 + defBonus);
+}
+
+/** A side's power to hold ground: bodies × defence, lifted by the walls (which
+ *  count only on castle attacks — `wallBonus` is 0 for an open-field raid). */
+function defensivePower(s: Side, defBonus: number): number {
+  return s.groups.reduce((sum, g) => sum + g.count * g.def, 0) * (1 + defBonus);
+}
+
 function headcount(s: Side): number {
   return s.groups.reduce((sum, g) => sum + g.count, 0);
 }
@@ -360,12 +374,31 @@ export function resolveBattle(
   let rounds = 0;
   let victor: "attacker" | "defender" = "defender";
 
-  if (walls && escalade > 0) {
+  // Damage each side actually lands on the other, summed over every phase. The
+  // stamina drain below is a share of this — swinging hard tires an army out;
+  // standing in a shield wall taking the blow does not.
+  let aDealt = 0;
+  let dDealt = 0;
+  // Fixed at the start so a crumbling wall doesn't retroactively rescale drain.
+  const atkToughness = toughness(atk, 0);
+  const defToughness = toughness(def, def.wallBonus);
+
+  // ── Battlefield yield (spec/combat.md) ─────────────────────────────────────
+  // A defender who plainly cannot make a fight of it lays down arms instead of
+  // being butchered: the attacker walks in and takes the stores, but the levy
+  // lives. This is NOT Vacation — that is a standing choice made out of combat.
+  // Revenge is the one attack that offers no such mercy.
+  const outmatched =
+    defensivePower(def, def.wallBonus) < YIELD.STRENGTH_RATIO * strength(atk);
+  const beatenDown = defender.army.stamina < STAMINA.MERCY_FLOOR;
+  const yielded = mode !== "revenge" && (outmatched || beatenDown);
+
+  if (walls && escalade > 0 && !yielded) {
     log.push(`Escalade covers ${Math.round(escalade * 100)}% of the attacking host.`);
   }
 
   // Name how many engines the defenders' crewed counters neutralise.
-  if (walls) {
+  if (walls && !yielded) {
     for (const t of ["ropes", "ladders", "rams", "ballistae", "trebuchets"] as const) {
       const ct = COUNTER_FOR[t];
       const manned = defCrew.counters[ct];
@@ -376,7 +409,33 @@ export function resolveBattle(
     }
   }
 
-  for (let round = 1; round <= MAX_ROUNDS; round++) {
+  if (yielded) {
+    victor = "attacker";
+    log.push(
+      beatenDown
+        ? `${defender.name}'s army is spent — stamina ${defender.army.stamina}/${STAMINA.MAX}. They lay down arms rather than be cut apart.`
+        : `${defender.name} weighs the odds and lays down arms — the host is far too strong to face.`,
+    );
+    // The sellswords cover the retreat; they are paid to bleed so the levy is
+    // not. The regulars come through untouched.
+    const preYield = lossSnapshot(def);
+    for (const g of def.groups) {
+      if (!g.isMerc || g.count === 0) continue;
+      const fell = Math.floor(g.count * YIELD.MERC_LOSS_FRACTION);
+      // Damage "spent" cutting them down — feeds the stamina drain below, so a
+      // walkover costs the attacker almost nothing.
+      aDealt += fell * g.def * K_LETHALITY;
+      killGroup(def, g, fell);
+    }
+    const fallen = killsSince(def, preYield);
+    log.push(
+      fallen.total > 0
+        ? `The sellswords cover the retreat: ${fallen.parts} cut down. The levy is spared.`
+        : "Not a blow is struck. The levy is spared.",
+    );
+  }
+
+  for (let round = 1; round <= MAX_ROUNDS && !yielded; round++) {
     rounds = round;
     const aLuck = luck(opts.rng, LUCK_SWING);
     const dLuck = luck(opts.rng, LUCK_SWING);
@@ -391,6 +450,7 @@ export function resolveBattle(
         aLuck *
         atk.warBonus;
       const preSiege = lossSnapshot(def);
+      aDealt += atkSiegeTroopDmg;
       dealProportional(def, atkSiegeTroopDmg, def.wallBonus);
 
       const grind =
@@ -420,6 +480,7 @@ export function resolveBattle(
         def.warBonus;
       if (defCrewed.ballistae + defCrewed.trebuchets > 0) {
         const preReturn = lossSnapshot(atk);
+        dDealt += defSiegeTroopDmg;
         dealProportional(atk, defSiegeTroopDmg, 0);
         log.push(
           `Their engines answer (${defCrewed.ballistae + defCrewed.trebuchets} crewed): ${sideLossPhrase("attackers", killsSince(atk, preReturn))}.`,
@@ -433,6 +494,8 @@ export function resolveBattle(
     const dArrow = phaseDamage(def, ["archer"], dLuck);
     const preArrowDef = lossSnapshot(def);
     const preArrowAtk = lossSnapshot(atk);
+    aDealt += aArrow;
+    dDealt += dArrow;
     dealProportional(def, aArrow, def.wallBonus);
     dealProportional(atk, dArrow, 0);
     const arrowDef = killsSince(def, preArrowDef);
@@ -448,6 +511,8 @@ export function resolveBattle(
     const dCav = phaseDamage(def, ["cavalry"], dLuck);
     const preCavDef = lossSnapshot(def);
     const preCavAtk = lossSnapshot(atk);
+    aDealt += aCav;
+    dDealt += dCav;
     dealTargeted(def, aCav, ["cavalry", "footman", "engineer", "archer"], def.wallBonus);
     dealTargeted(atk, dCav, ["cavalry", "footman", "engineer", "archer"], 0);
     const cavDef = killsSince(def, preCavDef);
@@ -463,6 +528,8 @@ export function resolveBattle(
     const dFoot = phaseDamage(def, ["footman"], dLuck);
     const preFootDef = lossSnapshot(def);
     const preFootAtk = lossSnapshot(atk);
+    aDealt += aFoot;
+    dDealt += dFoot;
     dealTargeted(def, aFoot, ["footman", "archer", "cavalry", "engineer"], def.wallBonus);
     dealTargeted(atk, dFoot, ["footman", "archer", "cavalry", "engineer"], 0);
     const footDef = killsSince(def, preFootDef);
@@ -507,9 +574,16 @@ export function resolveBattle(
     }
   }
 
-  // Stamina.
-  attacker.army.stamina = Math.max(0, attacker.army.stamina - STAMINA.DRAIN_PER_ROUND_ATTACKER * rounds);
-  defender.army.stamina = Math.max(0, defender.army.stamina - STAMINA.DRAIN_PER_ROUND_DEFENDER * rounds);
+  // Stamina: a share of the maximum, set by how much damage you actually dealt
+  // measured against what it would have taken to wipe the enemy out. Cut them
+  // down to a man and you pay the full price; hold the line and answer little,
+  // and you walk away fresh. A yield costs the attacker next to nothing.
+  const drainFrom = (dealt: number, enemyToughness: number, max: number) =>
+    enemyToughness <= 0 ? 0 : Math.round(Math.min(max, max * (dealt / enemyToughness)));
+  const aDrain = drainFrom(aDealt, defToughness, STAMINA.MAX_DRAIN_ATTACKER);
+  const dDrain = drainFrom(dDealt, atkToughness, STAMINA.MAX_DRAIN_DEFENDER);
+  attacker.army.stamina = Math.max(0, attacker.army.stamina - aDrain);
+  defender.army.stamina = Math.max(0, defender.army.stamina - dDrain);
 
   // Experience: proportional loss with dead regulars, then band gains.
   const aRegBefore = regularsOf(attackerIn);
@@ -583,10 +657,8 @@ export function resolveBattle(
     wallIntegrityDamage: wallDamage,
     siegeGearLost: gearLost,
     loot,
-    staminaLoss: {
-      attacker: STAMINA.DRAIN_PER_ROUND_ATTACKER * rounds,
-      defender: STAMINA.DRAIN_PER_ROUND_DEFENDER * rounds,
-    },
+    yielded,
+    staminaLoss: { attacker: aDrain, defender: dDrain },
     experienceChange: {
       attacker: Math.round(attacker.army.experience - aXpBefore),
       defender: Math.round(defender.army.experience - dXpBefore),
@@ -894,8 +966,8 @@ export interface AttackContext {
    *  this member to strike, even without a personal recentAttackers entry. */
   clanRevengeAuthorized?: boolean;
   /** No fresh attacks for this many ticks after lowering the white flag
-   *  (anti-dodge; revenge is exempt). See surrenderLiftedAtTick. */
-  surrenderReattackCooldownTicks?: number;
+   *  (anti-dodge; revenge is exempt). See vacationEndedAtTick. */
+  vacationReattackCooldownTicks?: number;
 }
 
 export function validateAttack(
@@ -906,7 +978,7 @@ export function validateAttack(
 ): string | null {
   if (attacker.id === defender.id) return "You cannot attack yourself.";
   if (attacker.starving) return "Starving armies will not march.";
-  if (attacker.surrendered) return "You have surrendered — lift the white flag first.";
+  if (attacker.onVacation) return "You are on vacation — come back to the world first.";
   if (attacker.turnsAvailable < 10) return "An attack costs 10 action turns.";
   if (ctx.currentTick - ctx.eraStartedAtTick < ctx.eraPeaceTicks) {
     return "The era peace holds — no attacks in the first 5 days.";
@@ -927,23 +999,23 @@ export function validateAttack(
         ? "You have already taken your revenge."
         : "No revenge window is open against that empire.";
     }
-    return null; // revenge ignores surrender, stamina, refusal, and the cooldown
+    return null; // revenge ignores vacation, stamina, refusal, and the cooldown
   }
 
-  // Re-attack cooldown: you can't duck under the white flag and immediately
-  // swing back once you lower it (revenge, handled above, is exempt).
+  // Re-attack cooldown: you can't slip away on vacation and immediately swing
+  // back the moment you return (revenge, handled above, is exempt).
   if (
-    attacker.surrenderLiftedAtTick !== undefined &&
-    ctx.surrenderReattackCooldownTicks &&
-    ctx.currentTick - attacker.surrenderLiftedAtTick < ctx.surrenderReattackCooldownTicks
+    attacker.vacationEndedAtTick !== undefined &&
+    ctx.vacationReattackCooldownTicks &&
+    ctx.currentTick - attacker.vacationEndedAtTick < ctx.vacationReattackCooldownTicks
   ) {
-    return "Your host is still standing down from the surrender — no fresh attacks so soon after the white flag comes down.";
+    return "Your host is still mustering after your absence — no fresh attacks so soon after returning from vacation.";
   }
 
-  if (defender.surrendered) return "They have surrendered — only revenge may touch them.";
-  if (defender.army.stamina < STAMINA.MERCY_FLOOR) {
-    return "Their army is beaten down — mercy forbids it (revenge excepted).";
-  }
+  if (defender.onVacation) return "They are away on vacation — only revenge may touch them.";
+  // A beaten-down defender (stamina below the mercy floor) is NOT blocked any
+  // more: the attack lands, but they yield rather than fight (see resolveBattle).
+  // Their soldiers live; their stores do not.
   const ratio = rankingScore(defender) / Math.max(1, rankingScore(attacker));
   if (ratio >= XP.REFUSAL_RATIO) {
     return "Your troops refuse — that empire is far too strong (≥75% above you).";

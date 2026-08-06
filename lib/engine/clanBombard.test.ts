@@ -60,11 +60,11 @@ describe("clan-bombardment revenge authorization", () => {
   };
 
   it("authorizes a revenge with no personal window when the clan window is open", () => {
-    // A far-stronger, surrendered defender would normally be untouchable —
-    // clan revenge overrides refusal, surrender, and stamina like any revenge.
+    // A far-stronger, onVacation defender would normally be untouchable —
+    // clan revenge overrides refusal, vacation, and stamina like any revenge.
     const attacker = newEmpire({ id: "A", name: "A", race: "human" });
     const defender = newEmpire({ id: "D", name: "D", race: "human" });
-    defender.surrendered = true;
+    defender.onVacation = true;
     defender.buildings.walls = 10;
     defender.army.footmen.heavy = 100000; // dwarfs the attacker's score
 

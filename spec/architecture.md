@@ -250,7 +250,8 @@ turn (10 min); new players start with 200 (cap 500, tunable).
 
 #### Revenge Attack
 - **Precondition:** defender attacked you within last 18 hours.
-- Ignores surrender, low defender stamina, and mercy rules entirely.
+- Ignores vacation, low defender stamina, and the mercy rules entirely — and
+  is the one attack a defender is never allowed to yield to.
 - Goal: kill troops. No loot.
 - One-time use per attacker (resets if they attack you again).
 - A revenge attack opens a fresh 18h revenge window for its victim (chains).
@@ -269,10 +270,16 @@ turn (10 min); new players start with 200 (cap 500, tunable).
   The softening strike before a siege or raid.
 
 #### Mercy rules
-- Raid, siege, and bombard cannot target surrendered players or defenders
-  with army stamina < 25 (beaten down). Revenge can.
-- Surrender: voluntary; blocks all attacks except revenge, halves tax income,
-  and prevents attacking. Lifted manually or by attacking.
+- Raid, siege, and bombard cannot target players away on **Vacation**. Revenge can.
+- A beaten-down defender (army stamina < 25) is **not** blocked: the attack lands
+  and resolves as a **yield** — full loot to the attacker, no regular losses for
+  the defender. Same for a defender whose defensive power (troops × defence,
+  plus walls on castle attacks only) is under 60% of the attacker's offensive
+  power. Revenge is never yielded to.
+- **Vacation** (formerly "surrender"): voluntary; blocks all attacks except
+  revenge, halves tax income AND production, prevents attacking, capped at 20
+  days per era. Ended manually or when the budget runs out; returning starts an
+  18h re-attack cooldown.
 
 ### Building System
 
@@ -436,7 +443,7 @@ interface Player {
     ore: number
   }
   turnsAvailable: number    // action turns: +2 per game turn, start 200, cap 500; attacks cost 10
-  surrendered: boolean      // blocks all attacks except revenge; halves tax; can't attack
+  onVacation: boolean       // blocks all attacks except revenge; halves tax + production; can't attack
 
   // Buildings
   buildings: BuildingState[]
@@ -523,7 +530,7 @@ Two credentials open the same empire:
 |----------------------|------------------------------------------------------|
 | `POST /api/join`     | Found an empire: `{name, race}` → realm token (the only unauthenticated route) |
 | `GET /api/state`     | Own empire: meta, population, economy + production, army, buildings (+next costs), research, steward, advisors, chronicle, revenge windows |
-| `GET /api/rankings`  | The public ladder (target discovery — id, name, race, title, clan, score, shield/surrender flags) |
+| `GET /api/rankings`  | The public ladder (target discovery — id, name, race, title, clan, score, shield/vacation flags) |
 | `GET /api/market`    | Bazaar board (price + supply per resource) and own caravans — counterparties never exposed |
 | `GET /api/battle/:id`| Full battle report — participants only               |
 | `GET /api/battles`   | The public **War Ledger**: last 100 battles, redacted (aggregate losses, gear count, wall/storage % — never composition, loot, or the log) |
@@ -543,7 +550,7 @@ Every read runs due wall-clock ticks first, like every page and command.
 | `cmd:build`          | Start or upgrade a building                  |
 | `cmd:research`       | Set the active research project (field)      |
 | `cmd:attack`         | Launch attack (mode: raid/siege/revenge/bombard, target) — 10 action turns |
-| `cmd:surrender`      | Raise or lift the white flag                 |
+| `cmd:vacation`       | Depart on, or return from, vacation (`surrender` still accepted) |
 | `cmd:spy`            | Spy mission (op type, target, spies sent) — 5 action turns |
 | `cmd:scout`          | Scout recon against target — 2 action turns  |
 | `cmd:trade`          | Post or accept marketplace trade             |
@@ -608,7 +615,9 @@ CSS (no UI framework) — the retro look *is* the design system.
 - **Home / Command View** — Empire overview, historical stats, advisor panel.
 - **Train** — Assign peasants to worker classes or military roles.
 - **Troops** — Train footmen/archers/cavalry directly by tier, discharge, hire mercenaries, rest.
-- **Rankings** — Browsable ladder with search/filters; the primary target-discovery surface (no world map).
+- **Rankings** — Browsable ladder with search/filters; the primary target-discovery surface (no world map). Each row carries a public raid line (how many times that empire has been attacked in the last 72h, by how many aggressors) linking to its War Record.
+- **Empire profile** (`/empire/:id`) — Public dossier: rank, clan, win/loss, standing, lifetime reckoning, recent battles.
+- **War Record** (`/empire/:id/history`) — Public, for *any* empire: who has struck them in the last 72 hours and how many times each, whom they have struck in return, and every battle in the window. Sourced from the world battle log (rolling last 300), so it exposes nothing the World News feed doesn't already publish — never composition, loot, or exact troop counts.
 - **Attack** — Select target, choose mode and turns, view battle results.
 - **Buildings** — Construct and upgrade defences, peasant, and military buildings.
 - **Clan** — Clan management, chat, resource transfers, war declarations.
@@ -645,7 +654,8 @@ it, timing-safe check). Crown decrees bypass the game pipeline:
 - Resource checks before any action (sufficient gold, resources, turns, peasants).
 - Prerequisite checks (building level requirements for troop tiers).
 - Revenge attack: verify attacker was attacked within 18 hours (or their clan's buildings were bombarded while they were a member), hasn't already revenged.
-- Mercy checks: raid/siege/bombard blocked vs surrendered or stamina < 25 defenders.
+- Mercy checks: raid/siege/bombard blocked vs players on vacation. Beaten-down
+  (stamina < 25) and heavily outmatched defenders yield instead of being blocked.
 - Protection checks: era peace (first 5 days) and 72h newcomer shield block all attacks.
 - Action-turn balance checked before any attack (10 per attack).
 - Rate limiting on attacks (prevent abuse / excessive targeting).

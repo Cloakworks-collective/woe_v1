@@ -106,6 +106,6 @@ sells and explains the Charter.
 - [ ] Price point ($4.99 placeholder); regional pricing; refunds policy.
 - [ ] Account-level premium (survives era wipes) once Supabase Auth lands.
 - [ ] More conditions/actions (stamina threshold → rest; “when attacked” →
-      surrender)? Keep the list small — this is a convenience, not a bot.
+      vacation)? Keep the list small — this is a convenience, not a bot.
 - [ ] Should free players see a read-only Steward page as an upsell? (yes,
       implemented: locked-chamber teaser.)

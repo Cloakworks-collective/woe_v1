@@ -10,9 +10,11 @@ export function BattleReportPanel({ report }: { report: BattleReport }) {
   const headline =
     report.victor === "none"
       ? "Artillery duel — no victor, only rubble."
-      : won
-        ? `${report.attackerName} carries the field after ${report.rounds} rounds.`
-        : `${report.defenderName} holds after ${report.rounds} rounds.`;
+      : report.yielded
+        ? `${report.defenderName} lays down arms without a fight — the stores are taken, the soldiers spared.`
+        : won
+          ? `${report.attackerName} carries the field after ${report.rounds} rounds.`
+          : `${report.defenderName} holds after ${report.rounds} rounds.`;
   return (
     <Panel title={`Battle Report — ${report.mode} on ${report.defenderName} (turn ${report.tick})`}>
       <p

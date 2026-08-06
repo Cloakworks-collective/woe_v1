@@ -31,8 +31,8 @@ import {
   STAMINA,
   STORAGE_BUILDING,
   storageShelterAtLevel,
-  SURRENDER_DAYS_PER_ERA,
-  SURRENDER_TICKS_PER_ERA,
+  VACATION_DAYS_PER_ERA,
+  VACATION_TICKS_PER_ERA,
   TURNS_PER_DAY,
   WAR_FOUNDRY_LADDER,
 } from "@/lib/constants";
@@ -141,10 +141,10 @@ export default async function CommandView({
   const revengeOpen = p.recentAttackers.filter(
     (a) => world.meta.tickNumber - a.tick <= 108 && !p.revengeUsed.includes(a.playerId),
   );
-  // Surrender allowance (spec/combat.md): 20 days per era, spent as it flies.
-  const surrenderDaysLeft = Math.max(0, SURRENDER_DAYS_PER_ERA - (p.surrenderTicksUsed ?? 0) / TURNS_PER_DAY);
-  const surrenderBudgetSpent = (p.surrenderTicksUsed ?? 0) >= SURRENDER_TICKS_PER_ERA;
-  const flagUp = p.surrendered || p.surrenderQueued;
+  // Vacation allowance (spec/combat.md): 20 days per era, spent as you use it.
+  const vacationDaysLeft = Math.max(0, VACATION_DAYS_PER_ERA - (p.vacationTicksUsed ?? 0) / TURNS_PER_DAY);
+  const vacationBudgetSpent = (p.vacationTicksUsed ?? 0) >= VACATION_TICKS_PER_ERA;
+  const away = p.onVacation || p.vacationQueued;
 
   return (
     <>
@@ -207,20 +207,20 @@ export default async function CommandView({
                 sub={`${fmt(civilians(p))} civ · ${fmt(military(p))} at arms`}
               />
               <StatTile
-                icon={p.surrendered ? "🏳" : p.surrenderQueued ? "⏳" : p.starving ? "☠" : revengeOpen.length ? "⚔️" : "🛡️"}
+                icon={p.onVacation ? "🏖" : p.vacationQueued ? "⏳" : p.starving ? "☠" : revengeOpen.length ? "⚔️" : "🛡️"}
                 label="Status"
                 value={
-                  p.surrendered
-                    ? "Surrendered"
-                    : p.surrenderQueued
-                      ? "Surrender queued"
+                  p.onVacation
+                    ? "On vacation"
+                    : p.vacationQueued
+                      ? "Vacation queued"
                       : p.starving
                         ? "Starving"
                         : revengeOpen.length
                           ? `${revengeOpen.length} revenge open`
                           : "At large"
                 }
-                tone={p.starving ? "bad" : flagUp || revengeOpen.length ? "warn" : "good"}
+                tone={p.starving ? "bad" : away || revengeOpen.length ? "warn" : "good"}
               />
             </div>
             <div className="stat-grid">
@@ -240,26 +240,26 @@ export default async function CommandView({
               />
             </div>
             <div className="throne-flag">
-              <CmdForm name="surrender" path="/">
-                <input type="hidden" name="flag" value={flagUp ? "" : "1"} />
+              <CmdForm name="vacation" path="/">
+                <input type="hidden" name="away" value={away ? "" : "1"} />
                 <Btn
                   className="btn"
                   style={{ background: "linear-gradient(#a8853f,#7c5426)", borderColor: "#4e3113" }}
-                  disabled={!flagUp && surrenderBudgetSpent}
+                  disabled={!away && vacationBudgetSpent}
                 >
-                  {p.surrendered ? "Lift the white flag" : p.surrenderQueued ? "Cancel queued surrender" : "🏳 Surrender"}
+                  {p.onVacation ? "Return to the world" : p.vacationQueued ? "Cancel queued vacation" : "🏖 Go on vacation"}
                 </Btn>
               </CmdForm>
-              <span style={p.surrendered ? { color: "var(--warn)" } : undefined}>
-                {p.surrendered
-                  ? `Flag flying · ${surrenderDaysLeft.toFixed(1)} of ${SURRENDER_DAYS_PER_ERA} surrender-days left`
-                  : p.surrenderQueued
-                    ? "Queued — rises when revenge windows close"
-                    : surrenderBudgetSpent
-                      ? "No surrender-days left this era"
-                      : `${surrenderDaysLeft.toFixed(1)} of ${SURRENDER_DAYS_PER_ERA} surrender-days left this era`}
+              <span style={p.onVacation ? { color: "var(--warn)" } : undefined}>
+                {p.onVacation
+                  ? `Away · ${vacationDaysLeft.toFixed(1)} of ${VACATION_DAYS_PER_ERA} vacation-days left`
+                  : p.vacationQueued
+                    ? "Queued — begins when revenge windows close"
+                    : vacationBudgetSpent
+                      ? "No vacation-days left this era"
+                      : `${vacationDaysLeft.toFixed(1)} of ${VACATION_DAYS_PER_ERA} vacation-days left this era`}
               </span>
-              <Info tip={ACTION_INFO.surrender} guide={ACTION_GUIDE.surrender} />
+              <Info tip={ACTION_INFO.vacation} guide={ACTION_GUIDE.vacation} />
             </div>
           </div>
         </div>

@@ -161,9 +161,9 @@ describe("turn tick", () => {
     expect(player.turnsAvailable).toBe(500);
   });
 
-  it("surrendered empires earn half tax", () => {
+  it("onVacation empires earn half tax", () => {
     const p = fresh();
-    p.surrendered = true;
+    p.onVacation = true;
     const { player } = processTurnTick(p);
     expect(player.gold).toBe(5000 + 8);
   });

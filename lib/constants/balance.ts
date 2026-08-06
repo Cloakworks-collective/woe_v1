@@ -102,13 +102,16 @@ export const WORKER_OUTPUT_CURVE: Curve = { kind: "linear", base: 0, perX: 50 };
 /** Food consumed per person (civilians + regular troops) per turn. */
 export const FOOD_UPKEEP_PER_PERSON = 0.1; // food/turn
 
-// Surrender — the white flag halves the economy and locks your sword arm.
-export const SURRENDER_TAX_FACTOR = 0.5; // × on tax income
-export const SURRENDER_PRODUCTION_FACTOR = 0.5; // × on production
-export const SURRENDER_DAYS_PER_ERA = 20; // days, cumulative per era
-export const SURRENDER_TICKS_PER_ERA = SURRENDER_DAYS_PER_ERA * TURNS_PER_DAY;
-/** After lowering the flag, no fresh attacks for this long (revenge exempt). */
-export const SURRENDER_REATTACK_COOLDOWN_TICKS = 18 * TICKS_PER_HOUR;
+// Vacation — stepping away from the age entirely. Not to be confused with a
+// battlefield yield (see YIELD below): vacation is a standing state you choose
+// out of combat, halving your economy and locking your sword arm in exchange
+// for being untouchable by everything but revenge.
+export const VACATION_TAX_FACTOR = 0.5; // × on tax income
+export const VACATION_PRODUCTION_FACTOR = 0.5; // × on production
+export const VACATION_DAYS_PER_ERA = 20; // days, cumulative per era
+export const VACATION_TICKS_PER_ERA = VACATION_DAYS_PER_ERA * TURNS_PER_DAY;
+/** After returning from vacation, no fresh attacks for this long (revenge exempt). */
+export const VACATION_REATTACK_COOLDOWN_TICKS = 18 * TICKS_PER_HOUR;
 
 // Mercenaries — one merc's upkeep ≈ five civilians' net income: a premium.
 export const MERC_UPKEEP_GOLD_PER_TURN = 1; // gold/turn; unpaid mercs all defect
@@ -222,16 +225,34 @@ export const ACTION_TURNS = {
 
 export const STAMINA = {
   MAX: 100,
-  PASSIVE_RECOVERY_PER_TURN: 1, // pts/turn
-  DRAIN_PER_ROUND_ATTACKER: 8, // pts/round
-  DRAIN_PER_ROUND_DEFENDER: 5, // pts/round
+  PASSIVE_RECOVERY_PER_TURN: 1, // pts/turn — only if the food is there to pay for it
+  /** Food per troop per point of passive recovery. An army that cannot be fed
+   *  does not recover on its own; the ruler must Rest it by hand (or eat). */
+  PASSIVE_FOOD_PER_TROOP: 0.02,
+  /** Ceiling on a single battle's drain, reached only by dealing enough damage
+   *  to wipe the enemy out. Actual drain scales with damage dealt — swinging
+   *  hard tires you; standing and absorbing does not. */
+  MAX_DRAIN_ATTACKER: 80, // pts per battle
+  MAX_DRAIN_DEFENDER: 50, // pts per battle
   REST_GAIN: 20, // pts per Rest command
   REST_FOOD_PER_TROOP: 0.2, // food per troop per Rest
   /** staminaMod = MOD_BASE + MOD_PER_POINT × stamina. */
   MOD_BASE: 0.5,
   MOD_PER_POINT: 0.005,
-  /** Raid/siege/bombard blocked vs defenders below this (mercy rule). */
+  /** At or below this the defender yields to anything but revenge. */
   MERCY_FLOOR: 25, // pts
+};
+
+/** Battlefield yield (distinct from Vacation). A defender who cannot make a
+ *  fight of it lays down arms rather than be butchered: the attacker walks in
+ *  and takes the stores, but the defending regulars live. */
+export const YIELD = {
+  /** Yield when the defender's defensive power falls below this share of the
+   *  attacker's offensive power. Walls count only on castle attacks. */
+  STRENGTH_RATIO: 0.6,
+  /** Sellswords cover the retreat and take this share of losses; they are paid
+   *  to bleed so the levy does not. Regulars come through untouched. */
+  MERC_LOSS_FRACTION: 0.25,
 };
 
 export const MAX_ROUNDS = 10; // rounds per battle (= committed action turns)
@@ -274,6 +295,12 @@ export const LOOT = {
 };
 
 export const REVENGE_WINDOW_HOURS = 18; // hours
+
+/** How far back the ladder's public raid history reaches. Longer than the
+ *  revenge window on purpose: revenge is about what you may still answer,
+ *  this is about reading who has been feeding on whom. */
+export const ATTACK_HISTORY_HOURS = 72; // hours
+export const ATTACK_HISTORY_TICKS = ATTACK_HISTORY_HOURS * TICKS_PER_HOUR;
 
 /** Attacker loses this share of committed siege gear on defeat. */
 export const SIEGE_GEAR_LOSS_ON_DEFEAT = 0.5; // frac

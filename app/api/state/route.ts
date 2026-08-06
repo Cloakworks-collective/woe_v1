@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
       clanId: p.clanId ?? null,
       premium: Boolean(p.premium),
       starving: p.starving,
-      surrendered: p.surrendered,
+      onVacation: p.onVacation,
       shieldedUntilTick: p.shieldUntilTick > world.meta.tickNumber ? p.shieldUntilTick : null,
       battlesWon: p.battlesWon,
       battlesLost: p.battlesLost,

@@ -156,7 +156,7 @@ export default async function AdminPage({
                   {settlementTitle(p)}
                   {p.banned && <b style={{ color: "var(--warn)" }}> · BANISHED</b>}
                   {p.starving && " · ☠ starving"}
-                  {p.surrendered && " · 🏳"}
+                  {p.onVacation && " · 🏳"}
                 </td>
                 <td>
                   <form action={adminSetPremium} style={{ display: "inline" }}>
