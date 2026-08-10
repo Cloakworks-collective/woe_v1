@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Art } from "@/components/Art";
 import { Glyph, glyphs } from "@/components/Glyph";
-import { advisor, advisorHref, type AdvisorKey } from "@/lib/constants/advisors";
+import { advisorFor, advisorHref, type AdvisorKey } from "@/lib/constants/advisors";
 import {
   buildingIntegrity,
   civilians,
@@ -74,8 +74,8 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
         </>
       ),
       ctas: [
-        { href: "/market", label: "⚖ Buy food at the Bazaar", primary: true },
-        { href: "/train", label: "👥 Assign farmers", primary: true },
+        { href: "/market#buy", label: "⚖ Buy food at the Bazaar", primary: true },
+        { href: "/train#workers", label: "👥 Assign farmers", primary: true },
       ],
       manual: "/guide#grow",
     });
@@ -98,7 +98,7 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
         </>
       ),
       ctas: [
-        { href: "/troops", label: "⚔ Raise troops", primary: true },
+        { href: "/troops#train", label: "⚔ Raise troops", primary: true },
       ],
       manual: "/guide#battle",
     });
@@ -120,7 +120,7 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
         </>
       ),
       ctas: [
-        { href: "/buildings", label: "🧱 Repair the walls", primary: true },
+        { href: "/buildings?tab=military#defence", label: "🧱 Repair the walls", primary: true },
       ],
       manual: "/guide#defense",
     });
@@ -177,7 +177,7 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
         </>
       ),
       ctas: [
-        { href: "/buildings", label: "🔧 Repair the storehouses", primary: true },
+        { href: "/buildings#storage", label: "🔧 Repair the storehouses", primary: true },
       ],
       manual: "/guide#defense",
     });
@@ -188,20 +188,20 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
   return (
     <>
       {alerts.map((a) => {
-        const who = advisor(a.advisor);
+        const who = advisorFor(a.advisor, p.race);
         return (
           <div key={a.key} className={`alert alert-${a.variant}`} role="alert">
             {/* The councillor's own face, in your people — with the topic glyph
                 badged on it, so a banner says WHO and WHAT before it is read. */}
             <span className="alert-icon" style={{ ["--accent" as string]: who.accent }}>
-              <Art path={`advisors/${a.advisor}`} race={p.race} size={44} title={who.name} />
+              <Art path={`advisors/${a.advisor}`} race={p.race} size={44} title={who.fullName} />
               <span className="alert-icon-badge" aria-hidden>
                 {glyphs(a.icon)}
               </span>
             </span>
             <div>
               <div className="alert-title">
-                <span className="alert-who">{who.name}</span>
+                <span className="alert-who">{who.fullName}</span>
                 {": "}
                 {a.headline}
               </div>
@@ -213,7 +213,7 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
                   </Link>
                 ))}
                 <Link className="alert-cta alert-cta-ghost" href={advisorHref(a.advisor)}>
-                  Ask {who.name} →
+                  Ask {who.person} →
                 </Link>
                 <Link className="alert-cta alert-cta-ghost" href={a.manual}>
                   <Glyph char="📜" /> Field Manual

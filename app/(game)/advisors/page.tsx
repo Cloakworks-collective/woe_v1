@@ -3,6 +3,7 @@ import { Art } from "@/components/Art";
 import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { ADVISORS, RACE_NAMES } from "@/lib/constants";
+import { advisorFor } from "@/lib/constants/advisors";
 import { advisorCounsel } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
@@ -24,7 +25,9 @@ export default async function AdvisorsPage() {
           the <Link href="/guide">Field Manual</Link> holds the how.
         </p>
       </Panel>
-      {ADVISORS.map((a) => (
+      {ADVISORS.map((base) => {
+        const a = advisorFor(base.key, p.race);
+        return (
         <section
           className="panel advisor-card"
           key={a.key}
@@ -34,11 +37,12 @@ export default async function AdvisorsPage() {
           <h3>{a.title}</h3>
           <div className="body advisor-body">
             <div className="advisor-portrait" style={{ borderColor: a.accent }}>
-              <Art path={`advisors/${a.key}`} race={p.race} size={336} title={`${a.name} — ${race}`} />
+              <Art path={`advisors/${a.key}`} race={p.race} size={336} title={`${a.fullName} — ${race}`} />
             </div>
             <div className="advisor-words">
               <b className="advisor-name" style={{ color: a.accent }}>
-                {a.name}
+                {a.person}
+                <span className="advisor-office"> — {a.name}</span>
               </b>
               <div className="advisor-charge">{a.charge}</div>
               <ul className="advisor-counsel">
@@ -55,8 +59,9 @@ export default async function AdvisorsPage() {
               </p>
             </div>
           </div>
-        </section>
-      ))}
+          </section>
+        );
+      })}
     </>
   );
 }

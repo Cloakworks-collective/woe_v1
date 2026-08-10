@@ -61,7 +61,7 @@ const SECTIONS: { head: string; sub: string; items: Item[] }[] = [
     items: [
       { href: "/rankings", label: "Empire Ranks", icon: "trophy", desc: "Every empire — attack & spy from the ladder", exact: true },
       { href: "/rankings/clans", label: "Clan Ranks", icon: "clan", desc: "The banners of the age" },
-      { href: "/rankings/records", label: "Records of the Age", icon: "trophy", desc: "Rulers, champions & titles — still being written" },
+      { href: "/rankings/records", label: "Records", icon: "trophy", desc: "Rulers, champions & titles — still being written" },
       { href: "/battles", label: "World", icon: "world", desc: "The living age — clan wars, latest battles, the chronicle" },
     ],
   },

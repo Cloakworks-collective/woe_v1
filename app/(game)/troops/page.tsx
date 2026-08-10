@@ -137,6 +137,7 @@ export default async function TroopsPage({
     <>
       <Flash err={err} ok={ok} />
       <LearnLink href="/guide#army">Building an army — tiers &amp; mercenaries</LearnLink>
+      <div id="train">
       <Panel
         title={`The Army — ${p.idlePeasants} idle peasants, ${musterFree} Muster Hall slots free`}
         info="Peasants are trained straight into footmen/archers/cavalry — no warrior step. Tier N needs its trainer at level N and The Forge at level N, plus a free Muster Hall slot. Discharge sends a soldier home (their gear is lost) if a Hearthstead bed stands empty."
@@ -344,7 +345,9 @@ export default async function TroopsPage({
           <Info tip={ACTION_INFO.rest} guide={ACTION_GUIDE.rest} />
         </div>
       </Panel>
+      </div>
 
+      <div id="mercenaries">
       <Panel title="The Black Market — hired blades">
         <div style={{ float: "right" }}>
           <Info tip={UNIT_INFO.mercenary.tip} title={UNIT_INFO.mercenary.title} guide={UNIT_GUIDE.mercenary}>
@@ -483,6 +486,7 @@ export default async function TroopsPage({
           </p>
         )}
       </Panel>
+      </div>
 
       <Panel title="The Siege Train">
         <p style={{ fontSize: 14.5 }}>

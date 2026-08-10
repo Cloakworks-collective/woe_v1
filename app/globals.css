@@ -8051,3 +8051,16 @@ body {
 .throne-pop button:focus-visible {
   background: var(--wood-light);
 }
+
+/* Deep links land ON the thing, not under the header. Every anchor target the
+   advisors point at is a section a sticky-ish header would otherwise cover. */
+[id] {
+  scroll-margin-top: 92px;
+}
+
+/* The councillor's office, beside their personal name. */
+.advisor-office {
+  font-weight: 400;
+  font-size: 0.82em;
+  opacity: 0.75;
+}

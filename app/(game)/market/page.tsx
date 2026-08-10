@@ -46,6 +46,7 @@ export default async function MarketPage({
     <>
       <Flash err={err} ok={ok} />
       <LearnLink href="/guide#rich">Using the market to get rich</LearnLink>
+      <div id="buy">
       <Panel
         title="The Grand Bazaar — anonymous by law"
         info={`You trade with the Bazaar, never with a named player. A ${MARKET_FEE * 100}% fee on every sale is burned — the drain that keeps gold meaningful. Asks are ${MARKET_PRICE_MIN}–${MARKET_PRICE_MAX} gold: the Black Market will always pay you ${BLACK_MARKET.SELL_PRICE} and always sell to you at ${BLACK_MARKET.BUY_PRICE}, so every price here beats dealing with the fence.`}
@@ -134,6 +135,7 @@ export default async function MarketPage({
           </tbody>
         </table>
       </Panel>
+      </div>
 
       <Panel
         title={`Your Caravans — ${merchantsFree} merchant${merchantsFree === 1 ? "" : "s"} free · each carries up to ${fmt(capacity)}`}

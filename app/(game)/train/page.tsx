@@ -156,6 +156,7 @@ export default async function TrainPage({
         </div>
       )}
 
+      <div id="workers">
       <Panel
         title="The Assignment Hall"
         info="Worker assignment is free and reversible. EVERY worker is UNLIMITED — you only need the building. Its level raises how effective each worker is: farmers/quarrymen/miners/lumberjacks and researchers make 50/turn at L1 up to 500 at L10; each Market Square level lets every caravan carry another 1,000 goods AND shortens the road to the Bazaar (100 turns at L1 down to 10 at L10)."
@@ -202,6 +203,7 @@ export default async function TrainPage({
           })}
         </div>
       </Panel>
+      </div>
 
       <Panel title="The Muster — spies &amp; scouts">
         <div className="card-grid">

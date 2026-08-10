@@ -596,7 +596,9 @@ export function guardStrength(p: Player): number {
 }
 
 export function level(p: Player, id: BuildingId): number {
-  return p.buildings[id] ?? 0;
+  // Saves from before a building existed have no entry — and some very old
+  // ones have no `buildings` map at all. Absent means level 0, everywhere.
+  return p.buildings?.[id] ?? 0;
 }
 
 /** Vaulted goods, defaulting to zeros for empires saved before banking. */

@@ -9,8 +9,14 @@
 // the personal names were human ones shown to orc and troll players whose
 // council is their own people.
 //
-// Role titles win: they are true for every race, and they say what the
-// councillor is FOR, which is what a player needs when a banner is shouting.
+// Role titles are still what a banner leads with — they say what the councillor
+// is FOR, which is what you need when one is shouting at you. But a council
+// should also be YOUR people, so each councillor now has a personal name drawn
+// from their ruler's race: an orc warlord is Grash, a dwarf one is Thrain. The
+// original problem was never personal names — it was HUMAN names shown to every
+// race. One set per race fixes that without going back to faceless offices.
+
+import type { Race } from "./races";
 
 export type AdvisorKey = "defensive" | "military" | "economic" | "population";
 
@@ -66,6 +72,30 @@ export const ADVISORS: readonly Advisor[] = [
     guideLabel: "How to Grow",
   },
 ] as const;
+
+/**
+ * Personal names by race. Four councillors × six peoples, each set written to
+ * sound like the race it belongs to — the elven court is not the gnoll one.
+ */
+export const ADVISOR_NAMES: Record<Race, Record<AdvisorKey, string>> = {
+  human: { defensive: "Aldric", military: "Vosk", economic: "Poll", population: "Maren" },
+  elf: { defensive: "Ithuriel", military: "Caelen", economic: "Lysveth", population: "Aerith" },
+  orc: { defensive: "Durzog", military: "Grash", economic: "Mokk", population: "Ubra" },
+  troll: { defensive: "Bhurn", military: "Krogg", economic: "Vugg", population: "Hessa" },
+  dwarf: { defensive: "Balgrim", military: "Thrain", economic: "Durrin", population: "Hilda" },
+  gnoll: { defensive: "Skarn", military: "Rakka", economic: "Yipp", population: "Nabu" },
+};
+
+/**
+ * The councillor as this ruler knows them: personal name plus their office.
+ * Pass the race and you get "Maren, the Steward" for a human court and
+ * "Ubra, the Steward" for an orcish one — same office, their own people.
+ */
+export function advisorFor(key: AdvisorKey, race: Race): Advisor & { person: string; fullName: string } {
+  const base = BY_KEY.get(key)!;
+  const person = ADVISOR_NAMES[race]?.[key] ?? ADVISOR_NAMES.human[key];
+  return { ...base, person, fullName: `${person}, ${base.name}` };
+}
 
 const BY_KEY = new Map(ADVISORS.map((a) => [a.key, a]));
 

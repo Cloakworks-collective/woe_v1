@@ -175,7 +175,7 @@ export default async function RankingsPage({
                           {shielded && " · 🛡"}
                         </div>
                         <div style={{ fontSize: 13 }}>
-                          <Link href={`/empire/${p.id}/history`} style={{ color: raided > 0 ? "var(--warn)" : "var(--ink-soft)" }}>
+                          <Link href={`/empire/${p.id}`} style={{ color: raided > 0 ? "var(--warn)" : "var(--ink-soft)" }}>
                             ⚔ {raided === 0
                               ? `no attacks in ${ATTACK_HISTORY_HOURS}h`
                               : `attacked ${raided}× by ${raiders} in ${ATTACK_HISTORY_HOURS}h`}

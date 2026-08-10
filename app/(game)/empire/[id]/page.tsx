@@ -5,7 +5,7 @@ import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { PublicBattleTable } from "@/components/PublicBattleTable";
 import { TargetActions } from "@/components/TargetActions";
-import { ATTACK_HISTORY_HOURS, RACE_NAMES } from "@/lib/constants";
+import { RACE_NAMES } from "@/lib/constants";
 import { publicBattle, rankingScore, researchLevel, settlementTitle } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 import { REVENGE_WINDOW_TICKS } from "@/lib/server/world";
@@ -80,12 +80,6 @@ export default async function EmpireProfilePage({
               {p.onVacation ? "🏖 on vacation" : p.shieldUntilTick > tick ? "🛡 newcomer shield" : "at large"}
               {p.id === me.id && " (this is you)"}
             </dd>
-            <dt>War record</dt>
-            <dd>
-              <Link href={`/empire/${p.id}/history`}>
-                ⚔ Who has been attacking them (last {ATTACK_HISTORY_HOURS}h)
-              </Link>
-            </dd>
           </dl>
         </div>
         {p.id !== me.id && (
@@ -134,7 +128,7 @@ export default async function EmpireProfilePage({
       </Panel>
 
       <Panel title="Recent battles">
-        <PublicBattleTable battles={mine.slice(0, 25)} highlightId={p.id} />
+        <PublicBattleTable battles={mine.slice(0, 25)} highlightId={p.id} nowTick={tick} />
         <p style={{ fontSize: 13.5, marginTop: 6 }}>
           <Link href="/battles">→ the World News feed</Link>
         </p>
