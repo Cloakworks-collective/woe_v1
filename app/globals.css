@@ -8404,3 +8404,20 @@ tr:target > td {
   text-decoration: line-through;
   text-decoration-thickness: 1px;
 }
+
+/* Scenario fill — the calculators start blank, which is honest but slow. */
+.calc-fill {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+.calc-fill-label {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.calc-fill-btn {
+  padding: 5px 12px;
+  font-size: 13.5px;
+}

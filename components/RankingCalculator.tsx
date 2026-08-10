@@ -7,7 +7,15 @@ import { RACE_NAMES, SCORE, SIEGE_COUNTERS, WALL_NAMES } from "@/lib/constants";
 import { RESEARCH_FIELDS } from "@/lib/constants/research";
 import type { Race } from "@/lib/constants/races";
 import type { CounterType } from "@/lib/constants/buildings";
-import { buildSandboxPlayer, EMPTY_ARMY, rankingScore, type SandboxArmy } from "@/lib/engine";
+import {
+  ARMY_WEIGHTS,
+  buildSandboxPlayer,
+  EMPTY_ARMY,
+  randomArmy,
+  rankingScore,
+  type ArmyWeight,
+  type SandboxArmy,
+} from "@/lib/engine";
 
 // Runs the REAL rankingScore. The breakdown is computed by zeroing one
 // component at a time and re-scoring, so it can never drift from the function
@@ -69,6 +77,14 @@ export function RankingCalculator() {
   const [a, setA] = useState<SandboxArmy>({ ...EMPTY_ARMY, name: "Empire", peasants: 1000 });
   const set = (patch: Partial<SandboxArmy>) => setA({ ...a, ...patch });
 
+  /**
+   * A plausible empire at a chosen weight. The point of this calculator is to
+   * compare — "what does a wall actually buy me", "how much is veterancy worth"
+   * — and comparing needs something on the board to start from. Rolled with
+   * walls and defensive works, since those are what the ladder counts.
+   */
+  const fill = (weight: ArmyWeight) => setA(randomArmy(weight, { defender: true, name: "Empire" }));
+
   const { total, parts, byRace } = useMemo(() => {
     const score = (x: SandboxArmy) => rankingScore(buildSandboxPlayer(x, "calc"));
     const full = score(a);
@@ -107,6 +123,29 @@ export function RankingCalculator() {
         info="Runs the REAL rankingScore. The breakdown is measured by removing one component at a time and re-scoring, so it can never drift from the function it explains."
         guide="/guide#clocks"
       >
+        <div className="calc-fill">
+          <span className="calc-fill-label">Fill an empire:</span>
+          {ARMY_WEIGHTS.map((w) => (
+            <button
+              key={w.id}
+              type="button"
+              className="btn ghost calc-fill-btn"
+              onClick={() => fill(w.id)}
+              title={w.hint}
+            >
+              {w.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="btn ghost calc-fill-btn"
+            onClick={() => fill(ARMY_WEIGHTS[Math.floor(Math.random() * ARMY_WEIGHTS.length)]!.id)}
+            title="Any weight, rolled fresh"
+          >
+            🎲 Surprise me
+          </button>
+        </div>
+
         <div className="calc-score">
           <span className="calc-score-num">{fmt(total)}</span>
           <span className="calc-score-label">ranking points</span>

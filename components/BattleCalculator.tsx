@@ -9,9 +9,12 @@ import { RESEARCH_FIELDS } from "@/lib/constants/research";
 import type { Race } from "@/lib/constants/races";
 import type { CounterType } from "@/lib/constants/buildings";
 import {
+  ARMY_WEIGHTS,
   buildSandboxPlayer,
   EMPTY_ARMY,
+  randomArmy,
   resolveBattle,
+  type ArmyWeight,
   type AttackMode,
   type BattleReport,
   type SandboxArmy,
@@ -302,6 +305,20 @@ export function BattleCalculator() {
     };
   };
 
+  /**
+   * Two plausible armies at a chosen weight, so you can be fighting in two
+   * clicks instead of inventing forty numbers first. Both sides are rolled
+   * independently but from the same band, and the defender gets walls and
+   * counters while the attacker gets the train — otherwise every generated
+   * matchup is a field battle and the siege half of the game never shows up.
+   */
+  const fill = (weight: ArmyWeight) => {
+    setAtk(randomArmy(weight, { name: "Attacker" }));
+    setDef(randomArmy(weight, { defender: true, name: "Defender" }));
+    setReport(null);
+    setTally(null);
+  };
+
   const fight = () => {
     const n = Math.max(1, Math.min(500, runs));
     let wins = 0;
@@ -369,6 +386,29 @@ export function BattleCalculator() {
           </label>
           <button type="button" className="btn" onClick={fight}>
             ⚔ Fight
+          </button>
+        </div>
+
+        <div className="calc-fill">
+          <span className="calc-fill-label">Fill a scenario:</span>
+          {ARMY_WEIGHTS.map((w) => (
+            <button
+              key={w.id}
+              type="button"
+              className="btn ghost calc-fill-btn"
+              onClick={() => fill(w.id)}
+              title={w.hint}
+            >
+              {w.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="btn ghost calc-fill-btn"
+            onClick={() => fill(ARMY_WEIGHTS[Math.floor(Math.random() * ARMY_WEIGHTS.length)]!.id)}
+            title="Any weight, both sides rolled fresh"
+          >
+            🎲 Surprise me
           </button>
         </div>
         <p className="calc-hint">{modeHint}</p>

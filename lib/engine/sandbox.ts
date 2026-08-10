@@ -137,3 +137,123 @@ export const armTotal = (t: [number, number, number]) => t[0] + t[1] + t[2];
 
 export const TIER_LABELS = TIERS;
 export const ARMS: TroopType[] = ["footman", "archer", "cavalry"];
+
+// ── Scenario fill ───────────────────────────────────────────────────────────
+//
+// The calculators start blank, which is honest but slow: before you can learn
+// anything you have to invent two armies. These build a plausible one at a
+// chosen weight so you can press Fight in two clicks and start asking "what if"
+// instead of "what numbers".
+//
+// Everything is randomised within a band, so pressing the same button twice
+// gives a different — but comparably strong — matchup. Siege is matched
+// deliberately: two sides with wildly different engine parks produce a battle
+// decided before it starts, which teaches nothing.
+
+export type ArmyWeight = "weak" | "medium" | "strong";
+
+export const ARMY_WEIGHTS: { id: ArmyWeight; label: string; hint: string; troops: number }[] = [
+  { id: "weak", label: "Weak", hint: "~100 troops — a young empire", troops: 100 },
+  { id: "medium", label: "Medium", hint: "~500 troops — mid-age", troops: 500 },
+  { id: "strong", label: "Strong", hint: "1,000+ troops — late age", troops: 1000 },
+];
+
+const RACES_ALL: Race[] = ["human", "elf", "orc", "troll", "dwarf", "gnoll"];
+
+/** n ± spread%, never below zero. */
+const jitter = (n: number, spread: number, rand: () => number) =>
+  Math.max(0, Math.round(n * (1 - spread + rand() * spread * 2)));
+
+const pick = <T,>(xs: readonly T[], rand: () => number): T => xs[Math.floor(rand() * xs.length)]!;
+
+/** Split a headcount across light/medium/heavy — heavier armies skew later. */
+function tiers(total: number, weight: ArmyWeight, rand: () => number): [number, number, number] {
+  const mix =
+    weight === "strong"
+      ? [0.3, 0.45, 0.25]
+      : weight === "medium"
+        ? [0.55, 0.35, 0.1]
+        : [0.85, 0.15, 0];
+  const l = Math.round(total * mix[0]! * (0.85 + rand() * 0.3));
+  const m = Math.round(total * mix[1]! * (0.85 + rand() * 0.3));
+  const h = Math.max(0, total - l - m);
+  return [l, m, h];
+}
+
+/**
+ * A plausible empire at the given weight. `defender` gets walls and defensive
+ * engines; the attacker gets the offensive train — otherwise every generated
+ * matchup is a field battle and the siege half of the game never appears.
+ */
+export function randomArmy(
+  weight: ArmyWeight,
+  opts: { defender?: boolean; rand?: () => number; name?: string } = {},
+): SandboxArmy {
+  const rand = opts.rand ?? Math.random;
+  const base = ARMY_WEIGHTS.find((w) => w.id === weight)!.troops;
+  // ONE roll for the headcount. The arm split then divides that total rather
+  // than jittering each arm separately: three independent ±25% rolls compound,
+  // and two "Strong" armies came out nearly 2:1 — a fight decided before it
+  // started, which is exactly what a scenario generator must not produce.
+  const total = jitter(base, 0.2, rand);
+  const archN = Math.round(total * (0.2 + rand() * 0.12));
+  const cavN = Math.round(total * (0.14 + rand() * 0.1));
+  const footN = Math.max(0, total - archN - cavN);
+
+  const foot = tiers(footN, weight, rand);
+  const arch = tiers(archN, weight, rand);
+  const cav = tiers(cavN, weight, rand);
+
+  const engineers = jitter(total * 0.08, 0.4, rand);
+  const scale = weight === "strong" ? 1 : weight === "medium" ? 0.5 : 0.15;
+  const engines = (n: number) => jitter(n * scale, 0.5, rand);
+
+  const research: SandboxArmy["research"] = {};
+  const maxLvl = weight === "strong" ? 4 : weight === "medium" ? 2 : 1;
+  for (const f of ["art_of_war", "shieldcraft", "siegecraft", "siege_accuracy"] as const) {
+    research[f] = Math.round(rand() * maxLvl);
+  }
+
+  return {
+    ...EMPTY_ARMY,
+    name: opts.name ?? (opts.defender ? "Defender" : "Attacker"),
+    race: pick(RACES_ALL, rand),
+    footmen: foot,
+    archers: arch,
+    cavalry: cav,
+    // A little hired steel, sometimes.
+    mercFootmen: rand() < 0.4 ? [jitter(total * 0.08, 0.6, rand), 0, 0] : [0, 0, 0],
+    engineers,
+    stamina: 70 + Math.round(rand() * 30),
+    experience: Math.round(rand() * (weight === "strong" ? 70 : weight === "medium" ? 40 : 15)),
+    siegeExperience: Math.round(rand() * (weight === "strong" ? 60 : 30)),
+    research,
+    peasants: jitter(total * 6, 0.3, rand),
+    gold: jitter(total * 400, 0.5, rand),
+    resources: jitter(total * 300, 0.5, rand),
+    ...(opts.defender
+      ? {
+          wallLevel: weight === "strong" ? 6 + Math.floor(rand() * 5) : weight === "medium" ? 3 + Math.floor(rand() * 4) : Math.floor(rand() * 3),
+          wallIntegrity: 0.6 + rand() * 0.4,
+          sortie: rand() < 0.35,
+          counters: {
+            billhooks: engines(20),
+            forkpoles: engines(14),
+            fire_pots: engines(10),
+            boiling_oil: engines(10),
+            hoardings: engines(8),
+            counter_engine: engines(12),
+          },
+        }
+      : {
+          gear: {
+            ropes: engines(20),
+            ladders: engines(14),
+            siege_towers: engines(5),
+            rams: engines(8),
+            ballistae: engines(8),
+            trebuchets: engines(14),
+          },
+        }),
+  };
+}
