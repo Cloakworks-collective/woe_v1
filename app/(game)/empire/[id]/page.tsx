@@ -6,7 +6,7 @@ import { Panel } from "@/components/Panel";
 import { PublicBattleTable } from "@/components/PublicBattleTable";
 import { WarCouncil } from "@/components/WarCouncil";
 import { RACE_NAMES } from "@/lib/constants";
-import { publicBattle, rankingScore, researchLevel, settlementTitle } from "@/lib/engine";
+import { publicBattle, rankingScore, regularTroops, researchLevel, settlementTitle, troopTotal } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 import { REVENGE_WINDOW_TICKS } from "@/lib/server/world";
 
@@ -90,6 +90,14 @@ export default async function EmpireProfilePage({
             pathfinding={researchLevel(me, "pathfinding")}
             turns={me.turnsAvailable}
             spyTurns={me.spyTurnsAvailable ?? 0}
+            yours={{
+              regulars: regularTroops(me),
+              footmen: troopTotal(me.army.footmen),
+              archers: troopTotal(me.army.archers),
+              cavalry: troopTotal(me.army.cavalry),
+              stamina: me.army.stamina,
+              experience: me.army.experience,
+            }}
             state={{
               shielded: p.shieldUntilTick > tick,
               onVacation: p.onVacation,

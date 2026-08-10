@@ -43,6 +43,7 @@ export function WarCouncil({
   pathfinding,
   turns,
   spyTurns,
+  yours,
   state,
 }: {
   target: { id: string; name: string };
@@ -52,6 +53,10 @@ export function WarCouncil({
   /** The viewer's purses, so the cost of an order is never a surprise. */
   turns: number;
   spyTurns: number;
+  /** What YOU would be sending. The console showed the price of an order but
+   *  never the stakes — you were deciding whether to attack an empire whose
+   *  strength reads "Moderate" while unable to see your own at all. */
+  yours: { regulars: number; footmen: number; archers: number; cavalry: number; stamina: number; experience: number };
   /** Shield / vacation / revenge — the same facts both consoles gate on. */
   state: TargetState;
 }) {
@@ -72,6 +77,9 @@ export function WarCouncil({
             ⏳ {turns} action turns
           </span>
           <span className={spyTurns < 1 ? "wc-purse is-low" : "wc-purse"}>🗝 {spyTurns} spy turns</span>
+          <span className={yours.stamina < 50 ? "wc-purse is-low" : "wc-purse"} title="Your army's stamina — a delivery gate, not a bonus">
+            ⚡ {yours.stamina}% stamina
+          </span>
         </div>
       </header>
 
@@ -123,16 +131,50 @@ export function WarCouncil({
               })}
             </div>
 
-            <ReqTip
-              heading={`Strike ${target.name}`}
-              body="March in the mode chosen above. Raid for goods, castle for the treasury, bombard to break walls from afar, revenge to answer a blow — revenge is the one they may never yield against."
-              rows={[{ icon: <span className="costtip-ico">⏳</span>, label: "Action turns", need: ACTION_TURNS.ATTACK_COST, have: turns }]}
-              disabledReason={blocked ?? (canMarch ? undefined : "Not enough action turns.")}
-            >
-              <Btn className={canMarch ? "btn wc-go" : "btn btn-no wc-go"} disabled={!canMarch}>
-                Strike
-              </Btn>
-            </ReqTip>
+            {/* TWO deliberate clicks. Marching is irreversible, costs
+                {ACTION_TURNS.ATTACK_COST} turns, and the mode is one radio
+                away from the wrong one — a single click was the most expensive
+                misclick in the game. The review says what is actually being
+                sent, which the console never showed before. */}
+            {canMarch ? (
+              <details className="wc-confirm">
+                <summary className="btn wc-go">Strike…</summary>
+                <div className="wc-review" role="group" aria-label="Confirm the order">
+                  <p className="wc-review-line">
+                    Sending <b>{yours.regulars.toLocaleString("en-US")}</b> regulars against{" "}
+                    <b>{target.name}</b>.
+                  </p>
+                  <ul className="wc-review-list">
+                    <li>
+                      {yours.footmen.toLocaleString("en-US")} footmen ·{" "}
+                      {yours.archers.toLocaleString("en-US")} archers ·{" "}
+                      {yours.cavalry.toLocaleString("en-US")} cavalry
+                    </li>
+                    <li>
+                      Stamina {yours.stamina}% · veterancy {Math.round(yours.experience)}
+                    </li>
+                    <li>
+                      Costs {ACTION_TURNS.ATTACK_COST} of your {turns} action turns.
+                    </li>
+                  </ul>
+                  <p className="wc-review-warn">
+                    Losing regulars is the worst thing that can happen to you. There is no undo.
+                  </p>
+                  <Btn className="btn wc-commit">Confirm — send the army</Btn>
+                </div>
+              </details>
+            ) : (
+              <ReqTip
+                heading={`Strike ${target.name}`}
+                body="March in the mode chosen above. Raid for goods, castle for the treasury, bombard to break walls from afar, revenge to answer a blow."
+                rows={[{ icon: <span className="costtip-ico">⏳</span>, label: "Action turns", need: ACTION_TURNS.ATTACK_COST, have: turns }]}
+                disabledReason={blocked ?? "Not enough action turns."}
+              >
+                <Btn className="btn btn-no wc-go" disabled>
+                  Strike
+                </Btn>
+              </ReqTip>
+            )}
           </div>
         </CmdForm>
 

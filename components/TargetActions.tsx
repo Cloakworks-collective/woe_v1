@@ -13,10 +13,15 @@ import {
 } from "@/lib/constants/attackGating";
 
 /**
- * The per-empire action console on the ladder — a native <details> popover so
- * it needs no client JS. Launch raid / siege / revenge / bombard, run a spy op
- * or a scout recon, or open a letter, all without leaving the Rankings page.
- * The pipeline validates every strike; this just gathers the order.
+ * The per-empire actions on the ladder — three native <details> popovers, so
+ * no client JS. Attack, Scout and Spy each get their own, because they cost
+ * different currencies, carry very different risk, and are almost never weighed
+ * against one another: stacking them behind a single "Act" made you read all
+ * three every time you wanted one of them.
+ *
+ * The full console (with the confirm step and your own strength) lives on the
+ * empire's profile; this is the quick order from a list of forty rows. The
+ * pipeline validates every strike — this just gathers it.
  */
 export function TargetActions({
   target,
@@ -37,14 +42,24 @@ export function TargetActions({
 }) {
   const t: TargetState = state ?? { revengeOpen };
   const covertStop = covertBlocked(t);
+  const marchStop = allModesBlocked(t);
+
   return (
-    <details className="act">
-      <summary className="act-btn" title={`Act against ${target.name}`}>
-        ⚔ Act
-      </summary>
-      <div className="act-menu" role="menu">
-        <div className="act-title">{target.name}</div>
-        {hint && <div className="act-hint">{hint}</div>}
+    <div className="act-row-group">
+      {/* THREE controls, not one menu with three sections. Marching, scouting
+          and spying cost different currencies, carry different risk, and are
+          almost never chosen against each other — stacking them behind one
+          "Act" made you read all three every time you wanted one. */}
+      <details className="act">
+        <summary
+          className={marchStop ? "act-btn is-off" : "act-btn"}
+          title={marchStop ?? `March on ${target.name}`}
+        >
+          ⚔ Attack
+        </summary>
+        <div className="act-menu" role="menu">
+          <div className="act-title">{target.name}</div>
+          {hint && <div className="act-hint">{hint}</div>}
 
         <div className="act-section">
           <span className="act-head">Send the army</span>
@@ -73,12 +88,23 @@ export function TargetActions({
           </CmdForm>
         </div>
 
-        {/* Two arms, one budget. Scouts go openly and are never intercepted —
-            they are the whole intelligence service AND the only thing standing
-            between your storehouses and someone else's knives. Spies go over
-            the wall: they do the damage, and being caught names you. Both spend
-            from the same pool of spy turns, so watching a rival and robbing
-            them are competing claims on the same purse. */}
+        <div className="act-section">
+          <Link className="btn act-ghost" href={`/empire/${target.id}`}>
+            📜 Open their profile — the full War Council
+          </Link>
+        </div>
+        </div>
+      </details>
+
+      {/* Rangers. Open, safe, never intercepted — the whole intelligence
+          service, and the only thing standing between your storehouses and
+          someone else's knives. */}
+      <details className="act">
+        <summary className={covertStop ? "act-btn is-off" : "act-btn"} title={covertStop ?? `Scout ${target.name}`}>
+          🏹 Scout
+        </summary>
+        <div className="act-menu" role="menu">
+          <div className="act-title">{target.name}</div>
         <div className="act-section">
           <span className="act-head">Send the rangers — open, safe, never intercepted</span>
           <CmdForm name="covert" path="/rankings" inline={false}>
@@ -113,6 +139,18 @@ export function TargetActions({
           </CmdForm>
         </div>
 
+        </div>
+      </details>
+
+      {/* Shadows. They go over the wall: they do the damage, and being caught
+          names you. Both arms spend from the same pool of spy turns, so
+          watching a rival and robbing them compete for one purse. */}
+      <details className="act">
+        <summary className={covertStop ? "act-btn is-off" : "act-btn"} title={covertStop ?? `Send spies against ${target.name}`}>
+          🗡 Spy
+        </summary>
+        <div className="act-menu" role="menu">
+          <div className="act-title">{target.name}</div>
         <div className="act-section">
           <span className="act-head">Send the shadows — over the wall</span>
           <CmdForm name="covert" path="/rankings" inline={false}>
@@ -152,7 +190,8 @@ export function TargetActions({
             ✉ Send a letter
           </Link>
         </div>
-      </div>
-    </details>
+        </div>
+      </details>
+    </div>
   );
 }
