@@ -8,18 +8,19 @@ import { Panel } from "@/components/Panel";
 import { ReqTip } from "@/components/CostTip";
 import { TargetActions } from "@/components/TargetActions";
 import { Pager } from "@/components/Pager";
-import { ATTACK_HISTORY_HOURS, ATTACK_HISTORY_TICKS, HOLD_CLOCKS, RACE_NAMES } from "@/lib/constants";
+import { ARMY_FLOORS, ATTACK_HISTORY_HOURS, ATTACK_HISTORY_TICKS, HOLD_CLOCKS, RACE_NAMES } from "@/lib/constants";
 import {
   attacksByDefender,
   rankingScore,
   researchLevel,
   settlementTitle,
+  regularTroops,
   totalPopulation,
   troopStrengthLabel,
 } from "@/lib/engine";
 import { paginate } from "@/lib/paginate";
 import { getGame } from "@/lib/server/session";
-import { MS_PER_HOUR, REVENGE_WINDOW_TICKS, empireNumbers, overlordHold } from "@/lib/server/world";
+import { MS_PER_HOUR, REVENGE_WINDOW_TICKS, overlordHold } from "@/lib/server/world";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,6 @@ export default async function RankingsPage({
   const { world, player: me } = await getGame();
   const query = (q ?? "").toLowerCase();
   const tick = world.meta.tickNumber;
-  const numbers = empireNumbers(world);
   const report = reportId ? world.battles.find((b) => b.id === reportId) : undefined;
 
   const ladder = Object.values(world.players)
@@ -106,13 +106,12 @@ export default async function RankingsPage({
             <tr>
               <th className="num">Rank</th>
               <th>Empire</th>
-              <th className="num">ID</th>
               <th>Clan</th>
               <th>
                 <ReqTip
                   down
                   heading="Troop strength — a traveller's guess"
-                  body="Read as a passer-by would judge it: None · Weak · Moderate · Strong · Heavy. Exact counts are for spies — run an op from ⚔ Act to see the real muster."
+                  body="Read as a passer-by would judge it: None · Weak · Moderate · Strong · Heavy. Exact counts are for spies — run an op from 🗡 Spy to see the real muster."
                 >
                   <span className="tip-under">Troops</span>
                 </ReqTip>
@@ -121,7 +120,7 @@ export default async function RankingsPage({
                 <ReqTip
                   down
                   heading="Population — the victory fuel"
-                  body="Civilians + regular troops (mercenaries never count). Ranking score also weighs walls, buildings, treasury, experience, and 7 of the 10 research fields — and the victory clocks only tick above the population floor."
+                  body="Civilians + regular troops (mercenaries never count). Ranking score also weighs walls, buildings, treasury, experience, and 7 of the 10 research fields — and the victory clocks only tick with enough REGULARS in the field (mercenaries and engineers do not count)."
                 >
                   <span className="tip-under">Population</span>
                 </ReqTip>
@@ -184,7 +183,6 @@ export default async function RankingsPage({
                       </span>
                     </span>
                   </td>
-                  <td className="num" style={{ color: "var(--ink-soft)" }}>{numbers.get(p.id)}</td>
                   <td>{clan ? <Link href={`/clan/${clan.id}`}>{clan.name}</Link> : <span style={{ color: "var(--ink-soft)" }}>—</span>}</td>
                   <td>{troopStrengthLabel(p)}</td>
                   <td className="num">{fmt(totalPopulation(p))}</td>
@@ -198,6 +196,12 @@ export default async function RankingsPage({
                         tradecraft={tradecraft}
                         pathfinding={researchLevel(me, "pathfinding")}
                         state={{ shielded, onVacation: p.onVacation, revengeOpen }}
+                        last={{
+                          scoutOp: me.lastScoutOp,
+                          scoutAgents: me.lastScoutAgents,
+                          spyOp: me.lastSpyOp,
+                          spyAgents: me.lastSpyAgents,
+                        }}
                         hint={hint}
                       />
                     )}
@@ -210,10 +214,10 @@ export default async function RankingsPage({
         <Pager page={paged} href={pageHref} noun="empires" />
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 6 }}>
           Troops read as a traveler would guess them — None · Weak · Moderate · Strong · Heavy.
-          Exact counts are for spies. Open <b>⚔ Act</b> on any empire to raid, siege, spy, or send a
-          letter. 🏖 on vacation · 🛡 newcomer shield · 🔥 your clan is at war. The ⚔ line under each
-          empire is their public war record — click it to see exactly who has been striking them
-          over the last {ATTACK_HISTORY_HOURS} hours.
+          Exact counts are for spies. Use <b>⚔ Attack</b>, <b>🏹 Scout</b> or <b>🗡 Spy</b> on any
+          empire — or open their profile for the full War Council. 🏖 on vacation · 🛡 newcomer
+          shield · 🔥 your clan is at war. The ⚔ line under each empire is their public war record —
+          click it to see who has been striking them over the last {ATTACK_HISTORY_HOURS} hours.
         </p>
         {leader && (
           <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 6 }}>
@@ -221,7 +225,10 @@ export default async function RankingsPage({
             <b>{leader.p.name}</b> holds #1 — {(cum / MS_PER_HOUR).toFixed(1)}h of the{" "}
             {HOLD_CLOCKS.CUMULATIVE_HOURS}h cumulative, {(streak / MS_PER_HOUR).toFixed(1)}h of the{" "}
             {HOLD_CLOCKS.STREAK_HOURS}h streak
-            {totalPopulation(leader.p) < 10000 ? " (below the 10,000 population floor — clocks frozen)" : ""}.
+            {regularTroops(leader.p) < ARMY_FLOORS.INDIVIDUAL
+              ? ` (below the ${ARMY_FLOORS.INDIVIDUAL.toLocaleString("en-US")} regular floor — clocks frozen)`
+              : ""}
+            .
           </p>
         )}
       </Panel>

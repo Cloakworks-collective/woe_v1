@@ -430,6 +430,14 @@ function dispatch(
       // sounding, in which case their people take peacetime damage.
       const covertWar = warIsHot(clan, targetClan, tick);
       const r = runCovertOp(player, target, str(args.op), num(args.agents), tick, Math.random, covertWar);
+      // Remember the order so the consoles can open on it next time.
+      if (r.op.arm === "scout") {
+        r.attacker.lastScoutOp = r.op.id;
+        r.attacker.lastScoutAgents = num(args.agents);
+      } else {
+        r.attacker.lastSpyOp = r.op.id;
+        r.attacker.lastSpyAgents = num(args.agents);
+      }
       put(r.attacker);
       // Counter-ops act on your OWN realm, so the "defender" is you.
       if (r.defender.id !== player.id) world.players[target.id] = r.defender;

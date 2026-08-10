@@ -44,6 +44,7 @@ export function WarCouncil({
   turns,
   spyTurns,
   yours,
+  last,
   state,
 }: {
   target: { id: string; name: string };
@@ -57,6 +58,8 @@ export function WarCouncil({
    *  never the stakes — you were deciding whether to attack an empire whose
    *  strength reads "Moderate" while unable to see your own at all. */
   yours: { regulars: number; footmen: number; archers: number; cavalry: number; stamina: number; experience: number };
+  /** Your last covert order per arm, so a repeat is one click instead of three. */
+  last?: { scoutOp?: string; scoutAgents?: number; spyOp?: string; spyAgents?: number };
   /** Shield / vacation / revenge — the same facts both consoles gate on. */
   state: TargetState;
 }) {
@@ -67,6 +70,11 @@ export function WarCouncil({
   const canMarch = turns >= ACTION_TURNS.ATTACK_COST && !blocked;
   const scoutsLocked = pathfinding < 1;
   const spiesLocked = tradecraft < 1;
+  // Only re-open on a remembered op if it is still within your research —
+  // levels can be stolen, and a preselected locked option submits nothing.
+  const rememberedScout =
+    SCOUT_OPS.find((o) => o.id === last?.scoutOp && pathfinding >= o.level)?.id ?? "";
+  const rememberedSpy = SPY_OPS.find((o) => o.id === last?.spyOp && tradecraft >= o.level)?.id ?? "";
 
   return (
     <section className="wc" aria-label={`Act against ${target.name}`}>
@@ -191,7 +199,7 @@ export function WarCouncil({
               name="op"
               aria-label={`Scout operation against ${target.name}`}
               className="wc-select"
-              defaultValue=""
+              defaultValue={rememberedScout}
               disabled={scoutsLocked}
             >
               <option value="" disabled>
@@ -211,6 +219,7 @@ export function WarCouncil({
                 aria-label="Rangers to send"
                 inputMode="numeric"
                 className="wc-input"
+                defaultValue={last?.scoutAgents ? String(last.scoutAgents) : ""}
                 disabled={scoutsLocked}
               />
               <ReqTip
@@ -241,7 +250,7 @@ export function WarCouncil({
               name="op"
               aria-label={`Spy operation against ${target.name}`}
               className="wc-select"
-              defaultValue=""
+              defaultValue={rememberedSpy}
               disabled={spiesLocked}
             >
               <option value="" disabled>
@@ -261,6 +270,7 @@ export function WarCouncil({
                 aria-label="Spies to send"
                 inputMode="numeric"
                 className="wc-input"
+                defaultValue={last?.spyAgents ? String(last.spyAgents) : ""}
                 disabled={spiesLocked}
               />
               <ReqTip

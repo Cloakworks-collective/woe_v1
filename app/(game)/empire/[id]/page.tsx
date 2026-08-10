@@ -98,6 +98,12 @@ export default async function EmpireProfilePage({
               stamina: me.army.stamina,
               experience: me.army.experience,
             }}
+            last={{
+              scoutOp: me.lastScoutOp,
+              scoutAgents: me.lastScoutAgents,
+              spyOp: me.lastSpyOp,
+              spyAgents: me.lastSpyAgents,
+            }}
             state={{
               shielded: p.shieldUntilTick > tick,
               onVacation: p.onVacation,

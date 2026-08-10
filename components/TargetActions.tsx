@@ -29,6 +29,7 @@ export function TargetActions({
   tradecraft,
   pathfinding,
   state,
+  last,
   hint,
 }: {
   target: { id: string; name: string };
@@ -38,10 +39,15 @@ export function TargetActions({
   /** Shield / vacation / revenge. Gated by the SAME rules as the profile's
    *  War Council (lib/constants/attackGating) so the two can never disagree. */
   state?: TargetState;
+  /** Your last covert order per arm — a repeat is one click, not three. */
+  last?: { scoutOp?: string; scoutAgents?: number; spyOp?: string; spyAgents?: number };
   hint?: string;
 }) {
   const t: TargetState = state ?? { revengeOpen };
   const covertStop = covertBlocked(t);
+  // Re-open on the last order, but only while it is still unlocked.
+  const lastScout = SCOUT_OPS.find((o) => o.id === last?.scoutOp && pathfinding >= o.level)?.id ?? "";
+  const lastSpy = SPY_OPS.find((o) => o.id === last?.spyOp && tradecraft >= o.level)?.id ?? "";
   const marchStop = allModesBlocked(t);
 
   return (
@@ -109,7 +115,7 @@ export function TargetActions({
           <span className="act-head">Send the rangers — open, safe, never intercepted</span>
           <CmdForm name="covert" path="/rankings" inline={false}>
             <input type="hidden" name="targetId" value={target.id} />
-            <select name="op" aria-label={`Scout operation against ${target.name}`} className="act-select" defaultValue="">
+            <select name="op" aria-label={`Scout operation against ${target.name}`} className="act-select" defaultValue={lastScout}>
               <option value="" disabled>
                 {pathfinding < 1 ? "No operations — study Pathfinding" : "Choose what to look for…"}
               </option>
@@ -125,6 +131,7 @@ export function TargetActions({
                 name="agents"
                 placeholder="# rangers"
                 aria-label="Rangers to send"
+                defaultValue={last?.scoutAgents ? String(last.scoutAgents) : ""}
                 size={6}
                 inputMode="numeric"
                 className="act-input"
@@ -155,7 +162,7 @@ export function TargetActions({
           <span className="act-head">Send the shadows — over the wall</span>
           <CmdForm name="covert" path="/rankings" inline={false}>
             <input type="hidden" name="targetId" value={target.id} />
-            <select name="op" aria-label={`Spy operation against ${target.name}`} className="act-select" defaultValue="">
+            <select name="op" aria-label={`Spy operation against ${target.name}`} className="act-select" defaultValue={lastSpy}>
               <option value="" disabled>
                 {tradecraft < 1 ? "No operations — study Tradecraft" : "Choose an operation…"}
               </option>
@@ -171,6 +178,7 @@ export function TargetActions({
                 name="agents"
                 placeholder="# spies"
                 aria-label="Spies to send"
+                defaultValue={last?.spyAgents ? String(last.spyAgents) : ""}
                 size={6}
                 inputMode="numeric"
                 className="act-input"

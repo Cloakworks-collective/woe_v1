@@ -186,6 +186,16 @@ export interface Player {
    *  chooses otherwise. */
   nextRecruitAtTick?: number;
   lastRecruitAtTick?: number;
+  /** The last covert order you gave, per arm, so the consoles can open on it.
+   *  Repeating an operation was three clicks every time — pick the op, type
+   *  the count, send — and repeating is the common case: you scout the same
+   *  rival again, or send the same twenty spies. Kept per ARM because scouting
+   *  and spying are different decisions with different op lists. */
+  lastScoutOp?: string;
+  lastScoutAgents?: number;
+  lastSpyOp?: string;
+  lastSpyAgents?: number;
+
   /** The dawn hour may be moved ONCE an era, so a player in Delhi and one in
    *  New York can both be awake for it. Cleared by eraReset with everything
    *  else. */
