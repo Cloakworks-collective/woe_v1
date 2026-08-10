@@ -13,7 +13,8 @@ function Emblem({ name, sm }: { name: string; sm?: boolean }) {
 }
 
 /**
- * The desktop top bar for META links — the annals, messages, the public forum,
+ * The desktop top bar for META links — the annals, the Heralds (letters, the
+ * era hall and the public forum),
  * guides, the sandboxes and the Charter. Everything you MANAGE lives in the
  * left SideNav, and so now does the wider world: the ladder and the age's
  * battles moved down there, because the header also carries the realm's name
@@ -49,7 +50,6 @@ export function TopNav({ premium }: { premium: boolean }) {
     };
   }, []);
 
-  const forum: Item = { href: "/forum", label: "Forum", icon: "chronicle", title: "The public forum — its own login, and it outlives every era" };
   const premiumItem: Item = premium
     ? { href: "/steward", label: "Premium", icon: "crown", title: "Your Royal Charter — the Steward's build/research queues, standing orders & auto-banking" }
     : { href: "/premium", label: "Premium", icon: "crown", title: "The Royal Charter (premium) — the Steward: queues, standing orders & auto-banking while you're away" };
@@ -75,7 +75,7 @@ export function TopNav({ premium }: { premium: boolean }) {
   const annalsActive = pathname.startsWith("/annals");
   const guidesActive = pathname.startsWith("/guide") || pathname.startsWith("/almanac");
   const toolsActive = pathname.startsWith("/tools");
-  const commsActive = pathname.startsWith("/messages");
+  const commsActive = pathname.startsWith("/messages") || pathname.startsWith("/forum");
   const closeMenu = (e: MouseEvent<HTMLAnchorElement>) =>
     e.currentTarget.closest("details")?.removeAttribute("open");
 
@@ -101,8 +101,8 @@ export function TopNav({ premium }: { premium: boolean }) {
           </details>
 
           <details className="topnav-dd">
-            <summary className={commsActive ? "active" : ""} title="Letters and the era hall — in-game talk">
-              <Emblem name="letter" /> Communications
+            <summary className={commsActive ? "active" : ""} title="Where the realm's words travel — letters, the era hall, and the public forum">
+              <Emblem name="letter" /> Heralds
             </summary>
             <div className="topnav-menu" role="menu">
               <Link href="/messages" onClick={closeMenu}>
@@ -113,10 +113,14 @@ export function TopNav({ premium }: { premium: boolean }) {
                 <Emblem name="forum" sm /> Era Chat{" "}
                 <span className="topnav-menu-sub">one public room for this age — wiped when it ends</span>
               </Link>
+              <div className="topnav-menu-head">Beyond the age</div>
+              <Link href="/forum" onClick={closeMenu}>
+                <Emblem name="chronicle" sm /> The Forum{" "}
+                <span className="topnav-menu-sub">its own login — outlives every era</span>
+              </Link>
             </div>
           </details>
 
-          {render(forum)}
 
           <details className="topnav-dd">
             <summary className={guidesActive ? "active" : ""} title="Guides — the Field Manual and the Codex of Balance">
