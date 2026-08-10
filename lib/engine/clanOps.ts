@@ -14,6 +14,7 @@ import {
   TICKS_PER_HOUR,
   WAR,
   WITHDRAW_MULTIPLE,
+  WONDER_MAX_LEVEL,
   WONDER_REQUIRES_STORAGE,
 } from "../constants";
 import {
@@ -511,7 +512,7 @@ export function buildClanBuilding(
     cost = BUILD_COSTS.beacon[next]!;
   } else {
     const next = clan.buildings.wonderLevel + 1;
-    if (next > 3) throw new EngineError("max", "The Wonder is complete");
+    if (next > WONDER_MAX_LEVEL) throw new EngineError("max", "The Wonder is complete");
     const reqStorage = WONDER_REQUIRES_STORAGE[next as 1 | 2 | 3];
     if (clan.buildings.storageLevel < reqStorage) {
       throw new EngineError("req", `Wonder ${next} requires Clan Storage ${reqStorage}`);

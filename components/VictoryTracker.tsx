@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Info } from "./Info";
-import { ARMY_FLOORS, HOLD_CLOCKS } from "@/lib/constants";
+import { ARMY_FLOORS, HOLD_CLOCKS, WONDER_MAX_LEVEL } from "@/lib/constants";
 import { rankingScore, regularTroops, type Player } from "@/lib/engine";
 import type { World } from "@/lib/server/store";
 import { MS_PER_HOUR, clanHold, clanScore, overlordHold } from "@/lib/server/world";
@@ -110,7 +110,7 @@ export function VictoryTracker({ world, me }: { world: World; me: Player }) {
             <div className="vt-card-head">
               <span className="vt-badge">Clan</span> Clan Victory{" "}
               <Info
-                tip={`Same clocks for the #1 clan (sum of member scores), with ${fmt(ARMY_FLOORS.CLAN)} regulars summed across its members.`}
+                tip={`Same clocks for the #1 clan (sum of member scores). Two gates: ${fmt(ARMY_FLOORS.CLAN)} regulars summed across its members, AND a completed Clan Wonder (level ${WONDER_MAX_LEVEL}). The army proves the banner can fight; the Wonder proves it can build.`}
                 guide="/guide#winning"
               />
             </div>
@@ -119,6 +119,13 @@ export function VictoryTracker({ world, me }: { world: World; me: Player }) {
                 <div className="vt-leader">
                   🛡 {topClan.c.name} leads — {fmt(clanPop)} / {fmt(ARMY_FLOORS.CLAN)} regulars
                   {myClan?.id === topClan.c.id && " (yours!)"}
+                  {/* Without this the clock just sits at zero and looks broken. */}
+                  {(topClan.c.buildings.wonderLevel ?? 0) < WONDER_MAX_LEVEL && (
+                    <div style={{ color: "var(--warn)", fontSize: 12.5 }}>
+                      Wonder {topClan.c.buildings.wonderLevel ?? 0}/{WONDER_MAX_LEVEL} — the clan
+                      clock cannot start until it is finished.
+                    </div>
+                  )}
                 </div>
                 <dl className="vt-clocks">
                   <dt>Total held</dt>

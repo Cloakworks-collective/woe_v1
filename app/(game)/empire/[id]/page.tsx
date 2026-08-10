@@ -47,15 +47,6 @@ export default async function EmpireProfilePage({
   const mine = world.battles
     .filter((b) => b.attackerId === id || b.defenderId === id)
     .map(publicBattle);
-  const totals = { troopsLost: 0, troopsKilled: 0, gearLost: 0, wallTaken: 0, wallDealt: 0 };
-  for (const b of mine) {
-    const asAttacker = b.attackerId === id;
-    totals.troopsLost += asAttacker ? b.attackerTroopsLost : b.defenderTroopsLost;
-    totals.troopsKilled += asAttacker ? b.defenderTroopsLost : b.attackerTroopsLost;
-    totals.gearLost += asAttacker ? b.attackerGearLost : 0;
-    totals.wallTaken += asAttacker ? 0 : b.wallDamage;
-    totals.wallDealt += asAttacker ? b.wallDamage : 0;
-  }
 
   return (
     <>
@@ -111,29 +102,6 @@ export default async function EmpireProfilePage({
             }}
           />
         )}
-      </Panel>
-
-      <Panel title={`The reckoning — across ${mine.length} recorded battles`}>
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th className="num">Troops lost</th>
-              <th className="num">Troops slain</th>
-              <th className="num">Siege gear lost</th>
-              <th className="num">Wall damage taken</th>
-              <th className="num">Wall damage dealt</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="num">{fmt(totals.troopsLost)}</td>
-              <td className="num">{fmt(totals.troopsKilled)}</td>
-              <td className="num">{fmt(totals.gearLost)}</td>
-              <td className="num">−{Math.round(totals.wallTaken * 100)}%</td>
-              <td className="num">−{Math.round(totals.wallDealt * 100)}%</td>
-            </tr>
-          </tbody>
-        </table>
       </Panel>
 
       <Panel title="Recent battles">

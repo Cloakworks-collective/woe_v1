@@ -6,6 +6,7 @@ import {
   ERA_PEACE_DAYS,
   HOLD_CLOCKS,
   ARMY_FLOORS,
+  WONDER_MAX_LEVEL,
   VACATION_TICKS_PER_ERA,
   TICKS_PER_HOUR,
   TURNS_PER_DAY,
@@ -719,7 +720,16 @@ export function updateCrown(world: World, nowMs = Date.now()): void {
     0,
   );
   const frozen = (topClan.clockFrozenUntilTick ?? 0) > world.meta.tickNumber;
-  const clanEligible = clanRegulars >= ARMY_FLOORS.CLAN && !frozen ? topClan.id : undefined;
+  // A COMPLETED WONDER is the clan's price of entry. The army floor proves the
+  // banner can fight; the Wonder proves it can build — and it is the single
+  // most expensive thing in the game, gated behind Clan Storage 10, so it
+  // cannot be rushed by one rich member in an afternoon. Without it a clan
+  // could take the age purely by mustering troops, and the whole clan economy
+  // (the pool, the 3× rule, the deep Storage the Wonder needs) would be
+  // optional decoration.
+  const wonderDone = (topClan.buildings.wonderLevel ?? 0) >= WONDER_MAX_LEVEL;
+  const clanEligible =
+    clanRegulars >= ARMY_FLOORS.CLAN && wonderDone && !frozen ? topClan.id : undefined;
   // Tell every member of the affected clan when the Clan Victory clock starts/stops.
   const prevClan = world.meta.clanAccruing?.id;
   if (prevClan !== clanEligible) {

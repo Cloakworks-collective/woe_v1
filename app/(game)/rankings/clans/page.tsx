@@ -4,7 +4,7 @@ import { Flash } from "@/components/Flash";
 import { LearnLink } from "@/components/LearnLink";
 import { Pager } from "@/components/Pager";
 import { Panel } from "@/components/Panel";
-import { ACTION_INFO, ARMY_FLOORS, HOLD_CLOCKS } from "@/lib/constants";
+import { ACTION_INFO, ARMY_FLOORS, HOLD_CLOCKS, WONDER_MAX_LEVEL } from "@/lib/constants";
 import { memberCap, regularTroops } from "@/lib/engine";
 import { paginate } from "@/lib/paginate";
 import { getGame } from "@/lib/server/session";
@@ -130,7 +130,9 @@ export default async function ClanRanksPage({
                 of the {HOLD_CLOCKS.STREAK_HOURS}h streak
                 {top.regulars < ARMY_FLOORS.CLAN
                   ? ` (below the ${fmt(ARMY_FLOORS.CLAN)} regular floor — clocks frozen)`
-                  : ""}
+                  : (top.c.buildings.wonderLevel ?? 0) < WONDER_MAX_LEVEL
+                    ? ` (Wonder ${top.c.buildings.wonderLevel ?? 0}/${WONDER_MAX_LEVEL} — clocks frozen until it is finished)`
+                    : ""}
                 . ⚔ marks a clan at war.
               </p>
             )}

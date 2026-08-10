@@ -384,6 +384,10 @@ export const HALL = [
 
 export const WONDER_DISCOUNT_PER_LEVEL = 0.1; // frac/level off merc/troop/siege costs
 export const WONDER_REQUIRES_STORAGE = { 1: 4, 2: 7, 3: 10 } as const;
+/** The Wonder's zenith — and the clan victory clock's price of entry. It was
+ *  written as a bare 3 in the build check and again in the victory check; one
+ *  constant so raising it can never move only half the game. */
+export const WONDER_MAX_LEVEL = 3;
 
 /** Mending a bombarded clan work costs this fraction of its current-level build
  *  cost, scaled by the damage taken (1 − integrity). Mirrors the empire wall

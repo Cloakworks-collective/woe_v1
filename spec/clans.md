@@ -135,6 +135,9 @@ whole clan's war economy costs.
 | 2            | −20%            | −20%                | −20%            | Clan Storage 7  |
 | 3            | −30%            | −30%                | −30%            | Clan Storage 10 |
 
+**The Wonder is also the clan victory clock's price of entry** — a clan cannot
+start accruing without it at level 3, however large its army. See `overview.md`.
+
 Suggested costs (tunable): L1 = 1M gold + 500k each of wood/stone/ore;
 L2 = 2.5M + 1.25M each; L3 = 5M + 2.5M each. A Wonder is a server-visible
 statement: this clan out-produced everyone.

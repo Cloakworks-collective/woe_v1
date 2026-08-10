@@ -48,7 +48,11 @@ function empire(race: Race, taxRate: number): Player {
 }
 
 describe("stocks are always whole numbers", () => {
-  it("survives 500 ticks across every race and awkward tax rates", () => {
+  // 6 races × 6 tax rates × 500 ticks = 18,000 ticks. It runs in under a second
+  // alone but shares cores with the rest of the suite, and it was tripping
+  // vitest's 5s default under parallel load — a flaky test is worse than a slow
+  // one, and the breadth is the whole point of the property.
+  it("survives 500 ticks across every race and awkward tax rates", { timeout: 30_000 }, () => {
     const rates = [0.07, 0.13, 0.33, 0.5, 0.77, 0.91];
     for (const race of Object.keys(RACES) as Race[]) {
       for (const taxRate of rates) {

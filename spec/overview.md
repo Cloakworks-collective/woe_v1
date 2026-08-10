@@ -108,8 +108,17 @@ stop the clock entirely.
 
 Same structure, clan-scale: the clan's score is the **sum of member scores
 plus clan building points**, and it must hold **#1 clan** for 72 hours
-cumulative + 12 consecutive, with **25,000 regulars** summed across its members
-(`ARMY_FLOORS.CLAN`).
+cumulative + 12 consecutive, behind **two** gates:
+
+- **25,000 regulars** summed across its members (`ARMY_FLOORS.CLAN`), and
+- a **completed Clan Wonder** (level 3).
+
+The army proves the banner can fight; the Wonder proves it can build. The Wonder
+is the most expensive thing in the game and is itself gated behind Clan Storage
+10, so it cannot be rushed by one rich member in an afternoon — without it a
+clan could take the age purely by mustering troops, and the whole clan economy
+(the pool, the 3× rule, the deep Storage the Wonder needs) would be optional
+decoration.
 
 ### Winning ENDS the age, immediately
 
