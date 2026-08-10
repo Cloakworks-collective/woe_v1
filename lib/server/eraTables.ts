@@ -12,6 +12,7 @@
 
 import { researchOrdinalCost } from "../constants/research";
 import { CIVILIAN_LEVELLED_IDS } from "../constants/buildings";
+import { TURN_MINUTES } from "../constants";
 import {
   clanCode,
   eraRecordsEmpty,
@@ -58,41 +59,76 @@ const PLAIN: ClanResolvers = {
 
 // ── The five battle leaderboards (from the accumulated battle lists) ──────────
 
-function battleRows(list: RankedBattle[], valueOnly: boolean, r: ClanResolvers): ElderCell[][] {
-  return list.map((b, i) =>
+/**
+ * How long ago, in the coarsest unit that still says something useful. A record
+ * set eleven minutes ago and one set last spring should not both read as a turn
+ * number — "2h ago" tells you whether it is still standing or ancient history.
+ */
+export function agoFromTick(tick: number, nowTick: number): string {
+  const mins = Math.max(0, nowTick - tick) * TURN_MINUTES;
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${Math.floor(mins)}m ago`;
+  const h = Math.floor(mins / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  if (d < 31) {
+    const w = Math.floor(d / 7);
+    return `${w}w ago`;
+  }
+  if (d < 365) {
+    const mo = Math.floor(d / 30);
+    return `${mo}mo ago`;
+  }
+  return `${Math.floor(d / 365)}y ago`;
+}
+
+/** The clash boards show only the TOP FIVE. Ten rows of near-identical numbers
+ *  is a leaderboard nobody reads past the podium. */
+const CLASH_TOP = 5;
+
+function battleRows(
+  list: RankedBattle[],
+  valueOnly: boolean,
+  r: ClanResolvers,
+  nowTick?: number,
+): ElderCell[][] {
+  const when = (b: RankedBattle): ElderCell =>
+    nowTick === undefined ? `turn ${fmt(b.tick)}` : agoFromTick(b.tick, nowTick);
+  return list.slice(0, CLASH_TOP).map((b, i) =>
     valueOnly
-      ? [i + 1, b.attacker, r.byTag(b.attackerTag), b.defender, r.byTag(b.defenderTag), fmt(b.value)]
-      : [i + 1, b.attacker, r.byTag(b.attackerTag), b.defender, r.byTag(b.defenderTag), fmt(b.atkLost), fmt(b.defLost), fmt(b.value)],
+      ? [i + 1, b.attacker, r.byTag(b.attackerTag), b.defender, r.byTag(b.defenderTag), fmt(b.value), when(b)]
+      : [i + 1, b.attacker, r.byTag(b.attackerTag), b.defender, r.byTag(b.defenderTag), fmt(b.atkLost), fmt(b.defLost), fmt(b.value), when(b)],
   );
 }
 
-export function battleTables(records: EraRecords, r: ClanResolvers = PLAIN): ElderTable[] {
+export function battleTables(records: EraRecords, r: ClanResolvers = PLAIN, nowTick?: number): ElderTable[] {
   const tables: ElderTable[] = [];
   if (records.richestAttacks.length) {
     tables.push({
       title: "Richest Attacks",
       note: "the greatest hauls of gold taken by force",
-      headers: ["#", "Attacker", "Clan", "Defender", "Clan", "Gold taken"],
+      headers: ["#", "Attacker", "Clan", "Defender", "Clan", "Gold taken", "When"],
       numeric: [0, 5],
-      rows: battleRows(records.richestAttacks, true, r),
+      rows: battleRows(records.richestAttacks, true, r, nowTick),
     });
   }
   if (records.richestRaids.length) {
     tables.push({
       title: "Richest Raids",
       note: "the fattest wagons of plunder hauled home",
-      headers: ["#", "Attacker", "Clan", "Defender", "Clan", "Resources"],
+      headers: ["#", "Attacker", "Clan", "Defender", "Clan", "Resources", "When"],
       numeric: [0, 5],
-      rows: battleRows(records.richestRaids, true, r),
+      rows: battleRows(records.richestRaids, true, r, nowTick),
     });
   }
   if (records.bloodiestAttacks.length) {
     tables.push({
       title: "Bloodiest Attacks",
       note: "the clashes with the most fallen on both sides",
-      headers: ["#", "Attacker", "Clan", "Defender", "Clan", "Atk lost", "Def lost", "Total"],
+      headers: ["#", "Attacker", "Clan", "Defender", "Clan", "Atk lost", "Def lost", "Total", "When"],
       numeric: [0, 5, 6, 7],
-      rows: battleRows(records.bloodiestAttacks, false, r),
+      rows: battleRows(records.bloodiestAttacks, false, r, nowTick),
     });
   }
   const wars = topWars(records);
@@ -301,7 +337,7 @@ export function buildEraTables(world: World, opts: { link?: boolean } = {}): Eld
   }
 
   // The five battle leaderboards, with clan cells linked to their pages.
-  if (records) tables.push(...battleTables(records, r));
+  if (records) tables.push(...battleTables(records, r, world.meta.tickNumber));
 
   return tables;
 }

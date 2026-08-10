@@ -214,13 +214,20 @@ const CHAPTERS: {
   tables: string[]; // matched by ElderTable.title
   charter?: string[]; // of those, which render as charter cards
 }[] = [
+  // NOTE: "Greatest Rulers" and "Strongest Empires" are deliberately absent.
+  // They are the empire and clan ladders, and those already have pages of their
+  // own — repeating them here made the Hall open with two tables you had just
+  // scrolled past. They are still BUILT (buildEraTables) so a sealed age keeps
+  // its final standings in the Annals, which is the one place they have no
+  // other home. What stays is the superlative the ladder cannot show: the
+  // strongest ruler of each race.
   {
     key: "standing",
     mark: "crown",
     title: "The Standing",
-    note: "who rules the age",
+    note: "the mightiest of each people",
     tone: "gold",
-    tables: ["Greatest Rulers", "Strongest Empires", "Lords & Ladies of the Realm"],
+    tables: ["Lords & Ladies of the Realm"],
   },
   {
     key: "titles",
@@ -241,11 +248,18 @@ const CHAPTERS: {
   },
 ];
 
+const EXCLUDED = new Set(["Greatest Rulers", "Strongest Empires"]);
+
 /** The full hall: dais + three chapters. `tables` comes from buildEraTables. */
 export function RecordsHall({ tables, dais, eraName }: { tables: ElderTable[]; dais: DaisEntry[]; eraName: string }) {
   const byTitle = new Map(tables.map((t) => [t.title, t]));
   const known = new Set(CHAPTERS.flatMap((c) => c.tables));
-  const stray = tables.filter((t) => !known.has(t.title));
+  // Stray tables (claimed by no chapter) still render, so a newly-added board
+  // is never silently invisible. These two are the exception: they are the
+  // empire and clan LADDERS, which have pages of their own, and dropping them
+  // from a chapter would otherwise just move them to the bottom of this page.
+  // They are still built, so the Annals keep a sealed age's final standings.
+  const stray = tables.filter((t) => !known.has(t.title) && !EXCLUDED.has(t.title));
   return (
     <div className="records-hall">
       <VictorsDais top={dais} eraName={eraName} />
@@ -255,7 +269,7 @@ export function RecordsHall({ tables, dais, eraName }: { tables: ElderTable[]; d
         return (
           <section key={ch.key} className={`records-chapter records-${ch.tone}`}>
             <ChapterHead mark={ch.mark} title={ch.title} note={ch.note} tone={ch.tone} />
-            <div className={ch.key === "standing" ? "records-duo" : undefined}>
+            <div>
               {present.map((t) =>
                 ch.charter?.includes(t.title) ? (
                   <div key={t.title} className="charter-block">

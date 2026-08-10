@@ -2131,19 +2131,6 @@ a.repair-hint:hover {
   color: var(--ink-soft);
 }
 
-/* The Standing's two ladders sit shoulder to shoulder when there's room. */
-@media (min-width: 900px) {
-  .records-duo {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    column-gap: 22px;
-    align-items: start;
-  }
-  .records-duo > :nth-child(3) {
-    grid-column: 1 / -1;
-  }
-}
-
 /* Medal rosettes for the top three of any ranked board. */
 .medal {
   width: 19px;
