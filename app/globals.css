@@ -8154,3 +8154,253 @@ body {
     transform: none;
   }
 }
+
+/* ── Deep-link landing ────────────────────────────────────────────────────
+   An advisor sends you to one exact control — the Hearthstead card, the
+   farmers row, the food you need to buy. Scrolling there is only half the
+   job: on a page of forty near-identical cards you still have to work out
+   WHICH one it meant. So the target announces itself, once, and settles. */
+@keyframes target-land {
+  0%   { box-shadow: 0 0 0 3px var(--gold), 0 0 22px 6px rgba(240, 199, 94, 0.55); }
+  70%  { box-shadow: 0 0 0 3px var(--gold), 0 0 22px 6px rgba(240, 199, 94, 0.35); }
+  100% { box-shadow: 0 0 0 2px var(--gold); }
+}
+.bcard:target,
+tr:target,
+.clanwork:target {
+  animation: target-land 1.6s ease-out both;
+  border-radius: 8px;
+  scroll-margin-top: 100px;
+}
+/* A table row cannot take a box-shadow reliably, so tint it as well. */
+tr:target > td {
+  background: color-mix(in srgb, var(--gold) 22%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bcard:target,
+  tr:target,
+  .clanwork:target {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--gold);
+  }
+}
+
+/* ── The War Council ──────────────────────────────────────────────────────
+   The three things you can do to another empire, on their own page. This
+   replaced a <details> popover: a popover is right for one row among forty,
+   and wrong here, where you arrived deliberately to act on ONE empire and the
+   console is the reason you came. Everything is open and readable at once.
+   No client JS — the attack modes are radios wearing card labels. */
+.wc {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--panel), var(--panel-alt));
+  padding: 12px 14px 10px;
+  animation: records-rise 0.4s ease-out both;
+}
+.wc-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.wc-head h3 {
+  margin: 0;
+  font: 700 17px var(--font-heading, Georgia), Georgia, serif;
+  color: var(--heading, var(--coin));
+}
+.wc-purses {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.wc-purse {
+  font-size: 12.5px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.wc-purse.is-low {
+  color: var(--neg);
+  border-color: var(--neg);
+}
+.wc-blocked {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--warn);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  font-size: 13.5px;
+  border-radius: 4px;
+}
+
+.wc-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 10px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .wc-grid { grid-template-columns: 1fr; }
+}
+.wc-card {
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--panel-inset, rgba(255, 250, 230, 0.5));
+  padding: 10px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+.wc-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.wc-card-title {
+  font-weight: 700;
+  font-size: 14.5px;
+}
+.wc-cost {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.wc-lede {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+/* Attack modes: radios wearing cards. The checked one lifts and lights. */
+.wc-modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+.wc-radio {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.wc-mode-wrap { display: block; cursor: pointer; }
+.wc-mode-wrap.is-disabled { cursor: not-allowed; opacity: 0.45; }
+.wc-mode {
+  display: block;
+  border: 1px solid var(--border-light);
+  border-radius: 7px;
+  padding: 7px 9px;
+  background: var(--panel);
+  transition: transform 0.13s ease-out, box-shadow 0.13s ease-out, border-color 0.13s;
+}
+.wc-mode-icon { font-size: 17px; margin-right: 5px; }
+.wc-mode b { font-size: 13.5px; }
+.wc-mode small {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  line-height: 1.4;
+  margin-top: 1px;
+}
+.wc-mode-wrap:hover .wc-mode { transform: translateY(-1px); border-color: var(--border); }
+.wc-radio:checked + .wc-mode {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px var(--gold), 0 3px 10px rgba(40, 24, 6, 0.22);
+  transform: translateY(-1px);
+}
+.wc-radio:focus-visible + .wc-mode { outline: 2px solid var(--coin); outline-offset: 2px; }
+
+.wc-select,
+.wc-input {
+  width: 100%;
+}
+.wc-send {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  margin-top: auto;
+}
+.wc-send .wc-input { flex: 1 1 auto; min-width: 0; }
+
+/* The primary order. It is the most-pressed button in the game, so it is the
+   biggest thing in the console and it breathes very slightly while ready. */
+@keyframes wc-ready {
+  0%, 100% { box-shadow: 0 2px 8px rgba(40, 24, 6, 0.25); }
+  50%      { box-shadow: 0 2px 14px rgba(154, 44, 28, 0.45); }
+}
+.wc-go {
+  width: 100%;
+  font-size: 15.5px;
+  padding: 10px 14px;
+  margin-top: auto;
+  animation: wc-ready 3.2s ease-in-out infinite;
+}
+.wc-go.btn-no { animation: none; }
+.wc-foot {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wc, .wc-go { animation: none; }
+  .wc-mode, .wc-mode-wrap:hover .wc-mode, .wc-radio:checked + .wc-mode { transform: none; }
+}
+
+/* ── "Show more" on a leaderboard ─────────────────────────────────────────
+   A checkbox and a label, not client JS: these boards render on the server,
+   and one that needs a hydration pass to reveal row six is one that flickers.
+   The checkbox is visually hidden but still focusable, so the control is
+   reachable by keyboard. */
+.board-more-toggle {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.is-extra { display: none; }
+.board-more-toggle:checked ~ .elder-tbl .is-extra,
+.board-more-toggle:checked ~ table .is-extra { display: table-row; }
+.board-more-toggle:checked ~ .charter-grid .is-extra { display: flex; }
+.board-more-toggle:checked ~ .board-more .board-more-open { display: none; }
+.board-more .board-more-close { display: none; }
+.board-more-toggle:checked ~ .board-more .board-more-close { display: inline; }
+
+.board-more {
+  display: inline-block;
+  margin: 8px 0 2px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--coin);
+  cursor: pointer;
+  padding: 4px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  background: var(--panel);
+  transition: border-color 0.13s, transform 0.13s ease-out;
+}
+.board-more:hover { border-color: var(--coin); transform: translateY(-1px); }
+.board-more-toggle:focus-visible ~ .board-more {
+  outline: 2px solid var(--coin);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-more:hover { transform: none; }
+}
+
+/* A pill nobody may pick reads as unavailable, not merely unselected. */
+.pill.is-off {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.pill.is-off span {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}

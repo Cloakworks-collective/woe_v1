@@ -196,7 +196,8 @@ export default async function RankingsPage({
                         target={{ id: p.id, name: p.name }}
                         revengeOpen={revengeOpen}
                         tradecraft={tradecraft}
-              pathfinding={researchLevel(me, "pathfinding")}
+                        pathfinding={researchLevel(me, "pathfinding")}
+                        state={{ shielded, onVacation: p.onVacation, revengeOpen }}
                         hint={hint}
                       />
                     )}

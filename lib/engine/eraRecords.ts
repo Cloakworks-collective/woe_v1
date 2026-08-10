@@ -9,7 +9,8 @@
 
 import type { BattleReport, UnitLosses } from "./types";
 
-const TOP_N = 10; // rows kept in each leaderboard
+const TOP_N = 15; // rows kept in each leaderboard — the page shows 5 and
+                  // expands to the rest, so keeping 10 capped the reveal
 const PAIR_CAP = 160; // prune the feud/war maps past this, back down to PAIR_KEEP
 const PAIR_KEEP = 80;
 

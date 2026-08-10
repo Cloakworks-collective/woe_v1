@@ -4,6 +4,13 @@ import { CmdForm } from "@/components/CmdForm";
 import { ReqTip } from "@/components/CostTip";
 import { Pills } from "@/components/Pills";
 import { ATTACK_MODE_INFO, SCOUT_OPS, SPY_OPS } from "@/lib/constants";
+import {
+  allModesBlocked,
+  covertBlocked,
+  defaultMode,
+  modeBlocked,
+  type TargetState,
+} from "@/lib/constants/attackGating";
 
 /**
  * The per-empire action console on the ladder — a native <details> popover so
@@ -16,14 +23,20 @@ export function TargetActions({
   revengeOpen,
   tradecraft,
   pathfinding,
+  state,
   hint,
 }: {
   target: { id: string; name: string };
   revengeOpen: boolean;
   tradecraft: number;
   pathfinding: number;
+  /** Shield / vacation / revenge. Gated by the SAME rules as the profile's
+   *  War Council (lib/constants/attackGating) so the two can never disagree. */
+  state?: TargetState;
   hint?: string;
 }) {
+  const t: TargetState = state ?? { revengeOpen };
+  const covertStop = covertBlocked(t);
   return (
     <details className="act">
       <summary className="act-btn" title={`Act against ${target.name}`}>
@@ -40,19 +53,22 @@ export function TargetActions({
             <Pills
               name="mode"
               ariaLabel={`Attack mode against ${target.name}`}
-              defaultValue={revengeOpen ? "revenge" : "raid"}
-              options={[
-                { value: "raid", label: "Raid", title: ATTACK_MODE_INFO.raid.tip },
-                { value: "siege", label: "Siege", title: ATTACK_MODE_INFO.siege.tip },
-                { value: "revenge", label: "Revenge", title: ATTACK_MODE_INFO.revenge.tip },
-                { value: "bombard", label: "Bombard", title: ATTACK_MODE_INFO.bombard.tip },
-              ]}
+              defaultValue={defaultMode(t)}
+              options={(["raid", "siege", "revenge", "bombard"] as const).map((m) => {
+                const why = modeBlocked(m, t);
+                return {
+                  value: m,
+                  label: m === "siege" ? "Castle" : m[0].toUpperCase() + m.slice(1),
+                  title: why ?? ATTACK_MODE_INFO[m].tip,
+                  disabled: Boolean(why),
+                };
+              })}
             />
             <ReqTip
               heading={`Strike ${target.name}`}
               body="March your army in the mode picked above — raid for loot, siege to wreck buildings, bombard to break walls from afar, or take a revenge blow. Costs 10 action turns."
             >
-              <Btn className="btn act-go">Strike (10 turns)</Btn>
+              <Btn className={allModesBlocked(t) ? "btn btn-no act-go" : "btn act-go"} disabled={Boolean(allModesBlocked(t))}>Strike (10 turns)</Btn>
             </ReqTip>
           </CmdForm>
         </div>
@@ -91,7 +107,7 @@ export function TargetActions({
                 heading={`Scout ${target.name}`}
                 body="Rangers work in the open and always come home. Map the Siege Train is the one worth remembering: a rival's engines never appear on the ladder, so this is the only way to learn whether a bombardment is coming. Costs spy turns, not action turns."
               >
-                <Btn className="btn act-ghost">Send rangers</Btn>
+                <Btn className={covertStop ? "btn btn-no" : "btn act-ghost"} disabled={Boolean(covertStop)}>Send rangers</Btn>
               </ReqTip>
             </div>
           </CmdForm>
@@ -125,7 +141,7 @@ export function TargetActions({
                 heading={`Send spies against ${target.name}`}
                 body="Their rangers stand watch, and how many of yours get through is decided by weight of numbers on both sides — so send enough. Only the survivors do the damage. A clean run stays anonymous; if even one is taken, they learn who sent them and the revenge window opens. Cost in spy turns scales with how many you commit."
               >
-                <Btn className="btn">Send spies</Btn>
+                <Btn className={covertStop ? "btn btn-no" : "btn"} disabled={Boolean(covertStop)}>Send spies</Btn>
               </ReqTip>
             </div>
           </CmdForm>

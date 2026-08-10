@@ -194,10 +194,17 @@ const TITLE_ICON: Record<string, string> = {
 };
 const titleIcon = (epithet: string) => TITLE_ICON[epithet] ?? "trophy";
 
+/** Title cards shown before "Show more". Three is a podium; the rest are a list. */
+const CHARTERS_SHOWN = 3;
+
 export function CharterCards({ table }: { table: ElderTable }) {
   // Rows arrive as [ "Name, the Epithet", clanCell, feat, total ].
+  const moreId = `more-c-${table.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+  const hidden = Math.max(0, table.rows.length - CHARTERS_SHOWN);
   return (
-    <div className="charter-grid">
+    <>
+      {hidden > 0 && <input type="checkbox" id={moreId} className="board-more-toggle" />}
+      <div className="charter-grid">
       {table.rows.map((row, i) => {
         const [holder, clan, feat, total] = row;
         const holderText = cellText(holder);
@@ -208,7 +215,11 @@ export function CharterCards({ table }: { table: ElderTable }) {
         return (
           // The stagger is an index-driven delay, so the cards deal onto the
           // table in order rather than all appearing at once.
-          <div className="charter" key={i} style={{ animationDelay: `${Math.min(i, 12) * 45}ms` }}>
+          <div
+            className={`charter${i >= CHARTERS_SHOWN ? " is-extra" : ""}`}
+            key={i}
+            style={{ animationDelay: `${Math.min(i, 12) * 45}ms` }}
+          >
             <div className="charter-epithet">
               <img
                 src={`/art/ui/icons/${titleIcon(epithet)}.png`}
@@ -236,7 +247,14 @@ export function CharterCards({ table }: { table: ElderTable }) {
           </div>
         );
       })}
-    </div>
+      </div>
+      {hidden > 0 && (
+        <label htmlFor={moreId} className="board-more">
+          <span className="board-more-open">Show {hidden} more</span>
+          <span className="board-more-close">Show fewer</span>
+        </label>
+      )}
+    </>
   );
 }
 

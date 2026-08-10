@@ -4,7 +4,7 @@ import { Art } from "@/components/Art";
 import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { PublicBattleTable } from "@/components/PublicBattleTable";
-import { TargetActions } from "@/components/TargetActions";
+import { WarCouncil } from "@/components/WarCouncil";
 import { RACE_NAMES } from "@/lib/constants";
 import { publicBattle, rankingScore, researchLevel, settlementTitle } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
@@ -83,24 +83,19 @@ export default async function EmpireProfilePage({
           </dl>
         </div>
         {p.id !== me.id && (
-          <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8 }}>
-            <TargetActions
-              target={{ id: p.id, name: p.name }}
-              revengeOpen={revengeOpen}
-              tradecraft={researchLevel(me, "tradecraft")}
-              pathfinding={researchLevel(me, "pathfinding")}
-              hint={
-                p.shieldUntilTick > tick
-                  ? "🛡 Under the newcomer shield — no attacks or spying."
-                  : p.onVacation
-                    ? "🏖 On vacation — only revenge may touch them."
-                    : undefined
-              }
-            />
-            <span style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>
-              What you see here is what the heralds tell everyone — composition costs spies.
-            </span>
-          </div>
+          <WarCouncil
+            target={{ id: p.id, name: p.name }}
+            revengeOpen={revengeOpen}
+            tradecraft={researchLevel(me, "tradecraft")}
+            pathfinding={researchLevel(me, "pathfinding")}
+            turns={me.turnsAvailable}
+            spyTurns={me.spyTurnsAvailable ?? 0}
+            state={{
+              shielded: p.shieldUntilTick > tick,
+              onVacation: p.onVacation,
+              revengeOpen,
+            }}
+          />
         )}
       </Panel>
 

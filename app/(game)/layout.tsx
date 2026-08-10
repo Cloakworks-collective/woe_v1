@@ -1,6 +1,7 @@
 import { AdvisorAlerts } from "@/components/AdvisorAlerts";
 import { EventToasts, type ToastItem } from "@/components/EventToasts";
 import { FlashProvider } from "@/components/FlashProvider";
+import { HashScroll } from "@/components/HashScroll";
 import { MobileNav } from "@/components/MobileNav";
 import { ResourceBar, TopBar } from "@/components/ResourceBar";
 import { SideNav } from "@/components/SideNav";
@@ -27,6 +28,8 @@ export default async function GameLayout({ children }: { children: React.ReactNo
 
   return (
     <FlashProvider>
+      {/* Deep links from the advisors land ON their control — see HashScroll. */}
+      <HashScroll />
       {/* TWO bars, not three. The realm's name, where you can go, and who you
           are all belong to the same question, so they share one row; below 860px
           .topnav hides and the burger takes its place inline. The holdings row

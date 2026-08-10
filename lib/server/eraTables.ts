@@ -83,9 +83,10 @@ export function agoFromTick(tick: number, nowTick: number): string {
   return `${Math.floor(d / 365)}y ago`;
 }
 
-/** The clash boards show only the TOP FIVE. Ten rows of near-identical numbers
- *  is a leaderboard nobody reads past the podium. */
-const CLASH_TOP = 5;
+/** Boards carry up to fifteen rows; the page shows the first five and hides the
+ *  rest behind a "Show more" (see LeaderTable). Five is what you read; the
+ *  other ten are there for when you actually want to dig. */
+const CLASH_TOP = 15;
 
 function battleRows(
   list: RankedBattle[],
@@ -131,7 +132,7 @@ export function battleTables(records: EraRecords, r: ClanResolvers = PLAIN, nowT
       rows: battleRows(records.bloodiestAttacks, false, r, nowTick),
     });
   }
-  const wars = topWars(records);
+  const wars = topWars(records, CLASH_TOP);
   if (wars.length) {
     tables.push({
       title: "Greatest Wars",
@@ -141,7 +142,7 @@ export function battleTables(records: EraRecords, r: ClanResolvers = PLAIN, nowT
       rows: wars.map((w, i) => [i + 1, r.byName(w.n1), r.byName(w.n2), fmt(w.v1), fmt(w.v2), fmt(w.total)]),
     });
   }
-  const feuds = topFeuds(records);
+  const feuds = topFeuds(records, CLASH_TOP);
   if (feuds.length) {
     tables.push({
       title: "Greatest Feuds",

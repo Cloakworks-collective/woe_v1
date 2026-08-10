@@ -10,16 +10,25 @@ export function Pills({
   ariaLabel,
 }: {
   name: string;
-  options: { value: string; label: string; title?: string }[];
+  options: { value: string; label: string; title?: string; disabled?: boolean }[];
   defaultValue?: string;
   ariaLabel?: string;
 }) {
-  const initial = defaultValue ?? options[0]?.value;
+  // Never open on a pill nobody can pick — fall back to the first live one.
+  const live = options.filter((o) => !o.disabled);
+  const wanted = defaultValue ?? live[0]?.value;
+  const initial = live.some((o) => o.value === wanted) ? wanted : live[0]?.value;
   return (
     <span className="pills" role="radiogroup" aria-label={ariaLabel}>
       {options.map((o) => (
-        <label className="pill" key={o.value} title={o.title}>
-          <input type="radio" name={name} value={o.value} defaultChecked={o.value === initial} />
+        <label className={`pill${o.disabled ? " is-off" : ""}`} key={o.value} title={o.title}>
+          <input
+            type="radio"
+            name={name}
+            value={o.value}
+            defaultChecked={o.value === initial}
+            disabled={o.disabled}
+          />
           <span>{o.label}</span>
         </label>
       ))}

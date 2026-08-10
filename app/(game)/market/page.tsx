@@ -83,7 +83,7 @@ export default async function MarketPage({
                 .filter((o) => o.resource === key && o.sellerId !== p.id && caravanArrived(o, tick))
                 .reduce((s, o) => s + o.remaining, 0);
               return (
-                <tr key={key}>
+                <tr key={key} id={`buy-${key}`}>
                   <td>
                     <span className="res-cost">
                       <ResIcon kind={key} size={60} /> {label}

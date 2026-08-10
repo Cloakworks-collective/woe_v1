@@ -172,7 +172,7 @@ export default async function TrainPage({
                 ? `each caravan carries ${(1000 * lvl).toLocaleString("en-US")} goods · ${caravanDeliveryTurns(lvl)}-turn road to the Bazaar`
                 : `each makes ${workerOutputAtLevel(lvl)}/turn`;
             return (
-              <div className="bcard" key={role}>
+              <div className="bcard" key={role} id={`w-${role}`}>
                 <div className="bcard-head">
                   <div>
                     <span className="bcard-name">{label}</span>

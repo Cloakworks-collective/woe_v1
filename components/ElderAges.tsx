@@ -35,12 +35,22 @@ export function MedalSVG({ tone }: { tone: "gold" | "silver" | "bronze" }) {
 
 const MEDAL_TONE = ["gold", "silver", "bronze"] as const;
 
+/** Rows shown before "Show more". Five is what a leaderboard is read for; the
+ *  rest are there for when you actually want to dig. */
+const SHOWN = 5;
+
 export function LeaderTable({ t }: { t: ElderTable }) {
   const numeric = new Set(t.numeric ?? []);
   // Ranked tables (first column "#") earn medals for their top three.
   const ranked = t.headers[0] === "#";
+  // The expander is a checkbox + label, not client JS: these tables render on
+  // the server and a board that needs a hydration pass to show row six is a
+  // board that flickers.
+  const moreId = `more-${t.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+  const hidden = Math.max(0, t.rows.length - SHOWN);
   return (
     <div className="elder-table-wrap">
+      {hidden > 0 && <input type="checkbox" id={moreId} className="board-more-toggle" />}
       <div className="elder-table-title">
         {t.title}
         {t.note && <span className="elder-table-note"> — {t.note}</span>}
@@ -61,7 +71,10 @@ export function LeaderTable({ t }: { t: ElderTable }) {
             return (
               <tr
                 key={ri}
-                className={place >= 1 && place <= 3 ? `medal-row medal-row-${place}` : undefined}
+                className={[
+                  place >= 1 && place <= 3 ? `medal-row medal-row-${place}` : "",
+                  ri >= SHOWN ? "is-extra" : "",
+                ].filter(Boolean).join(" ") || undefined}
                 style={{ animationDelay: `${Math.min(ri, 12) * 35}ms` }}
               >
                 {row.map((cell, ci) => (
@@ -82,6 +95,12 @@ export function LeaderTable({ t }: { t: ElderTable }) {
           })}
         </tbody>
       </table>
+      {hidden > 0 && (
+        <label htmlFor={moreId} className="board-more">
+          <span className="board-more-open">Show {hidden} more</span>
+          <span className="board-more-close">Show fewer</span>
+        </label>
+      )}
     </div>
   );
 }

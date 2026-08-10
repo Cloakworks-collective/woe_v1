@@ -155,7 +155,7 @@ function BuildingCards({ ids, player, path }: { ids: string[]; player: Player; p
         const needsRepair = lvl > 0 && integrity < 1;
         const rcost = needsRepair ? repairCost(bid, lvl, integrity) : null;
         return (
-          <div className="bcard" key={id}>
+          <div className="bcard" key={id} id={`b-${bid}`}>
             <div className="bcard-head">
               <div>
                 <Info tip={info.tip} title={info.title} guide={BUILDING_GUIDE[bid]}>

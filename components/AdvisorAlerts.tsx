@@ -74,8 +74,8 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
         </>
       ),
       ctas: [
-        { href: "/market#buy", label: "⚖ Buy food at the Bazaar", primary: true },
-        { href: "/train#workers", label: "👥 Assign farmers", primary: true },
+        { href: "/market#buy-food", label: "⚖ Buy food at the Bazaar", primary: true },
+        { href: "/train#w-farmers", label: "👥 Assign farmers", primary: true },
       ],
       manual: "/guide#grow",
     });
@@ -120,7 +120,7 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
         </>
       ),
       ctas: [
-        { href: "/buildings?tab=military#defence", label: "🧱 Repair the walls", primary: true },
+        { href: "/buildings?tab=military#b-walls", label: "🧱 Repair the walls", primary: true },
       ],
       manual: "/guide#defense",
     });
@@ -147,7 +147,7 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
         </>
       ),
       ctas: [
-        { href: "/buildings#housing", label: "🏠 Raise Hearthsteads", primary: true },
+        { href: "/buildings#b-hearthstead", label: "🏠 Raise Hearthsteads", primary: true },
       ],
       manual: "/guide#grow",
     });
@@ -177,7 +177,7 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
         </>
       ),
       ctas: [
-        { href: "/buildings#storage", label: "🔧 Repair the storehouses", primary: true },
+        { href: `/buildings#b-${brokenStores[0].id}`, label: "🔧 Repair the storehouses", primary: true },
       ],
       manual: "/guide#defense",
     });
