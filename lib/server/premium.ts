@@ -1,4 +1,4 @@
-// The Royal Charter — purchase plumbing (spec/premium.md).
+// The Royal Charter — purchase plumbing (spec/clans.md).
 // Dual-mode like the store: real Stripe Checkout when STRIPE_SECRET_KEY is
 // set (test keys → Stripe's own 4242… test cards); otherwise a built-in
 // emulator of Stripe's test-mode card behavior so the flow is exercisable

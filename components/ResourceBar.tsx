@@ -3,8 +3,16 @@ import type { ReactNode } from "react";
 import { ResIcon } from "@/components/ResIcon";
 import { ResourceDeltas } from "@/components/ResourceDeltas";
 import { TickCountdown } from "@/components/TickCountdown";
-import { ACTION_TURNS } from "@/lib/constants";
-import { bankedRes, foodUpkeepPerTurn, productionRates, taxIncomePerTurn, type Player } from "@/lib/engine";
+import { ACTION_TURNS, POP_GROWTH, SPY_TURNS } from "@/lib/constants";
+import {
+  bankedRes,
+  foodUpkeepPerTurn,
+  growthBreakdown,
+  productionRates,
+  taxIncomePerTurn,
+  vacantHousing,
+  type Player,
+} from "@/lib/engine";
 import type { WorldMeta } from "@/lib/server/store";
 import { leaveSession, toggleTheme } from "@/app/actions";
 
@@ -45,8 +53,19 @@ function ResTip({
   );
 }
 
-export async function ResourceBar({ player, meta }: { player: Player; meta: WorldMeta }) {
-  const dark = (await cookies()).get("woe_theme")?.value === "dark";
+/**
+ * The holdings row — gold, goods, turns.
+ *
+ * Split from the identity row (TopBar below) so the two can sit on opposite
+ * sides of the main nav: you steer by the nav, then glance at what you hold.
+ * The crown, the theme switch and the abdicate button stay up top where they
+ * have always been.
+ */
+export function ResourceBar({ player, meta }: { player: Player; meta: WorldMeta }) {
+  // Tomorrow's intake, and how much of it there is actually room for.
+  const g = growthBreakdown(player);
+  const beds = vacantHousing(player);
+  const arriving = player.starving ? 0 : Math.min(g.total, beds);
 
   // Per-turn truths for the popovers: production, tax, upkeep, and what's vaulted.
   const rates = productionRates(player);
@@ -87,29 +106,7 @@ export async function ResourceBar({ player, meta }: { player: Player; meta: Worl
   );
 
   return (
-    <div className="topbar">
-      <div className="title">
-        WAR OF EMPIRES
-        <small>
-          {meta.eraName} · turn {meta.tickNumber.toLocaleString()}
-          <TickCountdown lastTickAt={meta.lastTickAt} />
-        </small>
-      </div>
-      <form action={toggleTheme} className="whoami" style={{ marginLeft: "auto" }}>
-        <input type="hidden" name="to" value={dark ? "light" : "dark"} />
-        <button
-          className="theme-toggle"
-          type="submit"
-          title={dark ? "Switch to the parchment (light) theme" : "Switch to the midnight (dark) theme"}
-          aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
-        >
-          {dark ? "☀️" : "🌙"}
-        </button>
-      </form>
-      <form action={leaveSession} className="whoami">
-        <span title="Your empire">👑 {player.name}</span>
-        <button title="Leave this throne and return to the gate">abdicate</button>
-      </form>
+    <div className="topbar topbar-res">
       <div className="res-group">
         <ResTip
           heading="Gold"
@@ -148,15 +145,61 @@ export async function ResourceBar({ player, meta }: { player: Player; meta: Worl
           rows={[
             { label: "Regain / game turn", value: `+${ACTION_TURNS.PER_GAME_TURN}`, tone: "good" },
             { label: "Attack", value: `−${ACTION_TURNS.ATTACK_COST}` },
-            { label: "Spy mission", value: `−${ACTION_TURNS.SPY_MISSION_COST}` },
-            { label: "Scout recon", value: `−${ACTION_TURNS.SCOUT_RECON_COST}` },
             { label: "Rest the army", value: `−${ACTION_TURNS.REST_COST}` },
           ]}
-          note={`Capped at ${ACTION_TURNS.CAP}. Spend them — capped turns are wasted turns.`}
+          note={`Capped at ${ACTION_TURNS.CAP}. Spend them — capped turns are wasted turns. Spies and scouts run on their own, scarcer clock.`}
         >
           <div className="res" data-res="turns">
             <ResIcon kind="turns" size={28} />
             {player.turnsAvailable}
+          </div>
+        </ResTip>
+        {/* The covert clock. Half the army's rate and a far lower ceiling, and
+            spies and scouts both draw from it — so scouting a rival and robbing
+            them are competing claims on the same budget. */}
+        <ResTip
+          heading="Spy turns"
+          rows={[
+            { label: "Regain / game turn", value: `+${SPY_TURNS.PER_GAME_TURN}`, tone: "good" },
+            { label: "Scout a target", value: "≈1 per 6 rangers sent" },
+            { label: "Sabotage", value: "≈1 per 2 agents sent" },
+            { label: "Steal research", value: "1 per agent sent" },
+          ]}
+          note={`Capped at ${SPY_TURNS.CAP} — about a day and a half. Spies AND scouts spend from this one pool, so every turn spent watching is a turn not spent striking.`}
+        >
+          <div className="res" data-res="spyturns" title="Spy turns">
+            <span style={{ fontSize: 22, lineHeight: 1 }}>🗝</span>
+            {player.spyTurnsAvailable ?? 0}
+          </div>
+        </ResTip>
+
+        {/* Settlers arriving at the next dawn. Shown as what will ACTUALLY land
+            (capped by empty beds), because "+64/day" beside a full Hearthstead
+            is a promise the game will not keep. */}
+        <ResTip
+          heading="Settlers at dawn"
+          rows={[
+            { label: "Base", value: `+${g.base}`, tone: "good" },
+            { label: "Safety (garrison)", value: `+${g.safety} / 10`, tone: g.safety > 0 ? "good" : undefined },
+            { label: "Prosperity (resource buildings)", value: `+${g.prosperity} / 40`, tone: g.prosperity > 0 ? "good" : undefined },
+            { label: "Walls", value: `+${g.walls} / 40`, tone: g.walls > 0 ? "good" : undefined },
+            { label: "Free beds", value: fmt(beds), tone: beds < g.total ? "bad" : undefined },
+          ]}
+          note={
+            player.starving
+              ? "Nobody comes to a starving town — recruitment is halted until your people eat."
+              : beds < g.total
+                ? `Only ${fmt(beds)} will find a bed; the other ${fmt(g.total - beds)} walk on and are lost. Raise the Hearthstead.`
+                : `${g.total}/day of a possible ${POP_GROWTH.MAX}. Arrivals beyond your empty beds are lost, never queued.`
+          }
+        >
+          <div
+            className={`res${arriving === 0 ? " res-crit" : beds < g.total ? " res-warn" : ""}`}
+            data-res="settlers"
+            title="Settlers arriving at the next dawn"
+          >
+            <span style={{ fontSize: 20, lineHeight: 1 }}>🧺</span>
+            +{fmt(arriving)}
           </div>
         </ResTip>
       </div>
@@ -170,6 +213,53 @@ export async function ResourceBar({ player, meta }: { player: Player; meta: Worl
         ore={player.resources.ore}
         turns={player.turnsAvailable}
       />
+    </div>
+  );
+}
+
+/**
+ * The identity row: the realm's name, the era clock, the theme switch and the
+ * throne. Rendered ABOVE the main nav — this is who and when you are, and it
+ * does not move.
+ */
+export async function TopBar({
+  player,
+  meta,
+  children,
+}: {
+  player: Player;
+  meta: WorldMeta;
+  /** The navigation slot — rendered inline between the realm's name and the
+   *  throne, so the whole of "where am I / where can I go / who am I" is ONE
+   *  bar. Two bars total; three read as a stack of unrelated strips. */
+  children?: React.ReactNode;
+}) {
+  const dark = (await cookies()).get("woe_theme")?.value === "dark";
+  return (
+    <div className="topbar">
+      <div className="title">
+        WAR OF EMPIRES
+        <small>
+          {meta.eraName} · turn {meta.tickNumber.toLocaleString()}
+          <TickCountdown lastTickAt={meta.lastTickAt} />
+        </small>
+      </div>
+      {children}
+      <form action={toggleTheme} className="whoami" style={{ marginLeft: "auto" }}>
+        <input type="hidden" name="to" value={dark ? "light" : "dark"} />
+        <button
+          className="theme-toggle"
+          type="submit"
+          title={dark ? "Switch to the parchment (light) theme" : "Switch to the midnight (dark) theme"}
+          aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
+        >
+          {dark ? "☀️" : "🌙"}
+        </button>
+      </form>
+      <form action={leaveSession} className="whoami">
+        <span title="Your empire">👑 {player.name}</span>
+        <button title="Leave this throne and return to the gate">abdicate</button>
+      </form>
     </div>
   );
 }

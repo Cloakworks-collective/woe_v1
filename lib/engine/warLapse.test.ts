@@ -10,7 +10,8 @@ const STALE = WAR.STALE_HOURS * TICKS_PER_HOUR;
 function pair(): { a: Clan; b: Clan } {
   const a = newClan("a", "Iron Pact", newEmpire({ id: "la", name: "la", race: "human" }));
   const b = newClan("b", "Ash Banner", newEmpire({ id: "lb", name: "lb", race: "orc" }));
-  return { a: declareWar(a, "b", 1000), b: declareWar(b, "a", 1000) };
+  const d = declareWar(a, b, 1000); // one declaration now arms BOTH sides
+  return { a: d.clan, b: d.target };
 }
 
 describe("a war nobody fights lapses", () => {

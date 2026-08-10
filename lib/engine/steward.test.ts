@@ -1,4 +1,4 @@
-// The Steward (spec/premium.md): queues + standing orders, premium-gated.
+// The Steward (spec/clans.md): queues + standing orders, premium-gated.
 
 import { describe, expect, it } from "vitest";
 import { researchOrdinalCost } from "../constants";
@@ -43,11 +43,11 @@ describe("build queue", () => {
     p = queueBuild(p, "grange").player;
     p = queueBuild(p, "sawyers_mill").player;
     const r = processSteward(p);
-    // Both level-1 civilian builds cost 400g + 480w/200s/120o — the second
-    // one exhausts wood (960 total), so both fit the starting purse.
+    // Timber is the early bottleneck now (560 wood for a level-1 civilian
+    // build), so the starting woodpile funds the head of the queue and the
+    // second entry waits on the lumberjacks.
     expect(level(r.player, "grange")).toBe(1);
-    expect(level(r.player, "sawyers_mill")).toBe(1);
-    expect(r.player.buildQueue).toEqual([]);
+    expect(r.player.buildQueue).toEqual(["sawyers_mill"]);
   });
 
   it("waits (keeps order) when the head is unaffordable", () => {
@@ -66,7 +66,8 @@ describe("build queue", () => {
     p = queueBuild(p, "grange").player;
     p = processSteward(p).player;
     expect(level(p, "grange")).toBe(0);
-    p.resources.wood = 500; // the lumberjacks came through
+    p.resources.wood = 2000;
+    p.resources.stone = 2000; // the lumberjacks and quarrymen came through
     p = processSteward(p).player;
     expect(level(p, "grange")).toBe(1);
     expect(p.buildQueue).toEqual([]);
@@ -117,7 +118,7 @@ describe("standing orders", () => {
   it("'once this building is built, train N troops' — waits, then fulfills partially", () => {
     let p = charterHolder();
     p.gold = 100_000;
-    p.resources = { food: 9000, wood: 9000, stone: 9000, ore: 9000 };
+    p.resources = { food: 9000, wood: 20000, stone: 9000, ore: 9000 };
     p.idlePeasants = 500;
     p.buildings.hearthstead = 60;
     p.buildings.muster_hall = 2; // 20 slots, all taken by starting footmen
@@ -195,7 +196,7 @@ describe("standing orders", () => {
   it("train-troops orders respect tier gates by retrying, not crashing", () => {
     let p = charterHolder();
     p.gold = 100_000;
-    p.resources = { food: 9000, wood: 9000, stone: 9000, ore: 9000 };
+    p.resources = { food: 9000, wood: 20000, stone: 9000, ore: 9000 };
     p.idlePeasants = 80;
     p.buildings.muster_hall = 8; // 80 slots, 20 used → 60 free
     p = addStandingOrder(
@@ -219,7 +220,7 @@ describe("integration: queue feeds orders in the same pass", () => {
   it("a queued build can satisfy a building condition within one steward pass", () => {
     let p = charterHolder();
     p.gold = 50_000;
-    p.resources = { food: 5000, wood: 5000, stone: 5000, ore: 5000 };
+    p.resources = { food: 5000, wood: 20000, stone: 5000, ore: 5000 };
     p.buildings.muster_hall = 5; // room for 30 more troops
     p.buildings.forge = 1; // the Forge is already up; the queue raises the yard
     p = queueBuild(p, "drill_yard").player;

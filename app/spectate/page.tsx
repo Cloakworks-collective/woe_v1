@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { HOLD_CLOCKS, POPULATION_FLOORS } from "@/lib/constants";
+import { ARMY_FLOORS, HOLD_CLOCKS } from "@/lib/constants";
 
 const MS_PER_HOUR = 3_600_000;
 const POLL_MS = 5_000;
@@ -130,7 +130,7 @@ export default function SpectatePage() {
         </div>
         <p style={{ fontSize: 12.5, opacity: 0.7, margin: "8px 0 0" }}>
           Hold #1 for {HOLD_CLOCKS.CUMULATIVE_HOURS}h total and {HOLD_CLOCKS.STREAK_HOURS}h unbroken, above{" "}
-          {fmt(POPULATION_FLOORS.GRAND_OVERLORD)} population, to win the age.
+          {fmt(ARMY_FLOORS.INDIVIDUAL)} regulars, to win the age.
         </p>
       </section>
 

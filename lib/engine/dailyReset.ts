@@ -1,46 +1,87 @@
 // The daily reset: peasant recruitment, then the scattering check
-// (spec/buildings.md growth model, spec/combat.md scattering).
+// (spec/empire.md growth model, spec/combat.md scattering).
 
 import {
   CIVILIAN_LEVELLED_IDS,
-  growthPerDayAt,
   HOUSING_PER_HEARTHSTEAD,
+  POP_GROWTH,
+  RESOURCE_BUILDING_IDS,
   SCATTERING,
-  WALL_DAMAGE_POP_PENALTY,
 } from "../constants";
 import {
   civilians,
   level,
+  guardStrength,
   military,
   totalPopulation,
   type EngineResult,
   type Player,
 } from "./types";
 
-/** Sum of all 13 civilian building levels (0–130). */
+/** Sum of all 13 civilian building levels (0–130). Kept for the Census and the
+ *  settlement-title ladder; growth no longer reads it. */
 export function civilianLevels(p: Player): number {
   return CIVILIAN_LEVELLED_IDS.reduce((sum, id) => sum + level(p, id), 0);
 }
 
-/** Raw peasants/day before wall penalty and housing cap — GROWTH_CURVE
- *  evaluated at the empire's total civilian building levels. */
-export function rawGrowthPerDay(p: Player): number {
-  return growthPerDayAt(civilianLevels(p));
+// ── Daily settler intake ────────────────────────────────────────────────────
+// per day = BASE + safety + prosperity + walls, clamped to [MIN, MAX], then
+// gated by vacant housing. See POP_GROWTH for why it is additive.
+
+/** The guard-to-civilian ratio, which is what "do I feel safe here" reduces to.
+ *  Mercenaries count: a hired blade on the gate reassures a farmer too. */
+export function guardRatio(p: Player): number {
+  const civ = civilians(p);
+  if (civ === 0) return guardStrength(p) > 0 ? Infinity : 0;
+  return guardStrength(p) / civ;
 }
 
-/** Damaged walls scare settlers: 1 − 0.5 × damagedFraction. Intact/absent = 1. */
-export function wallPenalty(p: Player): number {
-  if (level(p, "walls") === 0) return 1;
-  return 1 - WALL_DAMAGE_POP_PENALTY * (1 - p.wallIntegrity);
+/** SAFETY — cumulative tiers, so the first soldiers do most of the reassuring. */
+export function safetyGrowth(p: Player): number {
+  const ratio = guardRatio(p);
+  return POP_GROWTH.SAFETY_TIERS.reduce((sum, t) => (ratio >= t.ratio ? sum + t.add : sum), 0);
+}
+
+/** PROSPERITY — one settler per level of the four RESOURCE buildings. Storage
+ *  is excluded on purpose: a full granary is somewhere to put grain, not work. */
+export function prosperityGrowth(p: Player): number {
+  const levels = RESOURCE_BUILDING_IDS.reduce((sum, id) => sum + level(p, id), 0);
+  return Math.min(POP_GROWTH.PROSPERITY_MAX, Math.ceil(levels * POP_GROWTH.PROSPERITY_PER_LEVEL));
+}
+
+/** WALLS — scaled by integrity, so rubble reassures nobody until it is rebuilt.
+ *  This is what the old flat WALL_DAMAGE_POP_PENALTY used to express, now paid
+ *  out of the term it actually concerns instead of docking the whole intake. */
+export function wallsGrowth(p: Player): number {
+  return Math.ceil(level(p, "walls") * POP_GROWTH.WALLS_PER_LEVEL * p.wallIntegrity);
+}
+
+/** The four components, for the dashboard breakdown. */
+export function growthBreakdown(p: Player): {
+  base: number;
+  safety: number;
+  prosperity: number;
+  walls: number;
+  total: number;
+} {
+  const base = POP_GROWTH.BASE;
+  const safety = safetyGrowth(p);
+  const prosperity = prosperityGrowth(p);
+  const walls = wallsGrowth(p);
+  const total = Math.min(
+    POP_GROWTH.MAX,
+    Math.max(POP_GROWTH.MIN, base + safety + prosperity + walls),
+  );
+  return { base, safety, prosperity, walls, total };
 }
 
 export function vacantHousing(p: Player): number {
   return Math.max(0, level(p, "hearthstead") * HOUSING_PER_HEARTHSTEAD - civilians(p));
 }
 
-/** Peasants that would arrive today (after penalty, before the housing cap). */
+/** Peasants that would arrive today, before the housing cap. */
 export function popPerDay(p: Player): number {
-  return Math.max(1, Math.floor(rawGrowthPerDay(p) * wallPenalty(p)));
+  return growthBreakdown(p).total;
 }
 
 export function processDailyReset(input: Player, currentTick = 0): EngineResult {
@@ -61,7 +102,7 @@ export function processDailyReset(input: Player, currentTick = 0): EngineResult 
   //    Empires below 500 total population are exempt.
   if (totalPopulation(p) >= SCATTERING.EXEMPT_BELOW_POPULATION) {
     const civ = civilians(p);
-    const mil = military(p);
+    const mil = guardStrength(p); // regulars AND sellswords — a hired blade on the gate reassures a farmer too
     if (mil < SCATTERING.TROOP_RATIO * civ) {
       const keep = Math.floor(mil / SCATTERING.TROOP_RATIO);
       let toLose = civ - keep;

@@ -19,28 +19,28 @@ function fresh(): Player {
   return newEmpire({ id: "t", name: "Test", race: "human" });
 }
 
-describe("building costs (spec/buildings.md examples)", () => {
+describe("building costs (spec/empire.md examples)", () => {
   it("buildings never cost ore — it's reserved for troops", () => {
     for (const id of ["grange", "walls", "forge", "hearthstead", "muster_hall"] as const) {
       expect(buildingCost(id, 1).ore).toBe(0);
     }
   });
 
-  it("civilian level 1: 400g + 480 wood / 320 stone / no ore", () => {
-    expect(buildingCost("grange", 1)).toEqual({ gold: 400, wood: 480, stone: 320, ore: 0 });
+  it("civilian level 1 is timber-hungry: 400g + 560 wood / 240 stone", () => {
+    expect(buildingCost("grange", 1)).toEqual({ gold: 400, wood: 560, stone: 240, ore: 0 });
   });
 
-  it("military level 1: 600g + 540 wood / 660 stone / no ore", () => {
-    expect(buildingCost("walls", 1)).toEqual({ gold: 600, wood: 540, stone: 660, ore: 0 });
+  it("military level 1: 600g + 660 wood / 540 stone", () => {
+    expect(buildingCost("walls", 1)).toEqual({ gold: 600, wood: 660, stone: 540, ore: 0 });
   });
 
-  it("hearthstead: flat 150g + 180 wood / 120 stone / no ore", () => {
-    expect(buildingCost("hearthstead", 99)).toEqual({ gold: 150, wood: 180, stone: 120, ore: 0 });
+  it("hearthstead: flat 150g + 210 wood / 90 stone", () => {
+    expect(buildingCost("hearthstead", 99)).toEqual({ gold: 150, wood: 210, stone: 90, ore: 0 });
   });
 
-  it("tiered level 3 uses the top band — stone-heavy, ore-free", () => {
+  it("tiered level 3 uses the top band — stone-heavy, and ore enters the bill", () => {
     const c = buildingCost("forge", 3);
-    expect(c.ore).toBe(0);
+    expect(c.ore).toBeGreaterThan(0); // levels 9–10 want iron fittings too
     expect(c.stone).toBeGreaterThan(c.wood);
   });
 });
@@ -50,7 +50,7 @@ describe("build command", () => {
     const { player, events } = build(fresh(), "grange");
     expect(player.buildings.grange).toBe(1);
     expect(player.gold).toBe(5000 - 400);
-    expect(player.resources.wood).toBe(1000 - 480);
+    expect(player.resources.wood).toBe(1000 - 560);
     expect(events).toContainEqual({ type: "buildComplete", building: "grange", level: 1 });
   });
 
@@ -60,11 +60,12 @@ describe("build command", () => {
     expect(() => build(p, "grange")).toThrowError(/wood/i);
   });
 
-  it("the starting purse buys 2 civilian builds, not 3 (wood-bound)", () => {
+  it("the starting purse is wood-bound — timber is the early bottleneck", () => {
     let p = fresh();
     p = build(p, "grange").player;
-    p = build(p, "sawyers_mill").player;
-    expect(() => build(p, "masons_quarry")).toThrow(); // 3rd waits on production
+    // Timber is the early bottleneck now: the second build already outruns the
+    // starting woodpile, so the first thing a new realm must do is cut trees.
+    expect(() => build(p, "sawyers_mill")).toThrowError(/wood/i);
   });
 });
 
@@ -108,15 +109,19 @@ describe("training & army", () => {
     expect(player.idlePeasants).toBe(90); // straight back to civilian life
   });
 
-  it("mercenaries are typed, building-gated, and cap at 25% of the regular army", () => {
+  it("mercenaries are typed, building-gated, and cap at a third of their own arm", () => {
     const p = fresh();
     p.gold = 100000;
     p.buildings = { ...p.buildings, drill_yard: 1, forge: 1 };
-    // regular army = 20 → cap 5
-    expect(() => hireMercenaries(p, "footman", "light", 6)).toThrowError(/capped/i);
-    const { player } = hireMercenaries(p, "footman", "light", 5);
-    expect(player.army.mercenaries.footmen.light).toBe(5);
-    expect(player.gold).toBe(100000 - 5 * 500); // 500 × race × light tier
+    // Sellswords need beds like anyone else — hiring skips population and
+    // training time, not quartering.
+    expect(() => hireMercenaries(p, "footman", "light", 1)).toThrowError(/barracks/i);
+    p.buildings.muster_hall = 5; // 50 beds against 20 regulars
+    // 20 regular footmen → at most 6 hired footmen (a third of that arm)
+    expect(() => hireMercenaries(p, "footman", "light", 7)).toThrowError(/capped|third/i);
+    const { player } = hireMercenaries(p, "footman", "light", 6);
+    expect(player.army.mercenaries.footmen.light).toBe(6);
+    expect(player.gold).toBe(100000 - 6 * 900); // sellswords are dear now
   });
 
   it("hiring a merc tier needs the matching trainer + Forge", () => {
@@ -125,18 +130,23 @@ describe("training & army", () => {
     expect(() => hireMercenaries(p, "cavalry", "heavy", 1)).toThrowError(/knights_stables/i);
   });
 
-  it("normalizePlayer migrates legacy saves (flat mercs, warrior pool)", () => {
-    const p = fresh() as Player & { warriors?: number };
-    p.warriors = 7; // legacy unequipped pool
-    (p.army as unknown as { mercenaries: number }).mercenaries = 4; // legacy flat count
+  it("normalizePlayer fills in every field the engine assumes", () => {
+    // The combat rework shipped with a world wipe, so this no longer migrates
+    // legacy shapes — it exists so bots, fixtures and hand-built test players
+    // get sane defaults without every call site listing them.
+    const p = fresh();
+    delete (p.army as Partial<typeof p.army>).siegeGearIntegrity;
+    delete (p.army as Partial<typeof p.army>).siegeCounterIntegrity;
+    (p.army.mercenaries as Partial<typeof p.army.mercenaries>).engineers = undefined;
     normalizePlayer(p);
-    expect(p.warriors).toBeUndefined(); // warriors return to the idle pool
-    expect(p.idlePeasants).toBe(80 + 7);
-    expect(p.army.mercenaries.footmen.light).toBe(4); // flat mercs → light footmen
-    expect(mercTotal(p.army.mercenaries)).toBe(4);
+    expect(p.army.siegeGearIntegrity.trebuchets).toBe(1);
+    expect(p.army.siegeCounterIntegrity.counter_engine).toBe(1);
+    expect(p.army.mercenaries.engineers).toBe(0);
+    expect(p.army.siegeExperience).toBe(0);
+    expect(p.spyTurnsAvailable).toBeGreaterThanOrEqual(0);
     // idempotent — a second pass is a no-op
     normalizePlayer(p);
-    expect(mercTotal(p.army.mercenaries)).toBe(4);
+    expect(p.army.siegeGearIntegrity.trebuchets).toBe(1);
   });
 
   it("rest costs 5 turns + 0.2 food per troop, +20 stamina", () => {

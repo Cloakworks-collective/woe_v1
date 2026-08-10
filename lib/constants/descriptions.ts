@@ -31,7 +31,7 @@ export const UNIT_INFO: Record<string, { title: string; tip: string }> = {
   },
   mercenary: {
     title: "Mercenary",
-    tip: "Rented sellswords — hired in the same arms and tiers as your own troops (a heavy-cavalry sellsword needs Knights' Stables 3 + Forge 3, just like the real thing). They cost only gold, no peasants, and stand in front of your regulars of that arm to die first — a bought shield. But they draw gold every single turn (skip the wage and they all desert at once), can never outnumber a quarter of your regular army, and count for nothing on the ranking ladder.",
+    tip: "Rented sellswords — hired in the same arms and tiers as your own troops (a heavy-cavalry sellsword needs Knights' Stables 3 + Forge 3, just like the real thing). They cost only gold and no peasants, and take the first 70% of any blow aimed at their arm — a bought shield. But they draw gold every turn (skip the wage and they all desert at once), need barracks beds like anyone else, and can never outnumber a third of your OWN troops of that same arm. Lose those regulars and the sellswords who can no longer be commanded are paid off and ride away, so killing your regulars costs an enemy more than the bodies.",
   },
 };
 
@@ -87,7 +87,7 @@ export const ACTION_INFO: Record<string, string> = {
 
 /** Clan works — what each building is, what it grants now, and what the next
  *  level buys. `effect(clan)` and `next(clan)` are filled by the page. */
-export const CLAN_BUILDING_INFO: Record<"storage" | "hall" | "wonder", { title: string; icon: string; tip: string }> = {
+export const CLAN_BUILDING_INFO: Record<"storage" | "hall" | "wonder" | "beacon", { title: string; icon: string; tip: string }> = {
   storage: {
     title: "Clan Storage",
     icon: "🏦",
@@ -97,6 +97,11 @@ export const CLAN_BUILDING_INFO: Record<"storage" | "hall" | "wonder", { title: 
     title: "Clan Hall",
     icon: "🏛️",
     tip: "The seat of the clan. Its level raises the member cap (5 → 10 → 15 → 20) and softens the tax penalty every member feels while clanned — from full at Hall 1 down to half at Hall 4, so members keep more of their gold. A cracked Hall shelters less until repaired.",
+  },
+  beacon: {
+    title: "Clan Beacon",
+    icon: "🔥",
+    tip: "The watchfires that warn the clan a war has begun. A declared war does not turn lethal at once: for a grace period, blows between the two clans still land at PEACETIME rates — normal damage, normal loot. Every clan gets 6 hours; the Beacon buys 12 / 18 / 24. The grace protects YOUR members and is measured from the declaration, so a clan whose Beacon burns higher than its enemy's can strike at full war rates while blows against it are still landing soft. It is not a shield — it is the drum you beat first.",
   },
   wonder: {
     title: "Clan Wonder",
@@ -126,7 +131,7 @@ export const BUILDING_INFO: Record<BuildingId, { title: string; tip: string }> =
   knights_stables: { title: "Knights' Stables", tip: "Where cavalry are raised. Its level (1–3) sets how heavy your riders can be armed: light, then medium, then heavy." },
   forge: { title: "The Forge", tip: "The military spine — it stocks the weapons and armour every equipped troop needs. Its level gates every trainer: heavy troops need a level-3 Forge as well as a level-3 trainer." },
   war_foundry: { title: "War Foundry", tip: "The siege engineering works. Its ten levels alternate an offensive weapon then the defensive counter that blunts it — only a full level-10 Foundry owns the complete kit." },
-  walls: { title: "The Walls", tip: "Your ring of stone. Each level adds +10% to every defender in a siege — and while intact they cost nothing, but battered walls also frighten off up to half your incoming settlers until repaired." },
+  walls: { title: "The Walls", tip: "Your ring of stone. Any standing wall gives every defender behind it the same +50% — a wall is a wall. What LEVEL buys is how much punishment it absorbs before it is rubble, and that scales hard: a Citadel soaks a hundred times what a palisade does. Battered walls also frighten off up to half your incoming settlers until repaired." },
 };
 
 export const RESEARCH_INFO: Record<ResearchField, { title: string; tip: string }> = {
@@ -138,8 +143,10 @@ export const RESEARCH_INFO: Record<ResearchField, { title: string; tip: string }
   pathfinding: { title: "Pathfinding", tip: "Sharper scouting. Each level sharpens your recon and boosts the odds your home scouts catch enemy spies. Shadow work — it brings power, not prestige." },
   art_of_war: { title: "The Art of War", tip: "Drill, tactics, and ferocity. Every level makes all your troops strike 20% harder in every battle, up to double at mastery." },
   shieldcraft: { title: "Shieldcraft", tip: "Discipline and better armour. Every level makes all your troops 20% tougher to kill, up to double at mastery." },
-  siegecraft: { title: "Siegecraft", tip: "Master engineers. Every level makes your siege engines hit 20% harder against troops and walls alike — but engines are war tools, so this brings power, not prestige." },
-  statecraft: { title: "Statecraft", tip: "Wise governance that softens the tax burden. Every level keeps your workers more productive under high taxes — at mastery they toil as if untaxed. Lets you bank gold without strangling production." },
+  siegecraft: { title: "Siegecraft", tip: "Master engineers. Every level adds 20% to the raw power of every engine you own, offensive and defensive alike, against every kind of target." },
+  siege_accuracy: { title: "Siege Accuracy", tip: "Ranging, plumb-lines and patient practice. Trebuchets are inaccurate things — only 30% of their power finds a wall and 20% a building. This study takes those to 60% and 50%, and sharpens your Counter-Engines too. It does nothing for rams, which already strike true; it is the bombardier's field, and it is the strongest study in the game for one." },
+  free_companies: { title: "Free Companies", tip: "Standing contracts with the sellsword captains. Each level cuts 10% from the price of hiring, up to half off — the field that makes a long war affordable, since mercenaries now bleed away steadily and must be replaced." },
+  statecraft: { title: "Statecraft", tip: "Efficient collection, honest clerks, fewer hands in the till. Every level lifts what the SAME tax rate yields, up to double at mastery — so a well-governed realm funds a war without squeezing its workers, who pay for high taxes in lost output. It touches gold and nothing else; the four production fields already cover the fields and quarries." },
 };
 
 // ── Guide deep-links ─────────────────────────────────────────────────────────
@@ -187,6 +194,8 @@ export const RESEARCH_GUIDE: Record<ResearchField, string> = {
   art_of_war: "/guide#battle",
   shieldcraft: "/guide#battle",
   siegecraft: "/guide#battle",
+  siege_accuracy: "/guide#battle",
+  free_companies: "/guide#battle",
   tradecraft: "/guide#shadows",
   pathfinding: "/guide#shadows",
 };

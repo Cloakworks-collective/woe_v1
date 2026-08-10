@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Info } from "./Info";
-import { HOLD_CLOCKS, POPULATION_FLOORS } from "@/lib/constants";
-import { rankingScore, totalPopulation, type Player } from "@/lib/engine";
+import { ARMY_FLOORS, HOLD_CLOCKS } from "@/lib/constants";
+import { rankingScore, regularTroops, type Player } from "@/lib/engine";
 import type { World } from "@/lib/server/store";
 import { MS_PER_HOUR, clanHold, clanScore, overlordHold } from "@/lib/server/world";
 
@@ -48,8 +48,10 @@ export function VictoryTracker({ world, me }: { world: World; me: Player }) {
   const oh = overlordHold(world);
   const cum = leader.p.id === oh.holderId ? oh.cumMs : (world.meta.overlordClocksMs?.[leader.p.id] ?? 0);
   const streak = leader.p.id === oh.holderId ? oh.streakMs : 0;
-  const leaderPop = totalPopulation(leader.p);
-  const leaderMeetsFloor = leaderPop >= POPULATION_FLOORS.GRAND_OVERLORD;
+  // The solo crown asks for a real army AND clean hands: never clanned this age.
+  const leaderRegulars = regularTroops(leader.p);
+  const leaderClanFree = !leader.p.everJoinedClan && !leader.p.clanId;
+  const leaderMeetsFloor = leaderRegulars >= ARMY_FLOORS.INDIVIDUAL && leaderClanFree;
 
   // Clan race (only if there are clans in the world).
   const clans = Object.values(world.clans)
@@ -61,7 +63,7 @@ export function VictoryTracker({ world, me }: { world: World; me: Player }) {
   const clanStreak = topClan && topClan.c.id === ch.holderId ? ch.streakMs : 0;
   const clanPop = topClan
     ? topClan.c.members.reduce(
-        (s, id) => s + (world.players[id] ? totalPopulation(world.players[id]) : 0),
+        (s, id) => s + (world.players[id] ? regularTroops(world.players[id]) : 0),
         0,
       )
     : 0;
@@ -82,7 +84,7 @@ export function VictoryTracker({ world, me }: { world: World; me: Player }) {
             <div className="vt-card-head">
               <span className="vt-badge">Solo</span> Grand Overlord{" "}
               <Info
-                tip={`Hold #1 on the ladder for ${HOLD_CLOCKS.CUMULATIVE_HOURS}h total and ${HOLD_CLOCKS.STREAK_HOURS}h unbroken, while above ${fmt(POPULATION_FLOORS.GRAND_OVERLORD)} population. An era ends the moment someone wins — the next era is named after them.`}
+                tip={`Hold #1 on the ladder for ${HOLD_CLOCKS.CUMULATIVE_HOURS}h total and ${HOLD_CLOCKS.STREAK_HOURS}h unbroken, with ${fmt(ARMY_FLOORS.INDIVIDUAL)}+ regulars and having NEVER joined a clan this age. An era ends the moment someone wins — the next era is named after them.`}
                 guide="/guide#winning"
               />
             </div>
@@ -108,14 +110,14 @@ export function VictoryTracker({ world, me }: { world: World; me: Player }) {
             <div className="vt-card-head">
               <span className="vt-badge">Clan</span> Clan Victory{" "}
               <Info
-                tip={`Same clocks for the #1 clan (sum of member scores), above ${fmt(POPULATION_FLOORS.CLAN)} total clan population.`}
+                tip={`Same clocks for the #1 clan (sum of member scores), with ${fmt(ARMY_FLOORS.CLAN)} regulars summed across its members.`}
                 guide="/guide#winning"
               />
             </div>
             {topClan ? (
               <>
                 <div className="vt-leader">
-                  🛡 {topClan.c.name} leads — {fmt(clanPop)} / {fmt(POPULATION_FLOORS.CLAN)} pop
+                  🛡 {topClan.c.name} leads — {fmt(clanPop)} / {fmt(ARMY_FLOORS.CLAN)} regulars
                   {myClan?.id === topClan.c.id && " (yours!)"}
                 </div>
                 <dl className="vt-clocks">

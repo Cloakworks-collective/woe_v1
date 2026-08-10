@@ -12,7 +12,7 @@ import {
   setAdminSession,
 } from "@/lib/server/admin";
 import { setSession } from "@/lib/server/auth";
-import { pushInbox, saveWorld } from "@/lib/server/store";
+import { carryWorldVersion, pushInbox, saveWorld } from "@/lib/server/store";
 import { eraReset, getWorld, runOneTick } from "@/lib/server/world";
 import {
   STORAGE_BUILDING,
@@ -21,6 +21,7 @@ import {
   type BuildingId,
 } from "@/lib/constants";
 import type { MarketOrder, Player, Resource } from "@/lib/engine";
+import { emptyMercForce, emptySiegeCounters, emptySiegeGear, fullCounterIntegrity, fullGearIntegrity } from "@/lib/engine/types";
 
 const back = (msg: string, ok = true): never =>
   redirect(`/admin?${ok ? "ok" : "err"}=${encodeURIComponent(msg)}`);
@@ -114,6 +115,9 @@ export async function adminCloseAge(): Promise<void> {
   const era = world.meta.eraName;
   // Seal the age's annals for good and open the next era named for the winner.
   const fresh = eraReset(world);
+  // A rebuilt world carries no version of its own; it is meant to overwrite the
+  // row we just read, not to insert a second one.
+  carryWorldVersion(world, fresh);
   await saveWorld(fresh);
   revalidatePath("/", "layout");
   back(`${era} is sealed into the Annals; ${fresh.meta.eraName} begins.`);
@@ -212,16 +216,22 @@ export async function adminSeed(formData: FormData): Promise<void> {
     archers: { light: 40, medium: 26, heavy: 9 },
     cavalry: { light: 22, medium: 14, heavy: 7 },
     siegeEngineers: 25,
-    siegeGear: { ropes: 8, ladders: 6, rams: 4, ballistae: 3, trebuchets: 3 },
-    siegeCounters: { billhooks: 6, forkpoles: 4, boiling_oil: 3, hoardings: 2, counter_engine: 2 },
+    siegeGear: { ...emptySiegeGear(), ropes: 8, ladders: 6, siege_towers: 2, rams: 4, ballistae: 3, trebuchets: 3 },
+    siegeCounters: { ...emptySiegeCounters(), billhooks: 6, forkpoles: 4, fire_pots: 2, boiling_oil: 3, hoardings: 2, counter_engine: 2 },
+    siegeGearIntegrity: fullGearIntegrity(),
+    siegeCounterIntegrity: fullCounterIntegrity(),
     spies: 40,
     scouts: 40,
     mercenaries: {
+      ...emptyMercForce(),
       footmen: { light: 10, medium: 4, heavy: 0 },
       archers: { light: 3, medium: 1, heavy: 0 },
       cavalry: { light: 0, medium: 0, heavy: 0 },
     },
     stamina: 78,
+    siegeExperience: 40,
+    spyExperience: 30,
+    scoutExperience: 30,
     experience: 46,
   };
 

@@ -1,15 +1,22 @@
 // Economy & management commands (spec/architecture.md protocol; costs and
-// capacity rules in spec/buildings.md). All instant — pacing is cost, never timers.
+// capacity rules in spec/empire.md). All instant — pacing is cost, never timers.
 
+import { decayExperience, lineRegulars, settleMercenaries } from "./combat/model";
+import type { MercArm, SiegeGearType } from "./types";
 import {
   ACTION_TURNS,
   HOUSING_PER_HEARTHSTEAD,
-  MERC_CAP_RATIO,
-  MERC_PRICE_GOLD,
+  MERCENARIES,
+  MERC_PRICE_BY_ARM,
+  RESEARCH_EFFECT_PER_LEVEL,
+  EFFECT_PER_LEVEL,
   RACES,
   RESEARCH_FIELDS,
   RESEARCH_SWITCH_LOSS,
   SCATTERING,
+  SIEGE_SALVAGE_VALUE,
+  SIEGE_REPAIR_COST_FACTOR,
+  XP,
   SIEGE_GEAR,
   SIEGE_COUNTERS,
   STAMINA,
@@ -29,6 +36,10 @@ import {
   civilians,
   level,
   mercTotal,
+  mercMilitary,
+  mercsOfArm,
+  regularsOfArm,
+  researchLevel,
   military,
   structureIntegrity,
   totalPopulation,
@@ -55,6 +66,15 @@ const ARMY_KEY: Record<TroopType, "footmen" | "archers" | "cavalry"> = {
   cavalry: "cavalry",
 };
 
+function canAfford(p: Player, cost: Cost): boolean {
+  return (
+    p.gold >= cost.gold &&
+    p.resources.wood >= cost.wood &&
+    p.resources.stone >= cost.stone &&
+    p.resources.ore >= cost.ore
+  );
+}
+
 function pay(p: Player, cost: Cost) {
   if (p.gold < cost.gold) throw new EngineError("gold", "Not enough gold");
   if (p.resources.wood < cost.wood) throw new EngineError("wood", "Not enough wood");
@@ -75,8 +95,14 @@ function scale(cost: { gold: number; wood: number; stone: number; ore: number },
   };
 }
 
+/** Barracks room left. Sellswords take a bed like any other soldier — hiring
+ *  them skips population and training time, not quartering. */
 function musterVacancy(p: Player): number {
-  return level(p, "muster_hall") * TROOPS_PER_MUSTER_HALL - military(p);
+  return (
+    level(p, "muster_hall") * TROOPS_PER_MUSTER_HALL -
+    military(p) -
+    mercMilitary(p.army.mercenaries)
+  );
 }
 
 // ── Commands ────────────────────────────────────────────────────────────────
@@ -183,8 +209,13 @@ export function dischargeTroops(input: Player, type: TroopType, tier: Tier, coun
       `That would drop your guard below the 30% line — at most ${safeDischargeCount(p)} can be discharged safely.`,
     );
   }
+  const before = lineRegulars(p);
   p.army[ARMY_KEY[type]][tier] -= count;
   p.idlePeasants += count;
+  p.army.experience = decayExperience(p.army.experience, count, before, XP.LOSS_ON_DISCHARGE);
+  // Sellswords serve under the regulars of their arm. Dismiss the regulars and
+  // the hired blades above the ratio have nobody left to follow.
+  settleMercenaries(p);
   return { player: p, events: [] };
 }
 
@@ -229,17 +260,37 @@ export function trainSiegeEngineers(input: Player, count: number): EngineResult 
 /** Build or upgrade a building. Instant — pay the cost, get the level.
  *  A cracked work must be mended first: masons will not raise a higher storey
  *  on a broken one, so bombardment stalls your growth until you repair. */
-export function build(input: Player, id: BuildingId): EngineResult {
+/**
+ * Raise a building by `count` levels (default 1).
+ *
+ * Each level is paid for SEPARATELY at its own price, so building ten in one
+ * click costs exactly what ten clicks would — the batch is a convenience, never
+ * a discount. If the purse runs out partway the levels already bought stand and
+ * the rest are simply not built; only a first level that cannot be afforded is
+ * an error, so the button still tells you when you cannot start at all.
+ */
+export function build(input: Player, id: BuildingId, count = 1): EngineResult {
+  if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
   const p = structuredClone(input);
-  const current = level(p, id);
-  const target = current + 1;
-  if (target > maxLevel(id)) throw new EngineError("max_level", "Already at max level");
-  if (current > 0 && structureIntegrity(p, id) < 1) {
-    throw new EngineError("damaged", "Repair it to full before building higher");
+  const events: EngineResult["events"] = [];
+
+  for (let i = 0; i < count; i++) {
+    const current = level(p, id);
+    const target = current + 1;
+    if (target > maxLevel(id)) {
+      if (i === 0) throw new EngineError("max_level", "Already at max level");
+      break;
+    }
+    if (current > 0 && structureIntegrity(p, id) < 1) {
+      throw new EngineError("damaged", "Repair it to full before building higher");
+    }
+    const cost = buildingCost(id, target);
+    if (i > 0 && !canAfford(p, cost)) break; // bought what the purse allowed
+    pay(p, cost); // throws on the first one, which is the useful error
+    p.buildings[id] = target;
+    events.push({ type: "buildComplete", building: id, level: target });
   }
-  pay(p, buildingCost(id, target));
-  p.buildings[id] = target;
-  return { player: p, events: [{ type: "buildComplete", building: id, level: target }] };
+  return { player: p, events };
 }
 
 export function setResearch(input: Player, field: ResearchField): EngineResult {
@@ -249,7 +300,7 @@ export function setResearch(input: Player, field: ResearchField): EngineResult {
   const p = structuredClone(input);
   const prev = p.research.activeField;
   // Switching the scholars to a NEW field abandons half the progress banked
-  // toward the current field's next level (spec/research.md) — the price of an
+  // toward the current field's next level (spec/empire.md) — the price of an
   // undisciplined programme. Re-selecting the same field costs nothing.
   if (prev && prev !== field) {
     p.research.banked[prev] = Math.floor((p.research.banked[prev] ?? 0) * (1 - RESEARCH_SWITCH_LOSS));
@@ -324,27 +375,67 @@ export function bankResource(input: Player, r: Resource, amount: number): Engine
  * MERC_PRICE_GOLD × race factor × tier multiplier × (1 − Clan Wonder discount).
  * Capped at 25% of the regular army headcount.
  */
+/**
+ * Hire sellswords — now for every arm, engine crews and covert agents included.
+ *
+ * What you are buying is SPEED: they need no population and no training time.
+ * What you are not escaping is anything else — they take barracks beds, they
+ * draw wages every turn, they are capped by the regulars of their own arm, and
+ * when those regulars die the surplus is paid off and rides away (the cascade,
+ * see settleMercenaries). Free Companies is the field that makes a long war
+ * affordable, since they now bleed away steadily and must be replaced.
+ */
 export function hireMercenaries(
   input: Player,
-  type: TroopType,
+  arm: MercArm,
   tier: Tier,
   count: number,
   wonderDiscount = 0,
 ): EngineResult {
   const p = structuredClone(input);
   if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
-  requireTierBuildings(p, type, tier);
-  const cap = Math.floor(MERC_CAP_RATIO * military(p));
-  if (mercTotal(p.army.mercenaries) + count > cap) {
-    throw new EngineError("merc_cap", "Mercenaries capped at 25% of your regular army");
+  const tiered = arm === "footman" || arm === "archer" || arm === "cavalry";
+  if (tiered) requireTierBuildings(p, arm as TroopType, tier);
+  if (arm === "spy" && level(p, "shadow_guild") < 1) {
+    throw new EngineError("shadow_guild", "Hired knives answer only to a Shadow Guild");
   }
+  if (arm === "scout" && level(p, "rangers_lodge") < 1) {
+    throw new EngineError("rangers_lodge", "Hired rangers muster at a Rangers Lodge");
+  }
+
+  // Capped by the regulars of this arm alone — footmen gate merc footmen,
+  // rangers gate merc rangers. You cannot shield cavalry with hired archers.
+  const cap = Math.floor(regularsOfArm(p, arm) * MERCENARIES.CAP_RATIO);
+  if (mercsOfArm(p, arm) + count > cap) {
+    throw new EngineError(
+      "merc_cap",
+      `Sellswords are capped at a third of your own ${arm}s — at most ${Math.max(0, cap - mercsOfArm(p, arm))} more.`,
+    );
+  }
+  // Engine crews and line troops need quartering; covert agents live in town.
+  if (arm !== "spy" && arm !== "scout" && musterVacancy(p) < count) {
+    throw new EngineError("housing", "No barracks room — even hired blades need a bed");
+  }
+
+  const freeCompanies =
+    researchLevel(p, "free_companies") *
+    (RESEARCH_EFFECT_PER_LEVEL.free_companies ?? EFFECT_PER_LEVEL);
   const price =
     Math.round(
-      MERC_PRICE_GOLD * RACES[p.race].mercCost * TIER_COST_MULT[tier] * (1 - wonderDiscount),
+      MERC_PRICE_BY_ARM[arm] *
+        RACES[p.race].mercCost *
+        (tiered ? TIER_COST_MULT[tier] : 1) *
+        (1 - wonderDiscount) *
+        Math.max(0, 1 - freeCompanies),
     ) * count;
   if (p.gold < price) throw new EngineError("gold", "Not enough gold");
   p.gold -= price;
-  p.army.mercenaries[ARMY_KEY[type]][tier] += count;
+
+  const m = p.army.mercenaries;
+  if (arm === "engineer") m.engineers += count;
+  else if (arm === "spy") m.spies += count;
+  else if (arm === "scout") m.scouts += count;
+  else m[ARMY_KEY[arm as TroopType]][tier] += count;
   return { player: p, events: [] };
 }
 
@@ -366,7 +457,7 @@ export function buySiegeGear(
   pay(p, {
     gold: Math.round(g.gold * m),
     wood: Math.round(g.wood * m),
-    stone: Math.round(g.stone * m),
+    stone: 0, // engines take no stone — that went into the walls it will break
     ore: Math.round(g.ore * m),
   });
   p.army.siegeGear[type] += count;
@@ -392,7 +483,7 @@ export function buySiegeCounter(
   pay(p, {
     gold: Math.round(c.gold * m),
     wood: Math.round(c.wood * m),
-    stone: Math.round(c.stone * m),
+    stone: 0,
     ore: Math.round(c.ore * m),
   });
   p.army.siegeCounters[type] += count;
@@ -418,5 +509,80 @@ export function repairBuilding(input: Player, id: BuildingId): EngineResult {
   if (lvl === 0 || integrity >= 1) throw new EngineError("building", "Nothing to repair");
   pay(p, repairCost(id, lvl, integrity));
   (p.buildingIntegrity ??= {})[id] = 1;
+  return { player: p, events: [] };
+}
+
+
+// ── Siege upkeep (spec/combat.md) ───────────────────────────────────────────
+
+/**
+ * Mend a battered engine type back to whole. Counter fire wears engines down
+ * rather than simply destroying them, and a worn engine fires proportionally
+ * weaker — so between volleys of a long bombardment this is the command that
+ * decides whether you hold. Costs a third of building anew, scaled by damage.
+ */
+export function repairSiege(input: Player, type: SiegeGearType | CounterType): EngineResult {
+  const p = structuredClone(input);
+  const isGear = type in SIEGE_GEAR;
+  const integrity = isGear
+    ? p.army.siegeGearIntegrity[type as SiegeGearType]
+    : p.army.siegeCounterIntegrity[type as CounterType];
+  const count = isGear
+    ? p.army.siegeGear[type as SiegeGearType]
+    : p.army.siegeCounters[type as CounterType];
+  if (count <= 0) throw new EngineError("siege", "You own none of those");
+  if (integrity >= 1) throw new EngineError("siege", "Those engines are sound");
+
+  const spec = isGear ? SIEGE_GEAR[type as SiegeGearType] : SIEGE_COUNTERS[type as CounterType];
+  const damage = 1 - integrity;
+  const m = count * damage * SIEGE_REPAIR_COST_FACTOR;
+  pay(p, {
+    gold: Math.round(spec.gold * m),
+    wood: Math.round(spec.wood * m),
+    stone: 0,
+    ore: Math.round(spec.ore * m),
+  });
+  if (isGear) p.army.siegeGearIntegrity[type as SiegeGearType] = 1;
+  else p.army.siegeCounterIntegrity[type as CounterType] = 1;
+  return { player: p, events: [] };
+}
+
+/** Break an engine up for what the timber and iron will fetch. Half the build
+ *  cost back — the pressure valve when a campaign has drained the treasury. */
+export function sellSiege(
+  input: Player,
+  type: SiegeGearType | CounterType,
+  count: number,
+): EngineResult {
+  const p = structuredClone(input);
+  if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
+  const isGear = type in SIEGE_GEAR;
+  const have = isGear ? p.army.siegeGear[type as SiegeGearType] : p.army.siegeCounters[type as CounterType];
+  if (have < count) throw new EngineError("siege", "You do not own that many");
+  const spec = isGear ? SIEGE_GEAR[type as SiegeGearType] : SIEGE_COUNTERS[type as CounterType];
+  const integrity = isGear
+    ? p.army.siegeGearIntegrity[type as SiegeGearType]
+    : p.army.siegeCounterIntegrity[type as CounterType];
+  // A wreck is worth less than a whole engine.
+  const m = count * SIEGE_SALVAGE_VALUE * integrity;
+  p.gold += Math.round(spec.gold * m);
+  p.resources.wood += Math.round(spec.wood * m);
+  p.resources.ore += Math.round(spec.ore * m);
+  if (isGear) p.army.siegeGear[type as SiegeGearType] -= count;
+  else p.army.siegeCounters[type as CounterType] -= count;
+  return { player: p, events: [] };
+}
+
+/**
+ * Standing order: ride out at a besieger, or hold the wall?
+ *
+ * Cavalry are wasted behind stone (they gain nothing from the parapet) and
+ * murderous in the open, so a cavalry-heavy defender wants this ON and a
+ * footman-heavy one almost certainly does not. Sortieing does not cost you the
+ * wall bonus — but it does put your riders where a screen can hold them.
+ */
+export function setSortie(input: Player, enabled: boolean): EngineResult {
+  const p = structuredClone(input);
+  p.army.sortieEnabled = enabled;
   return { player: p, events: [] };
 }

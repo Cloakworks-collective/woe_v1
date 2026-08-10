@@ -14,8 +14,8 @@ import {
   wallBonusAtLevel,
   WALL_NAMES,
   WAR_FOUNDRY_LADDER,
-  catchableOpLevel,
-  GUILD_EFFECT_PER_LEVEL,
+  GUILD_BONUS_PER_LEVEL,
+  LODGE_BONUS_PER_LEVEL,
   maxLevel,
 } from "../constants";
 import type { BuildingId } from "../constants/buildings";
@@ -50,14 +50,20 @@ export function productionRates(p: Player): Record<Resource, number> {
     const n = p.workers[role]; // uncapped
     const per = productionPerWorker(p, building); // level-scaled per-worker output
     const fieldMult = 1 + researchLevel(p, field) * EFFECT_PER_LEVEL;
-    out[resource] = n * per * race.production[resource] * fieldMult * buildingIntegrity(p, building);
+    // Floored to match the tick exactly (see ROUNDING in tick.ts) — a projected
+    // rate that doesn't equal what lands is worse than no projection.
+    out[resource] = Math.floor(
+      n * per * race.production[resource] * fieldMult * buildingIntegrity(p, building),
+    );
   }
   return out;
 }
 
 export function researchRate(p: Player): number {
   // Researchers are uncapped; the Collegium level scales each scholar's output.
-  return p.workers.researchers * productionPerWorker(p, "collegium") * buildingIntegrity(p, "collegium");
+  return Math.floor(
+    p.workers.researchers * productionPerWorker(p, "collegium") * buildingIntegrity(p, "collegium"),
+  );
 }
 
 export function settlementTitle(p: Player): string {
@@ -372,10 +378,10 @@ export function buildingUpgradeBenefit(p: Player, id: BuildingId): string | null
       return `each scholar makes ${workerOutputAtLevel(cur)} → ${workerOutputAtLevel(next)} research/turn (scholars unlimited)`;
     }
     if (id === "rangers_lodge") {
-      return `scouts sharpen — now catch enemy spy ops up to level ${catchableOpLevel(next) || 0} (scouts unlimited)`;
+      return `rangers stand a keener watch — +${Math.round(next * LODGE_BONUS_PER_LEVEL * 100)}% to the strength that stops incoming spies`;
     }
     if (id === "shadow_guild") {
-      return `each spy op bites +${Math.round(cur * GUILD_EFFECT_PER_LEVEL * 100)}% → +${Math.round(next * GUILD_EFFECT_PER_LEVEL * 100)}% deeper (spies unlimited)`;
+      return `your agents work +${Math.round(cur * GUILD_BONUS_PER_LEVEL * 100)}% → +${Math.round(next * GUILD_BONUS_PER_LEVEL * 100)}% harder to slip past their rangers`;
     }
     return `each ${word} grows more effective`;
   }

@@ -1,4 +1,4 @@
-// Building cost math (spec/buildings.md).
+// Building cost math (spec/empire.md).
 
 import {
   BASE_COSTS,
@@ -54,7 +54,7 @@ export function buildingCost(id: BuildingId, targetLevel: number): Cost {
 /**
  * Cost to repair a bombarded building (or the walls) back to full integrity:
  * a fraction of the building's cost at its current level, scaled by how much
- * damage there is to mend (spec/buildings.md, combat.md). A store at 60%
+ * damage there is to mend (spec/empire.md, combat.md). A store at 60%
  * integrity costs `buildingCost × 0.4 × WALL_REPAIR_COST_FACTOR` to make whole.
  * `id === "walls"` prices a wall repair.
  */

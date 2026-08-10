@@ -7,8 +7,8 @@ import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { PriceChart } from "@/components/PriceChart";
 import { ResIcon } from "@/components/ResIcon";
-import { MARKET_FEE } from "@/lib/constants";
-import { caravanArrived, caravanCapacity, caravanDeliveryTurns, freeMerchants, level, marketPrice, type Resource } from "@/lib/engine";
+import { BLACK_MARKET, MARKET_FEE, MARKET_PRICE_MAX, MARKET_PRICE_MIN, MARKET_RECALL_LOSS } from "@/lib/constants";
+import { caravanArrived, caravanCapacity, caravanDeliveryTurns, freeMerchants, level, marketPrice, recallReturn, type Resource } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
@@ -48,9 +48,18 @@ export default async function MarketPage({
       <LearnLink href="/guide#rich">Using the market to get rich</LearnLink>
       <Panel
         title="The Grand Bazaar — anonymous by law"
-        info={`You trade with the Bazaar, never with a named player. A ${MARKET_FEE * 100}% fee on every sale is burned — the drain that keeps gold meaningful.`}
+        info={`You trade with the Bazaar, never with a named player. A ${MARKET_FEE * 100}% fee on every sale is burned — the drain that keeps gold meaningful. Asks are ${MARKET_PRICE_MIN}–${MARKET_PRICE_MAX} gold: the Black Market will always pay you ${BLACK_MARKET.SELL_PRICE} and always sell to you at ${BLACK_MARKET.BUY_PRICE}, so every price here beats dealing with the fence.`}
         guide="/guide#market-mastery"
       >
+        <p className="delivery-note" style={{ marginBottom: 10 }}>
+          <span aria-hidden="true">⚖️</span>
+          <span>
+            Fence pays <b>{BLACK_MARKET.SELL_PRICE}</b> · the Bazaar trades{" "}
+            <b>{MARKET_PRICE_MIN}–{MARKET_PRICE_MAX}</b> · fence sells at{" "}
+            <b>{BLACK_MARKET.BUY_PRICE}</b>. Patience is worth gold — the{" "}
+            <a href="/blackmarket">Black Market</a> is instant and always the worse deal.
+          </span>
+        </p>
         <table className="tbl">
           <thead>
             <tr>
@@ -202,10 +211,10 @@ export default async function MarketPage({
                         form={fid}
                         name="price"
                         type="number"
-                        min={2}
-                        max={50}
+                        min={MARKET_PRICE_MIN}
+                        max={MARKET_PRICE_MAX}
                         step={1}
-                        placeholder="2–50"
+                        placeholder={`${MARKET_PRICE_MIN}–${MARKET_PRICE_MAX}`}
                         defaultValue={price === null ? undefined : Math.round(price)}
                         aria-label={`${label} ask price per unit`}
                         size={6}
@@ -309,16 +318,16 @@ export default async function MarketPage({
                         <CmdForm name="marketCancel" path="/market">
                           <input type="hidden" name="orderId" value={o.id} />
                           <ReqTip
-                            heading="Recall this caravan"
+                            heading={`Recall — lose ${Math.round(MARKET_RECALL_LOSS * 100)}%`}
                             body={
                               enRoute
-                                ? `Turn the caravan around before it arrives. The ${fmt(o.remaining)} ${o.resource} returns to your stores and the merchant is freed.`
-                                : `Bring the caravan home. The ${fmt(o.remaining)} unsold ${o.resource} returns to your stores and the merchant is freed for another run.`
+                                ? `Turn the caravan around before it arrives. Half the load is lost on the road home: of ${fmt(o.remaining)} ${o.resource}, only ${fmt(recallReturn(o.remaining))} reaches your stores.`
+                                : `Bring the caravan home. Half the unsold load is lost on the road: of ${fmt(o.remaining)} ${o.resource}, only ${fmt(recallReturn(o.remaining))} reaches your stores.`
                             }
-                            note="Gold already earned from units that sold stays yours."
+                            note="The merchant is freed either way, and gold already earned from units that sold stays yours. Sell to the Black Market instead if you only need the gold."
                           >
                             <Btn className="btn" style={{ background: "linear-gradient(#a8853f,#7c5426)", borderColor: "#4e3113" }}>
-                              Recall
+                              Recall −{Math.round(MARKET_RECALL_LOSS * 100)}%
                             </Btn>
                           </ReqTip>
                         </CmdForm>

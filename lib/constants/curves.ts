@@ -1,4 +1,4 @@
-// Curves — pluggable formula shapes for balance.ts (spec/balance.md §Curves).
+// Curves — pluggable formula shapes for balance.ts (spec/overview.md §Curves).
 //
 // A Curve is PURE DATA describing y = f(x). The tuning file picks a shape per
 // site (growth, costs, research price…) and the engine evaluates it through

@@ -135,7 +135,7 @@ export async function toggleTheme(formData: FormData): Promise<void> {
   redirect(back || "/");
 }
 
-// ── The Royal Charter (spec/premium.md) ─────────────────────────────────────
+// ── The Royal Charter (spec/clans.md) ─────────────────────────────────────
 
 /** Test-terminal purchase — active only when Stripe keys are absent.
  *  Emulates Stripe test-mode cards (4242 4242 4242 4242 succeeds). */

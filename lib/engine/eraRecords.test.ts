@@ -7,7 +7,7 @@ const noLoss: UnitLosses = {
   archers: 0,
   cavalry: 0,
   engineers: 0,
-  mercenaries: 0,
+  mercenaries: 0, mercenariesDisbanded: 0,
 };
 
 function report(over: Partial<BattleReport>): BattleReport {
@@ -23,7 +23,9 @@ function report(over: Partial<BattleReport>): BattleReport {
     victor: "attacker",
     attackerLosses: { ...noLoss },
     defenderLosses: { ...noLoss },
-    wallIntegrityDamage: 0,
+    regularsKilled: { attacker: 0, defender: 0 },
+  civiliansDisplaced: 0,
+  wallIntegrityDamage: 0,
     siegeGearLost: {},
     loot: { gold: 0, resources: { food: 0, wood: 0, stone: 0, ore: 0 } },
     staminaLoss: { attacker: 0, defender: 0 },

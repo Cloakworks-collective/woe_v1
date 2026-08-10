@@ -4,7 +4,9 @@
 import {
   BUILD_COSTS,
   CHURN,
+  CLAN_BEACON,
   CLAN_REPAIR_COST_FACTOR,
+  beaconGraceHours,
   FOUNDING_MEMBERS,
   HALL,
   LEADERSHIP,
@@ -34,7 +36,8 @@ export function newClan(id: string, name: string, leader: Player): Clan {
       storageLevel: 0,
       hallLevel: 1,
       wonderLevel: 0,
-      integrity: { storage: 1, hall: 1, wonder: 1 },
+      beaconLevel: 0,
+      integrity: { storage: 1, hall: 1, wonder: 1, beacon: 1 },
     },
     storage: { ...ZERO },
     memberLedger: {},
@@ -43,6 +46,63 @@ export function newClan(id: string, name: string, leader: Player): Clan {
     truceWithUntilTick: {},
     friendly: [],
   };
+}
+
+
+/** The four clan works. "beacon" is the newest: it buys war grace, not points. */
+export type ClanWorks = "storage" | "hall" | "wonder" | "beacon";
+
+export function worksLevel(clan: Clan, which: ClanWorks): number {
+  const b = clan.buildings;
+  return which === "storage"
+    ? b.storageLevel
+    : which === "hall"
+      ? b.hallLevel
+      : which === "beacon"
+        ? (b.beaconLevel ?? 0)
+        : b.wonderLevel;
+}
+
+/**
+ * Bring a clan loaded from an older save into the current shape. Idempotent, so
+ * it is safe on every load — mirrors normalizePlayer.
+ */
+export function normalizeClan(clan: Clan): void {
+  clan.buildings.beaconLevel ??= 0;
+  clan.buildings.integrity ??= { storage: 1, hall: 1, wonder: 1, beacon: 1 };
+  clan.buildings.integrity.beacon ??= 1;
+}
+
+/**
+ * Hours of peacetime grace this clan's members enjoy after a war is declared.
+ * PER CLAN and self-protecting: it governs attacks made ON this clan, whatever
+ * the other side has built (CLAN_BEACON).
+ */
+export function warGraceTicks(clan: Clan | undefined): number {
+  return beaconGraceHours(clan?.buildings.beaconLevel ?? 0) * TICKS_PER_HOUR;
+}
+
+/**
+ * Have wartime rules — double damage, 100% loot, double sabotage — actually
+ * come into force for a blow struck against `defender`?
+ *
+ * Formally at war is not enough. The DEFENDER's Beacon decides, measured from
+ * the declaration, so a clan with taller Beacons than its enemy gets a genuine
+ * one-sided window in which it fights at war rates while blows against it still
+ * land at peacetime rates. That asymmetry is the design.
+ *
+ * A war carrying no `declaredAtTick` predates Beacons; treat it as long hot.
+ */
+export function warIsHot(
+  attacker: Clan | undefined,
+  defender: Clan | undefined,
+  currentTick: number,
+): boolean {
+  if (!attacker || !defender) return false;
+  const war = attacker.wars.find((w) => w.clanId === defender.id);
+  if (!war) return false;
+  if (war.declaredAtTick === undefined) return true;
+  return currentTick >= war.declaredAtTick + warGraceTicks(defender);
 }
 
 export function memberCap(clan: Clan): number {
@@ -135,12 +195,18 @@ export function transferLeadership(clanIn: Clan, actorId: string, targetId: stri
 
 /** Gold + each (wood/stone/ore) to mend a bombarded work back to full. Zero when
  *  whole or unbuilt. UI and engine share this so the quoted price is the paid one. */
-export function clanRepairCost(clan: Clan, which: "storage" | "hall" | "wonder"): { gold: number; each: number } {
+export function clanRepairCost(clan: Clan, which: ClanWorks): { gold: number; each: number } {
   const integ = clan.buildings.integrity[which];
-  const level =
-    which === "storage" ? clan.buildings.storageLevel : which === "hall" ? clan.buildings.hallLevel : clan.buildings.wonderLevel;
+  const level = worksLevel(clan, which);
   if (integ >= 1 || level <= 0) return { gold: 0, each: 0 };
-  const base = which === "storage" ? BUILD_COSTS.storage(level) : which === "hall" ? BUILD_COSTS.hall[level]! : BUILD_COSTS.wonder[level]!;
+  const base =
+    which === "storage"
+      ? BUILD_COSTS.storage(level)
+      : which === "hall"
+        ? BUILD_COSTS.hall[level]!
+        : which === "beacon"
+          ? BUILD_COSTS.beacon[level]!
+          : BUILD_COSTS.wonder[level]!;
   const dmg = 1 - integ;
   return {
     gold: Math.ceil(base.gold * dmg * CLAN_REPAIR_COST_FACTOR),
@@ -148,12 +214,11 @@ export function clanRepairCost(clan: Clan, which: "storage" | "hall" | "wonder")
   };
 }
 
-export function repairClanBuilding(clanIn: Clan, actorId: string, which: "storage" | "hall" | "wonder"): Clan {
+export function repairClanBuilding(clanIn: Clan, actorId: string, which: ClanWorks): Clan {
   const clan = structuredClone(clanIn);
   if (!isLeadership(clan, actorId)) throw new EngineError("rank", "Only leadership may order repairs");
   if (clan.buildings.integrity[which] >= 1) throw new EngineError("repair", "That structure stands whole");
-  const level =
-    which === "storage" ? clan.buildings.storageLevel : which === "hall" ? clan.buildings.hallLevel : clan.buildings.wonderLevel;
+  const level = worksLevel(clan, which);
   if (level <= 0) throw new EngineError("repair", "Nothing built to mend");
   const cost = clanRepairCost(clan, which);
   if (clan.storage.gold < cost.gold) throw new EngineError("gold", "The pool lacks gold to mend it");
@@ -195,6 +260,7 @@ export function joinClan(playerIn: Player, clanIn: Clan, currentTick: number): {
   const player = structuredClone(playerIn);
   const clan = structuredClone(clanIn);
   player.clanId = clan.id;
+  player.everJoinedClan = true; // permanent for the age — see ARMY_FLOORS
   clan.members.push(player.id);
   // Rejoining starts the lifetime-deposit counter at zero (forfeiture is final).
   clan.memberLedger[player.id] = { deposited: { ...ZERO }, withdrawn: { ...ZERO } };
@@ -418,7 +484,7 @@ export function clanBuildFunding(
 export function buildClanBuilding(
   clanIn: Clan,
   builderIn: Player,
-  which: "storage" | "hall" | "wonder",
+  which: ClanWorks,
 ): { player: Player; clan: Clan } {
   const clan = structuredClone(clanIn);
   const builder = structuredClone(builderIn);
@@ -426,8 +492,7 @@ export function buildClanBuilding(
     throw new EngineError("rank", "Only the five leadership positions may build");
   }
   // Same rule as a player's own works: mend a cracked one before raising it.
-  const built =
-    which === "storage" ? clan.buildings.storageLevel : which === "hall" ? clan.buildings.hallLevel : clan.buildings.wonderLevel;
+  const built = worksLevel(clan, which);
   if (built > 0 && clan.buildings.integrity[which] < 1) {
     throw new EngineError("damaged", "Repair it to full before raising it higher");
   }
@@ -440,6 +505,10 @@ export function buildClanBuilding(
     const next = clan.buildings.hallLevel + 1;
     if (next > 4) throw new EngineError("max", "The Hall is at its zenith");
     cost = BUILD_COSTS.hall[next]!;
+  } else if (which === "beacon") {
+    const next = clan.buildings.beaconLevel + 1;
+    if (next > CLAN_BEACON.MAX_LEVEL) throw new EngineError("max", "The Beacon burns at its brightest");
+    cost = BUILD_COSTS.beacon[next]!;
   } else {
     const next = clan.buildings.wonderLevel + 1;
     if (next > 3) throw new EngineError("max", "The Wonder is complete");
@@ -464,21 +533,43 @@ export function buildClanBuilding(
 
   if (which === "storage") clan.buildings.storageLevel += 1;
   else if (which === "hall") clan.buildings.hallLevel += 1;
+  else if (which === "beacon") clan.buildings.beaconLevel += 1;
   else clan.buildings.wonderLevel += 1;
   return { player: builder, clan };
 }
 
 // ── War ─────────────────────────────────────────────────────────────────────
 
-export function declareWar(clanIn: Clan, targetId: string, currentTick: number): Clan {
+/**
+ * Declare war. BOTH clans get the war entry, with the SAME `declaredAtTick`.
+ *
+ * The mirror matters. `atWar` only ever looked at the caller's own list, so
+ * declaring used to leave the target not-at-war with its aggressor: it could
+ * neither clan-bombard back nor fight at war rates until the first blow landed
+ * and `recordWarKills` lazily created the missing entry. The comment there
+ * ("wars are mutual even if only one side declared") always said what was
+ * intended; this makes it true from the moment the horns sound — which the
+ * Beacon grace depends on, since either side may be the one attacked.
+ */
+export function declareWar(
+  clanIn: Clan,
+  targetIn: Clan,
+  currentTick: number,
+): { clan: Clan; target: Clan } {
   const clan = structuredClone(clanIn);
-  if (clan.wars.some((w) => w.clanId === targetId)) throw new EngineError("war", "Already at war");
-  if ((clan.truceWithUntilTick[targetId] ?? 0) > currentTick) {
+  const target = structuredClone(targetIn);
+  if (clan.wars.some((w) => w.clanId === target.id)) throw new EngineError("war", "Already at war");
+  if ((clan.truceWithUntilTick[target.id] ?? 0) > currentTick) {
     throw new EngineError("truce", "The truce still holds — you cannot re-declare yet");
   }
-  clan.wars.push({ clanId: targetId, regularKills: 0, regularLosses: 0, lastBloodTick: currentTick });
-  clan.friendly = clan.friendly.filter((f) => f !== targetId);
-  return clan;
+  const entry = { regularKills: 0, regularLosses: 0, declaredAtTick: currentTick, lastBloodTick: currentTick };
+  clan.wars.push({ clanId: target.id, ...entry });
+  if (!target.wars.some((w) => w.clanId === clan.id)) {
+    target.wars.push({ clanId: clan.id, ...entry });
+  }
+  clan.friendly = clan.friendly.filter((f) => f !== target.id);
+  target.friendly = target.friendly.filter((f) => f !== clan.id);
+  return { clan, target };
 }
 
 /**

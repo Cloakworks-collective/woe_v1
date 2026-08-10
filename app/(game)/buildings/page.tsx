@@ -70,6 +70,25 @@ const MILITARY_IDS = new Set<string>(MILITARY_GROUPS.flatMap((g) => g.ids));
 const buildingName = (id: BuildingId): string =>
   id === "walls" ? "The Walls" : (CIV[id] ?? MIL[id] ?? HEARTHSTEAD).name;
 
+/** Batch sizes offered on COUNTED buildings (Hearthsteads, Muster Halls) — the
+ *  ones you raise by the dozen, where clicking Build forty times is the only
+ *  thing standing between you and housing your settlers. */
+const BATCH_SIZES = [5, 10] as const;
+
+/** What the next `n` levels cost together — each priced at its own level, since
+ *  that is exactly what the engine charges. */
+function batchCost(id: BuildingId, fromLevel: number, n: number) {
+  const total = { gold: 0, wood: 0, stone: 0, ore: 0 };
+  for (let i = 1; i <= n; i++) {
+    const c = buildingCost(id, fromLevel + i);
+    total.gold += c.gold;
+    total.wood += c.wood;
+    total.stone += c.stone;
+    total.ore += c.ore;
+  }
+  return total;
+}
+
 function CostList({ cost }: { cost: { gold: number; wood: number; stone: number; ore: number } }) {
   const parts: [ResKind, number][] = [
     ["wood", cost.wood],
@@ -182,6 +201,30 @@ function BuildingCards({ ids, player, path }: { ids: string[]; player: Player; p
                       </CostTip>
                     </CmdForm>
                   )}
+                  {/* Batch building, for the structures you raise by the dozen
+                      rather than one at a time. Each is charged at its own
+                      price — the button saves clicks, not gold. */}
+                  {cost && counted && !needsRepair &&
+                    BATCH_SIZES.map((n) => {
+                      const batch = batchCost(bid, lvl, n);
+                      const can = affordable(player, batch);
+                      return (
+                        <CmdForm key={n} name="build" path={path}>
+                          <input type="hidden" name="id" value={bid} />
+                          <input type="hidden" name="count" value={n} />
+                          <CostTip
+                            heading={`Build ${n} × ${b.name}`}
+                            cost={batch}
+                            have={have}
+                            note={`Each is paid for at its own price — no discount for the batch. If the treasury runs dry partway, what you bought stands.`}
+                          >
+                            <Btn className={can ? "btn ghost" : "btn btn-no"} disabled={!can}>
+                              ×{n}
+                            </Btn>
+                          </CostTip>
+                        </CmdForm>
+                      );
+                    })}
                   {cost && player.premium && !needsRepair && (
                     <CmdForm name="queueBuild" path={path}>
                       <input type="hidden" name="id" value={bid} />

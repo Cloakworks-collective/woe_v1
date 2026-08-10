@@ -1,4 +1,4 @@
-// Research — The Collegium (spec/research.md). 10 fields × 5 levels.
+// Research — The Collegium (spec/empire.md). 10 fields × 5 levels.
 // The field LIST (structure + display text + ranked flags) lives here; every
 // number lives in balance.ts — THE tuning file.
 
@@ -15,6 +15,8 @@ export type ResearchField =
   | "art_of_war"
   | "shieldcraft"
   | "siegecraft"
+  | "siege_accuracy"
+  | "free_companies"
   | "statecraft";
 
 export interface ResearchFieldMeta {
@@ -34,13 +36,16 @@ export const RESEARCH_FIELDS: ResearchFieldMeta[] = [
   { id: "pathfinding", name: "Pathfinding", desc: "Scout recon & catch chance, +20%/lvl", ranked: false },
   { id: "art_of_war", name: "The Art of War", desc: "Attack multiplier, all troops, up to +100%", ranked: true },
   { id: "shieldcraft", name: "Shieldcraft", desc: "Defence multiplier, all troops, up to +100%", ranked: true },
-  { id: "siegecraft", name: "Siegecraft", desc: "Siege weapon damage, up to +100%", ranked: false },
+  { id: "siegecraft", name: "Siegecraft", desc: "Siege engine power, up to +100% — every engine, every target", ranked: true },
+  { id: "siege_accuracy", name: "Siege Accuracy", desc: "Trebuchets stop missing: 30%→60% against walls, 20%→50% against buildings, and sharper counter-battery fire", ranked: true },
+  { id: "free_companies", name: "Free Companies", desc: "Sellsword contracts, up to −50% on the price of hiring", ranked: false },
   { id: "statecraft", name: "Statecraft", desc: "Multiplies post-tax producer output, ×2 at level 5", ranked: true },
 ];
 
 export {
   MAX_FIELD_LEVEL,
   EFFECT_PER_LEVEL,
+  RESEARCH_EFFECT_PER_LEVEL,
   RESEARCH_COST_CURVE,
   RESEARCH_SWITCH_LOSS,
 } from "./balance";

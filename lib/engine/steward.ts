@@ -1,4 +1,4 @@
-// The Steward (spec/premium.md) — Royal Charter automation. Pure like the
+// The Steward (spec/clans.md) — Royal Charter automation. Pure like the
 // rest of the engine. Queues and standing orders are command automation:
 // the Steward issues the same instant commands a player would, when they
 // become possible. Nothing here adds timers or overflow buffers.

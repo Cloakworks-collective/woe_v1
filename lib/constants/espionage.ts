@@ -1,33 +1,36 @@
-// Espionage — spies & scouts (spec/espionage.md). The op LIST (structure +
-// display text) lives here; every number lives in balance.ts — THE tuning file.
+// Espionage constants — spies and scouts (spec/espionage.md).
+// Every number lives in covertBalance.ts; this file is the visible surface and
+// the place the op list is shaped for the UI.
 
-export interface SpyOp {
-  level: number; // Tradecraft level required
-  id: string;
+export * from "./covertBalance";
+
+import { COVERT_OPS, type CovertOpId } from "./covertBalance";
+
+export interface CovertOpMeta {
+  id: CovertOpId;
+  arm: "spy" | "scout";
   name: string;
   desc: string;
+  /** Research field and level that unlocks it — Tradecraft for spies,
+   *  Pathfinding for scouts. */
+  field: "tradecraft" | "pathfinding";
+  level: number;
+  turnsPerAgent: number;
+  detection: number;
 }
 
-export const SPY_OPS: SpyOp[] = [
-  { level: 1, id: "survey_coffers", name: "Survey the Coffers", desc: "Exact gold + resources, what sits outside storage" },
-  { level: 2, id: "map_defences", name: "Map the Defences", desc: "Walls, War Foundry, army composition, stamina" },
-  { level: 3, id: "sabotage_engines", name: "Sabotage the Engines", desc: "Destroy siege gear: up to spiesSent / 2 pieces" },
-  { level: 4, id: "torch_stores", name: "Torch the Stores", desc: "Burn unstored resources: 1% per spy (cap 25%)" },
-  { level: 5, id: "incite_unrest", name: "Incite Unrest", desc: "24h: tax −25%, production −25%, pop growth halted" },
-];
+const ALL = Object.entries(COVERT_OPS).map(([id, o]) => ({ id, ...o })) as unknown as CovertOpMeta[];
 
-export {
-  SABOTAGE_PER_SPY,
-  TORCH_PCT_PER_SPY,
-  TORCH_CAP,
-  UNREST,
-  GUILD_EFFECT_PER_LEVEL,
-  SPY_LUCK_SWING,
-  CATCH,
-  RECON_FUZZ,
-} from "./balance";
+/** Scouts: the whole intelligence arm, plus the only defence against spies.
+ *  They work in the open and are never intercepted. */
+export const SCOUT_OPS: CovertOpMeta[] = ALL.filter((o) => o.arm === "scout");
 
-/** catchableOpLevel = ceil(lodgeLevel / 2). */
-export function catchableOpLevel(lodgeLevel: number): number {
-  return Math.ceil(lodgeLevel / 2);
+/** Spies: the whole destruction arm. They go over the wall, and being caught
+ *  names you and opens the revenge window. */
+export const SPY_OPS: CovertOpMeta[] = ALL.filter((o) => o.arm === "spy");
+
+export const COVERT_OP_LIST: CovertOpMeta[] = ALL;
+
+export function covertOp(id: string): CovertOpMeta | undefined {
+  return ALL.find((o) => o.id === id);
 }

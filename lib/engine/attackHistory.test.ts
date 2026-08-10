@@ -3,7 +3,7 @@ import { ATTACK_HISTORY_TICKS, TICKS_PER_HOUR } from "../constants";
 import { attacksByDefender, summarizeAttackers } from "./reports";
 import type { BattleReport, UnitLosses } from "./types";
 
-const noLosses: UnitLosses = { footmen: 0, archers: 0, cavalry: 0, engineers: 0, mercenaries: 0 };
+const noLosses: UnitLosses = { footmen: 0, archers: 0, cavalry: 0, engineers: 0, mercenaries: 0, mercenariesDisbanded: 0 };
 
 function battle(
   attackerId: string,
@@ -25,7 +25,9 @@ function battle(
     yielded,
     attackerLosses: { ...noLosses },
     defenderLosses: { ...noLosses },
-    wallIntegrityDamage: 0,
+    regularsKilled: { attacker: 0, defender: 0 },
+  civiliansDisplaced: 0,
+  wallIntegrityDamage: 0,
     siegeGearLost: {},
     loot: { gold: 0, resources: { food: 0, wood: 0, stone: 0, ore: 0 } },
     staminaLoss: { attacker: 0, defender: 0 },

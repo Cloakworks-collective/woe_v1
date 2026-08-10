@@ -13,12 +13,16 @@ import { glyphs } from "@/components/Glyph";
 export function Info({
   tip,
   title,
+  bullets,
   guide,
   guideLabel = "Read the manual",
   children,
 }: {
   tip: string;
   title?: string; // optional bold lead line inside the popover
+  /** Optional points listed under the lead. Use these for "what this actually
+   *  does for me" — a paragraph of four clauses is a paragraph nobody reads. */
+  bullets?: string[];
   guide?: string; // optional guide anchor, e.g. "/guide#battle"
   guideLabel?: string;
   children?: ReactNode;
@@ -40,6 +44,13 @@ export function Info({
           </>
         )}
         {glyphs(tip)}
+        {bullets && bullets.length > 0 && (
+          <ul className="tip-points">
+            {bullets.map((b) => (
+              <li key={b}>{glyphs(b)}</li>
+            ))}
+          </ul>
+        )}
         {guide && (
           <Link className="tip-guide" href={guide}>
             📜 {guideLabel} →

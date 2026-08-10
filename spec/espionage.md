@@ -1,107 +1,192 @@
 # War of Empires — Espionage (Spies & Scouts)
 
-Spies attack in the shadows; scouts see and catch. All numbers tunable.
+Every number lives in `lib/constants/covertBalance.ts`.
 
 ---
 
-## The core trade-off
+## Two arms, one budget
 
-You choose how many spies to send on a mission. **More spies = more damage,
-more noise:**
+Espionage is not a separate system. It runs the **same strength model as
+combat** — agents have Power and Health, bonuses add, delivery multiplies, and a
+mission resolves as one force meeting another.
 
-- Mission effect scales with spies sent.
-- Catch chance also scales with spies sent.
-- **Caught spies are executed** — that's real population loss, permanent,
-  the espionage equivalent of losing regulars. A failed 20-spy mission is a
-  massacre.
-- Uncaught missions are **anonymous** — the victim sees the damage, not the
-  hand. Caught missions expose the attacker (and open the 18h revenge window).
+| | **SCOUTS** | **SPIES** |
+|---|---|---|
+| Role | the whole intelligence arm | the whole destruction arm |
+| Manner | work in the open | go over the wall |
+| Risk | **never intercepted** | can be caught |
+| Also | **the only defence against spies** | — |
 
-## Spy missions (unlocked by Tradecraft research, `research.md`)
+Nobody duplicates anybody. Scouts see and shield; spies break and steal.
 
-| Tradecraft | Operation              | Effect                                                        |
-|------------|------------------------|---------------------------------------------------------------|
-| 1          | **Survey the Coffers** | Exact gold + resources, what sits outside storage             |
-| 2          | **Map the Defences**   | Wall level & integrity, War Foundry level & counters, army composition, stamina |
-| 3          | **Sabotage the Engines**| Destroy siege gear: up to `spiesSent / 2` pieces             |
-| 4          | **Torch the Stores**   | Burn unstored resources: 1% per spy (cap 25%)                 |
-| 5          | **Incite Unrest**      | 24h: tax income −25%, production −25%, pop growth halted      |
+**Both spend from the same pool of spy turns**, which is the tension that makes
+the pair interesting: every turn spent watching a rival is a turn not spent
+robbing them. And sizing a spy raid means knowing how many rangers stand against
+it — which costs a scout mission first. The two arms feed and starve each other.
 
-Mission cost: **5 action turns**. Spies sent are busy until the mission
-resolves (same tick, they're just committed).
+### The loop
 
-**Shadow Guild level = spy effectiveness.** Every mission's effect is
-multiplied by `(1 + 0.1 × guildLevel)` — a level-10 guild doubles sabotage
-kills, burn percentages, and unrest severity.
+Spies **Incite Unrest** → scouts **Quell** it.
+Spies **Sow Research Doubt** → scouts **Quell** it.
+Spies **Assassinate Scouts** → which strips the defence that stops spies.
 
-**Luck:** spycraft is messier than open battle — every mission's outcome
-(effect delivered, and the catch roll) carries a **±20% random swing**
-(multiplier 0.80–1.20, rolled per mission). Twice the variance of battle:
-plans survive contact with the enemy; spies don't always.
+Neither arm is optional.
 
-## Scouts — the counter (and the eyes)
+---
 
-Scouts do two jobs:
+## The spy turn economy
 
-**1. Recon missions** (2 action turns): surface intel from outside the walls —
-settlement title, army size (fuzzy ±20%), wall level. Cheap, low-risk, no execution
-mechanic; what spies see deeply, scouts see broadly.
+A second, scarcer clock.
 
-**2. Counter-espionage (passive):** scouts kept at home watch for infiltration.
+| | Action turns | **Spy turns** |
+|---|---|---|
+| Accrual | 2/tick = 288/day | **1/tick = 144/day** |
+| Cap | 500 | **200** |
+| Cost per act | 10 (attack) | **derived — see below** |
+| Spent by | armies | **spies *and* scouts** |
 
-### Catching spies
+About a day and a half of banking. A single deep operation can spend the lot,
+which is what makes espionage something you plan rather than spam.
 
-The **Ranger's Lodge level determines what level of spy operation your
-scouts can even detect:**
+### Cost is derived, never chosen
 
 ```
-catchableOpLevel = ceil(lodgeLevel / 2)     // lodge 2 → L1 ops … lodge 10 → L5 ops
+turnCost = agents × turnsPerAgent[op]
 ```
 
-A lodge-4 empire is blind to Sabotage (L3) and above — those missions run at
-**zero catch risk** against it. Only a lodge-9+ empire can catch Incite
-Unrest. Sophistication beats vigilance.
+You **cannot under-fund an infiltration** — you either afford the agents you are
+sending or you send fewer. Sending a hundred spies on ten turns is not a trap
+you can fall into, because the system charges you a hundred.
 
-If the op level is catchable:
+The interesting decision was never "how much should I short the budget." It is:
+
+> **They have roughly N rangers. How many agents do I commit?**
+
+Too few and the watch eats them all, turns and agents gone for nothing. Too many
+and you have burned a day's budget for an effect you could have had cheaper.
+
+---
+
+## Resolution
 
 ```
-catchChance = min(90%, spiesSent × 0.5% × lodgeLevel × min(1, scoutsHome / spiesSent))
-              × (1 + 0.2 × pathfindingLevel)     // Pathfinding research sharpens the watch
+spyPower    = agents × basePower × (1 + Σ bonuses) × delivery
+scoutPower  = rangers × basePower × (1 + Σ bonuses) × delivery
+intercepted = f(scoutPower vs spyPower) × op.detection
+survivors   = sent − intercepted
+effect      = f(survivors)        ← damage scales with who got THROUGH
 ```
 
-- 20 spies vs lodge 10 with enough scouts: ~90% caught (huge missions against
-  hard targets are suicide).
-- 5 spies vs lodge 4: ~4% — small teams slip through almost anywhere.
-- No scouts home = no catches, regardless of lodge level.
+The additive pool is race, veterancy, research (Tradecraft for spies,
+Pathfinding for scouts) and the relevant building — Shadow Guild or Rangers
+Lodge, +10%/level. Delivery is a ±20% roll: twice the battle swing, because the
+shadow war is a chancier business than a shield wall.
 
-**On a catch:** mission fails, every spy sent is executed (population loss),
-the attacker is named, and the defender gets the revenge window.
+**Interception IS the catch.** There is no separate roll. And it is graduated —
+some die, some come home, replacing the old all-or-nothing massacre.
 
-## Research split
+- **A clean run stays anonymous.** That is the whole prize.
+- **Any interception at all names you** and opens the revenge window.
+- **No rangers means no defence.** A realm without a watch is robbed at will.
 
-- **Tradecraft** (spy field): unlocks the op list above; also +20%/level
-  mission effect (stacks with Shadow Guild).
-- **Pathfinding** (scout field): +20%/level catch chance and sharper recon
-  (fuzzy numbers tighten toward exact).
+Scouts never hunt. They stand watch, and defence costs nothing — you should not
+be robbed because you were asleep with an empty budget.
 
-## Worked example
+Within the caught, **hired agents are taken first**: one of your own is lost only
+25% of the time while sellsword agents remain.
 
-Attacker (Tradecraft 3, Shadow Guild 6) sends 8 spies to Sabotage the
-Engines against a defender with Ranger's Lodge 5, 30 scouts home,
-Pathfinding 2.
+---
 
-- Lodge 5 → catchable up to op level 3 ✓ (just barely — lodge 4 would be blind)
-- catchChance = min(90%, 8 × 0.5% × 5 × 1) × 1.4 = 20% × 1.4 = **28%**
-- If unseen: destroys up to 8/2 = 4 pieces of siege gear × 1.6 (guild) →
-  **6 engines wrecked**, anonymously — likely the defender's trebuchets on
-  the eve of their siege.
-- If caught: 8 spies executed, attacker named, revenge unlocked.
+## Scout operations
+
+Overt, safe, never intercepted. Gated by **Pathfinding**.
+
+| L | Op | Turns/agent | What it tells you |
+|---|---|---|---|
+| 1 | Survey the Coffers | 0.10 | Exact gold and goods, and what sits exposed |
+| 1 | Map the Walls | 0.15 | Wall level, health standing, every crewed counter |
+| 2 | Map the Army | 0.15 | Composition by arm and tier, sellswords, stamina, sortie orders |
+| 3 | **Map the Siege Train** | 0.15 | **Their engines — the one thing the ladder never shows** |
+| 4 | Map the Collegium | 0.25 | Every research field and level |
+| 3 | Quell the Unrest | 0.30 | Ends Incite Unrest early, in your own streets |
+| 5 | Quell the Doubt | 0.30 | Ends Sow Doubt early |
+
+**Map the Siege Train earns its place.** Ranking counts engineers and defensive
+works but never the siege train, so a rival's offensive engines exist nowhere
+public. This is the only way to learn whether a bombardment is coming.
+
+---
+
+## Spy operations
+
+Covert, interceptable, and being caught names you. Gated by **Tradecraft**.
+Higher `detection` means easier to catch.
+
+| L | Op | Turns/agent | Detection | Effect |
+|---|---|---|---|---|
+| 1 | Torch the Stores | 0.40 | ×1.0 | Burns 1%/survivor of exposed goods, cap 25% |
+| 2 | Steal the Stores | 0.40 | ×1.0 | Takes 0.6%/survivor, cap 15% — less than fire destroys, because it has to be carried out |
+| 2 | Sabotage the Engines | 0.50 | ×1.2 | Wrecks 0.5 engines/survivor, offensive and defensive alike |
+| 3 | Undermine the Walls | 0.50 | ×1.2 | 0.2%/survivor of wall health, **cap 10%** |
+| 3 | Incite Unrest | 0.60 | ×1.4 | 24h: −25% tax and production, growth halted |
+| 4 | Sow Research Doubt | 0.60 | ×1.4 | 24h: research at **half speed** |
+| 5 | Assassinate the Scouts | 0.80 | ×1.8 | Kills 0.3 rangers/survivor — and blinds them |
+| 5 | Steal the Learning | 1.00 | ×2.0 | **Copies** one research level |
+
+**Undermining is capped hard on purpose.** If spies could meaningfully breach a
+wall, the entire siege economy — trebuchets, engineers, repair costs, the
+artillery duel — would be pointless. It is a nuisance, not a siege.
+
+**Steal the Learning copies.** The victim keeps their level and loses only the
+secret. Capped at **5 levels per era**, so theft can supplement doing the work
+but never replace it.
+
+**Assassination cascades.** Killing regular rangers costs the victim scout
+veterancy proportionally, *and* the hired rangers who can no longer be commanded
+are paid off and ride away — the same cascade the army runs (`combat.md`).
+
+---
+
+## Recruitment
+
+| | |
+|---|---|
+| Spies | ≤ **5%** of total population |
+| Scouts | ≤ **5%** of total population |
+| Combined | ≤ **10%** |
+
+Both arms can also be **hired**, capped at a third of your own of that arm.
+Hired knives need a Shadow Guild; hired rangers a Rangers Lodge. They earn no
+veterancy, cost none when they die, and are taken first when a mission is
+intercepted — which is precisely what keeps your veterans alive.
+
+Covert agents are civilians: they pay tax, they eat, and unlike engine crews they
+need no barracks bed.
+
+---
+
+## Veterancy
+
+Spies and scouts each keep their own stat, 0–100, on the same terms as troops:
+
+- **+4** per successful mission.
+- **+3** to the defender whenever their watch intercepts anyone — standing guard
+  teaches too.
+- Lost proportionally with the **regulars** who die or are dismissed. Hired
+  agents neither earn it nor cost it.
+
+---
+
+## Ranking
+
+Scouts count toward ranking at a discount — they stand in the open and everyone
+can see the rangers on your roads. **Spies never appear.** Covert is covert, and
+it would be a strange ladder that advertised how deep your spy service runs.
 
 ---
 
 ## Open / TBD
 
-- [ ] Can Incite Unrest stack from multiple attackers? (Proposal: no — refreshes duration only.)
-- [ ] Do sabotaged engines hit crewed engineers too? (Proposal: no — gear only.)
-- [ ] Spy-vs-spy: counter-intelligence sweeps to purge enemy intel? (v2)
-- [ ] Recon detection: can defenders catch scouts? (Proposal: no — scouts stay outside the walls; only spies risk death.)
+- [ ] Tune interception against real play — `AT_PARITY` (0.4) is a first guess.
+- [ ] Consider whether Quell ops should cost fewer turns; counter-play that is
+      dearer than the attack it answers tends not to get used.

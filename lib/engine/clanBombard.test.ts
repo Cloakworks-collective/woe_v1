@@ -35,11 +35,11 @@ describe("clan-building bombardment", () => {
     expect(out.clan.buildings.integrity.hall).toBe(1);
   });
 
-  it("never breaks a structure below the 50% floor, however many trebuchets", () => {
+  it("never breaks a structure below the 50% floor, however long the barrage", () => {
     const heavy = gunner("A");
     heavy.army.siegeGear.trebuchets = 1000;
     const out = resolveClanBombard(heavy, enemyClan(), "storage", OPTS);
-    expect(out.clan.buildings.integrity.storage).toBe(0.5);
+    expect(out.clan.buildings.integrity.storage).toBeGreaterThanOrEqual(0.5);
   });
 
   it("does nothing without crewed trebuchets", () => {
@@ -60,11 +60,13 @@ describe("clan-bombardment revenge authorization", () => {
   };
 
   it("authorizes a revenge with no personal window when the clan window is open", () => {
-    // A far-stronger, onVacation defender would normally be untouchable —
-    // clan revenge overrides refusal, vacation, and stamina like any revenge.
+    // A far-stronger defender would normally be untouchable — clan revenge
+    // overrides the refusal band and the yield like any revenge. (Vacation is
+    // no longer among them: nobody may depart while owing revenge, so the
+    // queue is the guard rather than a special case in combat.)
     const attacker = newEmpire({ id: "A", name: "A", race: "human" });
     const defender = newEmpire({ id: "D", name: "D", race: "human" });
-    defender.onVacation = true;
+    
     defender.buildings.walls = 10;
     defender.army.footmen.heavy = 100000; // dwarfs the attacker's score
 

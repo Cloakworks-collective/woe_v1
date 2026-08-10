@@ -1,10 +1,10 @@
 // Starting conditions for a new empire — every number from START in
 // lib/constants/balance.ts (THE tuning file).
 
-import { ACTION_TURNS, DEFAULT_TAX_RATE, NEWCOMER_SHIELD_HOURS, TICKS_PER_HOUR } from "../constants";
+import { ACTION_TURNS, DEFAULT_TAX_RATE, NEWCOMER_SHIELD_HOURS, SPY_TURNS, TICKS_PER_HOUR } from "../constants";
 import { START } from "../constants/balance";
 import type { Race } from "../constants/races";
-import { emptyMercForce, type Player } from "./types";
+import { emptyMercForce, emptySiegeCounters, emptySiegeGear, fullCounterIntegrity, fullGearIntegrity, type Player } from "./types";
 
 export function newEmpire(opts: {
   id: string;
@@ -35,13 +35,18 @@ export function newEmpire(opts: {
       archers: { light: 0, medium: 0, heavy: 0 },
       cavalry: { light: 0, medium: 0, heavy: 0 },
       siegeEngineers: 0,
-      siegeGear: { ropes: 0, ladders: 0, rams: 0, ballistae: 0, trebuchets: 0 },
-      siegeCounters: { billhooks: 0, forkpoles: 0, boiling_oil: 0, hoardings: 0, counter_engine: 0 },
+      siegeGear: emptySiegeGear(),
+      siegeCounters: emptySiegeCounters(),
       spies: 0,
       scouts: 0,
+      siegeGearIntegrity: fullGearIntegrity(),
+      siegeCounterIntegrity: fullCounterIntegrity(),
       mercenaries: emptyMercForce(),
       stamina: START.STAMINA,
       experience: 0,
+      siegeExperience: 0,
+      spyExperience: 0,
+      scoutExperience: 0,
     },
 
     gold: START.GOLD,
@@ -55,6 +60,7 @@ export function newEmpire(opts: {
     },
     bankedResources: { food: 0, wood: 0, stone: 0, ore: 0 },
     turnsAvailable: ACTION_TURNS.START,
+    spyTurnsAvailable: SPY_TURNS.START,
     onVacation: false,
     vacationTicksUsed: 0,
     starving: false,

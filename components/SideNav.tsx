@@ -37,6 +37,7 @@ const SECTIONS: { head: string; sub: string; items: Item[] }[] = [
       { href: "/train", label: "Workers & Levy", icon: "workers", desc: "Assign peasants to jobs; train spies & scouts" },
       { href: "/research", label: "Research", icon: "research", desc: "The Collegium — 10 fields of technology" },
       { href: "/market", label: "Market", icon: "market", desc: "The Grand Bazaar — buy & sell resources" },
+      { href: "/blackmarket", label: "Black Market", icon: "market", desc: "The fence — instant resource trades & siege salvage, at the worst price" },
     ],
   },
   {

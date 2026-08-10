@@ -20,100 +20,30 @@ There are 6 playable races, each with distinct bonuses and penalties:
 (Exact multipliers — balanced by equal-cost army power, not sum-zero — in
 `architecture.md`; ported from the original 2006 balance workbook.)
 
+## Where everything is written down
+
+| File | Owns |
+|---|---|
+| `overview.md` | this — the concept, the races, how an age is won, where numbers live |
+| `empire.md` | the peacetime game: economy, buildings, research, the Bazaar |
+| `combat.md` | raid, castle attack, revenge, bombard — and the model behind them |
+| `espionage.md` | spies and scouts, the spy-turn economy, every operation |
+| `clans.md` | banners, clan war, diplomacy, and the Royal Charter |
+| `architecture.md` | how it is built: the tick, the command pipeline, storage |
+
+Nothing is described twice. Where this file mentions a mechanic it links to the
+file that owns it, because a summary that repeats detail is just a second place
+for the same fact to rot.
+
 ## Core Loop
 
-1. **Recruit** — Receive peasants daily (base 1/day, up to 100/day via civilian buildings; damaged walls cut growth up to 50%; settlers beyond your empty Hearthstead beds find no roof and are **lost, not queued** — see `buildings.md`).
+1. **Recruit** — Receive peasants daily (base 1/day, up to 100/day via civilian buildings; damaged walls cut growth up to 50%; settlers beyond your empty Hearthstead beds find no roof and are **lost, not queued** — see `empire.md`).
 2. **Train** — Assign peasants as workers (gold + resources per turn) or raise them **directly** into soldiers — footmen, archers, or cavalry at light/medium/heavy tiers — plus engineers, spies, and scouts. There is no separate "warrior" step; the tier you can field is gated by your trainer and Forge levels.
 3. **Reinforce** — Tier up (each tier needs its trainer *and* the Forge at that level) and hire **mercenaries** — sellswords in the same arms and tiers, bought for gold to bolster the host quickly.
 4. **Build** — Construct defences, peasant buildings, and military/specialty buildings to unlock capabilities.
 5. **Attack** — Launch raids, sieges, revenge attacks, or bombardments against other players (10 action turns each).
 6. **Manage** — Monitor stamina, food, experience, and use advisors to guide strategy.
 
-## Economy
-
-- **Taxes** are the kingdom's gold engine: 0–100% rate, ~29 gold/citizen/**day** at the 50% default (0.4/turn at 100%). Production drops inversely — each worker yields **50 × its building's level** per turn at 0% tax (50 at level 1 up to 500 at level 10; workers are unlimited — the building's level, not a slot count, sets the pace). Gold is scarce, resources are bulk (see `economy.md`).
-- **Resource types:** Gold, Food, Wood/Lumber, Stone, Ore/Metal. 1 turn = 10 minutes.
-- Military pays no tax and costs no upkeep — except mercenaries (paid per turn or they defect; max 25% of regular army).
-- Food is population upkeep (0.1/person/turn): if it runs out, **everything stops** — production, research, taxes, growth, attacking — until the empire is fed. Attacks themselves are instantaneous and cost no food.
-- Resources outside storage can be stolen via raids; gold and resources via sieges.
-- Resource storage buildings protect a portion from being plundered.
-- The **Grand Bazaar** turns surplus into gold: a merchant's caravan must **travel to market** before its goods list — 100 turns at Market Square level 1 down to 10 at level 10 — after which buyers fill instantly, cheapest-first, a 5% seller fee burned (see `market.md`).
-
-## Military
-
-### Unit Types
-- **Footmen** — Melee infantry, various tiers (light → heavy). Attack order: footmen → archers → cavalry → engineers.
-- **Archers** — Ranged units, damage distributed proportionally across enemy army. Fire before melee.
-- **Cavalry** — Mobile, strike from flanks. Attack order: cavalry → footmen → engineers → archers.
-- **Siege Engineers** — Operate siege weapons; target walls and all troops proportionally. Fire first in battle.
-- **Spies** — Espionage: intel, sabotage, arson, unrest (op list by Tradecraft research, `espionage.md`). More spies sent = more damage but higher catch risk; caught spies are executed (population loss).
-- **Scouts** — Reconnaissance on opponents + counter-espionage at home: Ranger's Lodge level determines what level of enemy spies they can catch.
-- **Mercenaries** — Hired from the Black Market in the same arms and tiers as your regulars (heavy cavalry needs Knights' Stables 3 + Forge 3, just like the real thing), for gold alone — no peasants spent. They fight as their type/tier but **die before your matching regulars** (the front line of their arm). Require per-turn gold upkeep or they defect; capped at 25% of regular army size; count zero toward ranking.
-
-### Combat Phases (in order, per round; full math in `combat.md`)
-1. Siege weapons fire (proportional damage to all troops; rams/trebuchets grind wall integrity; each of the defender's **crewed** War Foundry counters cancels one incoming paired weapon, one-for-one)
-2. Archers fire (proportional damage)
-3. Cavalry charge (targeted order: cavalry → footmen → engineers → archers)
-4. Footmen charge (targeted order: footmen → archers → cavalry → engineers)
-
-Attacker commits turns = combat rounds; a side breaks below 30% strength.
-Raids skip siege and get no wall bonus (open-field fights); bombard is engines-only.
-
-### Stamina
-- Troops lose stamina from fighting.
-- Low stamina = weaker attack and defence.
-- Restored by resting (costs turns + food) or passively at 1 point/turn.
-- Strategic element: raid an opponent to drain stamina, bombard their walls, then launch the siege.
-
-### Experience
-- Battle XP depends on target's ranking vs yours: ±20% = +5 (fair fight); 20–75% stronger = +8 (bold); 20–50% weaker = +1; >50% weaker = −5 (bullying). Defenders always +5.
-- Targets ≥75% stronger: your troops back off and call you an idiot (attack refused; revenge exempt).
-- Troops keep getting stronger with experience — up to +100% at max (0–100).
-- Losing regulars loses experience proportionally (veterancy dies with the veterans). Mercenary deaths cost nothing.
-
-### Population Warfare
-- Killing regulars kills actual population — the worst thing you can do to an enemy (and hard: mercenaries die first).
-- If troops fall below 30% of civilians at the daily reset, unprotected peasants **scatter** (leave the empire) down to the 30% line. Empires below 500 total population are exempt.
-- Grace window: train troops back above the line before the reset to stop the bleeding. Losing 100–200 population sets an empire's ranking back hard.
-
-## Attack Modes
-
-Every attack costs **10 action turns**. Players earn 2 action turns per game
-turn (10 min) and start with 200.
-
-Targets are found on the **browsable ranking ladder** (search/filters — no
-world map). New empires start with 5,000 gold, 1,000 of each resource, and
-100 population including 20 footmen (`architecture.md`).
-
-**Protection:** no attacks at all during the first 5 days of an era; new
-players joining mid-era get a 72-hour shield.
-
-| Mode      | Goal                        | Notes                                                                 |
-|-----------|-----------------------------|-----------------------------------------------------------------------|
-| Raid      | Steal anything outside storage (never gold) | Field army vs field army — no walls, no siege phase   |
-| Siege ("castle attack") | Steal gold + spilled/unstored goods | Full assault: siege weapons vs walls; the main offensive |
-| Revenge   | Kill troops                 | 18hr window after being attacked; ignores vacation, low stamina, broken walls, and the yield; chains (revenge re-arms the victim's window) |
-| Bombard   | Wreck walls, then the town   | Pure artillery duel: trebuchets vs Counter-Engine. Pounds walls first; once breached, stray fire cracks random buildings — storages, production, the Collegium. No target choice, no troops, no loot |
-
-- Attacking larger targets yields bonus loot; attacking much smaller targets yields less.
-- Raid, siege, and bombard cannot target players on vacation; revenge can.
-- Beaten-down (stamina < 25) or heavily outmatched (< 60% of the attacker's
-  strength) defenders **yield**: the attacker takes the stores, but their
-  regulars live. Revenge is never yielded to.
-- Vacation: voluntary status — you can't attack, tax and production halved, immune to all but revenge, 20 days per era.
-
-## Buildings
-
-### Defences
-- Walls, fortifications — protect against attacks. Walls add no recruitment; while damaged they reduce daily recruitment by up to 50%.
-
-### Peasant Buildings
-- Resource production improvements, resource storage, peasant housing.
-- Civilian buildings drive daily recruitment from 1/day up to 100/day (full tree in `buildings.md`).
-
-### Military & Specialty
-- Unlock advanced troop types and higher equipment tiers.
-- Siege weapon production, research, marketplace, gold banking, spy/scout operations.
 
 ## Clans
 
@@ -130,26 +60,345 @@ Overview screen with historical stats (battles won/lost, resource totals). Four 
 - **Economic** — Production efficiency and worker balance.
 - **Population** — Empire growth and recruitment optimization.
 
-## Winning (see `victory.md`)
 
-The game runs in **eras** (server seasons); the next era is named after the winner. Two victory paths:
-
-- **Grand Overlord** — hold the #1 ranking for 72 hours cumulative *and* 12 hours straight (the streak resets if you're knocked off). Requires ≥ 10,000 population (no mercenaries) for the clocks to run.
-- **Clan Victory** — same rule for the #1 clan (sum of member scores); requires ≥ 150,000 total clan population.
-
-Ranking measures the visible empire: population, troops, walls, buildings, treasury, and 7 of 10 research fields. Siege, spies, scouts, mercenaries, and their research are worth zero — power in the shadows brings no prestige.
-
-## Premium — The Royal Charter (see `premium.md`)
-
-A one-time Stripe purchase ($4.99, tunable) that hires **the Steward**:
-build queues, research queues, and standing orders ("once the Drill Yard is
-built, train 1,000 light footmen"), executed automatically each tick. Fairness
-pillar: **the Charter buys attention, never power** — every Steward action
-is an ordinary instant command at ordinary cost; no stat or resource
-advantage, ever.
 
 ## Target Platform
 
 - **Client:** Web browser (TypeScript)
 - **Server:** Node.js / TypeScript
 - **Real-time:** Turn-based with 10-minute tick intervals, persistent world
+
+---
+
+## Winning the Age
+
+The game runs in **eras** (server seasons). An era ends when someone wins —
+and **the next era is named after the winner**. Two ways to win.
+
+---
+
+### 1. Grand Overlord (individual)
+
+**Two gates, both absolute.**
+
+- **Army floor: 2,400 regulars** (`ARMY_FLOORS.INDIVIDUAL`) — footmen, archers
+  and cavalry only. Mercenaries never count, so gold cannot buy a throne;
+  engineers never count, so a siege park is not mistaken for an army. #1 held
+  below the floor accrues nothing.
+- **Never clanned.** The solo crown is for someone who did it alone, so it asks
+  that they *always* were. One day of membership disqualifies for the whole age
+  (`everJoinedClan`, cleared only by `eraReset`). Without this the dominant play
+  is to take a clan's vault, Works and protection all era, leave at the end, and
+  launder it into an individual win.
+
+Hold the **#1 ranking spot**:
+
+- **72 hours cumulative** at #1 (the cumulative clock only ticks while you
+  hold #1 *and* meet the floor; it never resets), **and**
+- **12 hours consecutive** at #1 (this streak restarts every time you lose
+  the top spot — or drop below the floor).
+
+Win the moment both are true. So a contender must not just touch #1 — they
+must *defend* it: rivals have every incentive to bombard, revenge, and
+scatter the leader's population to break the 12-hour streak. Scattering is
+double poison for a would-be Overlord near 10k: it cuts score *and* can
+stop the clock entirely.
+
+### 2. Clan Victory
+
+Same structure, clan-scale: the clan's score is the **sum of member scores
+plus clan building points**, and it must hold **#1 clan** for 72 hours
+cumulative + 12 consecutive, with **25,000 regulars** summed across its members
+(`ARMY_FLOORS.CLAN`).
+
+### Winning ENDS the age, immediately
+
+The moment both clocks complete, `world.meta.winner` is set and **the world
+stops**. Not "a banner appears and play continues" — the ladder that was won is
+the ladder that stands:
+
+- **Commands are refused.** No attack, build, trade, training or clan politics.
+  The gate is an ALLOWLIST (`ALLOWED_AFTER_VICTORY`), so anything added later is
+  frozen by default; only housekeeping, a Charter payment that lands after the
+  bell, and chat still work — nothing that can move a score.
+- **The clock stops.** `ticksDue` and `runDueTicks` both return 0, so no
+  production, growth or research accrues. `eraReset` builds a fresh world with a
+  fresh `lastTickAt`, so nothing accumulates while the age sits sealed.
+- **Monitoring knows.** `tickHealth.eraOver` reports the stop as healthy, or the
+  dead-man switch would page someone nightly until an admin closed the age.
+
+Reads are untouched — the finished world stays fully browsable. An admin seals
+it with `adminCloseAge`, which does not route through the command pipeline.
+
+| Clan building | Points                                   |
+|---------------|------------------------------------------|
+| Clan Storage  | 500 × level × integrity                  |
+| Clan Hall     | 2,000 × level × integrity                |
+| Clan Wonder   | 10,000 × level × integrity               |
+
+Integrity scaling means **bombarding a rival clan's buildings directly cuts
+their clan score** — at the cost of clan-wide revenge exposure (`clans.md`).
+
+**Army floor: 25,000 regulars summed across the clan** (`ARMY_FLOORS.CLAN`;
+footmen, archers and cavalry — no mercenaries, no engineers). Below it, the
+clan's clocks freeze. A full 20-member clan needs to average 1,250 regulars per
+member — clan victory requires a broad, genuinely armed roster, not one whale
+and nineteen passengers.
+
+**War defeat freezes the clocks too:** a clan that loses a clan war accrues
+no victory time during the 48-hour post-war truce (`clans.md`). Beating the
+#1 clan in a war is therefore a direct play against their era win.
+
+Whichever trigger fires first — Overlord or Clan — ends the era. The next
+era bears the winner's name: *"The Era of \<clan name\>"* (or the Overlord's
+empire name for an individual win).
+
+---
+
+### Ranking score
+
+Ranking measures the **visible empire** — what a traveler would see riding
+through. Covert and siege assets count for nothing.
+
+| Component                          | Points                                        |
+|------------------------------------|-----------------------------------------------|
+| Civilian population                | 10 per citizen                                |
+| Regular troops                     | 10 × tier power (light ×1, medium ×1.8, heavy ×3) |
+| Walls                              | level² × 100, scaled by current integrity     |
+| Levelled buildings (civilian + military) | 200 per level                           |
+| Hearthsteads / Muster Halls        | 50 per building                               |
+| Treasury                           | gold ÷ 100 + resources ÷ 2,000 (bulk goods valued ≈ 0.05 g; was ÷ 50 pre-sim) |
+| Army experience                    | 100 × XP (0–100) — veterancy is prestige      |
+| Research (eligible fields)         | 1,000 × level                                 |
+
+**Excluded — worth zero points:**
+- Siege: engineers, siege gear, Siegecraft research
+- Espionage: spies, scouts, Shadow Guild/Ranger's Lodge do count as building
+  levels, but the covert fields (Tradecraft, Pathfinding) do **not**
+- Mercenaries (rented, not owned)
+- Clan buildings (they're the clan's, not yours)
+
+**Research that helps your ranking** (the "some research" rule): Crop
+Rotation, Forestry, Masonry, Deep Smelting, Art of War, Shieldcraft,
+Statecraft — see `empire.md`. The excluded fields are the covert ones (Tradecraft,
+Pathfinding) mirror the excluded assets: the tools of destruction and
+shadow bring power, not prestige.
+
+#### Design consequences (intended)
+
+- Wall damage (integrity scaling) and population scattering directly cut the
+  leader's score — **bombard and revenge are the anti-Overlord weapons**,
+  and neither adds a point to the attacker's own score.
+- A pure siege/spy empire is powerful but invisible on the ladder; a
+  contender must build the *visible* empire and then protect it.
+- Treasury counts, so sitting on unbanked gold is score — and bait.
+
+---
+
+### The Annals (grand chronicle)
+
+Every age keeps a **world-wide chronicle** — the significant public events of
+the realm, distinct from each player's private Chronicle (their own inbox).
+The Annals record: the age dawning, **the crown changing hands** (a new #1 on
+the ladder), **clan wars declared and won**, **castles sacked** (successful
+sieges, with the gold carried off), and the **victory** that ends the age.
+Entries are tone-coloured and time-stamped; the live feed is the page
+`/annals`.
+
+When an age ends, its Annals are **sealed for good** — archived with the era
+name, the victor, the final top-10 ladder, and the full **War Records** (below)
+— and carried forward across every future reset as the realm's history books.
+The next age opens its own fresh Annals with a naming entry. (Implementation:
+`world.chronicle` live + `world.chronicleArchive[]` sealed; `eraReset()` does
+the sealing.)
+
+### War Records (the leaderboards of the age)
+
+Every age keeps a full set of **superlative leaderboards** — the same shape as
+the sealed Elder Ages — tallied live and visible at `/rankings/records`, then
+frozen into the Annals when the age ends. Two kinds of feat feed them:
+
+- **Flow tallies** — running totals accumulated as deeds happen, kept
+  independently of the capped battle log so an early record still stands at the
+  age's close (`EraRecords.feats` per ruler, plus the five battle lists):
+  - **Champions of the Realms** — the champion of each feat of arms, each with
+    an epithet: Defenders Killed (*the Slayer*), Attackers Killed (*the
+    Defender*), Gold Won in Battle (*the Plunderer*), Resources Won (*the
+    Raider*), Regular Troops Slain (*the Empire Destroyer*), Most Siege Damage
+    (*the Siege Master*), plus snapshot feats Most Experienced Army (*the
+    Undefeatable*) and Strongest Empire-less Ruler (*the Black Knight*).
+  - **Non-Battle Titles** — the leader of each civil feat: Most Market Sales
+    (*the Marketeer*), Most Gold Given Away (*the Generous*), Most Resources
+    Given Away (*the Bountiful*), Most Spy Damage (*the Saboteur*), Most
+    Resources Destroyed (*the Vandal*), plus snapshot feats Most Research (*the
+    Wise*), Largest Population (*the Populous*), Grandest Works (*the
+    Architect*), Greatest Wealth (*the Wealthy*).
+  - **Richest Attacks / Richest Raids / Bloodiest Attacks / Greatest Wars /
+    Greatest Feuds** — the top-N single clashes and running rivalries.
+- **Snapshot ladders** — read from the live empires at build time (and frozen
+  at seal): **Greatest Rulers** (the ladder), **Strongest Empires** (the clan
+  ladder), **Lords & Ladies** (the mightiest ruler of each race).
+
+(No gold-stealing spy op exists, so the old *"the Thief"* title is omitted until
+one does.) Implementation: `lib/server/eraTables.ts#buildEraTables(world)`
+assembles all tables as `ElderTable[]`, rendered through the Elder Ages'
+`LeaderTable`; `eraReset()` stores the frozen set in
+`ArchivedAge.sealedTables`.
+
+### Era transition
+
+- Winner declared → era closes; final ladder is frozen and archived; the age's
+  **Annals are sealed** into the history books.
+- Next era: fresh world, named after the winner. The first **5 days are at
+  peace** — no attacks while everyone rebuilds (`combat.md`).
+
+**What persists across eras:** player accounts and titles, era history
+(winners' names **and the sealed Annals of every past age**), clan identities
+and war records, and **DMs**. Everything else resets — empires, the ladder,
+era chat, and clan chat are wiped. Permanent trophies: the era name, plus
+"Grand Overlord \<name\>" or founding membership of the winning clan.
+
+---
+
+## Where the numbers live
+
+**Every number that shapes how the game plays lives in
+[`lib/constants/balance.ts`](../lib/constants/balance.ts).** Change a value
+there, restart the dev server (or reseed the world if the change invalidates
+existing saves), and the next age behaves differently. That file — not the
+specs, not the scattered domain files — is the source of truth for balance.
+
+### How it's organized
+
+`balance.ts` is a single flat file of named, unit-commented constants in 15
+bannered sections. The old per-domain files (`economy.ts`, `combat.ts`,
+`races.ts`, …) still exist but are now **thin re-exports** — they keep engine
+imports short (`import { LOOT } from "../constants"`) and hold only what is
+NOT balance: types, display text, and structural identity.
+
+| § | Section | What you tune there |
+|---|---------|---------------------|
+| 1 | Time & pacing | turn length, turns/day, era peace days, newcomer shield |
+| 2 | Starting empire | `START`: gold, resources, peasants, footmen, founding buildings |
+| 3 | Population & growth | growth curve (settlers/day), housing/bed, wall settler penalty, scattering, settlement titles |
+| 4 | Economy | tax gold rate, worker-output curve, food upkeep, vacation factors, merc price/cap/upkeep, storage shelter |
+| 5 | Building costs | base costs, cost-multiplier curve, gold share, ratio bands, muster beds, repair factor |
+| 6 | Research | research-cost curve, switch loss, max level, effect/level |
+| 7 | Units & training | `UNIT_STATS`, tier power, training costs, tier cost mult |
+| 8 | Battle | action turns, stamina, lethality, break threshold, luck, wall-bonus curve, engine fire, escalade, XP bands, loot, revenge window, bombard params |
+| 9 | Siege equipment | offensive gear + defensive counter cost/crew/foundry tables |
+| 10 | Espionage | op effects, catch model, guild/pathfinding scaling, unrest |
+| 11 | Market | caravan capacity & delivery curve, fee, price band |
+| 12 | Clans | hall table, storage caps, build costs, 3× rule, war block, churn |
+| 13 | Victory & ranking | hold clocks, population floors, **all `SCORE` weights**, clan points |
+| 14 | Races | the full 6-race modifier matrix |
+| 15 | Premium | Steward queue cap (pricing stays in `premium.ts` — monetization, not balance) |
+
+### Rules of the file
+
+1. **Pure data only** — numbers, strings, tables. No functions. (This is what
+   lets a future override layer diff and merge it; `SCORE.WALLS` was flattened
+   from a function to the `WALLS_PER_LEVEL_SQ` coefficient for exactly this
+   reason. `CLAN_BUILD_COSTS` is the data; the `BUILD_COSTS` accessor shape
+   lives in `clans.ts`.)
+2. **Every value carries a unit comment** (`/turn`, `frac`, `gold`, `hours`…).
+3. **Curve-shaped knobs are Curve descriptors** (see §Curves below) — the
+   SHAPE itself is data you can swap. Multi-variable formulas (the full
+   production equation, combat resolution) stay engine-shaped compositions
+   *of* those curves.
+4. **What stays out:** display text (`descriptions.ts`, names, tips),
+   structural identity (building/field IDs, counter pairings, foundry ladder,
+   phase order), monetization (Charter price).
+
+### Curves — pluggable formula shapes
+
+Eight sites are governed by a `Curve` descriptor (`lib/constants/curves.ts`)
+instead of a fixed formula. A curve is pure data describing `y = f(x)`; pick
+any kind per site:
+
+| kind | meaning |
+|------|---------|
+| `constant` | `y = value` |
+| `linear` | `y = base + perX·x` |
+| `geometric` | `y = base · ratio^x` |
+| `exponential` | `y = base · e^(rate·x)` |
+| `polynomial` | `y = c0 + c1·x + c2·x² + …` |
+| `steps` | lookup table — y of the last `[x, y]` point at or below x |
+| `expr` | **your own equation as a string** — `"2000 * 1.3 ^ (x - 1)"` |
+
+`expr` is parsed by our own ~150-line whitelist evaluator (`compileExpr`) —
+no `eval()`, deterministic, only numbers, `+ - * / ^ ( )`, the functions
+`min max floor ceil round sqrt abs log exp`, and the variable `x` (aliases
+`level`, `n`). `-2^2 = −4`; `^` is right-associative. Malformed formulas
+throw loudly at first evaluation.
+
+The curve-governed sites (each names its `x` in balance.ts):
+
+| Descriptor | x | Default |
+|---|---|---|
+| `GROWTH_CURVE` | total civilian levels | `"1 + 99 * x / 130"` (1→100/day) |
+| `BUILDING_COST_CURVE` | target level | `"1.5 ^ (x - 1)"` (×1.5/level) |
+| `RESEARCH_COST_CURVE` | Nth research overall | `"2000 * 1.3 ^ (x - 1)"` |
+| `WORKER_OUTPUT_CURVE` | building level | linear 50·level |
+| `CARAVAN_DELIVERY_CURVE` | Market Sq level | linear 110 − 10·level (floor 10) |
+| `WALL_BONUS_CURVE` | wall level | linear 0.1·level |
+| `WALLS_SCORE_CURVE` | wall level | polynomial level²·100 |
+| `STORAGE_SHELTER_CURVE` | store level | linear 20 000·level |
+
+Each is evaluated in exactly ONE place — the matching helper in
+`lib/constants/derived.ts` (`growthPerDayAt`, `buildingCostMultiplier`,
+`researchOrdinalCost`, `workerOutputAtLevel`, `caravanDeliveryTurnsAt`,
+`wallBonusAtLevel`, `wallsScoreAtLevel`, `storageShelterAtLevel`) — which both
+the engine and the UI consume, so displayed numbers always match charged
+numbers. Clamps and rounding (the 1-settler floor, whole-turn delivery,
+integer RP) stay engine-side and survive any curve you write.
+
+Swapping a shape is one edit — e.g. a linear-research era:
+
+```ts
+export const RESEARCH_COST_CURVE: Curve = { kind: "linear", base: 0, perX: 2000 };
+```
+
+### Seeing & tuning the numbers — the two balance pages
+
+Two pages read this catalog (`lib/balance/catalog.ts`, a client-safe
+description of every curve, scalar, and reference table — each with a
+plain-language `desc` — plus readers for their compiled values). Both split the
+material into six **category tabs** (`CATEGORIES`: Growth & People, Economy &
+Trade, Research, War & Army, Victory & Rank, World & Races) so no screen is a
+wall of numbers, and both render each curve through `components/CurvePanel.tsx`:
+a large chart (`CurveChart.tsx`, a pure SVG sampler over `evalCurve`) beside an
+explanation — what the two axes mean in words, an "at a glance" table of sample
+values across the domain, and the prose `desc`. A chart on either page always
+plots the exact function the engine runs.
+
+- **`/almanac` — The Codex of Balance (public, read-only).** No login. A
+  masthead, the category tabs (as `?c=<key>` links), and per category: the
+  curve panels, the one-off scalars as described cards, and the domain's
+  reference tables (training, tiers, siege, counters, clan hall, XP, loot,
+  races). Linked from the **Guides ▾** nav dropdown (TopNav + MobileNav)
+  alongside the Field Manual.
+- **`/admin/balance` — the Balance Workbench (Crown-gated).** The same catalog,
+  editable, same tabs (a per-tab badge counts that category's pending edits).
+  Each curve panel adds a shape selector + parameter fields; the chart redraws
+  on every keystroke and ghosts the compiled default behind the edited curve so
+  you see exactly what changed ("settlers at 130 levels went 100 → 200").
+  `CurvePanel` diffs against a `baseline` prop (the compiled default) rather than
+  its starting value, so edits stay flagged and survive tab switches. Scalars are
+  inline number inputs with their descriptions. A sticky bar counts all pending
+  changes and exports a **sparse `{curves, scalars}` diff** — the exact shape
+  destined for `world.meta.balanceOverrides`. Edits are preview-only today
+  (nothing writes to the running game); apply one by matching it in `balance.ts`.
+
+Access: `lib/server/admin.ts` opens the whole `/admin` tree to everyone during
+the build phase — `devOpenAdmin()` is true when no `ADMIN_PASSWORD` is set and
+`NODE_ENV !== "production"`. Set `ADMIN_PASSWORD` (as in `.env.local`) to seal
+it behind the Crown login again.
+
+### Tweaking an era (build phase)
+
+1. Edit `balance.ts`.
+2. Dev server hot-reloads; for a clean slate delete the dev world store and
+   let it reseed (dev data is disposable).
+3. `pnpm test && pnpm sim` — the sim is the pacing smoke test
+   (Village→Town day, pop@60d, combat matchup tables).

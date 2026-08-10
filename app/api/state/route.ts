@@ -24,19 +24,12 @@ import {
   wallName,
 } from "@/lib/engine";
 import { resolvePlayerId } from "@/lib/server/auth";
-import { REVENGE_WINDOW_TICKS, commitWithRetry, getWorld, runDueTicks } from "@/lib/server/world";
-import { worldServiceEnabled } from "@/lib/server/worldClient";
+import { REVENGE_WINDOW_TICKS, getCurrentWorld } from "@/lib/server/world";
 
 export async function GET(req: NextRequest) {
-  // With the single writer (§14.2) the service advances its own clock, so a
-  // read just fetches it. Otherwise advance under optimistic concurrency (§14.1),
-  // persisting only if a tick actually landed.
-  const world = worldServiceEnabled()
-    ? await getWorld()
-    : await commitWithRetry((world) => {
-        const processed = runDueTicks(world);
-        return { result: world, dirty: processed > 0 };
-      });
+  // Advances the clock only when something is actually owed, and persists it
+  // when it does (§14.1) — see getCurrentWorld.
+  const world = await getCurrentWorld();
 
   const playerId = await resolvePlayerId(req, world);
   const p = playerId ? world.players[playerId] : undefined;
@@ -81,8 +74,8 @@ export async function GET(req: NextRequest) {
       gold: Math.floor(p.gold),
       bankedGold: Math.floor(p.bankedGold),
       taxRate: p.taxRate,
-      taxIncomePerTurn: Math.round(taxIncomePerTurn(p) * 10) / 10,
-      foodUpkeepPerTurn: Math.round(foodUpkeepPerTurn(p) * 10) / 10,
+      taxIncomePerTurn: taxIncomePerTurn(p), // whole numbers now — no display fudge needed
+      foodUpkeepPerTurn: foodUpkeepPerTurn(p),
       resources: {
         food: Math.floor(p.resources.food),
         wood: Math.floor(p.resources.wood),

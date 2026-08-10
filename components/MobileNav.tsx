@@ -52,6 +52,7 @@ export function MobileNav({ premium }: { premium: boolean }) {
         { href: "/train", label: "👥 Workers & Levy" },
         { href: "/research", label: "📚 Research" },
         { href: "/market", label: "⚖️ Market" },
+        { href: "/blackmarket", label: "🕯️ Black Market" },
       ],
     },
     {

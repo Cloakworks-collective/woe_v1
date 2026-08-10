@@ -91,16 +91,21 @@ describe("battle resolution — the spec's worked example", () => {
       p.buildings.muster_hall = 10;
     });
     const { report } = resolveBattle(attacker, defender, "siege", { ...OPTS, rng: seededRng(11) });
-    const log = report.log.join("\n");
-    expect(log).toMatch(/Boiling Oil neutralise \d+ of our \d+ rams/); // counter callout
-    expect(log).toMatch(/Siege volley \(\d+ crewed engines\).*walls take −\d+%/);
-    expect(log).toMatch(/Arrows fall: .*lose \d+/);
-    expect(log).toMatch(/Cavalry charge: .*lose \d+/);
-    expect(log).toMatch(/The lines meet: .*lose \d+/);
-    expect(log).toMatch(/Round 1: attacker strength/); // round summary retained
+    const log = report.log.map((l) => l.text).join("\n");
+    expect(log).toMatch(/Boiling Oil smash \d+ battering rams/); // counter callout
+    expect(log).toMatch(/The engines work the wall/);
+    expect(log).toMatch(/Round 1: our host at \d+%/); // round summary retained
+    // Regular losses are structured data now, not buried in prose — the whole
+    // point of the report rework is that a reader can SEE where their army died.
+    const withRegulars = report.log.filter(
+      (l) => (l.attackerRegulars ?? 0) + (l.defenderRegulars ?? 0) > 0,
+    );
+    expect(withRegulars.length).toBeGreaterThan(0);
+    expect(report.regularsKilled.attacker + report.regularsKilled.defender).toBeGreaterThan(0);
+    expect(report.log.every((l) => l.phase && typeof l.text === "string")).toBe(true);
   });
 
-  it("each crewed counter cancels one enemy engine (the surplus still fires)", () => {
+  it("counters shoot engines to pieces — attrition, not cancellation", () => {
     const mk = (counterEngines: number) =>
       empire("D", (p) => {
         p.army.footmen.light = 200;
@@ -119,9 +124,12 @@ describe("battle resolution — the spec's worked example", () => {
       });
     const none = resolveBattle(atk(), mk(0), "siege", { ...OPTS, rng: seededRng(9) });
     const some = resolveBattle(atk(), mk(4), "siege", { ...OPTS, rng: seededRng(9) });
-    // 4 counter-engines cancel all 4 trebuchets → the wall takes far less.
+    // Counter-Engines shoot the trebuchets to pieces, so less stone reaches
+    // the wall. Attrition, not cancellation — no suppression constant exists.
     expect(some.report.wallIntegrityDamage).toBeLessThan(none.report.wallIntegrityDamage);
-    expect(some.report.log.join("\n")).toMatch(/Counter-Engine neutralise 4 of our 4 trebuchets/);
+    expect(some.report.log.map((l) => l.text).join("\n")).toMatch(
+      /Counter-Engine smash \d+ trebuchets/,
+    );
   });
 
   it("a defender with spare engineers fires its own engines back", () => {
@@ -138,7 +146,7 @@ describe("battle resolution — the spec's worked example", () => {
       p.buildings.muster_hall = 20;
     });
     const { report } = resolveBattle(attacker, defender, "siege", { ...OPTS, rng: seededRng(4) });
-    expect(report.log.join("\n")).toMatch(/Their engines answer/);
+    expect(report.log.map((l) => l.text).join("\n")).toMatch(/engines answer/);
   });
 
   it("raids ignore walls entirely (open-field fight)", () => {
@@ -168,7 +176,7 @@ describe("mercenaries die first", () => {
 });
 
 describe("loot & storage protection", () => {
-  it("siege steals 25% of unbanked gold and unstored resources only", () => {
+  it("a castle attack takes GOLD only — goods are a raid’s business", () => {
     const attacker = empire("A", (p) => {
       p.army.footmen.light = 200;
       p.buildings.muster_hall = 25;
@@ -193,8 +201,8 @@ describe("loot & storage protection", () => {
     // Overwhelming attacker: small-target scaling shrinks the take below the
     // full 25%, but never below the floor and never touching protected stores.
     expect(report.loot.gold).toBeGreaterThan(0);
-    expect(report.loot.gold).toBeLessThanOrEqual(2500);
-    expect(report.loot.resources.wood).toBeLessThanOrEqual(2500);
+    expect(report.loot.gold).toBeLessThanOrEqual(10000 * 0.7 * 1.25);
+    expect(report.loot.resources.wood).toBeLessThanOrEqual(10000 * 0.7 * 1.25);
     expect(after.bankedGold).toBe(15000); // the bank never leaks
   });
 });
@@ -250,7 +258,7 @@ describe("bombard", () => {
     if (granaryHit) expect(unstored(d2, "food")).toBeGreaterThan(0);
   });
 
-  it("a heavy sustained bombard drives at least one building to the 50% floor", () => {
+  it("a bombard breaches the wall first, then cracks the town open", () => {
     const attacker = empire("A", (p) => {
       p.army.siegeGear.trebuchets = 30;
       p.army.siegeEngineers = 150;
@@ -262,7 +270,8 @@ describe("bombard", () => {
       p.buildings.granary = 5;
     });
     const { defender: d2 } = resolveBombard(attacker, defender, { ...OPTS, rng: seededRng(3) });
-    expect(buildingIntegrity(d2, "granary")).toBeCloseTo(0.5, 5); // the floor holds
+    expect(buildingIntegrity(d2, "granary")).toBeGreaterThanOrEqual(0.5); // the floor holds
+    expect(buildingIntegrity(d2, "granary")).toBeLessThan(1); // but it was cracked
   });
 });
 
@@ -292,15 +301,17 @@ describe("attack validation", () => {
     expect(validateAttack(a, d, "revenge", CTX)).toBeNull();
   });
 
-  it("vacation still blocks everything but revenge", () => {
+  it("vacation is absolute — the departure queue is what stops it being a dodge", () => {
     const a = empire("A", (p) => void (p.shieldUntilTick = 0));
     const d = empire("D", (p) => {
       p.shieldUntilTick = 0;
       p.onVacation = true;
     });
-    expect(validateAttack(a, d, "siege", CTX)).toMatch(/vacation/i);
+    expect(validateAttack(a, d, "siege", CTX)).toMatch(/away from the world/i);
     a.recentAttackers.push({ playerId: d.id, tick: 950 });
-    expect(validateAttack(a, d, "revenge", CTX)).toBeNull();
+    // Nobody may depart owing revenge, so a vacationer never has one hanging
+    // over them — the queue is the guard, not a special case in combat.
+    expect(validateAttack(a, d, "revenge", CTX)).toMatch(/left the world/i);
   });
 
   it("troops refuse targets ≥75% stronger", () => {

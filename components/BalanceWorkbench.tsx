@@ -26,6 +26,10 @@ export function BalanceWorkbench() {
   const [curveEdits, setCurveEdits] = useState<Record<string, Curve>>({});
   const [scalarEdits, setScalarEdits] = useState<Record<string, number>>({});
   const [copied, setCopied] = useState(false);
+  // With ~70 knobs across seven tabs, hunting for one by eye is the slowest
+  // part of tuning. Search spans EVERY tab, not just the open one — you rarely
+  // remember which category a number lives under.
+  const [query, setQuery] = useState("");
 
   const diff = useMemo(() => {
     const curves: Record<string, Curve> = {};
@@ -71,12 +75,25 @@ export function BalanceWorkbench() {
   const active = CATEGORIES.find((c) => c.key === tab) ?? CATEGORIES[0];
   const curves = curvesInCategory(active.key);
   const tables = tablesInCategory(active.key);
-  const scalarGroups = groupsInCategory(active.key)
-    .map((g) => ({ group: g, items: scalarsInCategory(active.key).filter((s) => s.group === g) }))
+  const q = query.trim().toLowerCase();
+  const matches = (s: { key: string; label: string; desc: string; group: string }) =>
+    !q ||
+    s.label.toLowerCase().includes(q) ||
+    s.key.toLowerCase().includes(q) ||
+    s.group.toLowerCase().includes(q) ||
+    s.desc.toLowerCase().includes(q);
+
+  // Searching leaves the tab behind and looks everywhere.
+  const scalarPool = q ? SCALARS.filter(matches) : scalarsInCategory(active.key);
+  const groupsPool = q
+    ? [...new Set(scalarPool.map((s) => s.group))]
+    : groupsInCategory(active.key);
+  const scalarGroups = groupsPool
+    .map((g) => ({ group: g, items: scalarPool.filter((s) => s.group === g) }))
     .filter((x) => x.items.length);
 
   return (
-    <div className="workbench">
+    <div className="workbench wb-plain">
       {/* sticky diff bar */}
       <div className={`wb-bar${changeCount ? " has-changes" : ""}`}>
         <div className="wb-bar-left">
@@ -120,10 +137,26 @@ export function BalanceWorkbench() {
         })}
       </nav>
 
-      <p className="almanac-cat-blurb">{active.blurb}</p>
+      <input
+        className="wb-search"
+        type="search"
+        value={query}
+        placeholder="Search every tab — name, group, or anything in the explanation (e.g. “trebuchet”, “cascade”, “intercept”)"
+        aria-label="Search all tunable values"
+        onChange={(e) => setQuery(e.target.value)}
+      />
+
+      {q ? (
+        <p className="wb-group-head">
+          {scalarGroups.reduce((n, g) => n + g.items.length, 0)} matching value
+          {scalarGroups.reduce((n, g) => n + g.items.length, 0) === 1 ? "" : "s"} across all tabs
+        </p>
+      ) : (
+        <p className="almanac-cat-blurb">{active.blurb}</p>
+      )}
 
       {/* curve editors */}
-      {curves.length > 0 && (
+      {!q && curves.length > 0 && (
         <div className="cpanel-stack">
           {curves.map((meta) => (
             <CurvePanel

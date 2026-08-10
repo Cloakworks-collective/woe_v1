@@ -15,8 +15,10 @@ import {
   clanArtStage,
   HALL,
   STORAGE_CAP_PER_LEVEL,
+  CLAN_BEACON,
   WONDER_REQUIRES_STORAGE,
 } from "@/lib/constants";
+import { beaconGraceHours } from "@/lib/constants/clans";
 import { clanBuildFunding, clanRepairCost, wonderDiscount, type Clan, type Player } from "@/lib/engine";
 
 /** The four resources a clan work is paid in, in the order they're quoted. */
@@ -25,8 +27,8 @@ const WORK_RES = ["gold", "wood", "stone", "ore"] as const;
 const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
-type Which = "storage" | "hall" | "wonder";
-const MAX: Record<Which, number> = { storage: 10, hall: 4, wonder: 3 };
+type Which = "storage" | "hall" | "wonder" | "beacon";
+const MAX: Record<Which, number> = { storage: 10, hall: 4, wonder: 3, beacon: CLAN_BEACON.MAX_LEVEL };
 
 /** What a given level grants, in one line. */
 function effect(which: Which, level: number): string {
@@ -37,12 +39,62 @@ function effect(which: Which, level: number): string {
     const h = HALL[level - 1];
     return `${h.memberCap} member cap · members feel ${pct(h.taxPenaltyFelt)} of the tax penalty`;
   }
+  if (which === "beacon") {
+    // Level 0 still grants the base grace — the horns sound for everyone.
+    return `${beaconGraceHours(level)}h of peacetime grace after war is declared on you`;
+  }
   return level <= 0 ? "No discount yet" : `−${pct(0.1 * level)} on war costs (mercs, troops, siege)`;
+}
+
+/**
+ * What this work does for the PEOPLE IN THE CLAN, in plain points.
+ *
+ * `effect()` above answers "what is this level worth"; this answers "why would
+ * a member care", which is the question the card was not answering. Shown on
+ * the card and reused inside the ⓘ, so the two can never drift apart.
+ */
+function benefits(which: Which, level: number, clan: Clan): string[] {
+  if (which === "storage") {
+    const cap = STORAGE_CAP_PER_LEVEL * level;
+    return [
+      level > 0
+        ? `A shared pool holding ${fmt(cap)} of each resource that any member may draw on.`
+        : "Unlocks the shared pool — until it is raised, the clan cannot hold anything at all.",
+      "Members withdraw up to 3× what they have ever deposited, so it rewards giving.",
+      "Pays for every other work on this page — build and repair spending ignores the 3× cap.",
+      "Gates the Wonder: levels 4 / 7 / 10 unlock Wonder 1 / 2 / 3.",
+    ];
+  }
+  if (which === "hall") {
+    const h = HALL[level - 1];
+    return [
+      `Seats ${h.memberCap} banners — the cap on how many empires can fly this one.`,
+      `Softens the clan tax penalty: members feel ${pct(h.taxPenaltyFelt)} of it, keeping the rest of their gold.`,
+      "Every member feels this the moment it is raised — no opt-in, no upkeep.",
+    ];
+  }
+  if (which === "beacon") {
+    return [
+      `Watchfires that hold a declared war at PEACETIME rates for ${beaconGraceHours(level)}h.`,
+      "During the grace, blows against your members do normal damage and take normal loot — no doubling, no 100% plunder.",
+      "Measured from the declaration and it protects YOUR side only, whatever the enemy has built.",
+      "Burn higher than your enemy and you strike at full war rates while they still cannot — the drum you beat first.",
+    ];
+  }
+  return [
+    level > 0
+      ? `Every member pays ${pct(0.1 * level)} less for mercenaries, troop training and siege gear.`
+      : "Not yet raised — no discount for anyone.",
+    "Applies to every member automatically, on every purchase, for the whole age.",
+    "The heaviest work on the clan score, and a statement the whole server can read.",
+    "Needs deep Storage first: levels 4 / 7 / 10.",
+  ];
 }
 
 function buildCost(which: Which, next: number): { gold: number; each: number } {
   if (which === "storage") return BUILD_COSTS.storage(next);
   if (which === "hall") return BUILD_COSTS.hall[next]!;
+  if (which === "beacon") return BUILD_COSTS.beacon[next]!;
   return BUILD_COSTS.wonder[next]!;
 }
 
@@ -101,16 +153,29 @@ function Card({
       <div className="clanwork-head">
         <span className="clanwork-icon" aria-hidden>{info.icon}</span>
         <b className="clanwork-title">{info.title}</b>
-        <span className="clanwork-lvl">
-          Lv {level}
-          <span className="clanwork-lvl-max"> / {MAX[which]}</span>
-        </span>
-        <span className="clanwork-info">
-          <Info tip={info.tip} guide="/guide#clans" />
+        <span className="clanwork-meta">
+          <span className="clanwork-lvl">
+            Lv {level}
+            <span className="clanwork-lvl-max"> / {MAX[which]}</span>
+          </span>
+          <Info
+            tip={info.tip}
+            title={info.title}
+            bullets={benefits(which, level, clan)}
+            guide="/guide#clans"
+          />
         </span>
       </div>
 
       <p className="clanwork-effect">{effect(which, level)}</p>
+
+      {/* The same points the ⓘ carries, on the face of the card — a benefit you
+          have to hover to discover is a benefit most players never find. */}
+      <ul className="clanwork-perks">
+        {benefits(which, level, clan).map((b) => (
+          <li key={b}>{b}</li>
+        ))}
+      </ul>
 
       {level > 0 && (
         <div className="clanwork-integ" title={`${pct(integrity)} integrity`}>
@@ -206,6 +271,7 @@ export function ClanWorks({
     <div className="clanworks">
       <Card which="storage" level={clan.buildings.storageLevel} integrity={clan.buildings.integrity.storage} {...common} />
       <Card which="hall" level={clan.buildings.hallLevel} integrity={clan.buildings.integrity.hall} {...common} />
+      <Card which="beacon" level={clan.buildings.beaconLevel ?? 0} integrity={clan.buildings.integrity.beacon ?? 1} {...common} />
       <Card which="wonder" level={clan.buildings.wonderLevel} integrity={clan.buildings.integrity.wonder} {...common} />
     </div>
   );

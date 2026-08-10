@@ -1,11 +1,11 @@
 // World lifecycle: seeding, the 10-minute tick (with catch-up), the daily
-// reset, tribute siphons, and the era victory clocks (spec/victory.md).
+// reset, tribute siphons, and the era victory clocks (spec/overview.md).
 
 import {
   CLAN_BUILDING_POINTS,
   ERA_PEACE_DAYS,
   HOLD_CLOCKS,
-  POPULATION_FLOORS,
+  ARMY_FLOORS,
   VACATION_TICKS_PER_ERA,
   TICKS_PER_HOUR,
   TURNS_PER_DAY,
@@ -21,6 +21,7 @@ import {
   military,
   newClan,
   newEmpire,
+  normalizeClan,
   normalizePlayer,
   processDailyReset,
   processSteward,
@@ -29,9 +30,11 @@ import {
   totalPopulation,
   type Clan,
   type Player,
+  regularTroops,
   type Resource,
 } from "../engine";
 import {
+  cloneWorld,
   invalidateWorldCache,
   loadWorld,
   pushChronicle,
@@ -159,6 +162,7 @@ function bot(id: string, name: string, race: Race, pop: number): Player {
   p.army.cavalry = tiered(cav);
   p.army.siegeEngineers = eng;
   p.army.siegeGear = {
+    siege_towers: L >= 7 ? 2 : 0,
     ropes: L >= 1 ? 4 : 0,
     ladders: L >= 3 ? 3 : 0,
     rams: L >= 5 ? 2 : 0,
@@ -191,8 +195,10 @@ export function seedWorld(now = new Date()): World {
   const clans: Record<string, Clan> = {};
   const ironPact = newClan("clan-ironpact", "The Iron Pact", players["bot-grimhold"]);
   ironPact.members.push("bot-karakdun");
-  players["bot-grimhold"].clanId = ironPact.id;
-  players["bot-karakdun"].clanId = ironPact.id;
+  for (const id of ["bot-grimhold", "bot-karakdun"]) {
+    players[id].clanId = ironPact.id;
+    players[id].everJoinedClan = true; // bars the solo crown, same as any player
+  }
   ironPact.buildings.storageLevel = 2;
   ironPact.storage = { gold: 220000, food: 40000, wood: 90000, stone: 90000, ore: 90000 };
   clans[ironPact.id] = ironPact;
@@ -251,6 +257,7 @@ export async function getWorld(opts: { forceReload?: boolean } = {}): Promise<Wo
   if (worldServiceEnabled()) {
     const world = await fetchServiceWorld(opts);
     for (const p of Object.values(world.players)) normalizePlayer(p);
+    for (const c of Object.values(world.clans)) normalizeClan(c);
     normalizeMeta(world.meta);
     return world;
   }
@@ -269,23 +276,50 @@ export async function getWorld(opts: { forceReload?: boolean } = {}): Promise<Wo
   // Bring legacy saves into the current shape (typed mercenaries; no warrior
   // pool; §14.3 ms hold clocks). Idempotent, so it's safe to run on every load.
   for (const p of Object.values(world.players)) normalizePlayer(p);
+  for (const c of Object.values(world.clans)) normalizeClan(c);
   normalizeMeta(world.meta);
   return world;
 }
 
+/** Full-jitter backoff (the AWS formulation): sleep a uniform random slice of an
+ *  exponentially growing ceiling. Retrying with no delay is the mistake — every
+ *  loser of a race wakes at the same instant and collides again, so contention
+ *  never resolves, it re-synchronises. The randomness is what pulls the herd
+ *  apart; the exponent just keeps a busy moment from spinning. Five attempts
+ *  cost under 400ms of waiting even in the worst case. */
+const RETRY_BASE_MS = 25;
+const RETRY_CAP_MS = 400;
+
+export function retryDelayMs(attempt: number, rand: () => number = Math.random): number {
+  const ceiling = Math.min(RETRY_CAP_MS, RETRY_BASE_MS * 2 ** (attempt - 1));
+  return Math.floor(rand() * ceiling);
+}
+
+const defaultSleep = (ms: number): Promise<void> =>
+  ms <= 0 ? Promise.resolve() : new Promise((r) => setTimeout(r, ms));
+
 /**
  * The single safe way to mutate-and-persist the world under optimistic
- * concurrency (spec/architecture.md §14.1). Loads the world, runs `apply`
- * (which mutates it and returns a result plus whether it changed anything),
- * then saves. If the save loses a compare-and-swap race, it reloads a fresh
- * world and **replays** `apply` against it, up to `maxAttempts`. A read-only
- * pass (`dirty: false`) skips the save entirely — no write, no race.
+ * concurrency (spec/architecture.md §14.1). Loads the world, takes a **private
+ * copy**, runs `apply` on it (which mutates it and returns a result plus
+ * whether it changed anything), then saves. If the save loses a
+ * compare-and-swap race, it backs off, reloads a fresh world and **replays**
+ * `apply` against it, up to `maxAttempts`. A read-only pass (`dirty: false`)
+ * skips the save entirely — no write, no race.
+ *
+ * THE COPY IS LOAD-BEARING. `getWorld` returns the shared cached object, and
+ * under Fluid Compute concurrent requests share one Node instance — so without
+ * it, two commands mutate the same world. The first would serialize the
+ * second's half-applied changes into its own write; the second would then lose
+ * the CAS, reload a world already containing its effects, and apply its command
+ * a second time. Isolating the draft is what makes replay safe rather than
+ * cumulative.
  *
  * `apply` must be replay-safe: it may run more than once, each time on a fresh
  * world, so it should derive everything from the world it's handed (no reliance
  * on a prior attempt's mutations). RNG is fine — a replayed command simply
  * resolves fresh against current state, since the losing attempt never
- * persisted. `load`/`save` are injectable for tests.
+ * persisted. `load`/`save`/`clone`/`sleep` are injectable for tests.
  */
 export async function commitWithRetry<T>(
   apply: (world: World) => { result: T; dirty: boolean },
@@ -293,14 +327,19 @@ export async function commitWithRetry<T>(
     maxAttempts?: number;
     load?: (forceReload: boolean) => Promise<World>;
     save?: (world: World) => Promise<void>;
+    clone?: (world: World) => World;
+    sleep?: (ms: number) => Promise<void>;
   } = {},
 ): Promise<T> {
   const max = opts.maxAttempts ?? 5;
   const load = opts.load ?? ((forceReload: boolean) => getWorld({ forceReload }));
   const save = opts.save ?? saveWorld;
+  const clone = opts.clone ?? cloneWorld;
+  const sleep = opts.sleep ?? defaultSleep;
   let lastConflict: unknown;
   for (let attempt = 0; attempt < max; attempt++) {
-    const world = await load(attempt > 0);
+    if (attempt > 0) await sleep(retryDelayMs(attempt));
+    const world = clone(await load(attempt > 0));
     const { result, dirty } = apply(world);
     if (!dirty) return result; // pure read — nothing to persist, nothing to race
     try {
@@ -313,6 +352,32 @@ export async function commitWithRetry<T>(
     }
   }
   throw lastConflict ?? new WorldConflictError("world commit exhausted its retries");
+}
+
+/**
+ * The world with its clock current — for any route that only READS.
+ *
+ * The trap this replaces was `getWorld()` followed by a bare `runDueTicks(world)`:
+ * that ticks every player on the SHARED cached object and then throws the result
+ * away unpersisted. It never corrupted anything (the store's `lastTickAt` is
+ * untouched, so the work is simply recomputed — the same structural idempotence
+ * the heartbeat relies on), but it burned the work on every read and mutated the
+ * object other in-flight requests are reading from.
+ *
+ * So: ask what is owed first. A tick lands once per 10 minutes, so nearly every
+ * read owes nothing and returns immediately. When something IS owed it goes
+ * through `commitWithRetry` like any other write — the ticks are persisted once,
+ * by whoever noticed first, instead of recomputed by every reader.
+ */
+export async function getCurrentWorld(): Promise<World> {
+  // §14.2: the service owns the clock; a read just fetches it.
+  if (worldServiceEnabled()) return getWorld();
+  const world = await getWorld();
+  if (ticksDue(world) <= 0) return world;
+  return commitWithRetry((w) => {
+    const processed = runDueTicks(w);
+    return { result: w, dirty: processed > 0 };
+  });
 }
 
 // ── The tick ────────────────────────────────────────────────────────────────
@@ -450,11 +515,31 @@ function recordTickRun(world: World, entry: TickRun): void {
   world.tickLog = log.filter((r) => Date.parse(r.at) >= cutoff);
 }
 
+/** How many ticks the wall clock owes this world — the whole basis of the
+ *  heartbeat's idempotence, and cheap enough to ask before deciding whether a
+ *  request needs to take the write path at all.
+ *
+ *  A WON AGE OWES NOTHING. Once someone has taken the crown the world stops:
+ *  no production, no growth, no clocks. `eraReset` builds a fresh world with a
+ *  fresh `lastTickAt`, so nothing accumulates while the age sits sealed and the
+ *  next era does not open owing a backlog. */
+export function ticksDue(world: World, now = new Date()): number {
+  if (world.meta.winner) return 0;
+  const last = new Date(world.meta.lastTickAt).getTime();
+  return Math.floor((now.getTime() - last) / (TURN_MINUTES * 60 * 1000));
+}
+
 export function runDueTicks(world: World, now = new Date()): number {
+  if (world.meta.winner) return 0; // the age is over — the world does not move
   const last = new Date(world.meta.lastTickAt).getTime();
   const step = TURN_MINUTES * 60 * 1000;
-  const due = Math.floor((now.getTime() - last) / step);
-  const capped = Math.min(due, 2016); // two weeks of downtime, max, per request
+  const due = ticksDue(world, now);
+  // Two weeks of downtime is the most we will replay in one go. Beyond that the
+  // excess is DISCARDED, not deferred — lastTickAt jumps to the end of what we
+  // actually ran, so the lost time never comes back. It is recorded loudly
+  // below rather than swallowed.
+  const CATCH_UP_CAP = 2016;
+  const capped = Math.min(due, CATCH_UP_CAP);
   if (capped <= 0) return 0; // nothing due — not worth a log line
 
   // Each caught-up tick is credited at its own scheduled wall-clock time so the
@@ -482,11 +567,14 @@ export function runDueTicks(world: World, now = new Date()): number {
     processed: capped,
     ms: Date.now() - startedAt,
     ok: true,
+    ...(due > CATCH_UP_CAP
+      ? { error: `clock ran ${due} ticks behind; ${due - CATCH_UP_CAP} were discarded at the catch-up cap` }
+      : {}),
   });
   return capped;
 }
 
-// ── Victory clocks (spec/victory.md) ────────────────────────────────────────
+// ── Victory clocks (spec/overview.md) ────────────────────────────────────────
 
 export function clanScore(world: World, clan: Clan): number {
   let s = clan.members.reduce(
@@ -496,6 +584,7 @@ export function clanScore(world: World, clan: Clan): number {
   const b = clan.buildings;
   s += CLAN_BUILDING_POINTS.storage * b.storageLevel * b.integrity.storage;
   s += CLAN_BUILDING_POINTS.hall * b.hallLevel * b.integrity.hall;
+  s += CLAN_BUILDING_POINTS.beacon * (b.beaconLevel ?? 0) * (b.integrity.beacon ?? 1);
   s += CLAN_BUILDING_POINTS.wonder * b.wonderLevel * b.integrity.wonder;
   return Math.round(s);
 }
@@ -579,8 +668,16 @@ export function updateCrown(world: World, nowMs = Date.now()): void {
     }
   }
 
-  // Only the #1, and only while above the population floor, accrues.
-  const overlordEligible = totalPopulation(top) >= POPULATION_FLOORS.GRAND_OVERLORD ? top.id : undefined;
+  // Only the #1 accrues, and only with a real army standing AND clean hands.
+  //
+  // NEVER-CLANNED is the load-bearing half. Without it the dominant strategy is
+  // to join a clan, take its vault, its Works and its protection all era, leave
+  // at the end, and take the solo crown on wealth the clan built. The individual
+  // title is for someone who did it alone, so it asks that they *always* were.
+  // One day of membership disqualifies for the age — see `everJoinedClan`.
+  const soloEligible =
+    regularTroops(top) >= ARMY_FLOORS.INDIVIDUAL && !top.everJoinedClan && !top.clanId;
+  const overlordEligible = soloEligible ? top.id : undefined;
   // Tell the affected rulers whenever their Grand Overlord clock starts/stops.
   const prevOverlord = world.meta.overlordAccruing?.id;
   if (prevOverlord !== overlordEligible) {
@@ -607,9 +704,12 @@ export function updateCrown(world: World, nowMs = Date.now()): void {
   const clans = Object.values(world.clans);
   if (clans.length === 0) return;
   const topClan = clans.reduce((a, b) => (clanScore(world, b) > clanScore(world, a) ? b : a));
-  const clanPop = topClan.members.reduce((sum, id) => sum + (world.players[id] ? totalPopulation(world.players[id]) : 0), 0);
+  const clanRegulars = topClan.members.reduce(
+    (sum, id) => sum + (world.players[id] ? regularTroops(world.players[id]) : 0),
+    0,
+  );
   const frozen = (topClan.clockFrozenUntilTick ?? 0) > world.meta.tickNumber;
-  const clanEligible = clanPop >= POPULATION_FLOORS.CLAN && !frozen ? topClan.id : undefined;
+  const clanEligible = clanRegulars >= ARMY_FLOORS.CLAN && !frozen ? topClan.id : undefined;
   // Tell every member of the affected clan when the Clan Victory clock starts/stops.
   const prevClan = world.meta.clanAccruing?.id;
   if (prevClan !== clanEligible) {
@@ -657,7 +757,7 @@ export function normalizeMeta(meta: World["meta"]): void {
   delete legacy.clanStreak;
 }
 
-// ── Era transition (spec/victory.md) ────────────────────────────────────────
+// ── Era transition (spec/overview.md) ────────────────────────────────────────
 
 /** Close the era: fresh world named for the winner. DMs/accounts are the
  *  store's concern (Supabase keeps them; the dev file store starts clean). */
@@ -695,4 +795,48 @@ export function eraReset(world: World): World {
     `📜 ${fresh.meta.eraName} begins, in the shadow of ${winnerName}'s triumph. The five days of peace hold.`,
   );
   return fresh;
+}
+
+
+// ── Clock health ────────────────────────────────────────────────────────────
+
+export interface TickHealth {
+  /** Ticks owed right now. Zero on a healthy clock; anything large means the
+   *  heartbeat has been missing and the next player to act pays for all of it. */
+  behind: number;
+  minutesBehind: number;
+  lastTickAt: string;
+  tick: number;
+  /** Did the most recent run throw? A failed run leaves the clock stalled, and
+   *  nothing retries on its own — the next caller simply tries again, which is
+   *  safe because the work is derived from timestamps rather than queued. */
+  lastRunOk: boolean;
+  lastRunError?: string;
+  /** True once the backlog exceeds what one catch-up will replay: from here on
+   *  every further minute of silence is time permanently lost. */
+  losingTime: boolean;
+  /** The age has been won and the world is deliberately stopped. Reported so a
+   *  sealed era reads as healthy rather than as a heartbeat that has died —
+   *  otherwise the dead-man switch pages someone every night until an admin
+   *  gets round to closing the age. */
+  eraOver: boolean;
+}
+
+export function tickHealth(world: World, now = new Date()): TickHealth {
+  const last = new Date(world.meta.lastTickAt).getTime();
+  const eraOver = !!world.meta.winner;
+  // A stopped age owes nothing, so it is not "behind" — see ticksDue.
+  const behind = eraOver ? 0 : Math.max(0, Math.floor((now.getTime() - last) / (TURN_MINUTES * 60 * 1000)));
+  const runs = world.tickLog ?? [];
+  const lastRun = runs[runs.length - 1];
+  return {
+    behind,
+    eraOver,
+    minutesBehind: eraOver ? 0 : Math.round(((now.getTime() - last) / 60000) * 10) / 10,
+    lastTickAt: world.meta.lastTickAt,
+    tick: world.meta.tickNumber,
+    lastRunOk: lastRun ? lastRun.ok : true,
+    lastRunError: lastRun && !lastRun.ok ? lastRun.error : undefined,
+    losingTime: !eraOver && behind > 2016,
+  };
 }

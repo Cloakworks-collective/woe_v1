@@ -5,7 +5,7 @@
 // the dev server (or reseed the world if the change invalidates old saves),
 // and the next age behaves differently. Everything is PURE DATA — numbers,
 // strings, tables; no functions — so a future per-era override layer can diff
-// and merge it (see spec/balance.md).
+// and merge it (see spec/overview.md).
 //
 // What does NOT live here: display text (descriptions.ts), structural identity
 // (building/field/race IDs, counter pairings, phase order), formula SHAPES
@@ -56,19 +56,66 @@ export const START = {
 
 // ─── 3 · POPULATION & GROWTH ────────────────────────────────────────────────
 
-/** Settlers/day as a CURVE of x = total civilian building levels (0–130).
- *  Default: linear 1/day at 0 levels → 100/day at all 130. Arrivals beyond
- *  empty Hearthstead beds are LOST, never queued. (Engine floors at 1.) */
-export const GROWTH_CURVE: Curve = { kind: "expr", formula: "1 + 99 * x / 130" };
-
 export const HOUSING_PER_HEARTHSTEAD = 10; // beds per hearthstead
 
-/** Fully rubbled walls = −50% pop/day (proportional to damage; temporary). */
-export const WALL_DAMAGE_POP_PENALTY = 0.5; // frac
+/**
+ * DAILY SETTLER INTAKE — four things people look at before moving in.
+ *
+ *     per day = BASE + safety + prosperity + walls     clamped to [MIN, MAX]
+ *                10  +  ≤10   +    ≤40      +  ≤40   =  10 … 100
+ *
+ * Additive on purpose, and each term answers a different question a settler
+ * asks: is there a garrison, is there work, is there a wall. None of them
+ * multiplies another, so no single stat can be stacked into runaway growth and
+ * none of them can zero the others out — the floor of 10 means an empire that
+ * has lost everything still repopulates.
+ *
+ * Housing gates the result separately: arrivals that find no vacant bed are
+ * turned away, not queued. Build Hearthsteads or the intake is theoretical.
+ */
+export const POP_GROWTH = {
+  /** Everyone gets this, regardless of anything else. Also the hard floor. */
+  BASE: 10, // people/day
+  MIN: 10,
+  MAX: 100,
+  /**
+   * SAFETY — the guard-to-civilian ratio, cumulative as it rises. A town with
+   * no garrison attracts nobody; the returns taper because the first soldiers
+   * do most of the reassuring.
+   *
+   *   < 20%      →  +0        ≥ 25%  →  +8
+   *   ≥ 20%      →  +4        ≥ 30%  →  +10  (max)
+   *
+   * Deliberately the same ratio the scattering check uses (SCATTERING.TROOP_RATIO
+   * = 0.2): the level at which people stop fleeing is the level at which they
+   * start arriving. Sellswords count — a hired blade on the gate reassures a
+   * farmer exactly as well as a levied one.
+   */
+  SAFETY_TIERS: [
+    { ratio: 0.2, add: 4 },
+    { ratio: 0.25, add: 4 },
+    { ratio: 0.3, add: 2 },
+  ],
+  /** PROSPERITY — one settler per level of the four RESOURCE buildings (not
+   *  storage: a full granary is not a job). Four buildings × 10 levels = +40. */
+  PROSPERITY_PER_LEVEL: 1,
+  PROSPERITY_MAX: 40,
+  /** WALLS — settlers pay for stone they can stand behind. Scaled by wall
+   *  integrity, so a rubbled wall reassures nobody until it is rebuilt. */
+  WALLS_PER_LEVEL: 4,
+} as const;
 
-/** Peasants scatter at the daily reset when troops guard too few of them. */
+/**
+ * Peasants scatter at the daily reset when the guard falls below this share of
+ * them. Regulars AND mercenaries both count — a sellsword on the gate reassures
+ * a farmer just as well as a levyman does.
+ *
+ * Sitting exactly on the line is fatal. 1,000 civilians needs 200 troops to
+ * satisfy it, but a bad night costs 30–40 troops and the mercenary cascade
+ * takes more on top — so the real floor a ruler should hold is nearer 250.
+ */
 export const SCATTERING = {
-  TROOP_RATIO: 0.3, // frac — scatter if troops < 30% of civilians
+  TROOP_RATIO: 0.2, // frac
   EXEMPT_BELOW_POPULATION: 500, // empires under this total pop never scatter
 };
 
@@ -113,10 +160,24 @@ export const VACATION_TICKS_PER_ERA = VACATION_DAYS_PER_ERA * TURNS_PER_DAY;
 /** After returning from vacation, no fresh attacks for this long (revenge exempt). */
 export const VACATION_REATTACK_COOLDOWN_TICKS = 18 * TICKS_PER_HOUR;
 
-// Mercenaries — one merc's upkeep ≈ five civilians' net income: a premium.
+// Mercenaries — instant strength you rent. They cost no population and no
+// training time, which is their whole appeal; everything else about them is
+// expensive. They now take barracks space like any other soldier (a sellsword
+// still needs a bed), they are paid off automatically when the regulars who
+// commanded them die (see MERCENARIES.CAP_RATIO in battleBalance), and their
+// upkeep re-pays their purchase price every few days.
 export const MERC_UPKEEP_GOLD_PER_TURN = 1; // gold/turn; unpaid mercs all defect
-export const MERC_CAP_RATIO = 0.25; // frac of regular army headcount
-export const MERC_PRICE_GOLD = 500; // gold, light tier; × race mercCost × wonder discount
+export const MERC_PRICE_GOLD = 900; // gold, light tier; × race mercCost × wonder discount
+/** Merc price for the specialist arms, priced off their regular training cost
+ *  at the same multiple the line troops carry. */
+export const MERC_PRICE_BY_ARM = {
+  footman: 900,
+  archer: 900,
+  cavalry: 1400,
+  engineer: 800,
+  spy: 1100,
+  scout: 800,
+};
 
 /** Protected capacity as a CURVE of x = storage-building level (× integrity
  *  applied by the engine). Default: linear 20,000 per level. */
@@ -137,24 +198,35 @@ export const BASE_COSTS = {
   muster_hall: 500, // flat per instance
 };
 
-/** [wood, stone, ore] shares of the non-gold cost. Buildings use no ore —
- *  it is reserved for arming troops (TRAINING_COSTS). */
+/**
+ * [wood, stone, ore] shares of the non-gold cost.
+ *
+ * The arc of a realm, read in materials: you begin in TIMBER, you grow into
+ * STONE, and the last few levels of anything demand EVERYTHING at once —
+ * seasoned beams, dressed masonry and iron fittings together. That final band
+ * is the wall an empire hits at levels 7–10, and it is deliberate: nothing is
+ * maxed cheaply.
+ *
+ * Stone carries more weight here than it used to, because siege engines no
+ * longer consume any — quarries feed buildings now, forges feed war.
+ */
 export type RatioBand = [number, number, number];
 
-/** Civilian: wood-heavy early → stone-heavy late. */
+/** Civilian: timber village → stone town → iron-fitted city. */
 export const CIVILIAN_BANDS: RatioBand[] = [
-  [0.6, 0.4, 0], // levels 1–3
-  [0.4, 0.6, 0], // levels 4–6
-  [0.3, 0.7, 0], // levels 7–8
-  [0.3, 0.7, 0], // levels 9–10
+  [0.7, 0.3, 0.0], // levels 1–3  — timber frames and thatch
+  [0.35, 0.65, 0.0], // levels 4–6  — the realm's stone age
+  [0.25, 0.6, 0.15], // levels 7–8  — ironwork enters the bill
+  [0.2, 0.55, 0.25], // levels 9–10 — everything, all at once
 ];
 
-/** Military: stone-heavy (its ore goes into weapons, not walls). */
+/** Military: stone-heavier throughout — these are fortifications, and their
+ *  late levels are the most demanding structures in the game. */
 export const MILITARY_BANDS: RatioBand[] = [
-  [0.45, 0.55, 0], // levels 1–3
-  [0.3, 0.7, 0], // levels 4–6
-  [0.25, 0.75, 0], // levels 7–8
-  [0.2, 0.8, 0], // levels 9–10
+  [0.55, 0.45, 0.0], // levels 1–3  — palisade and drill yard
+  [0.3, 0.7, 0.0], // levels 4–6  — curtain walls and towers
+  [0.2, 0.65, 0.15], // levels 7–8  — machicolation, portcullis, iron
+  [0.15, 0.55, 0.3], // levels 9–10 — the Citadel's price
 ];
 
 /** Tiered trainers (3 levels): which cost band each tier level uses. */
@@ -167,10 +239,27 @@ export const WALL_REPAIR_COST_FACTOR = 0.5; // frac
 
 // ─── 6 · RESEARCH ───────────────────────────────────────────────────────────
 
-export const MAX_FIELD_LEVEL = 5; // levels per field (10 fields)
+export const MAX_FIELD_LEVEL = 5; // levels per field
 
-/** Each level = +20% of the field's max effect (all fields). */
+/** The DEFAULT per-level effect: +20%, so a maxed field is +100%. */
 export const EFFECT_PER_LEVEL = 0.2; // frac
+
+/**
+ * Per-field overrides. One global rate stopped being workable once fields
+ * started doing different KINDS of thing: Free Companies at +100% would make
+ * mercenaries free, and Siege Accuracy moves a delivery gate (30%→60%) rather
+ * than adding to the bonus pool at all. Anything absent here uses
+ * EFFECT_PER_LEVEL.
+ */
+export const RESEARCH_EFFECT_PER_LEVEL: Record<string, number> = {
+  /** Cuts the price of hiring sellswords — −50% at level 5. The field that
+   *  makes a long war affordable, since mercenaries now churn constantly. */
+  free_companies: 0.1,
+  /** Handled by SIEGE_ACCURACY in battleBalance — it interpolates two delivery
+   *  gates instead of contributing to the additive pool. Listed as 0 so nothing
+   *  double-counts it. */
+  siege_accuracy: 0,
+};
 
 /**
  * Research cost is GLOBAL and progressive: the price of your x-th research
@@ -186,16 +275,9 @@ export const RESEARCH_SWITCH_LOSS = 0.5; // frac
 
 // ─── 7 · UNITS & TRAINING ───────────────────────────────────────────────────
 
-/** Unit base stats (light tier): attack / defence. */
-export const UNIT_STATS = {
-  footman: { attack: 10, defence: 10 },
-  archer: { attack: 12, defence: 6 },
-  cavalry: { attack: 15, defence: 8 },
-  siegeEngineer: { attack: 0, defence: 5 }, // crew only
-};
-
-/** Combat power per tier (heavy ≈ 3 lights; costs ×1/×2/×4). */
-export const TIER_POWER = { light: 1, medium: 1.8, heavy: 3 } as const;
+// Unit power/health and tier scaling now live in battleBalance.ts, on the same
+// shared scale as walls, buildings and siege engines (see UNIT_POWER,
+// TIER_SCALE). Re-exported at the foot of this file.
 
 /** Per-light training costs; medium ×2, heavy ×4 (TIER_COST_MULT). Ore is the
  *  war-metal — buildings need none, troops eat it. */
@@ -213,168 +295,25 @@ export const TIER_COST_MULT = { light: 1, medium: 2, heavy: 4 } as const;
 
 // ─── 8 · BATTLE ─────────────────────────────────────────────────────────────
 
+/** The army's clock. Espionage runs on its own, scarcer clock — see
+ *  SPY_TURNS in covertBalance.ts. */
 export const ACTION_TURNS = {
-  PER_GAME_TURN: 2, // regained each game turn
+  PER_GAME_TURN: 2, // regained each game turn — 288/day
   START: 200,
   CAP: 500,
   ATTACK_COST: 10,
-  SPY_MISSION_COST: 5,
-  SCOUT_RECON_COST: 2,
   REST_COST: 5,
 };
 
-export const STAMINA = {
-  MAX: 100,
-  PASSIVE_RECOVERY_PER_TURN: 1, // pts/turn — only if the food is there to pay for it
-  /** Food per troop per point of passive recovery. An army that cannot be fed
-   *  does not recover on its own; the ruler must Rest it by hand (or eat). */
-  PASSIVE_FOOD_PER_TROOP: 0.02,
-  /** Ceiling on a single battle's drain, reached only by dealing enough damage
-   *  to wipe the enemy out. Actual drain scales with damage dealt — swinging
-   *  hard tires you; standing and absorbing does not. */
-  MAX_DRAIN_ATTACKER: 80, // pts per battle
-  MAX_DRAIN_DEFENDER: 50, // pts per battle
-  REST_GAIN: 20, // pts per Rest command
-  REST_FOOD_PER_TROOP: 0.2, // food per troop per Rest
-  /** staminaMod = MOD_BASE + MOD_PER_POINT × stamina. */
-  MOD_BASE: 0.5,
-  MOD_PER_POINT: 0.005,
-  /** At or below this the defender yields to anything but revenge. */
-  MERCY_FLOOR: 25, // pts
-};
+// Everything that decides a fight now lives in battleBalance.ts, and everything
+// that decides the shadow war in covertBalance.ts. Both are re-exported at the
+// foot of this file, so `lib/constants` remains the single import surface.
+//
+// Why they moved: the combat rework put walls, buildings, troops and engines on
+// ONE shared power/health scale, and that model needs to be documented as a
+// whole rather than scattered through a general-purpose balance file.
 
-/** Battlefield yield (distinct from Vacation). A defender who cannot make a
- *  fight of it lays down arms rather than be butchered: the attacker walks in
- *  and takes the stores, but the defending regulars live. */
-export const YIELD = {
-  /** Yield when the defender's defensive power falls below this share of the
-   *  attacker's offensive power. Walls count only on castle attacks. */
-  STRENGTH_RATIO: 0.6,
-  /** Sellswords cover the retreat and take this share of losses; they are paid
-   *  to bleed so the levy does not. Regulars come through untouched. */
-  MERC_LOSS_FRACTION: 0.25,
-};
-
-export const MAX_ROUNDS = 10; // rounds per battle (= committed action turns)
-export const K_LETHALITY = 2; // casualties = damage / (k × effective defence)
-export const BREAK_THRESHOLD = 0.3; // frac — a side breaks below 30% strength
-export const LUCK_SWING = 0.1; // frac — ±10% rolled per side per round
-
-/** Wall defence bonus (frac) as a curve of x = wall level (× integrity and
- *  race walls factor applied by the engine). Default: +10%/level, Citadel
- *  (10) = +100%. */
-export const WALL_BONUS_CURVE: Curve = { kind: "linear", base: 0, perX: 0.1 };
-
-/** Siege engine fire per crewed engine per round. */
-export const ENGINE_FIRE = {
-  ballistae: { troopDamage: 40, wallDamage: 0 },
-  trebuchets: { troopDamage: 60, wallDamage: 0.05 }, // wall frac/round
-  rams: { troopDamage: 0, wallDamage: 0.03 },
-};
-
-/** Escalade: troops covered per crewed team (bypass the wall bonus). */
-export const ESCALADE_COVERAGE = { ropes: 10, ladders: 25 }; // troops/team
-
-/** XP bands by defenderScore / attackerScore ratio. */
-export const XP = {
-  MAX: 100,
-  REFUSAL_RATIO: 1.75, // ≥75% stronger → attack refused (revenge exempt)
-  BOLD: { min: 1.2, gain: 8 },
-  FAIR: { min: 0.8, gain: 5 },
-  WEAK: { min: 0.5, gain: 1 },
-  BULLY_GAIN: -5, // > 50% weaker
-  DEFENDER_GAIN: 5, // always
-};
-
-export const LOOT = {
-  FRACTION: 0.25, // frac of unstored resources / unbanked gold
-  BIG_TARGET_RATIO: 1.5, // target ≥150% strength → bonus loot
-  BIG_TARGET_BONUS: 1.5, // ×
-  SMALL_TARGET_RATIO: 0.5, // target ≤50% → scaled down
-  SMALL_TARGET_FLOOR: 0.25, // × floor
-};
-
-export const REVENGE_WINDOW_HOURS = 18; // hours
-
-/** How far back the ladder's public raid history reaches. Longer than the
- *  revenge window on purpose: revenge is about what you may still answer,
- *  this is about reading who has been feeding on whom. */
-export const ATTACK_HISTORY_HOURS = 72; // hours
-export const ATTACK_HISTORY_TICKS = ATTACK_HISTORY_HOURS * TICKS_PER_HOUR;
-
-/** Attacker loses this share of committed siege gear on defeat. */
-export const SIEGE_GEAR_LOSS_ON_DEFEAT = 0.5; // frac
-
-// Bombard — the pure artillery duel.
-/** Building integrity damage per trebuchet per round (once fire spills past
- *  the walls). */
-export const BUILDING_DAMAGE_PER_TREB = 0.03; // frac/treb/round
-/** Buildings can only be bombed down to this floor — cracked open, never
- *  levelled. */
-export const BUILDING_INTEGRITY_FLOOR = 0.5; // frac
-/** Bombard pounds the walls until integrity ≤ this, THEN hits the town. */
-export const WALL_BOMBARD_PIVOT = 0.5; // frac
-
-/** Once the walls are down, stray bombard fire lands on a random building,
- *  weighted — storages take the most (there is the loot). */
-export const BOMBARDABLE: { id: BuildingId; weight: number }[] = [
-  { id: "granary", weight: 3 },
-  { id: "timberyard", weight: 3 },
-  { id: "masons_yard", weight: 3 },
-  { id: "ironhold", weight: 3 },
-  { id: "counting_house", weight: 3 },
-  { id: "grange", weight: 2 },
-  { id: "masons_quarry", weight: 2 },
-  { id: "deepvein_mine", weight: 2 },
-  { id: "sawyers_mill", weight: 2 },
-  { id: "collegium", weight: 1 },
-];
-
-// ─── 9 · SIEGE EQUIPMENT ────────────────────────────────────────────────────
-
-/** Offensive siege gear: purchase cost + engineer crew required. */
-export const SIEGE_GEAR = {
-  ropes: { gold: 50, wood: 10, stone: 0, ore: 5, crew: 1 },
-  ladders: { gold: 100, wood: 50, stone: 0, ore: 10, crew: 1 },
-  rams: { gold: 400, wood: 200, stone: 0, ore: 50, crew: 2 },
-  ballistae: { gold: 800, wood: 300, stone: 20, ore: 100, crew: 3 },
-  trebuchets: { gold: 2000, wood: 800, stone: 100, ore: 300, crew: 5 },
-};
-
-/** Defensive counters — purchased & crewed like gear, manned when you DEFEND;
- *  each crewed counter cancels ONE incoming engine of its paired weapon. */
-export const SIEGE_COUNTERS: Record<
-  "billhooks" | "forkpoles" | "boiling_oil" | "hoardings" | "counter_engine",
-  { gold: number; wood: number; stone: number; ore: number; crew: number; foundryLevel: number; counters: keyof typeof SIEGE_GEAR; name: string }
-> = {
-  billhooks: { gold: 50, wood: 10, stone: 5, ore: 5, crew: 1, foundryLevel: 2, counters: "ropes", name: "Bill-hooks" },
-  forkpoles: { gold: 100, wood: 50, stone: 10, ore: 10, crew: 1, foundryLevel: 4, counters: "ladders", name: "Fork Poles" },
-  boiling_oil: { gold: 400, wood: 100, stone: 100, ore: 50, crew: 2, foundryLevel: 6, counters: "rams", name: "Boiling Oil" },
-  hoardings: { gold: 800, wood: 300, stone: 200, ore: 100, crew: 3, foundryLevel: 8, counters: "ballistae", name: "Hoardings" },
-  counter_engine: { gold: 2000, wood: 800, stone: 200, ore: 300, crew: 5, foundryLevel: 10, counters: "trebuchets", name: "Counter-Engine" },
-};
-
-// ─── 10 · ESPIONAGE ─────────────────────────────────────────────────────────
-
-export const SABOTAGE_PER_SPY = 0.5; // gear destroyed = spiesSent × this
-export const TORCH_PCT_PER_SPY = 0.01; // frac of unstored resources per spy
-export const TORCH_CAP = 0.25; // frac cap per mission
-export const UNREST = { HOURS: 24, TAX_PENALTY: 0.25, PRODUCTION_PENALTY: 0.25 };
-
-/** Mission effect × (1 + this × Shadow Guild level). */
-export const GUILD_EFFECT_PER_LEVEL = 0.1; // frac/level
-
-/** ±20% luck on mission effect and catch roll (twice battle variance). */
-export const SPY_LUCK_SWING = 0.2; // frac
-
-export const CATCH = {
-  PER_SPY_PER_LODGE_LEVEL: 0.005, // frac — spiesSent × 0.5% × lodgeLevel
-  MAX: 0.9, // frac cap
-  PATHFINDING_PER_LEVEL: 0.2, // × (1 + this × pathfindingLevel)
-};
-
-/** Scout recon: fuzzy army size ±this; Pathfinding tightens toward exact. */
-export const RECON_FUZZ = 0.2; // frac
+export const ATTACK_HISTORY_TICKS = 72 * TICKS_PER_HOUR;
 
 // ─── 11 · MARKET (the Grand Bazaar) ─────────────────────────────────────────
 
@@ -391,9 +330,42 @@ export const CARAVAN_DELIVERY_MIN_TURNS = 10; // turns floor
 /** Fee on every sale, paid by the seller, BURNED (the gold sink). */
 export const MARKET_FEE = 0.05; // frac
 
-/** Ask prices are whole gold per unit, bounded to this band. */
+/** Ask prices are whole gold per unit, bounded to this band. The band sits
+ *  strictly INSIDE the Black Market's spread (see §11b): the system pays
+ *  BLACK_MARKET.SELL_PRICE and charges BLACK_MARKET.BUY_PRICE, so player asks
+ *  are always better for both sides than dealing with the fence. */
 export const MARKET_PRICE_MIN = 2; // gold
-export const MARKET_PRICE_MAX = 50; // gold
+export const MARKET_PRICE_MAX = 19; // gold
+
+/** Fraction of a recalled caravan's remaining goods LOST on the road home.
+ *  Turning a caravan around costs you — it stops the Bazaar being a free
+ *  parking space you can pull goods out of the moment a raid is inbound. */
+export const MARKET_RECALL_LOSS = 0.5; // frac
+
+// ─── 11b · THE BLACK MARKET (the fence) ─────────────────────────────────────
+//
+// A SYSTEM counterparty, not a player one: instant, unlimited, anonymous, and
+// deliberately the worst price in the game. It exists to put a hard floor and
+// ceiling under the Bazaar rather than to be used.
+//
+//     sell to the fence ──►  1 gold/unit   (floor: goods are never worthless)
+//     player Bazaar     ──►  2 … 19        (where trade actually happens)
+//     buy from the fence ─► 20 gold/unit   (ceiling: gold can always buy bread)
+//
+// The spread is what makes it safe. Every round trip through the fence loses
+// money — buy at 20 and dump at 1 and you are down 19 a unit — so there is no
+// arbitrage loop, and no path that mints either resource or gold for free.
+// Selling is a gold faucet and a resource sink; buying is the exact reverse.
+
+export const BLACK_MARKET = {
+  /** Gold paid per unit when you dump resources on the fence. */
+  SELL_PRICE: 1, // gold / unit
+  /** Gold charged per unit when you buy from the fence. Above MARKET_PRICE_MAX
+   *  by design — the fence must never undercut a player caravan. */
+  BUY_PRICE: 20, // gold / unit
+} as const;
+// Siege salvage is also fenced here, but the rate lives with the engines it
+// values (SIEGE_SALVAGE_VALUE, battleBalance.ts) — one number, one home.
 
 // ─── 12 · CLANS ─────────────────────────────────────────────────────────────
 
@@ -420,8 +392,44 @@ export const CLAN_REPAIR_COST_FACTOR = 0.5;
 
 /** Clan build costs — pure data (`each` = wood AND stone AND ore, per level).
  *  hall[1].gold is the solo founding fee. Derived accessors in clans.ts. */
+/**
+ * THE CLAN BEACON — the horns that sound when war is declared.
+ *
+ * A declared war does not turn lethal at once. Every clan gets a grace period
+ * in which attacks between the two sides still resolve at PEACETIME rates —
+ * normal damage, normal loot bands — and the Beacon buys more of it:
+ *
+ *     no Beacon →  6h      L1 → 12h      L2 → 18h      L3 → 24h
+ *
+ * The grace is PER CLAN and protects that clan's own members. Attacks on you
+ * stay peaceful until YOUR horns have finished sounding, whatever the other
+ * side has built. So a clan with taller Beacons than its enemy gets a genuine
+ * one-sided window: it can strike at full war rates while blows against it are
+ * still landing at peacetime rates.
+ *
+ * That asymmetry is the point, and it is what makes the Beacon worth its price
+ * — it is not a shield, it is the drum you beat first. The counter is to build
+ * your own, or to not be at war with someone who has.
+ */
+export const CLAN_BEACON = {
+  MAX_LEVEL: 3,
+  /** Grace every clan gets, Beacon or not. */
+  BASE_GRACE_HOURS: 6,
+  GRACE_HOURS_PER_LEVEL: 6,
+  /** Hard ceiling, so raising MAX_LEVEL alone cannot make wars unfightable. */
+  MAX_GRACE_HOURS: 24,
+};
+
 export const CLAN_BUILD_COSTS = {
   storagePerLevel: { gold: 100000, each: 50000 },
+  /** Dearer than Storage, cheaper than a Wonder: it wins no points on the
+   *  ladder to speak of, it buys tempo. */
+  beacon: [
+    null,
+    { gold: 400000, each: 200000 }, // L1 — 12h
+    { gold: 1000000, each: 500000 }, // L2 — 18h
+    { gold: 2000000, each: 1000000 }, // L3 — 24h
+  ],
   hall: [
     null,
     { gold: 50000, each: 0 }, // L1 — the founding fee
@@ -472,32 +480,85 @@ export const HOLD_CLOCKS = {
   STREAK_HOURS: 12, // consecutive at #1, resets when knocked off
 };
 
-export const POPULATION_FLOORS = {
-  GRAND_OVERLORD: 10000, // civilians + regular troops, no mercs
-  CLAN: 150000, // total across the clan
+/**
+ * ARMY FLOORS to be eligible for a victory clock — REGULARS ONLY.
+ *
+ * Regulars, not population and not mercenaries. You cannot buy the throne: a
+ * war chest hires sellswords in an afternoon, but regulars are barracks, beds,
+ * training time and food, and losing them is the one thing that genuinely
+ * costs. Tying the crown to them means the empire that wins is the one that
+ * actually built an army and kept it alive.
+ */
+export const ARMY_FLOORS = {
+  INDIVIDUAL: 2400, // regulars, for a lone empire's clock
+  CLAN: 25000, // regulars summed across the clan's members
 };
 
-/** Ranking score weights — the visible empire. Siege gear/engineers, spies,
- *  scouts, mercenaries, and shadow research are worth ZERO. */
+/**
+ * Ranking score weights — MARTIAL STRENGTH AND PEOPLE, nothing else.
+ *
+ * The ladder publishes ONE number, and many different empires produce the same
+ * number. A turtle behind a Citadel and a hammer with a huge field army can
+ * rank identically while needing opposite answers — so rank tells you WHETHER
+ * a target is worth your turns, and only a scout tells you HOW to attack.
+ * That is deliberate: it is what keeps Map the Army and Map the Siege Train
+ * worth paying for.
+ *
+ * COUNTED: troops (regulars AND mercenaries), engineers, defensive counters,
+ * walls, scouts (at a discount), army veterancy, population, research.
+ *
+ * NOT COUNTED — and this is the load-bearing part:
+ *   · OFFENSIVE siege gear. Your siege train is the single most valuable thing
+ *     a rival could know about you, so it never appears. Engineers DO count
+ *     (they are dual-use — they crew your counters when you are not attacking),
+ *     which means the investment shows without the composition showing.
+ *   · Spies. Covert is covert.
+ *   · Civilian buildings, housing, and liquid wealth.
+ *
+ * BALANCE CONDITION: these weights must stay roughly gold-equivalent per point.
+ * If any one path buys rank appreciably cheaper than the others, everyone
+ * builds that one thing, every empire converges on one shape, and the
+ * "many compositions, same score" property — the thing protecting scouting —
+ * collapses. The sim checks points-per-gold across every path for outliers.
+ */
 export const SCORE = {
   PER_CIVILIAN: 10, // pts
-  PER_TROOP_BASE: 10, // pts × tier power (1 / 1.8 / 3)
-  PER_BUILDING_LEVEL: 200, // pts, levelled buildings (civilian + military)
-  PER_COUNTED_BUILDING: 50, // pts — hearthsteads, muster halls
-  GOLD_DIVISOR: 100, // pts = gold ÷ this
-  RESOURCE_DIVISOR: 2000, // pts = resources ÷ this (bulk ≈ 0.05 g each)
+  /** Troops and engineers score their COMBAT POWER directly — the same number
+   *  the battle engine uses, so there is one source of truth. */
+  PER_POWER_POINT: 1, // pts per point of unit power
+  /** Sellswords count now: they hold a wall and they die like anyone else. */
+  MERC_POWER_FACTOR: 1.0, // ×
+  /** Defensive counters score their power, discounted. An engine's raw power
+   *  is on the same scale as a soldier's but costs far less per point, so at
+   *  1.0 a Counter-Engine bought nearly 4× the rank per gold that a footman
+   *  did — enough that every empire would have converged on the same shape and
+   *  taken the value of scouting down with it (see the ranking-honesty sim). */
+  COUNTER_POWER_FACTOR: 0.25, // ×
+  /** Siege scores ONLY when crewed — forty uncrewed trebuchets are lumber, and
+   *  this stops rank-farming by hoarding engines you cannot man. */
+  SIEGE_REQUIRES_CREW: true,
+  /** Rangers are worth something, but less than a soldier. */
+  PER_SCOUT: 10, // pts (regular scouts only — mercenary rangers score nothing)
+  /** Engineers score as a corps rather than as fighters (their combat power is
+   *  zero by design). This is what keeps a bombardier visible on the ladder
+   *  without revealing whether their engines throw stones or pour fire. */
+  PER_ENGINEER: 12, // pts — priced against a footman per gold spent
   PER_XP_POINT: 100, // pts, army experience 0–100
-  PER_RESEARCH_LEVEL: 1000, // pts, ranked fields only (7 of 10)
+  PER_RESEARCH_LEVEL: 1000, // pts, ranked fields only
 };
 
 /** Walls ranking score (pts) as a curve of x = wall level (× integrity applied
- *  by the engine). Default: quadratic level² × 100. */
+ *  by the engine). Quadratic level² × 100 — a Citadel is worth 100× a
+ *  palisade, mirroring how much more it absorbs. */
 export const WALLS_SCORE_CURVE: Curve = { kind: "polynomial", coefficients: [0, 0, 100] };
 
 /** Clan score adds building points × integrity. */
 export const CLAN_BUILDING_POINTS = {
   storage: 500, // pts × level × integrity
   hall: 2000,
+  // Modest on purpose. The Beacon's value is tempo, not prestige — scoring it
+  // richly would make it a way to buy ladder position rather than preparation.
+  beacon: 750,
   wonder: 10000,
 };
 
@@ -579,3 +640,11 @@ export const RACES: Record<Race, RaceModifiers> = {
 
 /** Cap on each Steward queue and on standing orders. */
 export const STEWARD_QUEUE_CAP = 10;
+
+// ─── 16 · THE SPECIALIST TUNING FILES ───────────────────────────────────────
+// Battle and espionage grew their own files once they grew their own models.
+// Re-exported here so `lib/constants` stays the one import surface for the
+// engine, and so the Balance Workbench can enumerate everything from one place.
+
+export * from "./battleBalance";
+export * from "./covertBalance";

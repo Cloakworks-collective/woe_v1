@@ -145,11 +145,6 @@ h3 {
   flex-wrap: wrap;
 }
 
-/* Push help & account to the far right. */
-.topnav-meta {
-  margin-left: auto;
-}
-
 .topnav a {
   display: inline-flex;
   align-items: center;
@@ -173,12 +168,12 @@ h3 {
   color: var(--gold);
 }
 
-/* The premium item (last in the meta group) keeps its distinctive charter hue. */
-.topnav-meta a:last-child {
+/* The Charter keeps its distinctive hue wherever it sits in the row. */
+.topnav a.topnav-charter {
   color: #7a4e12;
 }
 
-.topnav-meta a:last-child.active {
+.topnav a.topnav-charter.active {
   color: var(--gold);
 }
 
@@ -245,12 +240,11 @@ h3 {
   font-size: 12px;
 }
 
-/* Medium widths: tighten the top bar so all ~10 destinations fit cleanly on
-   one or two rows before the burger takes over — no ragged overflow. */
-@media (max-width: 1180px) {
-  .topnav-meta {
-    margin-left: 0;
-  }
+/* The top row now carries the realm's name and the throne as well as the
+   destinations, so it needs more width than it used to. Tighten first, then
+   hand over to the burger EARLY — a wrapped nav would read as the third bar
+   this layout exists to avoid. */
+@media (max-width: 1400px) {
   .topnav a,
   .topnav-dd > summary {
     padding: 7px 9px;
@@ -275,15 +269,21 @@ h3 {
   margin-top: 0;
 }
 
-@media (max-width: 860px) {
+/* Below this the link row cannot share a line with the title and the throne,
+   so the burger takes its place — same slot, one row still. */
+@media (max-width: 1180px) {
   .topnav {
-    display: none;
-  }
-  .nav-col {
     display: none;
   }
   .mnav {
     display: block;
+  }
+}
+
+/* The left column survives longer than the top links do. */
+@media (max-width: 860px) {
+  .nav-col {
+    display: none;
   }
 }
 
@@ -2576,6 +2576,11 @@ a.repair-hint:hover {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  /* An inline-flex box takes its baseline from its first child — and .tip-mark
+     has font-size:0, so that baseline is its BOTTOM edge, which dropped every
+     ⓘ a few px below the text it annotates. Centring on the parent's x-height
+     is what we actually meant. */
+  vertical-align: middle;
 }
 
 /* The ⓘ mark is the kit's own info key (PixelLab woe-button-green); the "i"
@@ -2614,6 +2619,16 @@ a.repair-hint:hover {
   padding: 9px 12px;
   font: 400 14px/1.5 Verdana, sans-serif;
   text-align: left;
+  /* Never inherit nowrap from whatever the ⓘ happens to sit inside. A tooltip
+     is a block of prose; an ancestor that keeps a label on one line (e.g.
+     .clanwork-meta) must not force the popover onto one line too — it renders
+     the text straight out of the box and across the page. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  /* A tooltip that carries points can get tall; never let one run off the top
+     of the window with its first lines unreadable. */
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
   box-shadow: 0 5px 16px rgba(0, 0, 0, 0.55);
   opacity: 0;
   pointer-events: none;
@@ -5866,10 +5881,24 @@ button.act-ghost {
 }
 
 /* ── Clan Works cards ─────────────────────────────────────────────────────── */
+/* Explicit column counts, not auto-fit: there are FOUR works, and auto-fit
+   happily lands on three-across and leaves the last one orphaned next to a gap.
+   4 / 2×2 / 1 always divides evenly. */
 .clanworks {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+  align-items: start;
+}
+@media (max-width: 1180px) {
+  .clanworks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 620px) {
+  .clanworks {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .clanwork {
   display: flex;
@@ -5897,10 +5926,21 @@ button.act-ghost {
   opacity: 0.35;
   filter: grayscale(1);
 }
+/* Four works across is tight. Let the head wrap, but keep the level and its ⓘ
+   glued together as one unit — they were breaking apart mid-phrase ("Lv 0 /"
+   on one line, "10 ⓘ" on the next). */
 .clanwork-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.clanwork-meta {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 .clanwork-icon {
   font-size: 26px;
@@ -5911,7 +5951,6 @@ button.act-ghost {
   color: var(--ink);
 }
 .clanwork-lvl {
-  margin-left: auto;
   font-size: 13px;
   font-weight: 700;
   color: var(--coin);
@@ -6739,14 +6778,11 @@ body::after {
 }
 .topnav a.active,
 .topnav-dd > summary.active,
-.topnav-meta a:last-child.active {
+.topnav a.topnav-charter.active {
   border-image-source: url("/art/ui/tab-on.png");
   background: transparent;
   color: #fff0c4;
   filter: brightness(1.12);
-}
-.topnav-group + .topnav-group {
-  border-left: none;
 }
 .topnav-dd > summary::after {
   content: "";
@@ -7081,7 +7117,7 @@ select option {
 :root[data-theme="dark"] .nav a.active,
 :root[data-theme="dark"] .topnav a.active,
 :root[data-theme="dark"] .topnav-dd > summary.active,
-:root[data-theme="dark"] .topnav-meta a:last-child.active {
+:root[data-theme="dark"] .topnav a.topnav-charter.active {
   border-image-source: url("/art/ui/tab-on-dark.png");
 }
 :root[data-theme="dark"] .tbl th {
@@ -7254,4 +7290,238 @@ select option {
 html,
 body {
   overflow-x: clip;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADMIN — THE BALANCE WORKBENCH
+   Deliberately NOT medieval. This is a tool, not a place: nobody but the crown
+   sees it, and every pixel spent on atmosphere is a pixel not spent on reading
+   a number. Dense rows, tabular figures, high contrast, no parchment.
+   Scoped under .wb-plain so nothing here leaks into the game proper.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.wb-plain {
+  --wb-bg: #14161a;
+  --wb-panel: #1c1f25;
+  --wb-line: #2c313a;
+  --wb-ink: #e6e9ef;
+  --wb-dim: #97a0ae;
+  --wb-accent: #5aa9e6;
+  --wb-warn: #e0a33e;
+  background: var(--wb-bg);
+  color: var(--wb-ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding: 14px;
+  border-radius: 8px;
+}
+
+/* Numbers are for comparing, so they line up. */
+.wb-plain input,
+.wb-plain .wb-num,
+.wb-plain td:last-child {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.wb-plain .wb-search {
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  background: var(--wb-panel);
+  border: 1px solid var(--wb-line);
+  border-radius: 6px;
+  color: var(--wb-ink);
+  font-size: 14px;
+}
+.wb-plain .wb-search::placeholder { color: var(--wb-dim); }
+.wb-plain .wb-search:focus {
+  outline: 2px solid var(--wb-accent);
+  outline-offset: -1px;
+}
+
+.wb-plain .cat-tabs { gap: 2px; border-bottom: 1px solid var(--wb-line); }
+.wb-plain .cat-tab {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--wb-dim);
+  font-size: 13.5px;
+  padding: 7px 12px;
+}
+.wb-plain .cat-tab.is-active {
+  color: var(--wb-ink);
+  border-bottom-color: var(--wb-accent);
+  background: transparent;
+}
+.wb-plain .cat-tab-badge {
+  background: var(--wb-warn);
+  color: #14161a;
+  font-weight: 700;
+}
+
+/* One knob per row: label, editor, unit, then the explanation underneath at
+   half weight. The explanation is the point — a number with no rationale is
+   how a game gets tuned into nonsense six months later. */
+.wb-plain .knob {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 120px 90px;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--wb-line);
+}
+.wb-plain .knob-desc {
+  grid-column: 1 / -1;
+  color: var(--wb-dim);
+  font-size: 12.5px;
+  line-height: 1.45;
+  margin: 0;
+}
+.wb-plain .knob input[type="number"],
+.wb-plain .knob input[type="text"] {
+  width: 100%;
+  padding: 5px 7px;
+  background: #0f1114;
+  border: 1px solid var(--wb-line);
+  border-radius: 4px;
+  color: var(--wb-ink);
+}
+.wb-plain .knob.is-edited input { border-color: var(--wb-warn); }
+.wb-plain .knob-unit { color: var(--wb-dim); font-size: 12.5px; }
+
+.wb-plain .wb-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--wb-panel);
+  border: 1px solid var(--wb-line);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.wb-plain .wb-bar.has-changes { border-color: var(--wb-warn); }
+.wb-plain .btn-ghost {
+  background: #0f1114;
+  border: 1px solid var(--wb-line);
+  color: var(--wb-ink);
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 13px;
+}
+.wb-plain .btn-ghost:disabled { opacity: 0.4; }
+
+.wb-plain table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.wb-plain th {
+  text-align: left;
+  color: var(--wb-dim);
+  font-weight: 600;
+  border-bottom: 1px solid var(--wb-line);
+  padding: 5px 8px;
+}
+.wb-plain td { padding: 4px 8px; border-bottom: 1px solid var(--wb-line); }
+.wb-plain tr:hover td { background: #191c21; }
+
+.wb-plain .wb-group-head {
+  margin: 16px 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--wb-dim);
+}
+.wb-plain .wb-empty { color: var(--wb-dim); font-size: 13px; padding: 20px 0; }
+
+/* Settler-intake breakdown on the Command View — the four terms that make up
+   the daily arrival number, so it is never a figure without a reason. */
+.growth-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 12.5px;
+}
+.growth-part {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--rule, #6b5836);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--panel, #2a2118) 70%, transparent);
+  cursor: help;
+}
+.growth-part b { font-weight: 700; }
+.growth-part i { font-style: normal; opacity: 0.55; font-size: 11.5px; }
+.growth-part.is-zero { opacity: 0.5; }
+.growth-part.is-max { border-color: var(--pos, #6a8f3c); }
+.growth-total {
+  margin-left: 2px;
+  padding: 3px 8px;
+  cursor: help;
+  white-space: nowrap;
+}
+.growth-total b { font-size: 14px; }
+
+/* ── The nav, nested inside the identity bar ──────────────────────────────
+   TopNav and MobileNav now live INSIDE .topbar so the header is two rows, not
+   three. They keep their tab graphics (the per-link border-image is the look)
+   but shed everything that made them a bar of their own: the wood frame, the
+   drop shadow, and .topnav-inner's centring max-width, which would otherwise
+   fight the parent flex row. */
+.topbar > .topnav {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.topbar > .topnav .topnav-inner {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+/* The burger replaces the link row below 860px — same slot, same alignment. */
+.topbar > .mnav {
+  flex: 0 0 auto;
+}
+
+/* ── The holdings row ─────────────────────────────────────────────────────
+   Split out of the identity bar so the crown, era clock and theme switch can
+   stay pinned above the main nav while what you OWN sits directly above the
+   page it applies to. It reuses .topbar's wood chrome for continuity but
+   drops the heavy drop-shadow — two stacked shadows either side of the nav
+   read as a seam rather than a frame. */
+.topbar.topbar-res {
+  box-shadow: none;
+  border-top-width: 0;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+/* Points inside a tooltip — for "what this actually does for me". A popover
+   that is four clauses of prose is a popover nobody finishes reading. */
+.tip-points {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  list-style: disc;
+}
+.tip-points li {
+  margin: 3px 0;
+  line-height: 1.45;
+}
+
+/* What a clan work does for its members, on the face of the card. Muted so it
+   reads as reference rather than competing with the level and the raise button. */
+.clanwork-perks {
+  margin: 2px 0 0;
+  padding-left: 15px;
+  list-style: disc;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.clanwork-perks li {
+  margin: 3px 0;
 }

@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import { buildSpectatorSnapshot } from "./analytics";
 import { seedWorld, updateCrown } from "./world";
 import { newEmpire } from "../engine";
+import { ARMY_FLOORS } from "../constants";
 
 describe("§14.4 — buildSpectatorSnapshot (pure)", () => {
   it("builds a score-sorted top-N ladder with the live crown view", () => {
     const w = seedWorld();
     const a = newEmpire({ id: "A", name: "Alpha", race: "orc" });
-    a.idlePeasants = 30_000; // top score + above the overlord floor
+    a.idlePeasants = 30_000; // top score
+    a.army.footmen.light = ARMY_FLOORS.INDIVIDUAL; // and army-eligible for the crown
     const b = newEmpire({ id: "B", name: "Beta", race: "elf" });
     b.idlePeasants = 5_000;
     w.players = { A: a, B: b };

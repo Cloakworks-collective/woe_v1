@@ -9,6 +9,9 @@ import {
   applyOnboardingRewards,
   assignWorkers,
   atWar,
+  warIsHot,
+  worksLevel,
+  type ClanWorks,
   bankGold,
   bankResource,
   build,
@@ -48,6 +51,8 @@ import {
   newClan,
   postOrder,
   buyFromMarket,
+  blackMarketBuy,
+  blackMarketSell,
   cancelOrder,
   clanCode,
   recordBattle,
@@ -57,13 +62,15 @@ import {
   newEraRecords,
   recordWarKills,
   repairBuilding,
+  repairSiege,
+  sellSiege,
+  setSortie,
   repairWalls,
   resolveBattle,
   resolveBombard,
   resolveClanBombard,
   restTroops,
-  runScoutRecon,
-  runSpyMission,
+  runCovertOp,
   setResearch,
   setTax,
   type OrderAction,
@@ -109,6 +116,30 @@ function regularKills(l: UnitLosses): number {
 }
 
 /**
+ * The only commands that still work once the age has been won.
+ *
+ * An ALLOWLIST, deliberately — a denylist would silently admit every command
+ * added afterwards, and the whole point is that a sealed final ladder stays
+ * sealed. Nothing here can change the standings:
+ *
+ *   syncPlayer       page-load housekeeping; §14.2 breaks without it
+ *   grantCharter     a payment that lands after the bell is still honoured
+ *   chat             let people congratulate the winner
+ *   dismissOnboarding / finishTour   dismissing a panel is not a game action
+ *
+ * Everything else — attacking, building, trading, training, clan politics —
+ * is refused until an admin closes the age (`adminCloseAge`, which does not
+ * route through here). The world's clock is stopped too: see `runDueTicks`.
+ */
+const ALLOWED_AFTER_VICTORY: ReadonlySet<string> = new Set([
+  "syncPlayer",
+  "grantCharter",
+  "chat",
+  "dismissOnboarding",
+  "finishTour",
+]);
+
+/**
  * Apply one command to an in-memory world (no persistence — the caller commits).
  * Returns the command's result plus whether the world changed. This is the
  * shared heart of both write models:
@@ -144,6 +175,19 @@ export function applyOneCommand(
   }
   player.lastSeenAtMs = Date.now(); // presence for the ladder's Online column
 
+  // The age is over. The final ladder is frozen, and it stays frozen — no
+  // attack, trade or build can move it while the realm waits for the age to be
+  // sealed. (Reads are untouched; the world is still fully browsable.)
+  if (world.meta.winner && !ALLOWED_AFTER_VICTORY.has(name)) {
+    return {
+      result: {
+        ok: false,
+        message: `The age has ended — ${world.meta.winner.name} is proclaimed victor. The ladder is sealed until the next era opens.`,
+      },
+      dirty: true, // the presence stamp above still deserves persisting
+    };
+  }
+
   try {
     const result = dispatch(world, player, name, args);
     // §14.3: every command can reorder the ladder top — credit the crown-holder
@@ -173,6 +217,13 @@ export async function runCommand(
 ): Promise<CommandResult> {
   if (worldServiceEnabled()) return forwardCommand(playerId, name, args);
   return commitWithRetry<CommandResult>((world) => applyOneCommand(world, playerId, name, args));
+}
+
+const CLAN_WORKS: ReadonlySet<string> = new Set(["storage", "hall", "wonder", "beacon"]);
+function clanWorksArg(v: unknown): ClanWorks {
+  const w = String(v ?? "");
+  if (!CLAN_WORKS.has(w)) throw new EngineError("which", "No such clan work");
+  return w as ClanWorks;
 }
 
 const num = (v: unknown) => Math.floor(Number(v));
@@ -259,9 +310,22 @@ function dispatch(
         undefined
       );
     case "build": {
-      const r = build(player, args.id as never);
+      // `count` lets the UI offer batch buttons (housing is built 1/5/10 at a
+      // time). Each level is still paid at its own price — see build().
+      const count = args.count === undefined ? 1 : Math.max(1, Math.min(50, num(args.count)));
+      const r = build(player, args.id as never, count);
       put(r.player);
       for (const e of r.events) pushInbox(world, player.id, e);
+      if (count > 1) {
+        const built = r.events.length;
+        return {
+          ok: true,
+          message:
+            built === count
+              ? `${built} raised.`
+              : `${built} of ${count} raised — the treasury ran dry.`,
+        };
+      }
       return;
     }
     case "repairWalls":
@@ -309,7 +373,7 @@ function dispatch(
         undefined
       );
 
-    // ── The Steward (Royal Charter premium; spec/premium.md) ──────────
+    // ── The Steward (Royal Charter premium; spec/clans.md) ──────────
     case "queueBuild":
       return put(queueBuild(player, args.id as never).player), undefined;
     case "queueBuildCancel":
@@ -326,23 +390,44 @@ function dispatch(
     case "orderRemove":
       return put(removeStandingOrder(player, str(args.orderId)).player), undefined;
 
+    // ── The engine yard ───────────────────────────────────────────────
+    // A long bombardment is a running expense: engines wear down, fire weaker
+    // as they do, and must be mended between volleys or sold when the treasury
+    // runs dry.
+    case "repairSiege":
+      return put(repairSiege(player, args.type as never).player), undefined;
+    case "sellSiege":
+      return put(sellSiege(player, args.type as never, num(args.count)).player), undefined;
+    case "setSortie":
+      return put(setSortie(player, str(args.enabled) === "true").player), undefined;
+
     // ── War ───────────────────────────────────────────────────────────
     case "attack":
       return doAttack(world, player, str(args.targetId), args.mode as AttackMode, args);
 
     // ── Espionage ─────────────────────────────────────────────────────
-    case "spy": {
+    // ── The shadow war ────────────────────────────────────────────────
+    // One entry point for both arms. Scouts gather and counter; spies destroy
+    // and steal. Both spend from the same scarce pool of spy turns.
+    case "covert": {
       const target = world.players[str(args.targetId)];
       if (!target) throw new EngineError("target", "No such empire");
-      // Proposal (implemented): spy missions are blocked vs protected players.
       if (tick - world.meta.eraStartedAtTick < ERA_PEACE_TICKS)
         throw new EngineError("peace", "The era peace holds.");
       if (target.shieldUntilTick > tick)
         throw new EngineError("shield", "That empire is under the newcomer shield.");
-      const r = runSpyMission(player, target, str(args.op), num(args.spies), tick, Math.random);
+
+      // Clan war doubles what sabotage achieves (COVERT_WAR_MULTIPLIER).
+      const targetClan = target.clanId ? world.clans[target.clanId] : undefined;
+      // Formally at war is not enough — the target's Beacon may still be
+      // sounding, in which case their people take peacetime damage.
+      const covertWar = warIsHot(clan, targetClan, tick);
+      const r = runCovertOp(player, target, str(args.op), num(args.agents), tick, Math.random, covertWar);
       put(r.attacker);
-      world.players[target.id] = r.defender;
-      if (!r.caught && ((r.resourcesDestroyed ?? 0) > 0 || (r.gearDestroyed ?? 0) > 0)) {
+      // Counter-ops act on your OWN realm, so the "defender" is you.
+      if (r.defender.id !== player.id) world.players[target.id] = r.defender;
+
+      if (!r.exposed && ((r.resourcesDestroyed ?? 0) > 0 || (r.gearDestroyed ?? 0) > 0)) {
         const records = world.eraRecords ?? (world.eraRecords = newEraRecords());
         recordSpyFeat(records, player.id, player.name, clanCode(clan?.name), {
           resourcesDestroyed: r.resourcesDestroyed,
@@ -351,29 +436,22 @@ function dispatch(
       }
       pushInbox(world, player.id, {
         type: "spyReport",
-        op: str(args.op),
+        op: r.op.name,
         targetName: target.name,
-        caught: r.caught,
+        caught: r.exposed,
         detail: r.detail,
       });
-      if (r.caught) {
+      if (r.exposed) {
+        // Being caught names you — that is the whole risk of going over a wall.
         pushInbox(world, target.id, {
           type: "spiesCaught",
           attackerName: player.name,
-          executed: num(args.spies),
-          op: str(args.op),
+          executed: r.intercepted,
+          op: r.op.name,
         });
       } else if (r.victimDetail) {
         pushInbox(world, target.id, { type: "sabotaged", detail: r.victimDetail });
       }
-      return { ok: true, message: r.detail };
-    }
-    case "scout": {
-      const target = world.players[str(args.targetId)];
-      if (!target) throw new EngineError("target", "No such empire");
-      const r = runScoutRecon(player, target, Math.random);
-      put(r.attacker);
-      pushInbox(world, player.id, { type: "scoutReport", targetName: target.name, detail: r.detail });
       return { ok: true, message: r.detail };
     }
 
@@ -396,7 +474,12 @@ function dispatch(
       const r = cancelOrder(player, world.orders, str(args.orderId));
       put(r.seller);
       world.orders = r.orders;
-      return;
+      return {
+        ok: true,
+        message: r.lost
+          ? `The caravan turns for home — ${r.returned.toLocaleString("en-US")} recovered, ${r.lost.toLocaleString("en-US")} lost on the road.`
+          : "The caravan turns for home.",
+      };
     }
     case "marketBuy": {
       const r = buyFromMarket(player, world.orders, args.resource as Resource, num(args.amount), tick);
@@ -414,11 +497,34 @@ function dispatch(
             type: "marketSale",
             resource: args.resource as Resource,
             amount: f.amount,
-            goldNet: Math.round(f.netGold),
+            goldNet: f.netGold, // already a whole number
           });
         }
       }
       return;
+    }
+
+    // ── The Black Market (the fence) ──────────────────────────────────
+    // Settled against the SYSTEM, not a player: instant, unlimited, and
+    // deliberately the worst price on both sides. No caravan, no travel,
+    // no counterparty to race.
+    case "blackMarketSell": {
+      const resource = args.resource as Resource;
+      const r = blackMarketSell(player, resource, num(args.amount));
+      put(r.player);
+      return {
+        ok: true,
+        message: `The fence takes ${num(args.amount).toLocaleString("en-US")} ${resource} for ${r.gold.toLocaleString("en-US")} gold.`,
+      };
+    }
+    case "blackMarketBuy": {
+      const resource = args.resource as Resource;
+      const r = blackMarketBuy(player, resource, num(args.amount));
+      put(r.player);
+      return {
+        ok: true,
+        message: `${num(args.amount).toLocaleString("en-US")} ${resource} delivered for ${r.cost.toLocaleString("en-US")} gold.`,
+      };
     }
 
     // ── Clans ─────────────────────────────────────────────────────────
@@ -434,6 +540,7 @@ function dispatch(
       player.gold -= 50000;
       const c = newClan(randomUUID(), nameStr, player);
       player.clanId = c.id;
+      player.everJoinedClan = true; // founding counts — see ARMY_FLOORS
       world.clans[c.id] = c;
       put(player);
       return { ok: true, message: `${nameStr} is founded (${FOUNDING_MEMBERS} founders required at launch).` };
@@ -535,16 +642,16 @@ function dispatch(
     }
     case "clanBuild": {
       if (!clan) throw new EngineError("clan", "You have no clan");
-      // The pool pays first; whatever it can't cover comes out of the builder's
-      // own treasury, so their player record changes too.
-      const r = buildClanBuilding(clan, player, args.which as never);
+      // Validate rather than cast: an unrecognised `which` used to fall through
+      // to the Wonder branch and quietly build the wrong thing.
+      const r = buildClanBuilding(clan, player, clanWorksArg(args.which));
       put(r.player);
       world.clans[clan.id] = r.clan;
       return;
     }
     case "clanRepair": {
       if (!clan) throw new EngineError("clan", "You have no clan");
-      world.clans[clan.id] = repairClanBuilding(clan, player.id, args.which as never);
+      world.clans[clan.id] = repairClanBuilding(clan, player.id, clanWorksArg(args.which));
       return;
     }
     case "clanSetRole": {
@@ -596,7 +703,11 @@ function dispatch(
         throw new EngineError("rank", "Only the Leader or Vice may declare war");
       const target = world.clans[str(args.clanId)];
       if (!target) throw new EngineError("clan", "No such clan");
-      world.clans[clan.id] = declareWar(clan, target.id, tick);
+      // Both banners record the war, from the same instant — the Beacon grace
+      // is measured from it and either side may be the one attacked.
+      const declared = declareWar(clan, target, tick);
+      world.clans[clan.id] = declared.clan;
+      world.clans[target.id] = declared.target;
       for (const m of [...clan.members, ...target.members]) {
         pushInbox(world, m, { type: "clanEvent", detail: `${clan.name} declares war on ${target.name}!` });
       }
@@ -697,7 +808,12 @@ function doAttack(
 
   const aClan = attacker.clanId ? world.clans[attacker.clanId] : undefined;
   const dClan = defender.clanId ? world.clans[defender.clanId] : undefined;
+  // TWO different questions, deliberately kept apart:
+  //   clanWar  — are we formally at war? decides what is ALLOWED (validateAttack)
+  //   warHot   — has the defender's Beacon grace run out? decides how HARD the
+  //              blow lands (double damage, 100% loot). See warIsHot.
   const clanWar = atWar(aClan, dClan);
+  const warHot = warIsHot(aClan, dClan, tick);
 
   // Clan-bombardment revenge (spec/clans.md): our clan was bombarded by the
   // defender's clan, this player was a member at that moment, and the 18h
@@ -723,7 +839,7 @@ function doAttack(
   if (err) throw new EngineError("attack", err);
 
   const battleId = randomUUID();
-  const opts = { rng: Math.random, warBonus: clanWar, battleId, tick };
+  const opts = { rng: Math.random, warBonus: warHot, battleId, tick };
   const outcome =
     mode === "bombard"
       ? resolveBombard(attacker, defender, opts)
@@ -884,7 +1000,7 @@ function doClanBombard(
   if (!tClan) throw new EngineError("clan", "No such clan");
   if (tClan.id === aClan.id) throw new EngineError("clan", "You cannot bombard your own works");
   if (!atWar(aClan, tClan)) throw new EngineError("war", "You are not at war with that clan");
-  if (which !== "storage" && which !== "hall" && which !== "wonder") {
+  if (which !== "storage" && which !== "hall" && which !== "wonder" && which !== "beacon") {
     throw new EngineError("target", "Choose a clan building to bombard");
   }
   const target = which as ClanBuilding;
@@ -895,12 +1011,7 @@ function doClanBombard(
   }
   if (attacker.turnsAvailable < 10) throw new EngineError("turns", "A bombardment costs 10 action turns");
 
-  const buildingLevel =
-    target === "storage"
-      ? tClan.buildings.storageLevel
-      : target === "hall"
-        ? tClan.buildings.hallLevel
-        : tClan.buildings.wonderLevel;
+  const buildingLevel = worksLevel(tClan, target);
   const label = clanBuildingLabel(target);
   if (buildingLevel <= 0) throw new EngineError("target", `They have raised no ${label} to break`);
   if (tClan.buildings.integrity[target] <= 0.5) {

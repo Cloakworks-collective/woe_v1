@@ -27,8 +27,9 @@ describe("turn tick", () => {
     p.workers.farmers = 30; // no slot cap — all 30 produce
     p.idlePeasants = 50;
     const { player } = processTurnTick(p);
-    // 30 farmers × (50 × 1 level × (1−0.5) tax) × 1.25 human = 937.5 food; upkeep 10 taken first.
-    expect(player.resources.food).toBe(1000 - 10 + 937.5);
+    // 30 farmers × (50 × 1 level × (1−0.5) tax) × 1.25 human = 937.5 → floored
+    // to 937 (stocks are whole; see ROUNDING in tick.ts). Upkeep 10 taken first.
+    expect(player.resources.food).toBe(1000 - 10 + 937);
   });
 
   it("a bombarded production building yields proportionally less", () => {
@@ -38,8 +39,9 @@ describe("turn tick", () => {
     p.idlePeasants = 60;
     p.buildingIntegrity = { grange: 0.5 }; // cracked to the floor
     const { player } = processTurnTick(p);
-    // 20 × (50 × 1 × 0.5 tax) × 0.5 integrity × 1.25 human = 312.5 food, minus upkeep 10
-    expect(player.resources.food).toBe(1000 - 10 + 312.5);
+    // 20 × (50 × 1 × 0.5 tax) × 0.5 integrity × 1.25 human = 312.5 → floored to
+    // 312, minus upkeep 10.
+    expect(player.resources.food).toBe(1000 - 10 + 312);
   });
 
   it("a cracked Collegium banks research slower", () => {
@@ -78,14 +80,14 @@ describe("turn tick", () => {
     expect(researchOrdinalCost(7)).toBeGreaterThan(researchOrdinalCost(1));
   });
 
-  it("statecraft 5 doubles post-tax output", () => {
+  it("statecraft no longer touches production — it is the treasury\u2019s field", () => {
     const p = fresh();
     p.buildings.grange = 2;
     p.workers.farmers = 20;
     p.research.levels.statecraft = 5;
     const { player } = processTurnTick(p);
     // 20 × (50 × 2 level × 0.5 tax × 2 statecraft) × 1.25 human = 2500 food, minus upkeep 12
-    expect(player.resources.food).toBe(1000 - 12 + 2500);
+    expect(player.resources.food).toBe(1000 - 12 + 1250);
   });
 
   it("the granary vault feeds the people when loose food runs dry", () => {
@@ -167,4 +169,19 @@ describe("turn tick", () => {
     const { player } = processTurnTick(p);
     expect(player.gold).toBe(5000 + 8);
   });
+});
+
+it("statecraft doubles the tax take at mastery, and nothing else", () => {
+  const plain = fresh();
+  plain.workers.farmers = 20;
+  plain.buildings.grange = 2;
+  const studied = structuredClone(plain);
+  studied.research.levels.statecraft = 5;
+
+  const a = processTurnTick(plain).player;
+  const b = processTurnTick(studied).player;
+
+  // Gold: double. Food: identical — production is the four fields' business.
+  expect(b.gold - 5000).toBeCloseTo((a.gold - 5000) * 2, 5);
+  expect(b.resources.food).toBe(a.resources.food);
 });

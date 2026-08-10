@@ -4,11 +4,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { publicBattle, rankingScore, settlementTitle } from "@/lib/engine";
 import { resolvePlayerId } from "@/lib/server/auth";
-import { getWorld, runDueTicks } from "@/lib/server/world";
+import { getCurrentWorld } from "@/lib/server/world";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const world = await getWorld();
-  runDueTicks(world);
+  const world = await getCurrentWorld();
   const viewerId = await resolvePlayerId(req, world);
   if (!viewerId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 

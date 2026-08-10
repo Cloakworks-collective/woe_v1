@@ -10,7 +10,15 @@ export type Resource = "food" | "wood" | "stone" | "ore";
 export type Tier = "light" | "medium" | "heavy";
 export type TroopType = "footman" | "archer" | "cavalry";
 export type AttackMode = "raid" | "siege" | "revenge" | "bombard";
-export type SiegeGearType = "ropes" | "ladders" | "rams" | "ballistae" | "trebuchets";
+export type SiegeGearType =
+  | "ropes"
+  | "ladders"
+  | "siege_towers"
+  | "rams"
+  | "ballistae"
+  | "trebuchets";
+/** The arms that can be hired as well as raised. */
+export type MercArm = "footman" | "archer" | "cavalry" | "engineer" | "spy" | "scout";
 export type WorkerRole =
   | "farmers"
   | "quarrymen"
@@ -25,13 +33,21 @@ export interface TroopCounts {
   heavy: number;
 }
 
-/** Hired sellswords, now raised by type and tier just like regulars (they need
- *  the same trainer/Forge buildings to hire). They die before your matching
- *  regulars, cost gold upkeep or defect, and count zero toward ranking. */
+/**
+ * Hired blades, raised by type and tier just like regulars — and now covering
+ * every arm, engineers and covert agents included. They take the first 70% of
+ * damage aimed at their category, earn no veterancy, cost none when they die,
+ * and are paid off automatically when the regulars who commanded them fall
+ * (MERCENARIES.CAP_RATIO). They need barracks beds like anyone else.
+ */
 export interface MercForce {
   footmen: TroopCounts;
   archers: TroopCounts;
   cavalry: TroopCounts;
+  /** Untiered arms — hired as flat counts. */
+  engineers: number;
+  spies: number;
+  scouts: number;
 }
 
 export interface ArmyState {
@@ -40,17 +56,37 @@ export interface ArmyState {
   cavalry: TroopCounts;
   siegeEngineers: number;
   siegeGear: Record<SiegeGearType, number>; // offensive; crewed when attacking
-  /** Defensive siege engines; crewed by engineers when defending. Absent on
-   *  old saves (migrated to zeros in normalizePlayer). */
+  /** Defensive siege engines; crewed by engineers when defending. */
   siegeCounters: Record<CounterType, number>;
+  /**
+   * Per-TYPE health of your engines, 0–1, persisting between battles. Counter
+   * fire wears engines down rather than simply destroying them: a battered
+   * trebuchet fires proportionally weaker, and below SIEGE_DESTROYED_BELOW it
+   * is wreckage and the count drops. Repairing costs a third of building anew,
+   * which is why an artillery siege is a running expense rather than a one-off
+   * purchase — and why an online defender who mends between volleys can hold.
+   */
+  siegeGearIntegrity: Record<SiegeGearType, number>;
+  siegeCounterIntegrity: Record<CounterType, number>;
   spies: number;
   scouts: number;
-  mercenaries: MercForce; // die first; max 25% of regular army headcount
+  mercenaries: MercForce;
   stamina: number; // 0–100
-  experience: number; // 0–100, global army stat
+  /** Veterancy, 0–100, one stat per corps. Each is earned by doing the work and
+   *  lost with the REGULARS who die or are dismissed — hired blades neither
+   *  earn it nor cost it. Engineers keep a single stat covering both the
+   *  engines they push forward and the ones they man on the wall. */
+  experience: number; // the line army
+  siegeExperience: number; // engineers, attack and defence alike
+  spyExperience: number;
+  scoutExperience: number;
+  /** Standing order: ride out at the besieger, or hold the wall? Cavalry are
+   *  wasted behind stone and murderous in the open, so this is a real choice
+   *  and not merely a toggle. */
+  sortieEnabled?: boolean;
 }
 
-// ── Premium — the Royal Charter (spec/premium.md) ───────────────────────────
+// ── Premium — the Royal Charter (spec/clans.md) ───────────────────────────
 
 /** One research-queue entry = one level of one field. */
 export interface ResearchQueueEntry {
@@ -99,6 +135,12 @@ export interface Player {
   researchQueue?: ResearchQueueEntry[];
   standingOrders?: StandingOrder[];
   clanId?: string;
+  /** Has this empire EVER marched under a banner this age — founded, joined, or
+   *  been invited in? Set on the way in and never cleared while the age runs.
+   *  Disqualifies the individual victory clock permanently: leaving a clan the
+   *  week before the end must not launder its vault into a solo crown. Cleared
+   *  only by `eraReset`, along with everything else. */
+  everJoinedClan?: boolean;
   clanDepartures: number; // leaves + kicks this era; at 2, no more joining
   clanJoinableAtTick?: number; // 48h (288-tick) cooldown after departure
 
@@ -116,7 +158,11 @@ export interface Player {
    *  capacity × integrity (a wrecked store spills). Manual for everyone;
    *  Charter holders auto-vault each tick. Absent on old saves = all zeros. */
   bankedResources?: Record<Resource, number>;
-  turnsAvailable: number; // action turns
+  turnsAvailable: number; // action turns — the army's clock
+  /** The covert clock. Accrues at half the action-turn rate and caps far
+   *  lower, and BOTH spies and scouts spend from it — so every turn spent
+   *  scouting is a turn not spent sabotaging. */
+  spyTurnsAvailable: number;
   onVacation: boolean;
   /** Cumulative turns spent on vacation this era; capped at VACATION_TICKS_PER_ERA. */
   vacationTicksUsed: number;
@@ -145,6 +191,14 @@ export interface Player {
   joinedAtTick: number;
   shieldUntilTick: number; // newcomer shield; attacking drops it early
   unrestUntilTick?: number; // Incite Unrest: tax/production −25%, growth halted
+  /** Sow Research Doubt: the scholars lose their thread and research crawls.
+   *  A scout op (Quell the Doubt) ends it early — which is the reason a
+   *  research empire keeps rangers at all. */
+  researchDoubtUntilTick?: number;
+  /** Research levels copied FROM others this era, capped by
+   *  COVERT_EFFECTS.STEAL_RESEARCH_LEVELS_PER_ERA so theft can supplement the
+   *  work but never replace it. */
+  stolenResearchLevels?: number;
 
   // Revenge tracking
   recentAttackers: { playerId: string; tick: number }[];
@@ -182,7 +236,9 @@ export interface Clan {
     storageLevel: number; // 0–10
     hallLevel: number; // 1–4
     wonderLevel: number; // 0–3
-    integrity: { storage: number; hall: number; wonder: number }; // 0–1
+    /** The Beacon: 0–3. Each level adds 6h to the war grace (CLAN_BEACON). */
+    beaconLevel: number;
+    integrity: { storage: number; hall: number; wonder: number; beacon: number }; // 0–1
   };
   storage: Record<ClanResource, number>;
   /** Lifetime deposits/withdrawals per member — enforces the 3× rule. */
@@ -194,6 +250,11 @@ export interface Clan {
     clanId: string;
     regularKills: number; // our kills of their regulars
     regularLosses: number; // theirs of ours; net +200 = victory
+    /** When war was declared. Both sides carry the same value, because the
+     *  Beacon grace is measured from it and either side may be the one being
+     *  attacked. Absent on wars declared before Beacons existed — treated as
+     *  long expired, which is the safe reading for an old war. */
+    declaredAtTick?: number;
     /** Tick of the last blow struck between these two clans (declaration counts
      *  as the first). A war that goes quiet for WAR.STALE_HOURS lapses. */
     lastBloodTick?: number;
@@ -220,7 +281,32 @@ export interface UnitLosses {
   archers: number;
   cavalry: number;
   engineers: number;
-  mercenaries: number; // aggregate across merc type/tier — they fall as one line
+  mercenaries: number; // aggregate across merc arm/tier — they fall as one line
+  /** Sellswords paid off afterwards because the regulars who commanded them are
+   *  dead. Reported separately from battle deaths so the cascade is legible:
+   *  kill three regulars, cost them four soldiers. */
+  mercenariesDisbanded: number;
+}
+
+/** One narrated beat of a battle, tagged so the report can colour it. Replaces
+ *  the old flat string log — the whole point of the rework is that a reader can
+ *  see WHERE their army died, and regular losses must not be buried in prose. */
+export interface BattleLogEntry {
+  round: number; // 0 = before the first round (yields, counter callouts)
+  phase:
+    | "prelude"
+    | "counter-duel"
+    | "walls"
+    | "archers"
+    | "cavalry"
+    | "footmen"
+    | "sortie"
+    | "aftermath";
+  text: string;
+  /** Regulars lost on each side in this beat — the number that matters most. */
+  attackerRegulars?: number;
+  defenderRegulars?: number;
+  tone?: "good" | "bad" | "neutral";
 }
 
 export interface BattleReport {
@@ -239,18 +325,39 @@ export interface BattleReport {
   yielded?: boolean;
   attackerLosses: UnitLosses;
   defenderLosses: UnitLosses;
+  /** The headline figure, surfaced on its own because it is the one that
+   *  actually decides an era: dead regulars are dead population, they take
+   *  veterancy with them, and they drag their sellswords out of service too. */
+  regularsKilled: { attacker: number; defender: number };
+  /** Civilians driven off by the attack itself — people flee a sacked town.
+   *  Separate from, and compounding with, peasant scattering at the daily
+   *  reset. Every mode causes it, bombard included: terror needs no swordsman. */
+  civiliansDisplaced: number;
   wallIntegrityDamage: number; // fraction of defender's wall destroyed
-  /** Bombard: buildings cracked open beyond the walls (integrity lost each). */
+  /** Buildings cracked open beyond the walls (integrity lost each). */
   buildingDamage?: { building: BuildingId; integrityLost: number }[];
+  /** Engines wrecked outright, both ways — the counter duel bites both sides. */
   siegeGearLost: Partial<Record<SiegeGearType, number>>; // attacker's
-  trebsDestroyedByCounter?: number;
+  siegeCountersLost?: Partial<Record<CounterType, number>>; // defender's
+  /** Engine health worn away but repairable, 0–1 per type. The running cost of
+   *  a siege campaign, and the reason an online defender can hold out. */
+  siegeGearWorn?: Partial<Record<SiegeGearType, number>>;
+  siegeCountersWorn?: Partial<Record<CounterType, number>>;
+  /** The defender's battery fell silent — 70% wrecked AND outgunned. */
+  batterySilenced?: boolean;
+  /** The defender rode out at the siege lines rather than hold the wall. */
+  sortied?: boolean;
+  /** Troops who came over the wall by grapple, ladder and tower — how much of
+   *  the wall's edge was bypassed, and by what. */
+  escalade?: { grappled: number; laddered: number; towered: number };
   loot: { gold: number; resources: Record<Resource, number> };
   staminaLoss: { attacker: number; defender: number };
   experienceChange: { attacker: number; defender: number };
-  log: string[]; // human-readable round-by-round summary
+  siegeExperienceChange?: { attacker: number; defender: number };
+  log: BattleLogEntry[];
 }
 
-// ── Market (spec/market.md) ─────────────────────────────────────────────────
+// ── Market (spec/empire.md) ─────────────────────────────────────────────────
 
 export interface MarketOrder {
   id: string;
@@ -312,57 +419,117 @@ export function emptyTroopCounts(): TroopCounts {
 }
 
 export function emptyMercForce(): MercForce {
-  return { footmen: emptyTroopCounts(), archers: emptyTroopCounts(), cavalry: emptyTroopCounts() };
+  return {
+    footmen: emptyTroopCounts(),
+    archers: emptyTroopCounts(),
+    cavalry: emptyTroopCounts(),
+    engineers: 0,
+    spies: 0,
+    scouts: 0,
+  };
 }
 
 export function emptySiegeCounters(): Record<CounterType, number> {
-  return { billhooks: 0, forkpoles: 0, boiling_oil: 0, hoardings: 0, counter_engine: 0 };
+  return {
+    billhooks: 0,
+    forkpoles: 0,
+    fire_pots: 0,
+    boiling_oil: 0,
+    hoardings: 0,
+    counter_engine: 0,
+  };
 }
 
-/** Total hired sellswords across every type and tier. */
-export function mercTotal(m: MercForce): number {
+export function emptySiegeGear(): Record<SiegeGearType, number> {
+  return { ropes: 0, ladders: 0, siege_towers: 0, rams: 0, ballistae: 0, trebuchets: 0 };
+}
+
+/** Engines start whole. Integrity is per TYPE, not per engine — a fleet of
+ *  trebuchets wears down together. */
+export function fullGearIntegrity(): Record<SiegeGearType, number> {
+  return { ropes: 1, ladders: 1, siege_towers: 1, rams: 1, ballistae: 1, trebuchets: 1 };
+}
+
+export function fullCounterIntegrity(): Record<CounterType, number> {
+  return { billhooks: 1, forkpoles: 1, fire_pots: 1, boiling_oil: 1, hoardings: 1, counter_engine: 1 };
+}
+
+/** Hired blades in the battle line — the arms that hold ground. */
+export function mercTroops(m: MercForce): number {
   return troopTotal(m.footmen) + troopTotal(m.archers) + troopTotal(m.cavalry);
 }
 
-/** Bring a possibly-legacy save into the current shape: mercenaries used to be
- *  a flat count and there was a separate `warriors` pool. Legacy mercs become
- *  light-footman sellswords; legacy warriors return to the idle pool (their
- *  gear was never forged). Idempotent — safe on every load. */
+/** Hired blades that need a barracks bed: the line plus the engine crews. */
+export function mercMilitary(m: MercForce): number {
+  return mercTroops(m) + m.engineers;
+}
+
+/** Every sellsword on the payroll, covert agents included — the upkeep bill. */
+export function mercTotal(m: MercForce): number {
+  return mercMilitary(m) + m.spies + m.scouts;
+}
+
+/** Regulars of one merc-able arm — the figure that caps its sellswords. When
+ *  these die, the sellswords above the ratio are paid off and leave. */
+export function regularsOfArm(p: Player, arm: MercArm): number {
+  switch (arm) {
+    case "footman":
+      return troopTotal(p.army.footmen);
+    case "archer":
+      return troopTotal(p.army.archers);
+    case "cavalry":
+      return troopTotal(p.army.cavalry);
+    case "engineer":
+      return p.army.siegeEngineers;
+    case "spy":
+      return p.army.spies;
+    case "scout":
+      return p.army.scouts;
+  }
+}
+
+/** Sellswords currently serving in one arm. */
+export function mercsOfArm(p: Player, arm: MercArm): number {
+  const m = p.army.mercenaries;
+  switch (arm) {
+    case "footman":
+      return troopTotal(m.footmen);
+    case "archer":
+      return troopTotal(m.archers);
+    case "cavalry":
+      return troopTotal(m.cavalry);
+    case "engineer":
+      return m.engineers;
+    case "spy":
+      return m.spies;
+    case "scout":
+      return m.scouts;
+  }
+}
+
+/**
+ * Fill in anything a Player is missing so the engine can assume a complete
+ * shape. The combat rework was shipped with a world wipe, so this no longer
+ * migrates legacy saves — it exists to give bots, fixtures and hand-built test
+ * players sane defaults without every call site listing them. Idempotent.
+ */
 export function normalizePlayer(p: Player): Player {
-  const legacyWarriors = (p as unknown as { warriors?: number }).warriors;
-  if (typeof legacyWarriors === "number") {
-    p.idlePeasants += legacyWarriors;
-    delete (p as unknown as { warriors?: number }).warriors;
-  }
-  const m = p.army.mercenaries as unknown;
-  if (typeof m === "number") {
-    p.army.mercenaries = emptyMercForce();
-    p.army.mercenaries.footmen.light = m;
-  }
-  // Defensive siege engines were added later — old armies have none.
-  if (!p.army.siegeCounters) p.army.siegeCounters = emptySiegeCounters();
-  // "Surrender" was renamed to "Vacation" once battlefield yields arrived and
-  // the two senses started colliding. Carry legacy saves over.
-  const legacy = p as unknown as Record<string, unknown>;
-  if (legacy.surrendered !== undefined) {
-    p.onVacation = Boolean(legacy.surrendered);
-    delete legacy.surrendered;
-  }
-  if (legacy.surrenderTicksUsed !== undefined) {
-    p.vacationTicksUsed = Number(legacy.surrenderTicksUsed) || 0;
-    delete legacy.surrenderTicksUsed;
-  }
-  if (legacy.surrenderQueued !== undefined) {
-    p.vacationQueued = Boolean(legacy.surrenderQueued);
-    delete legacy.surrenderQueued;
-  }
-  if (legacy.surrenderLiftedAtTick !== undefined) {
-    p.vacationEndedAtTick = Number(legacy.surrenderLiftedAtTick);
-    delete legacy.surrenderLiftedAtTick;
-  }
-  // Fields that predate the rename entirely (a save from before either name).
-  p.onVacation = p.onVacation ?? false;
-  p.vacationTicksUsed = p.vacationTicksUsed ?? 0;
+  const a = p.army;
+  if (!a.mercenaries) a.mercenaries = emptyMercForce();
+  a.mercenaries.engineers ??= 0;
+  a.mercenaries.spies ??= 0;
+  a.mercenaries.scouts ??= 0;
+  if (!a.siegeCounters) a.siegeCounters = emptySiegeCounters();
+  if (!a.siegeGear) a.siegeGear = emptySiegeGear();
+  if (!a.siegeGearIntegrity) a.siegeGearIntegrity = fullGearIntegrity();
+  if (!a.siegeCounterIntegrity) a.siegeCounterIntegrity = fullCounterIntegrity();
+  a.experience ??= 0;
+  a.siegeExperience ??= 0;
+  a.spyExperience ??= 0;
+  a.scoutExperience ??= 0;
+  p.spyTurnsAvailable ??= 0;
+  p.onVacation ??= false;
+  p.vacationTicksUsed ??= 0;
   return p;
 }
 
@@ -382,9 +549,32 @@ export function military(p: Player): number {
   );
 }
 
-/** Total population = civilians + regular military. Mercenaries never count. */
+/**
+ * The battle line: regular footmen, archers and cavalry. No mercenaries, no
+ * engineers, no specialists.
+ *
+ * This is the victory floor's measure (ARMY_FLOORS). Mercenaries are excluded
+ * because gold should not buy a throne — sellswords are hired in an afternoon
+ * and disband the moment the regulars commanding them die. Engineers are
+ * excluded because a siege park is a different achievement from an army, and
+ * the crown is meant to ask for the one thing that is genuinely expensive to
+ * build and genuinely painful to lose.
+ */
+export function regularTroops(p: Player): number {
+  return troopTotal(p.army.footmen) + troopTotal(p.army.archers) + troopTotal(p.army.cavalry);
+}
+
+/** Total population = civilians + regular military. Mercenaries never count —
+ *  they are not your people, they are on your payroll. */
 export function totalPopulation(p: Player): number {
   return civilians(p) + military(p);
+}
+
+/** Everyone under arms who makes a farmer feel safe — regulars AND sellswords.
+ *  This is the figure the peasant-scattering floor is measured against: a hired
+ *  blade on the gate reassures just as well as a levyman. */
+export function guardStrength(p: Player): number {
+  return military(p) + mercMilitary(p.army.mercenaries);
 }
 
 export function level(p: Player, id: BuildingId): number {
@@ -414,7 +604,7 @@ export function researchLevel(p: Player, field: ResearchField): number {
 }
 
 /** Total research levels earned across every field — the ordinal that drives the
- *  global progressive research cost (spec/research.md). */
+ *  global progressive research cost (spec/empire.md). */
 export function totalResearchLevels(p: Player): number {
   return Object.values(p.research.levels).reduce((a, b) => a + (b ?? 0), 0);
 }

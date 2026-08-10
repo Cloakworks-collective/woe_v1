@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MS_PER_HOUR, overlordHold, seedWorld, updateCrown } from "./world";
 import { newEmpire, type Player } from "../engine";
-import { HOLD_CLOCKS } from "../constants";
+import { ARMY_FLOORS, HOLD_CLOCKS } from "../constants";
 import type { World } from "./store";
 import type { BuildingId } from "../constants/buildings";
 
@@ -14,9 +14,12 @@ function worldWith(...players: Player[]): World {
   return w;
 }
 
+// Eligible for the solo crown: a real army (ARMY_FLOORS.INDIVIDUAL regulars),
+// never clanned, and the top score by a mile.
 const bigPop = (id: string) => {
   const p = newEmpire({ id, name: id, race: "human" });
-  p.idlePeasants = 30_000; // well above the 10k Grand Overlord floor; also the top score
+  p.idlePeasants = 30_000; // the top score
+  p.army.footmen.light = ARMY_FLOORS.INDIVIDUAL; // clears the army floor
   return p;
 };
 
@@ -38,7 +41,7 @@ describe("§14.3 — event-driven, ms-accurate hold clocks", () => {
 
   it("a crown that flips inside one tick credits each holder for exactly their moment", () => {
     const a = bigPop("A");
-    const b = newEmpire({ id: "B", name: "B", race: "human" });
+    const b = bigPop("B"); // both army-eligible — this is about the clock, not the floor
     b.idlePeasants = 100;
     const w = worldWith(a, b);
 
@@ -61,8 +64,8 @@ describe("§14.3 — event-driven, ms-accurate hold clocks", () => {
     expect(ha.streakMs).toBe(1_000); // streak reset when knocked off and back
   });
 
-  it("freezes the clock while the #1 is below the population floor", () => {
-    // A is #1 by buildings but below the 10k pop floor → no accrual.
+  it("freezes the clock while the #1 is below the ARMY floor", () => {
+    // A is #1 by buildings but fields almost no regulars → no accrual.
     const a = newEmpire({ id: "A", name: "A", race: "human" });
     a.idlePeasants = 100;
     const all: BuildingId[] = [
@@ -84,7 +87,7 @@ describe("§14.3 — event-driven, ms-accurate hold clocks", () => {
 
   it("logs a Chronicle tiding when a ruler's Grand Overlord clock starts and stops", () => {
     const a = bigPop("A");
-    const b = newEmpire({ id: "B", name: "B", race: "human" });
+    const b = bigPop("B"); // also army-eligible, so the clock can pass to them
     b.idlePeasants = 100;
     const w = worldWith(a, b);
 

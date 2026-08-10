@@ -120,7 +120,7 @@ stops mattering.
 outputPerWorker = 50 × buildingLevel × (1 − taxRate × hallPenaltyFactor) × statecraftMult
 ```
 
-Stacks with Statecraft research (`research.md`). Hall-4 at 100% tax leaves
+Stacks with Statecraft research (`empire.md`). Hall-4 at 100% tax leaves
 producers at half output (instead of zero) — a strong war economy, not a
 free one.
 
@@ -139,15 +139,51 @@ Suggested costs (tunable): L1 = 1M gold + 500k each of wood/stone/ore;
 L2 = 2.5M + 1.25M each; L3 = 5M + 2.5M each. A Wonder is a server-visible
 statement: this clan out-produced everyone.
 
+### 4. Clan Beacon (levels 1–3) — the watchfires
+
+A declared war does **not** turn lethal at once. For a grace period after the
+declaration, blows between the two clans still land at **peacetime rates** —
+normal damage, normal loot bands, normal sabotage. The Beacon buys more of it.
+
+| Beacon level | Grace | Cost                                  |
+|--------------|-------|---------------------------------------|
+| *none*       | 6h    | free — every clan gets this           |
+| 1            | 12h   | 400k gold + 200k each wood/stone/ore  |
+| 2            | 18h   | 1M + 500k each                        |
+| 3            | 24h   | 2M + 1M each                          |
+
+**The grace is PER CLAN and protects that clan's own members.** Attacks on you
+stay peaceful until *your* horns have finished sounding, whatever the enemy has
+built — and it is measured from the declaration, so both sides' clocks start
+together.
+
+That makes the Beacon asymmetric on purpose. A clan whose Beacon burns higher
+than its enemy's gets a genuine **one-sided window**: with L3 (24h) against an
+enemy with none (6h), there are **18 hours** in which it strikes at full war
+rates while blows against it still land soft. It is not a shield — it is the
+drum you beat first. The only counters are to build your own, or to not pick
+that fight.
+
+It scores modestly on the ladder (750 × level × integrity, against the Wonder's
+10,000): the Beacon buys tempo, not prestige. It is bombardable like any other
+work, and a cracked Beacon must be mended from the pool.
+
 ## Clan War
 
 - Leadership declares war on another clan (no consent needed — war is war).
+  **Both banners record the war from the same instant** — the defender is at war
+  with its aggressor immediately, not only once the first blow lands.
 - **Battle damage between members of warring clans is +100%** (both
-  directions). Wars are twice as bloody: kills, wall damage, everything
-  lands double.
+  directions) — *once the defender's Beacon grace has expired*. Wars are twice
+  as bloody: kills, wall damage, everything lands double.
+- **Loot goes to 100% of everything unbanked** on raids and castle attacks
+  (also gated by the Beacon grace). Bombard and revenge still carry nothing
+  home — war doubles their damage, not their nature.
+- **Sabotage does double damage** during a hot war, applied after each
+  operation's per-mission cap.
 - **Clan buildings become bombardable:** members of a warring clan can
-  bombard the enemy's Clan Storage, Hall, and Wonder (integrity damage, like
-  any bombard; effects degrade proportionally until repaired from the pool).
+  bombard the enemy's Clan Storage, Hall, Beacon, and Wonder (integrity damage,
+  like any bombard; effects degrade proportionally until repaired from the pool).
   The bombard board (`ClanBombardTargets`) lives on **both** the Clan Hall
   (`/clan`, War Front panel) and the **Clan Ranks** page
   (`/rankings/clans`, War Front panel) — wherever you meet the enemy.
@@ -255,3 +291,108 @@ the pool — deposits first, always.
       is naturally limited — the recipient must have donated first.
 - [x] Leaving/kicked members forfeit deposits — **confirmed, always** (see
       Membership churn above; plus 48h rejoin cooldown, 2 departures/era).
+
+---
+
+## The Royal Charter (premium)
+
+A per-age purchase — **the Royal Charter, $8.99 per age (tunable)** — that
+places **the Steward** in the player's court: an automation officer for
+players who can't check in every ten minutes. The Charter lasts until the
+era turns (every empire begins a new age uncharted, since the world resets).
+All numbers tunable.
+
+---
+
+### The fairness principle (design pillar)
+
+**The Charter buys attention, never power.** Every Steward action is one of
+the same instant commands a free player could issue by hand at that moment —
+same costs, same validation, same capacity gates. Premium grants no stat,
+resource, troop, or ranking advantage of any kind, and never will. What it
+sells is *presence*: the Steward acts on the tick, while the free player
+must be at the keyboard.
+
+This also means the Steward does **not** bend the build-capacity-ahead
+pillar (`empire.md`): arrivals still walk when housing is full, training
+still needs vacant slots. The Steward just issues commands on time; it never
+queues *people* or buffers overflow.
+
+### Purchase — Stripe
+
+- **Stripe Checkout**, one-time payment (`mode: payment`), hosted page.
+  The player is identified by `client_reference_id`; granting sets
+  `player.premium = true` — idempotent, safe to run from both paths:
+  - **Webhook** (`/api/stripe/webhook`, `checkout.session.completed`,
+    signature-verified via `STRIPE_WEBHOOK_SECRET`) — the production path.
+  - **Success-redirect verification** — `/premium?session_id=…` retrieves
+    the session server-side and grants if `payment_status = paid`; lets dev
+    and preview environments work without webhook plumbing.
+- **Test mode:** with Stripe *test* keys, Stripe's own test cards work on
+  the hosted page — `4242 4242 4242 4242` succeeds, `…0002` declines, etc.
+- **No keys at all (zero-setup dev):** `/premium` shows a built-in **test
+  terminal** that emulates Stripe test-mode card behavior (4242… succeeds;
+  0002 declined; 9995 insufficient funds; 0069 expired; 0127 bad CVC).
+  Same dual-mode philosophy as the store (Supabase ↔ JSON file).
+- Env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (see `.env.example`).
+- The flag lives on the Player document. **TBD:** move to the account level
+  so it survives era wipes (today the dev world's players persist anyway).
+
+### The Steward (premium features)
+
+Runs **every tick** for Charter holders, after the economy tick, in this
+order. All caps 10 (tunable).
+
+#### 1. Build queue (≤ 10 entries)
+
+- Queue any building from the Buildings page (or `cmd:queueBuild`).
+- Each tick the Steward tries the **head** entry: if the treasury covers it,
+  it's built instantly (the normal `build` command) and the next entry
+  becomes the head. Multiple entries can complete in one tick.
+- **Strict FIFO — no skipping:** if the head is unaffordable, the queue
+  waits (an unaffordable Citadel blocks the cheap Hearthstead behind it —
+  ordering is the player's strategic statement).
+- Entries for a building already at max level are dropped silently (built
+  by hand in the meantime).
+
+#### 2. Research queue (≤ 10 entries)
+
+- One entry = **one level of one field** (queueing Masonry twice = levels
+  1 and 2). The Steward keeps `research.activeField` pointed at the head
+  entry; when the target level completes, it advances to the next.
+- Banked-RP rules are unchanged (`empire.md`): there is no level gate, so
+  the Steward simply keeps `research.activeField` on the head entry and the
+  scholars bank toward it at the Collegium's speed.
+
+#### 3. Standing orders (≤ 10 active)
+
+"**Once X, do Y**" — evaluated every tick; executed the moment the
+condition holds *and* the action is payable.
+
+| Conditions (X)                       | Actions (Y)                          |
+|--------------------------------------|--------------------------------------|
+| a building reaches a level/count     | train troops (type, tier, count) / spies / scouts / engineers |
+| a research field reaches a level     | raise a building (one-shot)          |
+| gold on hand reaches an amount       | set the tax rate (one-shot)          |
+| a resource stock reaches an amount   | …                                    |
+
+- **Count-based actions fulfill partially**: the Steward does as many as
+  resources/slots allow each tick and keeps the order alive until the full
+  count is reached ("train 1,000 light footmen" trickles in as gold, ore, and
+  Muster Hall slots appear). One-shot actions retry until they succeed once.
+- Orders whose condition is already true fire on the next tick.
+- Queues feed orders within the same pass: a queued Drill Yard completing
+  can trigger "once Drill Yard is built, train 1,000 light footmen" that tick.
+
+#### Chronicle
+
+Every Steward action lands in the player's Chronicle feed, prefixed
+"🪶 The Steward: …" — the morning report of what he did overnight.
+
+### Commands (protocol)
+
+`cmd:queueBuild`, `cmd:queueBuildCancel`, `cmd:queueResearch`,
+`cmd:queueResearchCancel`, `cmd:orderAdd`, `cmd:orderRemove` — all rejected
+without the Charter. UI: Queue buttons on Buildings/Collegium pages; the
+Steward page (`/steward`) manages queues and standing orders; `/premium`
+sells and explains the Charter.

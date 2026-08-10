@@ -133,9 +133,53 @@ const CACHE_TTL_MS = 10_000;
 const g = globalThis as unknown as {
   __woeWorld?: World;
   __woeWorldLoadedAt?: number;
-  __woeWorldVersion?: number;
+  __woeWorldVersions?: WeakMap<World, number>;
   __woeSb?: SupabaseClient;
 };
+
+/**
+ * The store version each in-memory World was loaded at — the basis of the
+ * compare-and-swap in `saveWorld`.
+ *
+ * Keyed by the world OBJECT, deliberately, and not held in a module global.
+ * A global is read at save time, so it belongs to whichever load ran most
+ * recently rather than to the world you are actually holding. Under Fluid
+ * Compute two concurrent requests share one Node instance, and that mismatch
+ * let a save pass a compare-and-swap it should have failed. Tagging the object
+ * captures the version at load, where it belongs.
+ */
+const versions = (g.__woeWorldVersions ??= new WeakMap<World, number>());
+
+/** The version `world` was loaded at, or undefined if it never came from the
+ *  store (a fresh seed) — which is the signal to INSERT rather than update. */
+export function worldVersion(world: World): number | undefined {
+  return versions.get(world);
+}
+
+/** Carry a version across to a replacement world. For callers that build a new
+ *  world from an old one (`eraReset`) and mean to write it over the row they
+ *  loaded, rather than to insert a second one. */
+export function carryWorldVersion(from: World, to: World): void {
+  const v = versions.get(from);
+  if (v === undefined) versions.delete(to);
+  else versions.set(to, v);
+}
+
+/**
+ * A private, correctly-versioned copy — the only safe thing to mutate.
+ *
+ * `loadWorld` hands back the SHARED cached object, so without this two
+ * concurrent commands mutate the same world: the first serializes the second's
+ * half-finished changes into its own write, the second then loses the CAS,
+ * reloads a world that already contains its effects, and applies its command a
+ * second time. Gold spent twice, a battle resolved twice. `commitWithRetry`
+ * promises `apply` a pristine world to replay onto; this is what keeps it.
+ */
+export function cloneWorld(world: World): World {
+  const copy = structuredClone(world);
+  carryWorldVersion(world, copy);
+  return copy;
+}
 
 function supabase(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -173,11 +217,12 @@ export class WorldConflictError extends Error {
 }
 
 /** Drop the in-process world cache so the next load re-fetches from the store
- *  (and re-reads the authoritative version for the next compare-and-swap). */
+ *  (and re-reads the authoritative version for the next compare-and-swap).
+ *  Worlds already handed out keep their own version tags — they are still an
+ *  honest record of what those objects were loaded at. */
 export function invalidateWorldCache(): void {
   g.__woeWorld = undefined;
   g.__woeWorldLoadedAt = undefined;
-  g.__woeWorldVersion = undefined;
 }
 
 /** Postgres unique-violation (racing INSERT of the same world row). */
@@ -197,15 +242,12 @@ export async function loadWorld(opts: { forceReload?: boolean } = {}): Promise<W
       .eq("id", WORLD_ROW_ID)
       .maybeSingle();
     if (error) throw new Error(`Supabase load failed: ${error.message}`);
-    if (!data) {
-      // No row yet — clear any stale version so the next save INSERTs.
-      g.__woeWorldVersion = undefined;
-      return null;
-    }
-    g.__woeWorld = data.doc as World;
-    g.__woeWorldVersion = data.version as number;
+    if (!data) return null; // no row yet — an untagged world will INSERT
+    const world = data.doc as World;
+    versions.set(world, data.version as number);
+    g.__woeWorld = world;
     g.__woeWorldLoadedAt = Date.now();
-    return g.__woeWorld;
+    return world;
   }
 
   if (!opts.forceReload && g.__woeWorld) return g.__woeWorld;
@@ -220,11 +262,15 @@ export async function loadWorld(opts: { forceReload?: boolean } = {}): Promise<W
 
 /**
  * Persist the world. On Supabase this is a **compare-and-swap**: the write only
- * lands if the row's version still equals the one we loaded (`__woeWorldVersion`),
+ * lands if the row's version still equals the one THIS world was loaded at,
  * bumping it by one. If another writer advanced it first, we throw
  * `WorldConflictError` instead of clobbering their write (§14.1). The in-process
  * cache is updated only on success, so a conflicting save never poisons it.
  * The file store (single-process local dev) has no such race and writes plainly.
+ *
+ * The expected version is read off the world itself (see `worldVersion`) rather
+ * than from a module global, so a save is always compared against the state its
+ * caller actually saw.
  */
 export async function saveWorld(world: World): Promise<void> {
   // §14.2 safety net: when the single-writer service owns the world, the store
@@ -239,7 +285,7 @@ export async function saveWorld(world: World): Promise<void> {
   }
   const sb = supabase();
   if (sb) {
-    const expected = g.__woeWorldVersion; // version we read (undefined = fresh row)
+    const expected = worldVersion(world); // version THIS world was loaded at
     const nextVersion = (expected ?? 0) + 1;
     const stamp = new Date().toISOString();
 
@@ -268,8 +314,8 @@ export async function saveWorld(world: World): Promise<void> {
       }
     }
 
+    versions.set(world, nextVersion);
     g.__woeWorld = world;
-    g.__woeWorldVersion = nextVersion;
     g.__woeWorldLoadedAt = Date.now();
     return;
   }

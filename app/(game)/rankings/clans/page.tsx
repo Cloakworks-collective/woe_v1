@@ -4,8 +4,8 @@ import { Flash } from "@/components/Flash";
 import { LearnLink } from "@/components/LearnLink";
 import { Pager } from "@/components/Pager";
 import { Panel } from "@/components/Panel";
-import { ACTION_INFO, HOLD_CLOCKS, POPULATION_FLOORS } from "@/lib/constants";
-import { memberCap, totalPopulation } from "@/lib/engine";
+import { ACTION_INFO, ARMY_FLOORS, HOLD_CLOCKS } from "@/lib/constants";
+import { memberCap, regularTroops } from "@/lib/engine";
 import { paginate } from "@/lib/paginate";
 import { getGame } from "@/lib/server/session";
 import { MS_PER_HOUR, clanHold, clanScore } from "@/lib/server/world";
@@ -32,8 +32,10 @@ export default async function ClanRanksPage({
     .map((c) => ({
       c,
       score: clanScore(world, c),
-      population: c.members.reduce(
-        (sum, id) => sum + (world.players[id] ? totalPopulation(world.players[id]) : 0),
+      // Regulars, not population: the clan victory clock keys off the army now
+      // (ARMY_FLOORS.CLAN), so the ladder shows the number that actually gates it.
+      regulars: c.members.reduce(
+        (sum, id) => sum + (world.players[id] ? regularTroops(world.players[id]) : 0),
         0,
       ),
     }))
@@ -77,13 +79,13 @@ export default async function ClanRanksPage({
                   <th className="num">Rank</th>
                   <th>Clan</th>
                   <th className="num">Members</th>
-                  <th className="num">Population</th>
+                  <th className="num">Regulars</th>
                   <th>War record</th>
                   <th className="num">Score</th>
                 </tr>
               </thead>
               <tbody>
-                {paged.shown.map(({ c, score, population }, i) => {
+                {paged.shown.map(({ c, score, regulars }, i) => {
                   const rank = paged.start + i + 1;
                   return (
                     <tr key={c.id} style={me.clanId === c.id ? { fontWeight: 700 } : undefined}>
@@ -108,7 +110,7 @@ export default async function ClanRanksPage({
                       <td className="num">
                         {c.members.length}/{memberCap(c)}
                       </td>
-                      <td className="num">{fmt(population)}</td>
+                      <td className="num">{fmt(regulars)}</td>
                       <td>
                         <span style={{ color: "var(--pos)" }}>{c.warRecord.wins} wins</span>
                         <span style={{ color: "var(--ink-soft)" }}> · </span>
@@ -126,8 +128,8 @@ export default async function ClanRanksPage({
                 👑 {top.c.name} leads the clans — {(cum / MS_PER_HOUR).toFixed(1)}h of the{" "}
                 {HOLD_CLOCKS.CUMULATIVE_HOURS}h cumulative, {(streak / MS_PER_HOUR).toFixed(1)}h
                 of the {HOLD_CLOCKS.STREAK_HOURS}h streak
-                {top.population < POPULATION_FLOORS.CLAN
-                  ? ` (below the ${fmt(POPULATION_FLOORS.CLAN)} population floor — clocks frozen)`
+                {top.regulars < ARMY_FLOORS.CLAN
+                  ? ` (below the ${fmt(ARMY_FLOORS.CLAN)} regular floor — clocks frozen)`
                   : ""}
                 . ⚔ marks a clan at war.
               </p>

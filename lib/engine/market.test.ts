@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { buyFromMarket, cancelOrder, caravanDeliveryTurns, marketPrice, postOrder } from "./marketOps";
+import { BLACK_MARKET, MARKET_PRICE_MAX, MARKET_PRICE_MIN } from "../constants";
+import {
+  blackMarketBuy,
+  blackMarketSell,
+  buyFromMarket,
+  cancelOrder,
+  caravanDeliveryTurns,
+  marketPrice,
+  postOrder,
+} from "./marketOps";
 import { newEmpire } from "./newEmpire";
 import type { MarketOrder, Player } from "./types";
 
@@ -92,11 +101,50 @@ describe("the Grand Bazaar", () => {
     expect(fills[0].amount).toBe(500);
   });
 
-  it("cancel returns the goods and frees the merchant", () => {
+  it("recall frees the merchant but loses half the load on the road", () => {
     const s = seller("s1");
     const { seller: s2, order } = postOrder(s, [], "wood", 800, 3, "o1", 10);
-    const { seller: s3, orders } = cancelOrder(s2, [order], "o1");
-    expect(s3.resources.wood).toBe(5000);
+    const { seller: s3, orders, returned, lost } = cancelOrder(s2, [order], "o1");
+    // 800 left with the caravan; only 400 come home. Without the penalty the
+    // Bazaar would double as a raid-proof warehouse you could empty on demand.
+    expect(returned).toBe(400);
+    expect(lost).toBe(400);
+    expect(s3.resources.wood).toBe(5000 - 800 + 400);
     expect(orders).toHaveLength(0);
+  });
+
+  it("asks are confined to the band inside the Black Market's spread", () => {
+    const s = seller("s1");
+    expect(() => postOrder(s, [], "wood", 100, 1, "o1", 10)).toThrowError(/between/);
+    expect(() => postOrder(s, [], "wood", 100, 20, "o2", 10)).toThrowError(/between/);
+    expect(postOrder(s, [], "wood", 100, MARKET_PRICE_MIN, "o3", 10).order.pricePerUnit).toBe(2);
+    expect(postOrder(s, [], "wood", 100, MARKET_PRICE_MAX, "o4", 10).order.pricePerUnit).toBe(19);
+  });
+
+  it("the fence settles instantly, and always worse than the Bazaar", () => {
+    const p = newEmpire({ id: "x", name: "x", race: "human" });
+    p.gold = 10_000;
+    p.resources.ore = 500;
+
+    const sold = blackMarketSell(p, "ore", 100);
+    expect(sold.gold).toBe(100 * BLACK_MARKET.SELL_PRICE);
+    expect(sold.player.resources.ore).toBe(400);
+    expect(sold.player.gold).toBe(10_100);
+
+    const bought = blackMarketBuy(sold.player, "food", 50);
+    expect(bought.cost).toBe(50 * BLACK_MARKET.BUY_PRICE);
+    expect(bought.player.resources.food).toBe(1000 + 50);
+
+    // The spread is the safety argument: a round trip through the fence always
+    // loses money, so there is no arbitrage loop to farm.
+    expect(BLACK_MARKET.SELL_PRICE).toBeLessThan(MARKET_PRICE_MIN);
+    expect(BLACK_MARKET.BUY_PRICE).toBeGreaterThan(MARKET_PRICE_MAX);
+  });
+
+  it("the fence refuses what you cannot cover", () => {
+    const p = newEmpire({ id: "x", name: "x", race: "human" });
+    p.gold = 10;
+    expect(() => blackMarketBuy(p, "food", 1000)).toThrowError(/gold/i);
+    expect(() => blackMarketSell(p, "ore", 999_999)).toThrowError(/Not enough/i);
   });
 });

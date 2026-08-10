@@ -1,0 +1,184 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// THE COVERT BALANCE FILE — spies, scouts, and the shadow war.
+//
+// THE MODEL
+// ────────────────────────────────────────────────────────────────────────────
+// Espionage is not a separate system. It runs the SAME strength model as
+// combat — Power, Health, an additive bonus pool, multiplicative delivery:
+//
+//     spyPower   = spies  × basePower × (1 + Σ bonuses) × delivery
+//     scoutPower = scouts × basePower × (1 + Σ bonuses) × delivery
+//     intercepted = f(scoutPower vs spyPower)
+//     survivors  = sent − intercepted        ← survivors do the damage
+//
+// TWO ARMS, ONE BUDGET
+//   · SCOUTS are the whole intelligence arm, plus the ONLY defence against
+//     spies. They work in the open, are never intercepted, and never hunt —
+//     they simply stand between an incoming spy and your storehouses.
+//   · SPIES are the whole destruction arm. They go over the wall. They can be
+//     caught, and being caught names you.
+//
+// Both draw from ONE pool of spy turns, so every turn spent scouting is a turn
+// not spent sabotaging. And sizing a spy raid means knowing how many scouts
+// stand against it — which costs a scout mission first. The two arms feed and
+// starve each other.
+//
+// THE LOOP: spies Incite Unrest → scouts Quell it. Spies Assassinate Scouts →
+// which strips the defence that stops spies. Neither arm is optional.
+// ═══════════════════════════════════════════════════════════════════════════
+
+import type { Band } from "./battleBalance";
+
+// ─── 1 · THE SPY TURN ECONOMY ───────────────────────────────────────────────
+// A second, scarcer clock. Twice as hard to come by as action turns and capped
+// far lower, so a covert campaign is something you plan rather than spam.
+
+export const SPY_TURNS = {
+  /** Half the action-turn rate: 144/day against the army's 288. */
+  PER_GAME_TURN: 1,
+  START: 100,
+  /** About a day and a half of banking. A single deep operation can spend it
+   *  all — which is the point. */
+  CAP: 200,
+};
+
+/** Cost is DERIVED from the size of the operation, never set by hand:
+ *
+ *      turnCost = spiesSent × TURNS_PER_SPY[op]
+ *
+ *  so an under-funded infiltration cannot happen — you either afford the
+ *  agents you are sending or you send fewer. The interesting decision is how
+ *  many to commit against the scouts you believe are waiting, not how much to
+ *  gamble on shorting the budget. */
+export const COVERT_OPS = {
+  // ── SCOUT operations — overt, never intercepted, no risk of loss ──────────
+  survey_coffers: { arm: "scout", turnsPerAgent: 0.1, detection: 0, field: "pathfinding", level: 1, name: "Survey the Coffers", desc: "Exact gold and resources, and what sits outside the storehouses" },
+  map_walls: { arm: "scout", turnsPerAgent: 0.15, detection: 0, field: "pathfinding", level: 1, name: "Map the Walls", desc: "Wall level, integrity, and every defensive counter they have crewed" },
+  map_army: { arm: "scout", turnsPerAgent: 0.15, detection: 0, field: "pathfinding", level: 2, name: "Map the Army", desc: "Army composition by arm and tier, mercenaries, stamina" },
+  map_siege: { arm: "scout", turnsPerAgent: 0.15, detection: 0, field: "pathfinding", level: 3, name: "Map the Siege Train", desc: "Their offensive engines — the one thing the ladder never shows" },
+  map_research: { arm: "scout", turnsPerAgent: 0.25, detection: 0, field: "pathfinding", level: 4, name: "Map the Collegium", desc: "Every research field and level they hold" },
+  quell_unrest: { arm: "scout", turnsPerAgent: 0.3, detection: 0, field: "pathfinding", level: 3, name: "Quell the Unrest", desc: "Put down agitators in your own streets — ends Incite Unrest early" },
+  quell_doubt: { arm: "scout", turnsPerAgent: 0.3, detection: 0, field: "pathfinding", level: 5, name: "Quell the Doubt", desc: "Root out the whisperers slowing your scholars — ends Sow Doubt early" },
+
+  // ── SPY operations — covert, interceptable, named if caught ───────────────
+  torch_stores: { arm: "spy", turnsPerAgent: 0.4, detection: 1.0, field: "tradecraft", level: 1, name: "Torch the Stores", desc: "Burn what sits outside their storehouses" },
+  steal_resources: { arm: "spy", turnsPerAgent: 0.4, detection: 1.0, field: "tradecraft", level: 2, name: "Steal the Stores", desc: "Carry off what sits outside — less than fire destroys, but it is yours" },
+  sabotage_siege: { arm: "spy", turnsPerAgent: 0.5, detection: 1.2, field: "tradecraft", level: 2, name: "Sabotage the Engines", desc: "Wreck siege engines in the yard, offensive and defensive alike" },
+  sabotage_walls: { arm: "spy", turnsPerAgent: 0.5, detection: 1.2, field: "tradecraft", level: 3, name: "Undermine the Walls", desc: "Weaken the masonry — a scratch beside a bombard, but it costs no engines" },
+  incite_unrest: { arm: "spy", turnsPerAgent: 0.6, detection: 1.4, field: "tradecraft", level: 3, name: "Incite Unrest", desc: "Agitators in the streets: taxes, production and growth all suffer" },
+  sow_doubt: { arm: "spy", turnsPerAgent: 0.6, detection: 1.4, field: "tradecraft", level: 4, name: "Sow Research Doubt", desc: "Whisperers among the scholars — research slows to a crawl" },
+  assassinate_scouts: { arm: "spy", turnsPerAgent: 0.8, detection: 1.8, field: "tradecraft", level: 5, name: "Assassinate the Scouts", desc: "Kill their rangers and blind them to everything. Highly risky" },
+  steal_research: { arm: "spy", turnsPerAgent: 1.0, detection: 2.0, field: "tradecraft", level: 5, name: "Steal the Learning", desc: "Copy a research level for yourself — they lose nothing but the secret" },
+} as const;
+
+export type CovertOpId = keyof typeof COVERT_OPS;
+
+// ─── 2 · AGENT POWER & HEALTH ───────────────────────────────────────────────
+// Same shared scale as everything else in the game.
+
+export const AGENT_POWER = {
+  spy: { power: 10, health: 10 },
+  scout: { power: 10, health: 10 },
+};
+
+/** Building levels feed the additive pool, like research does. */
+export const GUILD_BONUS_PER_LEVEL = 0.1; // frac/level — Shadow Guild, spies
+export const LODGE_BONUS_PER_LEVEL = 0.1; // frac/level — Rangers Lodge, scouts
+
+/** Delivery: ±this on covert resolution, rolled per mission. Twice the battle
+ *  swing — the shadow war is a chancier business than a shield wall. */
+export const COVERT_LUCK_SWING = 0.2; // frac
+
+// ─── 3 · INTERCEPTION ───────────────────────────────────────────────────────
+// Scouts do not hunt. They stand watch, and what they catch is decided by
+// weight of numbers on both sides. NO SCOUTS MEANS NO DEFENCE — a realm
+// without rangers is robbed at will.
+
+export const INTERCEPTION = {
+  /** Fraction intercepted at parity of power, before the op's detection
+   *  multiplier. Scales with the strength ratio and is capped below 1 so a
+   *  determined infiltration always lands something. */
+  AT_PARITY: 0.4, // frac
+  MAX: 0.9, // frac
+  /** Any interception at all reveals the hand behind it and opens the revenge
+   *  window. A clean run stays anonymous — that is the whole prize. */
+  NAMES_ATTACKER: true,
+  /** Within the caught, sellswords are taken first — a regular agent is the
+   *  one lost only this often while merc agents remain. */
+  REGULAR_SHARE: 0.25, // frac
+};
+
+// ─── 4 · RECRUITMENT CAPS ───────────────────────────────────────────────────
+
+export const COVERT_CAPS = {
+  /** Each arm may not exceed this share of total population… */
+  PER_ARM: 0.05, // frac
+  /** …and together they may not exceed this. */
+  COMBINED: 0.1, // frac
+};
+
+// ─── 5 · MISSION EFFECTS ────────────────────────────────────────────────────
+// All scale with the AGENTS WHO GOT THROUGH, never with the number sent.
+
+/**
+ * CLAN WAR multiplies what a successful operation does — applied to the FINAL
+ * magnitude, after each op's per-mission cap, so it bites even where the cap
+ * already binds. Doubling agent counts instead would do nothing at the cap.
+ *
+ * Duration ops (Incite Unrest, Sow Doubt) double their duration rather than
+ * their size, which is the only sensible reading of "twice the damage" for an
+ * effect measured in days.
+ *
+ * It applies to SABOTAGE only. Intelligence-gathering is unaffected — a map of
+ * their army is a map of their army whether or not a war is on.
+ */
+export const COVERT_WAR_MULTIPLIER = 2;
+
+export const COVERT_EFFECTS = {
+  /** Siege engines wrecked per surviving spy. */
+  SABOTAGE_PER_SPY: 0.5,
+  /** Wall health destroyed per surviving spy, as a fraction of the wall's
+   *  full health. Deliberately tiny: undermining must never compete with a
+   *  trebuchet, or the entire siege economy is pointless. */
+  UNDERMINE_PER_SPY: 0.002, // frac of wall HP
+  UNDERMINE_CAP: 0.1, // frac per mission
+  /** Goods burned per surviving spy, and the cap per mission. */
+  TORCH_PCT_PER_SPY: 0.01,
+  TORCH_CAP: 0.25,
+  /** Theft takes less than fire destroys — it has to be carried out. */
+  STEAL_PCT_PER_SPY: 0.006,
+  STEAL_CAP: 0.15,
+  /** Regular scouts killed per surviving spy. Excess merc scouts are paid off
+   *  afterwards to restore the cap ratio, and the victim's scout veterancy
+   *  falls with the dead. */
+  ASSASSINATE_PER_SPY: 0.3,
+  /** Research theft COPIES a level — the victim keeps theirs and loses only
+   *  the secret. Capped per era so it can never replace doing the work. */
+  STEAL_RESEARCH_LEVELS_PER_ERA: 5,
+};
+
+/** Incite Unrest — taxes, production and growth all suffer until it lapses or
+ *  a scout quells it. */
+export const UNREST = { HOURS: 24, TAX_PENALTY: 0.25, PRODUCTION_PENALTY: 0.25 };
+
+/** Sow Research Doubt — the scholars lose their thread. Quellable by scouts,
+ *  which is the only reason a research empire keeps rangers at all. */
+export const RESEARCH_DOUBT = { HOURS: 24, RESEARCH_PENALTY: 0.5 };
+
+/** Scout recon is fuzzy at first; Pathfinding sharpens it toward the truth. */
+export const RECON_FUZZ = 0.2; // frac
+
+// ─── 6 · COVERT EXPERIENCE ──────────────────────────────────────────────────
+// Spies and scouts each keep their own veterancy, on the same terms as troops:
+// earned by working, lost with the REGULARS who die or are dismissed. Hired
+// agents neither earn it nor cost it.
+
+export const COVERT_XP = {
+  MAX: 100,
+  /** Per successful mission, scaled by how much of the op was accomplished. */
+  GAIN_PER_MISSION: 4,
+  /** Standing watch teaches too — awarded when scouts intercept anyone. */
+  GAIN_PER_INTERCEPTION: 3,
+  LOSS_ON_DEATH: 1.0, // ×
+  LOSS_ON_DISCHARGE: 0.5, // ×
+};

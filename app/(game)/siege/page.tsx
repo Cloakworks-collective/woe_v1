@@ -11,7 +11,10 @@ import { ResIcon, type ResKind } from "@/components/ResIcon";
 import {
   COUNTER_TYPES,
   SIEGE_COUNTERS,
+  SIEGE_DESTROYED_BELOW,
   SIEGE_GEAR,
+  SIEGE_REPAIR_COST_FACTOR,
+  SIEGE_SALVAGE_VALUE,
   TRAINING_COSTS,
   TROOPS_PER_MUSTER_HALL,
   WAR_FOUNDRY_LADDER,
@@ -28,6 +31,7 @@ const GEAR_ART: Record<string, string> = {
   rams: "siege/rams",
   ballistae: "siege/ballistae",
   trebuchets: "siege/trebuchets",
+  siege_towers: "siege/siege_tower",
 };
 
 // The defensive engines, each with its art (keyed by counter type).
@@ -36,6 +40,7 @@ const COUNTER_ART: Record<CounterType, string> = {
   forkpoles: "siege/fork_poles",
   boiling_oil: "siege/boiling_oil",
   hoardings: "siege/hoardings",
+  fire_pots: "siege/fire_pots",
   counter_engine: "siege/counter_engine",
 };
 // Display order lightest → heaviest (COUNTER_TYPES is heaviest-first for crewing).
@@ -46,11 +51,12 @@ const WEAPON_NAME: Record<string, string> = Object.fromEntries(
 );
 
 const ENGINE_TIP: Record<string, string> = {
-  ropes: "Escalade tool: each crewed team lets 10 attackers bypass the wall bonus. Deals no damage. Countered by Bill-hooks.",
-  ladders: "Mass escalade: each team lets 25 attackers ignore the wall. Countered by Fork Poles.",
-  rams: "Batters the gate — 3% wall integrity per round. Countered by Boiling Oil.",
-  ballistae: "Bolt fire: 40 anti-personnel damage per round, spread across the enemy. Countered by Hoardings.",
-  trebuchets: "The wall-breaker: 60 troop damage + 5% wall per round — and the only engine that can bombard. Countered by the enemy's Counter-Engine.",
+  ropes: "Escalade: each crewed team puts 10 attackers onto a lesser wall (+30% instead of +50%). Deals no damage. Bill-hooks answer it.",
+  ladders: "Escalade: each team carries 30 attackers over at +20%. Fork Poles answer it.",
+  siege_towers: "Escalade at its best: 100 troops arrive in formation against a wall worth only +10%. Slow, dear, and made of timber — Fire Pots answer it.",
+  rams: "THE wall-breaker. All of its power lands on masonry and none of it anywhere else. Needs 20 hands to push, who take no part in the assault until the gate gives — and Boiling Oil is poured on them where they stand.",
+  ballistae: "Anti-personnel bolt fire, spread across the enemy line. Touches neither wall nor building. Hoardings answer it.",
+  trebuchets: "The only engine that reaches walls, buildings AND other engines — but an inaccurate one: just 30% of its power finds masonry (60% with Siege Accuracy). The bombard engine. The Counter-Engine answers it, and shoots back.",
 };
 
 // N engineer sprites = how many crew a single engine.
@@ -139,6 +145,24 @@ export default async function SiegePage({
 
   // Engineers busy crewing gear vs idle; engines built vs actually manned.
   const gearKeys = Object.keys(SIEGE_GEAR) as (keyof typeof SIEGE_GEAR)[];
+  // Engines you actually own, with how battered they are. Integrity is tracked
+  // per TYPE, not per engine — a park of trebuchets wears down together.
+  const ownedGear = gearKeys
+    .filter((t) => p.army.siegeGear[t] > 0)
+    .map((t) => ({
+      key: t as string,
+      name: WAR_FOUNDRY_LADDER.find((s) => s.gearKey === t)?.name ?? t,
+      count: p.army.siegeGear[t],
+      integrity: p.army.siegeGearIntegrity[t] ?? 1,
+      spec: SIEGE_GEAR[t] as { gold: number; wood: number; ore: number },
+    }));
+  const ownedCounters = COUNTER_TYPES.filter((ct) => p.army.siegeCounters[ct] > 0).map((ct) => ({
+    key: ct as string,
+    name: SIEGE_COUNTERS[ct].name,
+    count: p.army.siegeCounters[ct],
+    integrity: p.army.siegeCounterIntegrity[ct] ?? 1,
+    spec: SIEGE_COUNTERS[ct] as unknown as { gold: number; wood: number; ore: number },
+  }));
   const engineersBusy = gearKeys.reduce((s, t) => s + crewed[t] * SIEGE_GEAR[t].crew, 0);
   const engineersIdle = Math.max(0, p.army.siegeEngineers - engineersBusy);
   const enginesBuilt = gearKeys.reduce((s, t) => s + p.army.siegeGear[t], 0);
@@ -439,6 +463,105 @@ export default async function SiegePage({
           )}
         </Panel>
       )}
+
+      {/* ── The engine yard ────────────────────────────────────────────────
+          Engines are no longer bought once and forgotten. Counter fire wears
+          them down, a worn engine throws weaker, and past the wreck line it is
+          gone for good. Mending costs a third of building anew — which is why a
+          long bombardment is a running expense, and why a ruler who is at the
+          keyboard between volleys can hold out against one who is not. */}
+      {(ownedGear.length > 0 || ownedCounters.length > 0) && (
+        <Panel
+          title="🔧 The Engine Yard — repair & salvage"
+          info="Battered engines fire proportionally weaker, and below 20% health they are wreckage. Mending costs a third of building anew; breaking one up returns half."
+          guide="/guide#battle"
+        >
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Engine</th>
+                <th>Owned</th>
+                <th>Condition</th>
+                <th>Mend</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...ownedGear, ...ownedCounters].map((row) => {
+                const worn = row.integrity < 1;
+                const pct = Math.round(row.integrity * 100);
+                const tone =
+                  row.integrity >= 0.85 ? "on" : row.integrity >= SIEGE_DESTROYED_BELOW + 0.15 ? "" : "off";
+                const mend = {
+                  gold: Math.round(row.spec.gold * row.count * (1 - row.integrity) * SIEGE_REPAIR_COST_FACTOR),
+                  wood: Math.round(row.spec.wood * row.count * (1 - row.integrity) * SIEGE_REPAIR_COST_FACTOR),
+                  ore: Math.round(row.spec.ore * row.count * (1 - row.integrity) * SIEGE_REPAIR_COST_FACTOR),
+                };
+                return (
+                  <tr key={row.key}>
+                    <td>{row.name}</td>
+                    <td>{row.count}</td>
+                    <td>
+                      <span className={`siege-chip ${tone}`}>{pct}%</span>
+                      {worn && pct <= 35 && (
+                        <span style={{ marginLeft: 6, fontSize: 12.5, opacity: 0.8 }}>
+                          near the wreck line
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <CmdForm name="repairSiege" path={path}>
+                        <input type="hidden" name="type" value={row.key} />
+                        <ReqTip
+                          heading={`Mend ${row.name}`}
+                          body="Restores the whole type to full condition. Cost scales with the damage taken."
+                          rows={[
+                            { icon: "gold" as ResKind, label: "Gold", need: mend.gold, have: p.gold },
+                            { icon: "wood" as ResKind, label: "Wood", need: mend.wood, have: p.resources.wood },
+                            { icon: "ore" as ResKind, label: "Ore", need: mend.ore, have: p.resources.ore },
+                          ]}
+                          disabledReason={!worn ? "These are sound — nothing to mend." : undefined}
+                        >
+                          <Btn className="btn" disabled={!worn}>
+                            Mend
+                          </Btn>
+                        </ReqTip>
+                      </CmdForm>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p style={{ fontSize: 13.5, color: "var(--ink-soft)", margin: "10px 0 0" }}>
+            Need the gold more than the engines? The{" "}
+            <a href="/blackmarket">Black Market</a> breaks them up for{" "}
+            {Math.round(SIEGE_SALVAGE_VALUE * 100)}% of the build cost — mend them first, since a
+            wreck salvages for less.
+          </p>
+        </Panel>
+      )}
+
+      {/* ── Standing orders ─────────────────────────────────────────────────
+          Cavalry gain nothing from a parapet and everything from open ground,
+          so this is a genuine choice of shape rather than a switch to leave on:
+          a cavalry-heavy defender wants to ride out, a footman-heavy one almost
+          certainly does not. */}
+      <Panel
+        title="🐎 Standing orders — the sortie"
+        info="When besieged, do your riders hold the wall or charge the siege lines? Cavalry lead, and each brings three footmen behind. You keep the wall's protection either way — but the attacker's screen can hold you off before you reach their engines."
+        guide="/guide#battle"
+      >
+        <p style={{ fontSize: 14, marginBottom: 8 }}>
+          Your captains are ordered to{" "}
+          <b>{p.army.sortieEnabled ? "ride out at the siege lines" : "hold the wall"}</b>.
+        </p>
+        <CmdForm name="setSortie" path={path}>
+          <input type="hidden" name="enabled" value={p.army.sortieEnabled ? "false" : "true"} />
+          <Btn className="btn">
+            {p.army.sortieEnabled ? "Hold the wall instead" : "Order the sortie"}
+          </Btn>
+        </CmdForm>
+      </Panel>
     </>
   );
 }

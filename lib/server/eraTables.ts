@@ -1,5 +1,5 @@
 // The War Records of the CURRENT age, assembled into the same leaderboards the
-// sealed Elder Ages show (spec/victory.md). Two sources feed them:
+// sealed Elder Ages show (spec/overview.md). Two sources feed them:
 //   • flow tallies accumulated as deeds happen (EraRecords.feats + the battle
 //     lists) — plunder, kills, sabotage, sales, largesse;
 //   • a snapshot of the live empires at build time — the ladders, the mightiest

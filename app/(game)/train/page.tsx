@@ -9,7 +9,7 @@ import { LearnLink } from "@/components/LearnLink";
 import { Info } from "@/components/Info";
 import { Panel } from "@/components/Panel";
 import { ResIcon } from "@/components/ResIcon";
-import { GUILD_EFFECT_PER_LEVEL, workerOutputAtLevel, TRAINING_COSTS, UNIT_GUIDE, UNIT_INFO, catchableOpLevel } from "@/lib/constants";
+import { GUILD_BONUS_PER_LEVEL, workerOutputAtLevel, TRAINING_COSTS, UNIT_GUIDE, UNIT_INFO } from "@/lib/constants";
 import { caravanDeliveryTurns, level, type Player, type WorkerRole } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
@@ -116,7 +116,7 @@ const MUSTER = (p: Player) =>
       cmd: "trainSpies",
       current: p.army.spies,
       cost: TRAINING_COSTS.spy.gold,
-      capacity: `unlimited — Shadow Guild L${level(p, "shadow_guild")} makes each mission +${Math.round(level(p, "shadow_guild") * GUILD_EFFECT_PER_LEVEL * 100)}% effective`,
+      capacity: `unlimited — Shadow Guild L${level(p, "shadow_guild")} makes each mission +${Math.round(level(p, "shadow_guild") * GUILD_BONUS_PER_LEVEL * 100)}% effective`,
     },
     {
       unit: "scout" as const,
@@ -124,7 +124,7 @@ const MUSTER = (p: Player) =>
       cmd: "trainScouts",
       current: p.army.scouts,
       cost: TRAINING_COSTS.scout.gold,
-      capacity: `unlimited — Ranger's Lodge L${level(p, "rangers_lodge")} catches spy ops up to level ${catchableOpLevel(level(p, "rangers_lodge")) || 0}`,
+      capacity: `unlimited — Ranger's Lodge L${level(p, "rangers_lodge")} catches spy ops up to level ${level(p, "rangers_lodge")}`,
     },
   ];
 

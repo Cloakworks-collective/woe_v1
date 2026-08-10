@@ -3,9 +3,9 @@ import { compileExpr, evalCurve, type Curve } from "./curves";
 import {
   buildingCostMultiplier,
   caravanDeliveryTurnsAt,
-  growthPerDayAt,
   storageShelterAtLevel,
   wallBonusAtLevel,
+  wallHealthAtLevel,
   wallsScoreAtLevel,
   workerOutputAtLevel,
 } from "./derived";
@@ -70,12 +70,6 @@ describe("the expression parser", () => {
 });
 
 describe("the default curves reproduce the classic formulas exactly", () => {
-  it("growth: 1/day at 0 levels → 100/day at 130", () => {
-    expect(growthPerDayAt(0)).toBe(1);
-    expect(growthPerDayAt(130)).toBe(100);
-    expect(growthPerDayAt(65)).toBeCloseTo(50.5);
-  });
-
   it("building cost multiplier: 1.5^(level−1)", () => {
     expect(buildingCostMultiplier(1)).toBe(1);
     expect(buildingCostMultiplier(4)).toBeCloseTo(1.5 ** 3);
@@ -90,7 +84,9 @@ describe("the default curves reproduce the classic formulas exactly", () => {
   it("worker output, wall bonus, walls score, storage, delivery", () => {
     expect(workerOutputAtLevel(1)).toBe(50);
     expect(workerOutputAtLevel(10)).toBe(500);
-    expect(wallBonusAtLevel(10)).toBeCloseTo(1);
+    expect(wallBonusAtLevel(10)).toBeCloseTo(0.5); // flat edge — level buys health, not bonus
+    expect(wallHealthAtLevel(10)).toBe(1_000_000); // the Citadel, the 10-bombard anchor
+    expect(wallHealthAtLevel(5)).toBe(250_000);
     expect(wallsScoreAtLevel(8)).toBe(6400);
     expect(storageShelterAtLevel(6)).toBe(120000);
     expect(caravanDeliveryTurnsAt(1)).toBe(100);

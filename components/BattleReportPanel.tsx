@@ -85,8 +85,11 @@ export function BattleReportPanel({ report }: { report: BattleReport }) {
                   .filter(([, v]) => (v ?? 0) > 0)
                   .map(([t, v]) => `${v} ${t}`)
                   .join(", ")}
-                {report.trebsDestroyedByCounter
-                  ? ` (${report.trebsDestroyedByCounter} smashed by their Counter-Engine)`
+                {Object.entries(report.siegeCountersLost ?? {}).some(([, v]) => (v ?? 0) > 0)
+                  ? ` — and we wrecked ${Object.entries(report.siegeCountersLost ?? {})
+                      .filter(([, v]) => (v ?? 0) > 0)
+                      .map(([t, v]) => `${v} ${t.replace("_", " ")}`)
+                      .join(", ")} of theirs`
                   : ""}
               </dd>
             </>
@@ -102,10 +105,34 @@ export function BattleReportPanel({ report }: { report: BattleReport }) {
           </dd>
         </dl>
       </div>
-      <div style={{ marginTop: 8, fontSize: 13.5, fontStyle: "italic", color: "var(--ink-soft)" }}>
-        {report.log.map((l, i) => (
-          <div key={i}>{l}</div>
-        ))}
+      <div style={{ marginTop: 10, fontSize: 13.5 }}>
+        {report.log.map((l, i) => {
+          const reg = (l.attackerRegulars ?? 0) + (l.defenderRegulars ?? 0);
+          const colour =
+            l.tone === "good" ? "var(--good, #4a7c2f)"
+            : l.tone === "bad" ? "var(--bad, #9c3b2e)"
+            : "var(--ink-soft)";
+          return (
+            <div
+              key={i}
+              style={{
+                color: colour,
+                fontStyle: l.phase === "aftermath" ? "normal" : "italic",
+                fontWeight: reg > 0 ? 600 : 400,
+                padding: "1px 0",
+              }}
+            >
+              {l.text}
+              {reg > 0 && (
+                <span style={{ marginLeft: 6, fontStyle: "normal", opacity: 0.85 }}>
+                  {l.attackerRegulars ? `— ${l.attackerRegulars} of OUR regulars fall` : ""}
+                  {l.attackerRegulars && l.defenderRegulars ? "; " : ""}
+                  {l.defenderRegulars ? `— ${l.defenderRegulars} of THEIR regulars fall` : ""}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </Panel>
   );

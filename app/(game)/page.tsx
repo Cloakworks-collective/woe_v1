@@ -22,12 +22,12 @@ import {
   ACTION_INFO,
   CIVILIAN_BUILDINGS,
   HOUSING_PER_HEARTHSTEAD,
+  POP_GROWTH,
   MILITARY_BUILDINGS,
   RACES,
   RACE_NAMES,
   SIEGE_GEAR,
-  GUILD_EFFECT_PER_LEVEL,
-  catchableOpLevel,
+  GUILD_BONUS_PER_LEVEL,
   STAMINA,
   STORAGE_BUILDING,
   storageShelterAtLevel,
@@ -54,7 +54,8 @@ import {
   unbankedGold,
   unstored,
   vacantHousing,
-  wallPenalty,
+  growthBreakdown,
+  guardRatio,
   type GameEvent,
   type Resource,
 } from "@/lib/engine";
@@ -321,12 +322,56 @@ export default async function CommandView({
                     ? "housing FULL — every arrival walks on, lost"
                     : vacantHousing(p) < popPerDay(p)
                       ? `only ${fmt(vacantHousing(p))} beds — the rest are lost`
-                      : wallPenalty(p) < 1
-                        ? "damaged walls scare settlers"
-                        : `room for ${fmt(vacantHousing(p))} more`
+                      : `room for ${fmt(vacantHousing(p))} more`
               }
-              tone={p.starving ? "bad" : vacantHousing(p) < popPerDay(p) || wallPenalty(p) < 1 ? "warn" : "good"}
+              tone={p.starving ? "bad" : vacantHousing(p) < popPerDay(p) ? "warn" : "good"}
             />
+          </div>
+
+          {/* Why settlers come — the four terms, so the number is never a mystery
+              and every one of them is something the ruler can go and change. */}
+          <div className="growth-breakdown">
+            {(() => {
+              const g = growthBreakdown(p);
+              const parts: { label: string; value: number; max: number; hint: string }[] = [
+                { label: "Base", value: g.base, max: POP_GROWTH.BASE, hint: "Everyone gets this, always." },
+                {
+                  label: "Safety",
+                  value: g.safety,
+                  max: 10,
+                  hint: `Guard-to-civilian ratio ${(guardRatio(p) * 100).toFixed(0)}% — +4 at 20%, +8 at 25%, +10 at 30%. Sellswords count.`,
+                },
+                {
+                  label: "Prosperity",
+                  value: g.prosperity,
+                  max: POP_GROWTH.PROSPERITY_MAX,
+                  hint: "+1 per level of Grange, Sawyer's Mill, Mason's Quarry and Deepvein Mine. Storage does not count — a full granary is not a job.",
+                },
+                {
+                  label: "Walls",
+                  value: g.walls,
+                  max: POP_GROWTH.WALLS_PER_LEVEL * 10,
+                  hint: `+${POP_GROWTH.WALLS_PER_LEVEL} per wall level, scaled by integrity (${Math.round(p.wallIntegrity * 100)}%). Rubble reassures nobody.`,
+                },
+              ];
+              return (
+                <>
+                  {parts.map((part) => (
+                    <span
+                      key={part.label}
+                      className={`growth-part${part.value === 0 ? " is-zero" : ""}${part.value >= part.max ? " is-max" : ""}`}
+                      title={part.hint}
+                    >
+                      <b>{part.label}</b> +{part.value}
+                      <i>/{part.max}</i>
+                    </span>
+                  ))}
+                  <span className="growth-total" title={`Clamped to ${POP_GROWTH.MIN}–${POP_GROWTH.MAX}/day, then capped by vacant beds.`}>
+                    = <b>{g.total}</b>/day
+                  </span>
+                </>
+              );
+            })()}
           </div>
           <div style={{ marginTop: 8 }}>
             <Meter
@@ -531,13 +576,13 @@ export default async function CommandView({
               icon={<Art path="units/spy" size={46} title="Spies" race={p.race} />}
               label="Spies"
               value={fmt(p.army.spies)}
-              sub={`unlimited — Guild L${level(p, "shadow_guild")} missions +${Math.round(level(p, "shadow_guild") * GUILD_EFFECT_PER_LEVEL * 100)}%`}
+              sub={`unlimited — Guild L${level(p, "shadow_guild")} missions +${Math.round(level(p, "shadow_guild") * GUILD_BONUS_PER_LEVEL * 100)}%`}
             />
             <StatTile
               icon={<Art path="units/scout" size={46} title="Scouts" race={p.race} />}
               label="Scouts"
               value={fmt(p.army.scouts)}
-              sub={`unlimited — Lodge L${level(p, "rangers_lodge")} catches ops to L${catchableOpLevel(level(p, "rangers_lodge")) || 0}`}
+              sub={`the only thing standing between your storehouses and their spies`}
             />
             <StatTile
               icon={<BuildingArt id="shadow_guild" level={level(p, "shadow_guild")} size={46} title="Shadow Guild" integrity={structureIntegrity(p, "shadow_guild")} />}

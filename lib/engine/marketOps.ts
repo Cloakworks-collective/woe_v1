@@ -1,12 +1,19 @@
-// The Grand Bazaar (spec/market.md): anonymous order book, cheapest-first
+// The Grand Bazaar (spec/empire.md): anonymous order book, cheapest-first
 // fills, 5% seller fee burned. Pure functions over the order list.
+//
+// EVERY GOLD AND GOODS FIGURE HERE IS A WHOLE NUMBER. Gold is a currency, and a
+// currency that accumulates binary-float dust (0.95 × 3 = 2.8499999999999996)
+// is a currency you cannot reason about. Rounding is always DOWN and always
+// against the party being paid, so no rounding step can mint a unit.
 
 import {
+  BLACK_MARKET,
   CARAVAN_CAPACITY_PER_MARKET_LEVEL,
   caravanDeliveryTurnsAt,
   MARKET_FEE,
   MARKET_PRICE_MAX,
   MARKET_PRICE_MIN,
+  MARKET_RECALL_LOSS,
 } from "../constants";
 import { EngineError, level, type MarketOrder, type Player, type Resource } from "./types";
 
@@ -81,16 +88,38 @@ export function postOrder(
   return { seller, order };
 }
 
+/** What actually makes it home from a recalled caravan — the rest is lost on
+ *  the road. Floored, so the loss is never rounded in the seller's favour. */
+export function recallReturn(remaining: number): number {
+  return Math.floor(remaining * (1 - MARKET_RECALL_LOSS));
+}
+
+/**
+ * Turn a caravan around. **Half the remaining goods are lost** — recalling is a
+ * real decision, not a free undo. Without the penalty the Bazaar doubles as a
+ * raid-proof warehouse: post everything, watch for an incoming attack, pull it
+ * all back untouched. The 50% makes stashing goods there cost more than it
+ * saves, so what is on the road is genuinely committed.
+ *
+ * Works en route or arrived — the merchant is freed either way, and gold already
+ * earned from units that sold is untouched.
+ */
 export function cancelOrder(
   sellerIn: Player,
   orders: MarketOrder[],
   orderId: string,
-): { seller: Player; orders: MarketOrder[] } {
+): { seller: Player; orders: MarketOrder[]; returned: number; lost: number } {
   const seller = structuredClone(sellerIn);
   const order = orders.find((o) => o.id === orderId && o.sellerId === seller.id);
   if (!order) throw new EngineError("order", "No such caravan of yours");
-  seller.resources[order.resource] += order.remaining;
-  return { seller, orders: orders.filter((o) => o.id !== orderId) };
+  const returned = recallReturn(order.remaining);
+  seller.resources[order.resource] += returned;
+  return {
+    seller,
+    orders: orders.filter((o) => o.id !== orderId),
+    returned,
+    lost: order.remaining - returned,
+  };
 }
 
 /** Current market price = lowest ask among caravans that have ARRIVED. Null when
@@ -115,7 +144,13 @@ export interface Fill {
   sellerId: string;
   amount: number;
   grossGold: number;
-  netGold: number; // after the burned fee
+  netGold: number; // after the burned fee — a whole number, floored
+}
+
+/** Seller's take after the burned fee. Floored: the fraction of a gold that
+ *  rounding would create is burned along with the fee rather than invented. */
+export function netOfFee(grossGold: number): number {
+  return Math.floor(grossGold * (1 - MARKET_FEE));
 }
 
 /**
@@ -160,7 +195,7 @@ export function buyFromMarket(
       sellerId: o.sellerId,
       amount: take,
       grossGold: gross,
-      netGold: gross * (1 - MARKET_FEE),
+      netGold: netOfFee(gross),
     });
     o.remaining -= take;
     cost += gross;
@@ -174,4 +209,55 @@ export function buyFromMarket(
   buyer.resources[resource] += amount - need;
 
   return { buyer, orders: orders.filter((o) => o.remaining > 0), fills, totalCost: cost };
+}
+
+// ── The Black Market (the fence) ─────────────────────────────────────────────
+//
+// A SYSTEM counterparty. No caravan, no travel, no order book, no other player
+// — you deal with the fence and it settles on the spot. Deliberately the worst
+// price in the game on both sides:
+//
+//     sell to the fence ──►  BLACK_MARKET.SELL_PRICE   (1)   floor
+//     player Bazaar     ──►  MARKET_PRICE_MIN … MAX    (2–19)
+//     buy from the fence ─►  BLACK_MARKET.BUY_PRICE    (20)  ceiling
+//
+// The spread is the whole safety argument. Every round trip through the fence
+// loses money, so it cannot be farmed: it is liquidity of last resort, taken
+// when you need gold *now* or bread *now* and cannot wait 100 turns for a
+// caravan. Selling is a gold faucet and a resource sink; buying is the reverse.
+
+/** Dump resources on the fence for immediate gold at SELL_PRICE per unit. */
+export function blackMarketSell(
+  input: Player,
+  resource: Resource,
+  amount: number,
+): { player: Player; gold: number } {
+  const p = structuredClone(input);
+  if (!Number.isInteger(amount) || amount <= 0) throw new EngineError("amount", "Invalid amount");
+  if (p.resources[resource] < amount) throw new EngineError("resource", `Not enough ${resource}`);
+  const gold = amount * BLACK_MARKET.SELL_PRICE;
+  p.resources[resource] -= amount;
+  p.gold += gold;
+  return { player: p, gold };
+}
+
+/** Buy resources from the fence for immediate delivery at BUY_PRICE per unit.
+ *  Supply is unlimited — the fence is not another player's caravan. */
+export function blackMarketBuy(
+  input: Player,
+  resource: Resource,
+  amount: number,
+): { player: Player; cost: number } {
+  const p = structuredClone(input);
+  if (!Number.isInteger(amount) || amount <= 0) throw new EngineError("amount", "Invalid amount");
+  const cost = amount * BLACK_MARKET.BUY_PRICE;
+  if (p.gold < cost) throw new EngineError("gold", "Not enough gold");
+  p.gold -= cost;
+  p.resources[resource] += amount;
+  return { player: p, cost };
+}
+
+/** Most units the purse can afford from the fence — for the UI's max hint. */
+export function blackMarketAffordable(p: Player): number {
+  return Math.floor(p.gold / BLACK_MARKET.BUY_PRICE);
 }

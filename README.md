@@ -52,7 +52,7 @@ The token is stored in `~/.woe/config.json`; point at a remote server with
 | `mercs <n>` · `gear <type> <n>` | Black market · siege works |
 | `token` · `link` · `join` · `help` · `quit` | Housekeeping |
 
-✦ = needs the Royal Charter (premium — [spec/premium.md](spec/premium.md)).
+✦ = needs the Royal Charter (premium — [spec/clans.md](spec/clans.md)).
 
 ## Play inside Claude Code 🤖⚔ (plugin)
 
@@ -170,10 +170,12 @@ Browsers / CLI / Claude ─▶ Next.js on Vercel ─▶ Supabase Postgres (world
 | **Next.js app** (UI + API + engine) | **Vercel** (or any Node host) | `vercel deploy` | Holds the whole game; writes the world blob with compare-and-swap |
 | **Supabase Postgres** | Supabase (managed) | already live | Stores `world_docs` (the world blob) + `spectator_snapshots` |
 | **Cron** | Vercel Cron (`vercel.json`, `*/10`) | with the app | Hits `/api/tick`; guarded by `CRON_SECRET` |
+| **Dead-man switch** | healthchecks.io (or similar) | one URL | `HEARTBEAT_PING_URL`; alerts when the beat goes **silent** — the one failure the app cannot report on itself |
 
 **To deploy A:** push to Vercel; set env `NEXT_PUBLIC_SUPABASE_URL`,
 `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`
-(and optionally `STRIPE_*`, `ADMIN_PASSWORD`). Leave `WORLD_SERVICE_URL` unset.
+(and optionally `HEARTBEAT_PING_URL`, `STRIPE_*`, `ADMIN_PASSWORD`). Leave
+`WORLD_SERVICE_URL` unset.
 That's the whole system — nothing else to run.
 
 ### B. Single-writer service (§14.2) — for scale
@@ -224,15 +226,15 @@ machine.
 |-----|--------|
 | [overview.md](spec/overview.md) | Concept, races, core loop, attack modes, winning |
 | [architecture.md](spec/architecture.md) | Server/client architecture, data model, protocol, engineering decisions |
-| [buildings.md](spec/buildings.md) | Buildings, population model, costs, siege ladder |
-| [economy.md](spec/economy.md) | Taxes, production, food, mercenary upkeep |
-| [research.md](spec/research.md) | The Collegium: 10 fields × 5 levels |
-| [market.md](spec/market.md) | The anonymous Grand Bazaar |
+| [empire.md](spec/empire.md) | Buildings, population model, costs, siege ladder |
+| [empire.md](spec/empire.md) | Taxes, production, food, mercenary upkeep |
+| [empire.md](spec/empire.md) | The Collegium: 10 fields × 5 levels |
+| [empire.md](spec/empire.md) | The anonymous Grand Bazaar |
 | [combat.md](spec/combat.md) | Battle resolution, scattering, experience |
 | [espionage.md](spec/espionage.md) | Spy ops and scout counter-espionage |
 | [clans.md](spec/clans.md) | Leadership, clan buildings, wars, truces |
-| [victory.md](spec/victory.md) | Eras, Grand Overlord, clan victory, ranking |
-| [premium.md](spec/premium.md) | The Royal Charter (Stripe) and the Steward |
+| [overview.md](spec/overview.md) | Eras, Grand Overlord, clan victory, ranking |
+| [clans.md](spec/clans.md) | The Royal Charter (Stripe) and the Steward |
 
 Working on this repo with Claude Code? Run `/prime` to load full context.
 All game numbers are tunable placeholders unless marked otherwise; the spec

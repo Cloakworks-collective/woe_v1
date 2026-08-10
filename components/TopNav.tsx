@@ -61,8 +61,13 @@ export function TopNav({ premium }: { premium: boolean }) {
         ? pathname === "/steward" || pathname === "/premium"
         : pathname.startsWith(href);
 
-  const render = (item: Item) => (
-    <Link key={item.href} href={item.href} className={active(item.href) ? "active" : ""} title={item.title}>
+  const render = (item: Item, extraClass = "") => (
+    <Link
+      key={item.href}
+      href={item.href}
+      className={[extraClass, active(item.href) ? "active" : ""].filter(Boolean).join(" ")}
+      title={item.title}
+    >
       <Emblem name={item.icon} /> {item.label}
     </Link>
   );
@@ -114,9 +119,7 @@ export function TopNav({ premium }: { premium: boolean }) {
           </details>
 
           {render(forum)}
-        </div>
 
-        <div className="topnav-group topnav-meta">
           <details className="topnav-dd">
             <summary className={guidesActive ? "active" : ""} title="Guides — the Field Manual and the Codex of Balance">
               <Emblem name="scroll" /> Guides
@@ -130,7 +133,8 @@ export function TopNav({ premium }: { premium: boolean }) {
               </Link>
             </div>
           </details>
-          {render(premiumItem)}
+
+          {render(premiumItem, "topnav-charter")}
         </div>
       </div>
     </nav>

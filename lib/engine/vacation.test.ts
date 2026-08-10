@@ -34,10 +34,11 @@ describe("vacation — production penalty", () => {
     // Normal produces 20 × (50 × 1 × (1−0.5 tax)) × 1.25 human = 625 food;
     // vacation halves the production to 312.5 (upkeep, a flat 10, is the same).
     const normalGain = normal.resources.food - 1000; // 625 − 10 upkeep = 615
-    const flaggedGain = flagged.resources.food - 1000; // 312.5 − 10 upkeep = 302.5
+    // Vacation halves 625 to 312.5, floored to 312 (stocks are whole), − 10 upkeep.
+    const flaggedGain = flagged.resources.food - 1000;
     expect(normalGain).toBe(615);
-    expect(flaggedGain).toBe(302.5);
-    expect(normalGain - flaggedGain).toBe(312.5); // exactly half the production
+    expect(flaggedGain).toBe(302);
+    expect(normalGain - flaggedGain).toBe(313); // half the production, ±the floored unit
   });
 });
 

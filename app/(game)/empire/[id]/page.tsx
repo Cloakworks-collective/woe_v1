@@ -94,6 +94,7 @@ export default async function EmpireProfilePage({
               target={{ id: p.id, name: p.name }}
               revengeOpen={revengeOpen}
               tradecraft={researchLevel(me, "tradecraft")}
+              pathfinding={researchLevel(me, "pathfinding")}
               hint={
                 p.shieldUntilTick > tick
                   ? "🛡 Under the newcomer shield — no attacks or spying."

@@ -1,0 +1,282 @@
+// The engine duel — where sieges are actually decided (spec/combat.md).
+//
+// Counters do not "cancel" engines any more. They SHOOT at them. Each type
+// trades fire with the one it answers, every round, and both sides come away
+// with wreckage. That single change is what turns a bombard from one decisive
+// volley into a war of attrition: an attacker must grind the battery down
+// before the walls will come down, and a defender who mends between volleys
+// can hold out indefinitely.
+//
+// It also removes the need for any "suppression" constant — a battery that has
+// shot half your trebuchets to splinters suppresses you by arithmetic.
+
+import {
+  ARTILLERY_DUEL,
+  COUNTER_DUEL,
+  COUNTER_FOR,
+  COUNTER_TYPES,
+  SIEGE_COUNTERS,
+  SIEGE_DESTROYED_BELOW,
+  SIEGE_GEAR,
+} from "../../constants";
+import type { CounterType } from "../../constants/buildings";
+import { rollBand, rollCount, type Rng } from "../rng";
+import type { Player, SiegeGearType } from "../types";
+import { counterBatteryDelivery, effectiveness, siegeBonusPool, siegeDelivery } from "./model";
+
+export const GEAR_TYPES: SiegeGearType[] = [
+  "trebuchets",
+  "ballistae",
+  "siege_towers",
+  "rams",
+  "ladders",
+  "ropes",
+];
+
+/** Engines crewed heaviest-first — a crew of five is better spent on a
+ *  trebuchet than on five grapple teams. */
+export function crewGear(
+  gear: Record<SiegeGearType, number>,
+  engineers: number,
+): Record<SiegeGearType, number> {
+  const out = { ropes: 0, ladders: 0, siege_towers: 0, rams: 0, ballistae: 0, trebuchets: 0 };
+  let left = engineers;
+  for (const t of GEAR_TYPES) {
+    const can = Math.min(gear[t], Math.floor(left / SIEGE_GEAR[t].crew));
+    out[t] = can;
+    left -= can * SIEGE_GEAR[t].crew;
+  }
+  return out;
+}
+
+export function crewCounters(
+  counters: Record<CounterType, number>,
+  engineers: number,
+): Record<CounterType, number> {
+  const out = {
+    billhooks: 0,
+    forkpoles: 0,
+    fire_pots: 0,
+    boiling_oil: 0,
+    hoardings: 0,
+    counter_engine: 0,
+  };
+  let left = engineers;
+  for (const t of COUNTER_TYPES) {
+    const can = Math.min(counters[t], Math.floor(left / SIEGE_COUNTERS[t].crew));
+    out[t] = can;
+    left -= can * SIEGE_COUNTERS[t].crew;
+  }
+  return out;
+}
+
+/** On defence, engineers man the counters FIRST — that is what they are for —
+ *  and only spare hands are left to work the offensive engines and shoot back.
+ *  The same corps does both jobs, never at the same time. */
+export function defenderCrews(p: Player, engineers: number) {
+  const counters = crewCounters(p.army.siegeCounters, engineers);
+  const used = COUNTER_TYPES.reduce((s, t) => s + counters[t] * SIEGE_COUNTERS[t].crew, 0);
+  return { counters, offensive: crewGear(p.army.siegeGear, Math.max(0, engineers - used)) };
+}
+
+// ── Live engine state ───────────────────────────────────────────────────────
+
+/** An engine park during a battle: how many are manned, and how whole they are.
+ *  Power scales with health, so a battered park fires weaker — the attrition
+ *  curve falls out of the model rather than being bolted on. */
+export interface Park<T extends string> {
+  crewed: Record<T, number>;
+  integrity: Record<T, number>;
+  destroyed: Partial<Record<T, number>>;
+  worn: Partial<Record<T, number>>;
+}
+
+export function makePark<T extends string>(
+  crewed: Record<T, number>,
+  integrity: Record<T, number>,
+): Park<T> {
+  return { crewed: { ...crewed }, integrity: { ...integrity }, destroyed: {}, worn: {} };
+}
+
+const gearPower = (t: SiegeGearType, park: Park<SiegeGearType>) =>
+  park.crewed[t] * SIEGE_GEAR[t].power * park.integrity[t];
+
+const counterPower = (t: CounterType, park: Park<CounterType>) =>
+  park.crewed[t] * SIEGE_COUNTERS[t].power * park.integrity[t];
+
+/** Apply damage to one engine type. Health is a shared pool across the type;
+ *  when it drains past the wreck threshold, engines are lost outright and the
+ *  remainder carries over. Returns how many were destroyed. */
+function damagePark<T extends string>(
+  park: Park<T>,
+  t: T,
+  damage: number,
+  unitHealth: number,
+): number {
+  if (park.crewed[t] <= 0 || damage <= 0) return 0;
+  const pool = park.crewed[t] * unitHealth * park.integrity[t];
+  const remaining = Math.max(0, pool - damage);
+  const newIntegrityAcrossAll = remaining / (park.crewed[t] * unitHealth);
+  park.worn[t] = (park.worn[t] ?? 0) + (park.integrity[t] - newIntegrityAcrossAll);
+
+  if (newIntegrityAcrossAll >= SIEGE_DESTROYED_BELOW) {
+    park.integrity[t] = newIntegrityAcrossAll;
+    return 0;
+  }
+  // Past the wreck line: engines are lost until the survivors are whole enough
+  // to keep fighting.
+  const survivors = Math.floor(remaining / (unitHealth * SIEGE_DESTROYED_BELOW));
+  const lost = Math.max(0, park.crewed[t] - survivors);
+  park.crewed[t] -= lost;
+  park.destroyed[t] = ((park.destroyed[t] as number) ?? 0) + lost;
+  park.integrity[t] =
+    park.crewed[t] > 0 ? Math.min(1, remaining / (park.crewed[t] * unitHealth)) : 0;
+  return lost;
+}
+
+// ── One round of the duel ───────────────────────────────────────────────────
+
+export interface DuelRound {
+  /** Attacking engineers cut down by counters that overwhelmed their engines. */
+  attackerEngineerKills: number;
+  defenderEngineerKills: number;
+  notes: string[];
+}
+
+export interface DuelContext {
+  attacker: Player;
+  defender: Player;
+  atkPark: Park<SiegeGearType>;
+  defPark: Park<CounterType>;
+  war: boolean;
+  rng: Rng;
+  /** Rolled once per battle — defenders shoot from a fixed emplacement at a
+   *  known range, and that is worth something every round. */
+  defenderEdge: number;
+}
+
+/**
+ * Resolve one round of engine-versus-counter fire across every paired type.
+ *
+ * Each counter shoots at the engine it answers; each engine shoots back at
+ * reduced accuracy (trebuchets are inaccurate against small hard targets —
+ * the same characterisation that gives them 30% against walls). Where a
+ * counter outguns its target by COUNTER_DUEL.OVERWHELM_RATIO it stops
+ * bothering with the woodwork and starts killing the crews.
+ */
+export function runDuelRound(ctx: DuelContext): DuelRound {
+  const { attacker, defender, atkPark, defPark, war, rng } = ctx;
+  const out: DuelRound = { attackerEngineerKills: 0, defenderEngineerKills: 0, notes: [] };
+
+  const atkSiege = siegeBonusPool(attacker, war);
+  const defSiege = siegeBonusPool(defender, war);
+
+  for (const gear of GEAR_TYPES) {
+    const ct = COUNTER_FOR[gear];
+    if (!ct) continue;
+
+    const enginePwr = gearPower(gear, atkPark);
+    const counterRaw = counterPower(ct, defPark);
+    if (enginePwr <= 0 && counterRaw <= 0) continue;
+
+    // The counter's swing: its own bonus pool, the defender's emplacement
+    // edge, and — for boiling oil against a ram — the fact that it is being
+    // poured straight down onto men at the gate.
+    const oilBonus = ct === "boiling_oil" ? COUNTER_DUEL.BOILING_OIL_BONUS : 0;
+    const counterPwr =
+      counterRaw * (defSiege + oilBonus + ctx.defenderEdge) * counterBatteryDelivery(defender);
+
+    // Counters wreck engines.
+    if (counterPwr > 0 && atkPark.crewed[gear] > 0) {
+      const lost = damagePark(atkPark, gear, counterPwr, SIEGE_GEAR[gear].health);
+      if (lost > 0) {
+        out.notes.push(`${SIEGE_COUNTERS[ct].name} smash ${lost} ${label(gear)}.`);
+      }
+    }
+
+    // Engines shoot back — badly. Escalade tackle carries no weapons at all.
+    const returnDelivery =
+      gear === "trebuchets"
+        ? siegeDelivery(attacker, "siege")
+        : effectiveness(gear, "siege");
+    const returnFire = enginePwr * atkSiege * returnDelivery;
+    if (returnFire > 0 && defPark.crewed[ct] > 0) {
+      const lost = damagePark(defPark, ct, returnFire, SIEGE_COUNTERS[ct].health);
+      if (lost > 0) {
+        out.notes.push(`Our fire wrecks ${lost} ${SIEGE_COUNTERS[ct].name}.`);
+      }
+    }
+
+    // Overwhelmed: the crews are next.
+    if (enginePwr > 0 && counterPwr >= COUNTER_DUEL.OVERWHELM_RATIO * enginePwr) {
+      const crewAtRisk = atkPark.crewed[gear] * SIEGE_GEAR[gear].crew;
+      const killed = rollCount(rng, crewAtRisk, rollBand(rng, ARTILLERY_DUEL.ATTACKER_ENGINEER_RISK));
+      if (killed > 0) {
+        out.attackerEngineerKills += killed;
+        out.notes.push(
+          `${SIEGE_COUNTERS[ct].name} overwhelm our ${label(gear)} entirely — ${killed} engineers cut down at their posts.`,
+        );
+      }
+    }
+  }
+
+  return out;
+}
+
+// ── Artillery strength & the give-up rule ───────────────────────────────────
+
+export const parkStrength = (park: Park<SiegeGearType>): number =>
+  GEAR_TYPES.reduce((s, t) => s + gearPower(t, park), 0);
+
+export const batteryStrength = (park: Park<CounterType>): number =>
+  COUNTER_TYPES.reduce((s, t) => s + counterPower(t, park), 0);
+
+/**
+ * A battery falls silent only when BOTH conditions hold: seven-tenths of it is
+ * wreckage AND what remains is at most half the attacker's strength.
+ *
+ * Requiring both is deliberate. With an OR, a defender who kept almost no
+ * counters would qualify immediately and lose nothing — turtling by
+ * under-investing would be free. Requiring 70% destroyed means you cannot
+ * reach the give-up state without first being ground down to it, and paying
+ * the engineers and engines on the way. Once silent, no more of either is
+ * lost — but walls and buildings take fire freely.
+ */
+export function batterySilenced(startStrength: number, now: number, attackerStrength: number): boolean {
+  if (startStrength <= 0) return true;
+  const lost = 1 - now / startStrength;
+  return lost >= ARTILLERY_DUEL.GIVE_UP_LOSS && now <= ARTILLERY_DUEL.GIVE_UP_STRENGTH * attackerStrength;
+}
+
+/** Defending engineers are only at risk once their own battery is being shot
+ *  to pieces around them. */
+export function defenderEngineerRisk(
+  rng: Rng,
+  startStrength: number,
+  now: number,
+  crewAtRisk: number,
+): number {
+  if (startStrength <= 0 || crewAtRisk <= 0) return 0;
+  const lost = 1 - now / startStrength;
+  if (lost < ARTILLERY_DUEL.DEFENDER_ENGINEER_RISK_AFTER_LOSS) return 0;
+  return rollCount(rng, crewAtRisk, rollBand(rng, ARTILLERY_DUEL.DEFENDER_ENGINEER_RISK));
+}
+
+/** Whether the defender's battery is dangerous enough to threaten the crews
+ *  working the attacker's engines. */
+export const batteryThreatens = (defStrength: number, atkStrength: number): boolean =>
+  atkStrength > 0 && defStrength >= ARTILLERY_DUEL.ATTACKER_ENGINEER_RISK_ABOVE * atkStrength;
+
+export function rollDefenderEdge(rng: Rng): number {
+  return rollBand(rng, COUNTER_DUEL.DEFENDER_EDGE);
+}
+
+const LABELS: Record<SiegeGearType, string> = {
+  ropes: "grapple teams",
+  ladders: "ladder parties",
+  siege_towers: "siege towers",
+  rams: "battering rams",
+  ballistae: "ballistae",
+  trebuchets: "trebuchets",
+};
+const label = (t: SiegeGearType) => LABELS[t];

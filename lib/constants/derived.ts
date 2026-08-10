@@ -7,19 +7,13 @@ import {
   BUILDING_COST_CURVE,
   CARAVAN_DELIVERY_CURVE,
   CARAVAN_DELIVERY_MIN_TURNS,
-  GROWTH_CURVE,
   STORAGE_SHELTER_CURVE,
-  WALL_BONUS_CURVE,
+  WALL_EDGE,
+  WALL_HP_CURVE,
   WALLS_SCORE_CURVE,
   WORKER_OUTPUT_CURVE,
 } from "./balance";
 import { evalCurve } from "./curves";
-
-/** Raw settlers/day at x total civilian building levels (before wall penalty
- *  and the housing cap; the engine floors the final figure at 1). */
-export function growthPerDayAt(civilianLevels: number): number {
-  return evalCurve(GROWTH_CURVE, civilianLevels);
-}
 
 /** Building cost multiplier at a target level (× the building's base cost). */
 export function buildingCostMultiplier(targetLevel: number): number {
@@ -31,9 +25,20 @@ export function workerOutputAtLevel(level: number): number {
   return evalCurve(WORKER_OUTPUT_CURVE, level);
 }
 
-/** Wall defence bonus (fraction) at a wall level, before integrity & race. */
+/**
+ * The wall's defence edge, as a fraction. FLAT for any standing wall — a wall
+ * is a wall, and a Citadel is not a harder thing to fight over than a palisade.
+ * What a Citadel is, is far harder to knock down: level buys HEALTH, which is
+ * `wallHealthAtLevel` below.
+ */
 export function wallBonusAtLevel(level: number): number {
-  return evalCurve(WALL_BONUS_CURVE, level);
+  return level > 0 ? WALL_EDGE.BASE : 0;
+}
+
+/** How much punishment a wall absorbs before it is rubble, by level. Quadratic:
+ *  a Citadel soaks a hundred times what a Timber Palisade does. */
+export function wallHealthAtLevel(level: number): number {
+  return level > 0 ? evalCurve(WALL_HP_CURVE, level) : 0;
 }
 
 /** Walls ranking score (pts) at a wall level, before integrity. */

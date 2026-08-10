@@ -12,7 +12,8 @@ import type { ClanBadges } from "@/lib/server/clanView";
 
 const TABS: { href: string; label: string }[] = [
   { href: "/clan", label: "🛡 Hall" },
-  { href: "/clan/works", label: "🏛 Works & Vault" },
+  { href: "/clan/works", label: "🏛 Works" },
+  { href: "/clan/vault", label: "🏦 Vault" },
   { href: "/clan/chat", label: "💬 Chat" },
   { href: "/clan/war", label: "⚔ War Front" },
 ];

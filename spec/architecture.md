@@ -20,41 +20,33 @@
 
 ## Server Architecture
 
+> **Game mechanics are not described here.** Races, troops, stamina, veterancy,
+> scattering, combat, attack modes, buildings, clans and the protection windows
+> all live in `overview.md`, `empire.md`, `combat.md` and `clans.md`. This file
+> covers only how the thing is *built* — the tick, the command pipeline, storage,
+> the protocol and the client.
+>
+> That rule is load-bearing. When mechanics were duplicated here, the `ArmyState`
+> in this file drifted two schema versions behind `lib/engine/types.ts` without
+> anyone noticing, because a reader had no way to tell which copy was the truth.
+
+
 ### Turn / Tick System
 
 The game is turn-based with a 10-minute tick interval. Each tick:
 
-1. **Food upkeep** — 0.1 × (civilians + regular troops) deducted; at 0 food the empire **starves**: steps 2–4 and attacking are suspended until fed (`economy.md`).
-2. **Tax income** — Every civilian pays `0.4 × taxRate` gold; mercenary upkeep is deducted — unpaid mercenaries defect (see `economy.md`). Regular military has no upkeep.
-3. **Production** — Each worker yields `50 × buildingLevel × (1 − taxRate)` units of their resource (food, stone, ore, wood, research) — 50/turn per level at 0% tax, uncapped worker count — modified by statecraft, clan-hall shelter, and race bonuses (`economy.md`).
+1. **Food upkeep** — 0.1 × (civilians + regular troops) deducted; at 0 food the empire **starves**: steps 2–4 and attacking are suspended until fed (`empire.md`).
+2. **Tax income** — Every civilian pays `0.4 × taxRate` gold; mercenary upkeep is deducted — unpaid mercenaries defect (see `empire.md`). Regular military has no upkeep.
+3. **Production** — Each worker yields `50 × buildingLevel × (1 − taxRate)` units of their resource (food, stone, ore, wood, research) — 50/turn per level at 0% tax, uncapped worker count — modified by statecraft, clan-hall shelter, and race bonuses (`empire.md`).
 4. **Stamina recovery** — Idle troops regain 1 stamina point per turn (passive).
-5. **The Steward** (premium holders only, `premium.md`) — build queue, research queue, standing orders; issues ordinary instant commands when they become possible.
-6. **Daily reset** — Once per day: recruit new peasants based on civilian buildings, reduced by wall damage (see `buildings.md`); then the peasant-scattering check (troops < 30% of civilians → peasants leave).
+5. **The Steward** (premium holders only, `clans.md`) — build queue, research queue, standing orders; issues ordinary instant commands when they become possible.
+6. **Daily reset** — Once per day: recruit new peasants based on civilian buildings, reduced by wall damage (see `empire.md`); then the peasant-scattering check (troops < 30% of civilians → peasants leave).
 7. **Queue processing** — Research completion. (Building upgrades and troop training are instant — no construction timers.)
 
 Key design point: food upkeep is deducted *before* production is added each
 tick, so a starving empire can't feed itself with the same tick's harvest —
 recovery takes a fed tick (farmers) or a Bazaar purchase.
 
-### Starting Conditions (new empire)
-
-| What            | Amount                                      |
-|-----------------|---------------------------------------------|
-| Gold            | 5,000                                       |
-| Resources       | 1,000 each (food, wood, stone, ore)         |
-| Population      | 100 — 80 civilians + 20 light footmen       |
-| Hearthsteads    | 15 (houses 150)                             |
-| Muster Halls    | 2 (20 troop slots — exactly filled)         |
-| Action turns    | 200                                         |
-| Tax rate        | 50% (default)                               |
-
-- The starting purse is calibrated to build **2–3 entry-level buildings**
-  (baseCosts in `buildings.md`).
-- **Scattering exemption (confirmed):** empires below **500 total
-  population** don't scatter — the starting 20/80 troop/civilian ratio is
-  under the 30% line, so without this new players would bleed peasants at
-  their first daily reset. First lesson anyway: train more footmen as you
-  grow toward the 500 line.
 
 ### Target Discovery
 
@@ -63,293 +55,16 @@ search and filters** (name, score range, settlement title, clan, online
 recency). The ladder is the world; the XP bands (`combat.md`) make your
 ±20% score neighborhood the natural hunting ground.
 
-### Peasant & Population System
 
-```
-Peasant lifecycle:
-  [New Recruit] → [Idle Peasant]
-                      │
-          ┌───────────┼──────────────────┬──────────────┐
-          ▼           ▼                  ▼              ▼
-      [Worker]  [Footman/Archer/Cavalry] [Spy/Scout] [Siege Engineer]
-          │      (trained directly at a  │
-          │       tier; trainer & Forge  │
-          │       level = tier)          │
-          │           │
-          │     [Discharge] → back to [Idle Peasant] (lose equipment,
-          │                            needs a free bed, stay ≥30% guard)
-          │
-    ┌─────┼──────┬────────┐
-    ▼     ▼      ▼        ▼
-  [Farmer][Miner][Lumberjack][Other]
-```
 
-- Daily recruitment: scales with total civilian building levels, from 1/day to 100/day when all 13 civilian buildings hit level 10 (formula in `buildings.md`).
-- Damaged walls reduce the raw daily number by up to 50% (proportional to damage); repairing fully restores it. Intact or absent walls have no effect.
-- Worker output and tax income per `economy.md` (tax-scaled).
 
-### Race System
 
-Values are ported from Simon Taylor's 2006 balance workbook (races2.xls,
-"Proposed" sheet). Bonuses do **not** sum to zero; balance is judged by
-equal-cost army power, as in the original workbook. Deliberate divergences
-from the workbook: resource penalties are clamped at ~0.4–0.5×, there is no
-starting-buildings perk (humans get flat +25% production instead), gnolls
-keep spy/scout 1.2 (the workbook's spy race was humans; ours coexist), the
-workbook's ±5% "Health" bonus is folded into global `defence`, and its
-"Defences" bonus maps to `walls` (home fortification only).
-Research speed is identical for all races.
 
-```ts
-interface RaceModifiers {
-  production: { food: number, wood: number, stone: number, ore: number }
-  attack: number                 // global, all troops (currently 1.0 for all)
-  defence: number                // global, all troops (carries the old "health" ±5%)
-  units: { footman: number, archer: number, cavalry: number }  // per-type atk & def
-  siege: number                  // siege damage dealt
-  walls: number                  // home wall bonus factor (fortification quality)
-  spy: number                    // mission effectiveness
-  scout: number                  // recon + catch chance
-  mercCost: number               // mercenary price factor (currently 1.0 for all)
-}
-```
 
-| Modifier   | Human | Elf  | Orc  | Troll | Dwarf | Gnoll |
-|------------|-------|------|------|-------|-------|-------|
-| Food       | 1.25  | 1.2  | 1.4  | 0.7   | 0.7   | 1.1   |
-| Wood       | 1.25  | 1.5  | 0.6  | 0.8   | 0.4   | 1.3   |
-| Stone      | 1.25  | 0.6  | 0.8  | 1.6   | 1.4   | 0.7   |
-| Ore        | 1.25  | 0.5  | 1.4  | 1.1   | 1.4   | 0.9   |
-| Defence    | 1.0   | 0.95 | 1.0  | 1.05  | 1.05  | 0.95  |
-| Footman    | 1.1   | 0.9  | 0.9  | 1.25  | 1.3   | 1.1   |
-| Archer     | 1.1   | 1.35 | 1.05 | 0.8   | 0.8   | 1.3   |
-| Cavalry    | 1.1   | 1.0  | 1.25 | 0.8   | 0.8   | 1.0   |
-| Siege      | 1.0   | 0.9  | 0.8  | 1.4   | 1.05  | 1.1   |
-| Walls      | 1.0   | 0.9  | 0.8  | 1.1   | 1.25  | 1.1   |
-| Spy        | 1.25  | 1.05 | 0.9  | 0.9   | 0.95  | 1.2   |
-| Scout      | 1.0   | 1.0  | 1.0  | 1.0   | 1.0   | 1.2   |
 
-Identities: **Humans** — the generalist premium: +25% to every resource,
-+10% to every troop type, the finest spies (+25), no weakness and no
-specialty. **Elves** — archers from the greenwood (archer +35, wood +50 /
-stone −40, ore −50, frail: defence, walls, siege down). **Orcs** — the
-cavalry horde, fed by farm and forge (cavalry +25, food +40, ore +40 /
-wood −40, siege −20, walls −20 — devastating in the field, soft under
-siege). **Trolls** — stone and siege engines (siege +40, stone +60,
-footman +25 / archer, cavalry −20, food −30). **Dwarves** — the iron
-wall (footman +30, walls +25, stone/ore +40 / wood −60, food −30,
-archer, cavalry −20 — must trade for timber). **Gnolls** — jackal
-skirmisher-spies (archer +30, spy +20, scout +20, wood +30 / stone −30,
-frail: defence −5).
 
-### Troop & Equipment System
 
-Peasants are trained **directly** into a specific unit type at a chosen tier
-(costing gold + resources, mostly ore) — there is no intermediate "warrior"
-step. Tier N requires the trainer *and* the Forge at level N, plus a free Muster
-Hall bed. Mercenaries are hired the same way (same building gates), for gold.
 
-**Equipment tiers** unlock via military building upgrades:
-- Light → Medium → Heavy (progressively stronger, more expensive)
-- "One heavy troop ≈ three light troops" in combat effectiveness.
-
-**Discharge:** returns a trained soldier straight to the idle-peasant pool
-(equipment lost); needs a free Hearthstead bed and must keep the guard above the
-30% scatter line.
-
-```ts
-interface TroopUnit {
-  type: "footman" | "archer" | "cavalry"
-  tier: "light" | "medium" | "heavy"  // unlocked by building level
-  attack: number
-  defence: number
-}
-
-interface ArmyState {
-  footmen: { tier: string, count: number }[]
-  archers: { tier: string, count: number }[]
-  cavalry: { tier: string, count: number }[]
-  siegeEngineers: number
-  siegeGear: {            // offensive equipment, needs engineer crews (buildings.md)
-    ropes: number
-    ladders: number
-    rams: number
-    ballistae: number
-    trebuchets: number
-  }
-  spies: number
-  scouts: number
-  mercenaries: number     // die before regular troops; max 25% of regular army
-  stamina: number         // 0-100, affects combat effectiveness
-  experience: number      // affects combat bonuses/penalties
-}
-```
-
-### Stamina System
-
-- Troops lose stamina from combat.
-- Low stamina → reduced attack and defence multipliers.
-- **Rest action:** 5 action turns + 0.2 food/troop → +20 stamina, whole army.
-- **Passive recovery:** 1 stamina point per turn (if not fighting).
-- Food is population upkeep, deducted before production each tick — run dry and the empire freezes (`economy.md`).
-
-### Experience System
-
-- XP gain depends on the target's ranking score vs yours (bands in
-  `combat.md`): ±20% = +5, punching 20–75% up = +8, 20–50% down = +1,
-  >50% down = −5. Targets ≥75% stronger: troops refuse to attack.
-  Defenders always gain +5.
-- Combat multiplier: `1 + XP/100` — up to ×2 at 100 XP.
-- Losing regulars loses XP proportionally: `newXP = XP × (1 − regularsLost/regularsBefore)`. Mercenary deaths cost no XP.
-- Experience is a global army stat, not per-unit.
-
-### Peasant Scattering (population warfare)
-
-- Checked at the daily reset: if `troops < 0.3 × civilians`, peasants scatter
-  down to `floor(troops / 0.3)` civilians — idle first, then workers, then
-  specialists (see `combat.md`).
-- Empires below **500 total population** are exempt — no scattering, ever
-  (see Starting Conditions).
-- The reset timing is the deliberate grace window: instant training lets a
-  defeated player race to rebuild their army before the population walks.
-
-### Combat Engine
-
-Full resolution algorithm, unit stats, damage formulas, and worked examples
-live in **`combat.md`**. Summary:
-
-- Battles run up to **10 rounds**, each round four phases: siege → archers →
-  cavalry → footmen. Siege phase and wall bonus apply only in siege/revenge;
-  raids are open-field; bombard is engines-only.
-- Damage: proportional across groups (siege, archers) or targeted with
-  spill-through (cavalry, footmen). Casualties = damage / (k × effective
-  defence); mercenaries die first.
-- Modifiers: race, equipment tier, stamina, experience, research (Art of
-  War / Shieldcraft / Siegecraft), and the defender's wall bonus
-  (level × 10% × integrity, reduced by escalade and siege).
-- War Foundry offense/defense pairs: defensive counters are purchased, crewed
-  equipment; each crewed counter cancels one incoming paired weapon, one-for-one
-  (see `buildings.md`, `combat.md`).
-- A side breaks below 30% remaining strength; victory/loot/wall-integrity/
-  stamina/experience outcomes per `combat.md`.
-
-### Attack Mode Logic
-
-Every attack costs **10 action turns**. Action turns accrue at 2 per game
-turn (10 min); new players start with 200 (cap 500, tunable).
-
-#### Raid
-- Field army vs field army — no walls, no siege phase.
-- Victor steals resources sitting **outside storage** (fields, mines, woodlots).
-- Size-based loot scaling (bigger target = bonus; much smaller = reduced).
-
-#### Siege
-- Full assault: siege weapons vs walls, then the 4-phase battle.
-- Victor steals **unbanked gold plus unstored resources**.
-- Wall integrity damage persists after battle (pop-growth penalty until repaired).
-
-#### Revenge Attack
-- **Precondition:** defender attacked you within last 18 hours.
-- Ignores vacation, low defender stamina, and the mercy rules entirely — and
-  is the one attack a defender is never allowed to yield to.
-- Goal: kill troops. No loot.
-- One-time use per attacker (resets if they attack you again).
-- A revenge attack opens a fresh 18h revenge window for its victim (chains).
-- Clan-building bombardment (clan war): the attacked clan gets ONE revenge
-  attack, executable by any member present at attack time (snapshot, 18h,
-  consumed by whoever strikes first).
-- Walls still matter — failing to breach = possible loss.
-
-#### Bombard
-- Pure artillery duel: attacker's trebuchets (+ crews) vs the defender's
-  Counter-Engine. No troop combat, no loot, no victor, **no target choice**.
-- Pounds the **walls first**; once they are breached (≤50% integrity), the
-  fire spills onto **random town buildings** (weighted: storages > production
-  > Collegium). Every building has a 50% integrity floor and gameplay-
-  affecting integrity (storage protection, production output, research speed).
-  The softening strike before a siege or raid.
-
-#### Mercy rules
-- Raid, siege, and bombard cannot target players away on **Vacation**. Revenge can.
-- A beaten-down defender (army stamina < 25) is **not** blocked: the attack lands
-  and resolves as a **yield** — full loot to the attacker, no regular losses for
-  the defender. Same for a defender whose defensive power (troops × defence,
-  plus walls on castle attacks only) is under 60% of the attacker's offensive
-  power. Revenge is never yielded to.
-- **Vacation** (formerly "surrender"): voluntary; blocks all attacks except
-  revenge, halves tax income AND production, prevents attacking, capped at 20
-  days per era. Ended manually or when the budget runs out; returning starts an
-  18h re-attack cooldown.
-
-### Building System
-
-Three categories:
-
-#### Defences
-- Walls (multiple levels) — reduce incoming damage. No recruitment bonus; damaged walls cut daily recruitment by up to 50% until repaired.
-- Fortifications — additional defensive bonuses.
-
-#### Civilian Buildings
-- Drive daily peasant recruitment from base 1/day to a cap of 100/day (tree, prerequisites, and per-level values in `buildings.md`).
-- **Storage** — protect portion of resources from being plundered (no recruitment bonus).
-
-#### Military & Specialty
-- **Barracks upgrades** — unlock higher troop tiers (light → medium → heavy).
-- **War Foundry (siege)** — 10 levels alternating offensive weapon / defensive counter, five pairs from Ropes & Grapples to Counter-Engine (see `buildings.md`).
-- **Research facility** — unlock technologies.
-- **Marketplace** — trade resources with other players.
-- **Bank** — protect portion of gold from being stolen.
-- **Shadow Guild** — spy capacity (20/level) and mission effectiveness (+10%/level).
-- **Ranger's Lodge** — scout capacity (20/level); level gates which spy-op levels your scouts can catch (see `espionage.md`).
-
-Buildings have levels; upgrades cost resources and complete instantly (no timers).
-
-### Clan System
-
-Full design in `clans.md`. Summary: 5 leadership positions (leader, vice, 3
-officers) build clan buildings from a shared storage pool; Clan Hall caps
-membership (5→20); Clan Wonder discounts mercenary/troop/siege costs for all
-members (−10/20/30%); wars double battle damage; friendly clans share
-online/last-attacked visibility.
-
-```ts
-interface Clan {
-  id: string
-  name: string
-  leaderId: string
-  viceLeaderId?: string
-  officerIds: string[]        // max 3
-  members: string[]           // player IDs, capped by Clan Hall level (5/10/15/20)
-  buildings: {
-    storageLevel: number      // 0-10; capacity 250k × level per resource
-    hallLevel: number         // 1-4; member cap
-    wonderLevel: number       // 0-3; -10%/lvl merc, troop, siege costs
-    integrity: { storage: number, hall: number, wonder: number }  // 0-1; bombardable in clan war
-  }
-  storage: { gold: number, food: number, wood: number, stone: number, ore: number }
-  memberLedger: Record<string, {          // per player, per resource — enforces the 3× rule
-    deposited: Record<string, number>     // lifetime deposits
-    withdrawn: Record<string, number>     // lifetime withdrawals (building spends excluded)
-  }>
-
-  wars: {                     // active wars (+100% battle damage)
-    clanId: string
-    regularKills: number      // our kills of their regulars
-    regularLosses: number     // their kills of ours; net +200 kills = war victory
-  }[]
-  warRecord: { wins: number, losses: number }   // permanent, public
-  tributeIncoming?: { fromClanId: string, endsAtTurn: number, collectedValue: number }  // 20%/turn for a day, cap 1M gold-eq
-  friendly: string[]          // mutual friendly clans (share online/last-attacked)
-  chat: ChatMessage[]
-}
-```
-
-### Black Market
-
-- Purchase mercenaries with gold.
-- Mercenaries add to troop totals, capped at 25% of regular army headcount.
-- Per-turn gold upkeep; unpaid mercenaries defect.
-- Mercenaries die before regular troops in combat (expendable buffer).
 
 ### Social System (forum-style)
 
@@ -366,13 +81,6 @@ Permanent things that survive era resets: DMs, player accounts/titles, clan
 war records, era history (winners' names). Everything in-world (chat, state,
 ladder) resets with the era.
 
-### Protection Windows
-
-- **Era peace:** all attacks disabled for the first **5 days** of an era.
-- **Newcomer shield:** 72 hours of attack immunity on joining mid-era;
-  attacking drops your shield early. Spy missions vs protected players are
-  also blocked. (Both implemented provisionally — pending final confirmation.)
-- Scattering exemption below 500 population (see Starting Conditions).
 
 ### Advisor System (Command View)
 
@@ -401,6 +109,208 @@ interface AdvisorReport {
 
 ---
 
+## The Game Loop — turns, battles, and the heartbeat
+
+Two clocks drive everything, and only one of them is a clock at all.
+
+```
+                 ┌──────────────────────────────────────────────┐
+                 │  THE WORLD CLOCK — derived, not scheduled     │
+                 │                                               │
+                 │  tickNumber is a FUNCTION of wall-clock time: │
+                 │      due = floor((now − lastTickAt) / 10min)  │
+                 │                                               │
+                 │  Nothing has to fire on time. The number of   │
+                 │  ticks owed is always recomputable from a     │
+                 │  timestamp, so a tick can be *late* but never │
+                 │  *lost*.                                      │
+                 └──────────────────────────────────────────────┘
+```
+
+### Turns: lazy catch-up on read
+
+```
+  player opens a page
+        │
+        ▼
+  getGame() / any API route
+        │
+        ├─► runDueTicks(world)          lib/server/world.ts
+        │        │
+        │        │  due = floor((now − lastTickAt) / 10 min)
+        │        │  capped at 2016 (two weeks)
+        │        │
+        │        └─► for each owed tick: runOneTick(world, scheduledAt)
+        │                 · production, tax, food upkeep, starvation
+        │                 · action turns +2, spy turns +1
+        │                 · research banking, build/steward queues
+        │                 · at a day boundary: processDailyReset
+        │                       (settlers arrive, peasants scatter)
+        │
+        ▼
+  commitWithRetry → save (compare-and-swap)
+        │
+        ▼
+  page renders a world that is exactly as old as the reader
+```
+
+Each caught-up tick is credited at **its own scheduled wall-clock time**, not at
+`now`, so the victory hold-clocks stay monotonic through a catch-up run.
+
+### Battles: synchronous, inside one command
+
+A battle is not a scheduled job. It is a pure function called during a single
+command, and it completes before the HTTP response returns.
+
+```
+  POST cmdAction { __cmd: "attack", mode, targetId }
+        │
+        ▼
+  runCommand ──► worldServiceEnabled() ?
+        │              ├── yes ─► forwardCommand → single-writer service queue
+        │              └── no  ─► commitWithRetry(applyOneCommand)
+        ▼
+  doAttack(world, attacker, target, mode)      lib/server/pipeline.ts
+        │
+        ├─ validateAttack(...)                 PURE — may this blow land?
+        ├─ resolveBattle / resolveBombard      PURE — rng injected, no clock
+        │      returns { attacker, defender, report }
+        │
+        └─ side effects, all in the same commit:
+              turns −10 · shield dropped · revenge windows re-armed
+              inbox letters · chronicle · era records · clan war ledger
+        │
+        ▼
+  save (CAS; on conflict → reload and REPLAY the whole command)
+```
+
+**Replay-on-conflict is why the engine must stay pure.** Two attacks landing on
+the same defender at once will lose the compare-and-swap, reload, and re-run —
+which re-rolls the battle against the fresh world. That is correct only because
+`resolveBattle` reads nothing but its arguments and the RNG it was handed.
+
+**And why `apply` gets a private copy.** Purity is necessary but not sufficient:
+replay is only safe if each attempt starts from a *clean* world. `getWorld`
+returns the shared cached object, and Fluid Compute runs concurrent requests in
+one Node instance — so `commitWithRetry` hands `apply` a `cloneWorld` draft.
+Without it, two commands mutate the same world: the first serialises the
+second's half-applied changes into its own write, the second then loses the CAS,
+reloads a world that already contains its effects, and applies its command a
+second time. Gold spent twice, a battle resolved twice.
+
+For the same reason the expected version is **tagged on the world object**
+(`worldVersion`, a WeakMap) rather than kept in a module global. A global is
+read at save time, so it belongs to whichever load ran last — not to the world
+the caller is actually holding, which is precisely the comparison the CAS exists
+to make. Callers that build a *replacement* world (`eraReset`) must
+`carryWorldVersion` onto it, or it will try to insert a second row.
+
+Lost attempts back off with **full jitter** (`retryDelayMs`, ≤400ms across five
+attempts). Retrying instantly is the trap: every loser of a race wakes at the
+same moment and collides again, so contention re-synchronises instead of
+resolving. Retries aren't cheap either — each is a forced reload plus a full
+re-apply including `runDueTicks` over every player.
+
+### Two write models, same pipeline
+
+| | §14.1 in-process (default) | §14.2 world service |
+|---|---|---|
+| Ticks driven by | `runDueTicks` **on read** | `setInterval` **inside the service** |
+| Concurrency | optimistic CAS + replay | a single writer, serialised queue |
+| Set by | *(nothing — the default)* | `WORLD_SERVICE_URL` |
+
+`applyOneCommand` is shared verbatim by both. The only difference is what
+serialises the writes.
+
+### The heartbeat, and what it is actually for
+
+Ticks run **lazily on read**: `applyOneCommand` calls `runDueTicks` before
+*every* command, and `runOneTick` iterates *every* player. So the common worry —
+"an offline defender is frozen, so attacking them yields stale loot, or they
+yield at a stamina they would have recovered from" — **does not happen**. The
+attacker's own command catches the whole world up first, defender included,
+before `validateAttack` or the yield check reads a single number.
+
+That makes the cron a **backstop, not a dependency**. It earns its place for
+three reasons, none of which is a correctness bug and all of which are real:
+
+1. **Time is lost past the catch-up cap.** `runDueTicks` replays at most 2,016
+   ticks (two weeks) in one go, and `lastTickAt` jumps to the end of what it
+   actually ran. A world quieter than that loses the excess permanently.
+   `tickHealth().losingTime` flags it.
+2. **The backlog lands on a player.** After three silent days the next person to
+   act replays 432 ticks inside their own request. If it times out, *their*
+   command fails — and it is never the person responsible for the silence who
+   pays.
+3. **The spectator ladder freezes.** `/spectate` reads a snapshot written only
+   when a tick processes, so a world with nobody logged in shows the public
+   stale standings.
+
+```
+  Vercel Cron ──every 10 min──► GET /api/tick
+                                     │
+                                     ├─ world service enabled? ─► report only
+                                     │     (the service runs its own timer)
+                                     │
+                                     └─ commitWithRetry(runDueTicks)
+                                            │
+                                            ├─ 0 due  → no write, no log line
+                                            └─ N due  → replay N, snapshot, log
+                                     │
+                                     └─► check in to HEARTBEAT_PING_URL
+                                           healthy → <url>      (dead-man reset)
+                                           behind  → <url>/fail (raise)
+```
+
+### What the app cannot tell you about itself
+
+Everything above reports on a beat that *ran*. The failure mode that matters
+most is the beat that **didn't** — and no amount of instrumentation inside the
+request can report on a request that was never made. Vercel Cron gives you logs
+and no alerting, and on Hobby a ten-minute schedule is silently coerced to
+daily, which looks perfectly healthy in every line we emit.
+
+So `/api/tick` checks in to an external dead-man switch (`HEARTBEAT_PING_URL`;
+healthchecks.io or equivalent) on every healthy beat, and posts to `<url>/fail`
+when a run threw or the clock is still behind afterwards. The watcher alerts on
+**silence**, which is the only way to catch both the crash and the silent
+downgrade. Best-effort by design and firewalled in a `try`: a monitoring outage
+must never fail a tick that was otherwise fine.
+
+"Healthy" deliberately is *not* `losingTime` — that only trips after two weeks
+of silence, by which point the alert is an obituary. A beat is good when the
+last run didn't throw and the clock is now current, since a successful catch-up
+leaves nothing owed.
+
+### Why firing it twice is safe
+
+**Idempotence here is structural, not bookkeeping.** The endpoint never asks
+"have I already run?" — it asks "what is owed?", and the answer is a pure
+function of two timestamps:
+
+```
+due = floor((now − lastTickAt) / 10 min)
+```
+
+Fire it twice in the same second and the second call finds `due = 0` and does
+nothing. Fire it an hour late and it pays all six at once. There is no queue to
+double-drain, no cursor to corrupt, and no "already processed" set to keep.
+A failed run leaves `lastTickAt` untouched, so the next beat simply retries the
+same work — self-healing without a retry mechanism, because nothing was
+consumed. `world.tickLog` keeps every run with its duration and error, so a
+heartbeat that is failing silently looks different from one that is healthily
+idle (`processed: 0` with `behind: 0`, versus `behind` climbing).
+
+Tests in `lib/server/tickHeartbeat.test.ts` pin all of this: double-firing is a
+no-op, and one late catch-up lands on byte-identical state to six punctual runs.
+
+> **Deployment note.** `vercel.json` schedules `*/10 * * * *`. Sub-daily cron
+> frequency requires a Vercel plan above Hobby; on Hobby the schedule is
+> silently coerced to once a day, which still bounds the backlog well inside the
+> two-week cap. `CRON_SECRET` guards manual callers; Vercel's own cron is
+> recognised by its user-agent.
+
+
 ## Data Model
 
 ### Player
@@ -410,7 +320,7 @@ interface Player {
   name: string
   race: "human" | "dwarf" | "elf" | "orc" | "troll" | "gnoll"
 
-  // Premium — the Royal Charter (premium.md)
+  // Premium — the Royal Charter (clans.md)
   premium?: boolean            // unlocks the Steward
   buildQueue?: BuildingId[]    // FIFO; head built when affordable (≤10)
   researchQueue?: { field: string, toLevel: number }[]   // one entry = one level (≤10)
@@ -427,8 +337,9 @@ interface Player {
     quarrymen: number
     miners: number
     lumberjacks: number
-    merchants: number      // capped by Market Square level × 20
-    researchers: number    // capped by Collegium level × 20
+    merchants: number      // UNCAPPED — the Market Square level scales each
+                           // caravan's capacity and speed, not the headcount
+    researchers: number    // UNCAPPED — the Collegium level scales output
   }
   army: ArmyState           // troops trained directly by type/tier; mercenaries
                             // are a parallel typed force (ArmyState.mercenaries)
@@ -442,15 +353,16 @@ interface Player {
     stone: number
     ore: number
   }
-  turnsAvailable: number    // action turns: +2 per game turn, start 200, cap 500; attacks cost 10
-  onVacation: boolean       // blocks all attacks except revenge; halves tax + production; can't attack
+  turnsAvailable: number    // action turns: +2/turn, start 200, cap 500; attacks cost 10
+  spyTurnsAvailable: number // the covert clock: +1/turn, cap 200; spies AND scouts spend it
+  onVacation: boolean       // blocks ALL attacks, revenge included; halves tax + production
 
   // Buildings
   buildings: BuildingState[]
-  wallIntegrity: number     // 0.0–1.0; damaged walls cut pop growth (buildings.md)
-  buildingIntegrity?: Partial<Record<BuildingId, number>>  // 0.5–1.0, absent = full; bombard damage (buildings.md)
+  wallIntegrity: number     // 0.0–1.0; damaged walls cut pop growth (empire.md)
+  buildingIntegrity?: Partial<Record<BuildingId, number>>  // 0.5–1.0, absent = full; bombard damage (empire.md)
 
-  // Research (research.md)
+  // Research (empire.md)
   research: {
     activeField?: string
     banked: Record<string, number>   // RP progress per field
@@ -553,14 +465,16 @@ Every read runs due wall-clock ticks first, like every page and command.
 | `cmd:vacation`       | Depart on, or return from, vacation (`surrender` still accepted) |
 | `cmd:spy`            | Spy mission (op type, target, spies sent) — 5 action turns |
 | `cmd:scout`          | Scout recon against target — 2 action turns  |
-| `cmd:trade`          | Post or accept marketplace trade             |
+| `cmd:marketPost` / `cmd:marketBuy` / `cmd:marketCancel` | Bazaar: dispatch a caravan, buy cheapest-first, recall (−50% of the load) |
+| `cmd:blackMarketSell` / `cmd:blackMarketBuy` | The fence: instant resource trade against the system at 1 / 20 gold |
+| `cmd:sellSiege`      | Break up engines for 50% of build cost, scaled by condition |
 | `cmd:bankDeposit`    | Deposit gold in bank                         |
 | `cmd:buyMercs`       | Hire mercenaries (type + tier) from the black market |
 | `cmd:clanDeposit`    | Deposit gold/resources into clan storage     |
 | `cmd:clanWithdraw`   | Withdraw from clan storage (≤ 3× lifetime deposits) |
 | `cmd:clanManage`     | Leadership: build, appoint, invite/kick, declare war, set diplomacy |
 | `cmd:chat`           | Post to era chat, clan chat, or DM (forum-style) |
-| `cmd:queueBuild` / `cmd:queueBuildCancel` | Premium: manage the Steward's build queue (`premium.md`) |
+| `cmd:queueBuild` / `cmd:queueBuildCancel` | Premium: manage the Steward's build queue (`clans.md`) |
 | `cmd:queueResearch` / `cmd:queueResearchCancel` | Premium: manage the research queue |
 | `cmd:orderAdd` / `cmd:orderRemove` | Premium: standing orders ("once X, do Y") |
 
@@ -621,7 +535,8 @@ CSS (no UI framework) — the retro look *is* the design system.
 - **Attack** — Select target, choose mode and turns, view battle results.
 - **Buildings** — Construct and upgrade defences, peasant, and military buildings.
 - **Clan** — Clan management, chat, resource transfers, war declarations.
-- **Black Market** — Purchase mercenaries.
+- **Market** (`/market`) — The Grand Bazaar: anonymous player order book, caravans, price history.
+- **Black Market** (`/blackmarket`) — The fence: instant resource sales at 1 and purchases at 20 (straddling the Bazaar's 2–19 band), plus the breaker's yard for salvaging siege engines. Mercenaries are hired on the Army page.
 - **Spy/Scout** — Launch espionage and recon operations.
 
 ### UI Elements
@@ -699,7 +614,7 @@ it, timing-safe check). Crown decrees bypass the game pipeline:
 - **Sim:** the same pure engine driven by scripts (`pnpm sim`) for balance
   tuning — no server needed.
 - **Payments:** **Stripe Checkout** for the Royal Charter premium
-  (`premium.md`): hosted checkout page, webhook + success-redirect
+  (`clans.md`): hosted checkout page, webhook + success-redirect
   verification, idempotent grant. Dual-mode like the store — without
   `STRIPE_SECRET_KEY` a built-in terminal emulates Stripe's test cards
   (4242 4242 4242 4242) so the flow works with zero setup.
@@ -738,20 +653,20 @@ in-game dev time controls (+1 turn / +1 day) are enabled.
 ## Open Questions / TBD
 
 Resolved (see the dedicated docs):
-- [x] Production rates — `economy.md` (per worker: 50 × building level/turn at 0% tax, uncapped worker count; tax/statecraft/hall/race modifiers applied).
+- [x] Production rates — `empire.md` (per worker: 50 × building level/turn at 0% tax, uncapped worker count; tax/statecraft/hall/race modifiers applied).
 - [x] Combat formulas — `combat.md` (unit stats, damage, breaking, aftermath).
-- [x] Building cost model — `buildings.md` (ratio bands, 1.5× curve; per-building baseCost values still TBD). Upgrades are instant; no prerequisite tree beyond Forge gating.
-- [x] Troop equipment costs — `buildings.md` (light ×1 / medium ×2 / heavy ×4).
+- [x] Building cost model — `empire.md` (ratio bands, 1.5× curve; per-building baseCost values still TBD). Upgrades are instant; no prerequisite tree beyond Forge gating.
+- [x] Troop equipment costs — `empire.md` (light ×1 / medium ×2 / heavy ×4).
 - [x] Stamina drain — `combat.md` (−8/round attacker, −5/round defender); rest cost formula still TBD.
 - [x] Experience — `combat.md` (+5/battle, ×2 at 100 XP, proportional loss with dead regulars).
-- [x] Marketplace — `market.md` (anonymous Grand Bazaar, caravans, 5% fee).
-- [x] Bank/storage protection — `buildings.md` (5% per level, max 50%).
-- [x] Daily recruitment — `buildings.md` (civilian levels → 1–100/day, wall-damage penalty).
+- [x] Marketplace — `empire.md` (anonymous Grand Bazaar, caravans, 5% fee).
+- [x] Bank/storage protection — `empire.md` (5% per level, max 50%).
+- [x] Daily recruitment — `empire.md` (civilian levels → 1–100/day, wall-damage penalty).
 
-- [x] Victory & ranking — `victory.md` (Grand Overlord / Clan win, 72h cumulative + 12h straight at #1; score components and exclusions).
+- [x] Victory & ranking — `overview.md` (Grand Overlord / Clan win, 72h cumulative + 12h straight at #1; score components and exclusions).
 
 - [x] Race modifiers — sum-zero table above.
-- [x] baseCosts, storage capacities, rest action — `buildings.md` / `combat.md`.
+- [x] baseCosts, storage capacities, rest action — `empire.md` / `combat.md`.
 - [x] Spy and scout operations — `espionage.md` (Tradecraft op ladder, catch mechanics, scout counter-espionage).
 - [x] Clan buildings & costs — `clans.md`. Coordinated-attack mechanics still v2.
 - [x] Client stack, DB, auth, tick engine, deployment — Engineering Decisions above (Next.js on Vercel, Supabase Postgres/Auth/Realtime, Vercel Cron).

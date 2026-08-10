@@ -15,7 +15,7 @@ import { ResIcon, type ResKind } from "@/components/ResIcon";
 import {
   ACTION_GUIDE,
   ACTION_INFO,
-  MERC_CAP_RATIO,
+  MERCENARIES,
   MERC_PRICE_GOLD,
   RACES,
   TIER_COST_MULT,
@@ -112,7 +112,7 @@ export default async function TroopsPage({
   const { world, player: p } = await getGame();
   const clan = p.clanId ? world.clans[p.clanId] : undefined;
   const discount = wonderDiscount(clan);
-  const mercCap = Math.floor(MERC_CAP_RATIO * military(p));
+  const mercCap = Math.floor(MERCENARIES.CAP_RATIO * military(p));
   const mercInService = mercTotal(p.army.mercenaries);
   const mercPriceLight = Math.round(MERC_PRICE_GOLD * RACES[p.race].mercCost * (1 - discount));
 
@@ -414,7 +414,31 @@ export default async function TroopsPage({
                 <Pills
                   name="type"
                   ariaLabel="Mercenary arm to hire"
-                  options={CORPS.map((c) => ({ value: c.type, label: c.label, title: UNIT_INFO[c.type].tip }))}
+                  options={[
+                    ...CORPS.map((c) => ({ value: c.type, label: c.label, title: UNIT_INFO[c.type].tip })),
+                    // Sellswords now cover every arm, not just the battle line.
+                    // Hired engine crews and covert agents skip population and
+                    // training time exactly as hired footmen do — and leave the
+                    // moment there are too few of your own to command them.
+                    {
+                      value: "engineer",
+                      label: "engineer",
+                      title:
+                        "Hired engine crews. They push your trebuchets and man your Counter-Engines like your own, but earn no veterancy and cost none when they die. Needs barracks room.",
+                    },
+                    {
+                      value: "spy",
+                      label: "spy",
+                      title:
+                        "Hired knives. Capped at a third of your own spies, and taken first when a mission is intercepted — which is what keeps your veterans alive. Needs a Shadow Guild.",
+                    },
+                    {
+                      value: "scout",
+                      label: "scout",
+                      title:
+                        "Hired rangers. They stand the same watch against incoming spies as your own, and fall first when assassins come. Needs a Rangers Lodge.",
+                    },
+                  ]}
                 />
                 <Pills
                   name="tier"
@@ -427,7 +451,7 @@ export default async function TroopsPage({
                 />
                 <ReqTip
                   heading="Hire mercenaries (light)"
-                  body="Rent sellswords in the arm and tier picked above — gold only, no peasants. They die before your matching regulars but drain gold every turn."
+                  body="Rent sellswords in the arm and tier picked above — gold only, no peasants and no training time. Tier applies to the battle line only; engine crews, knives and rangers are hired as they come. They take the first blows aimed at their own arm, draw wages every turn, need barracks beds like anyone else, and are paid off the moment too few of your own regulars remain to command them."
                   rows={[
                     { icon: <ResIcon kind="gold" size={16} />, label: "Gold", need: mercPriceLight, have: p.gold },
                     { icon: <span className="costtip-ico">🗡</span>, label: "Free merc slots", need: 1, have: Math.max(0, mercCap - mercInService) },

@@ -51,7 +51,15 @@ export const CATEGORIES: Category[] = [
     icon: "⚔️",
     blurb:
       "Everything that decides a battle — unit stats and tiers, training costs, walls, the lethality maths, experience, loot, siege engines and their counters.",
-    groups: ["Units", "War", "Combat", "Action turns"],
+    groups: ["Units", "War", "Combat", "Siege", "Action turns"],
+  },
+  {
+    key: "covert",
+    label: "Spies & Scouts",
+    icon: "🗝",
+    blurb:
+      "The shadow war. Scouts are the whole intelligence arm AND the only defence against spies; spies are the whole destruction arm. Both spend from one scarce pool of spy turns, so watching a rival and robbing them compete for the same purse.",
+    groups: ["Covert"],
   },
   {
     key: "endgame",
@@ -90,18 +98,6 @@ export interface CurveMeta {
 }
 
 export const CURVES: CurveMeta[] = [
-  {
-    key: "GROWTH_CURVE",
-    label: "Population growth",
-    yUnit: "settlers / day",
-    xLabel: "total civilian building levels",
-    xMin: 0,
-    xMax: 130,
-    xStep: 5,
-    group: "Growth",
-    desc: "New settlers who arrive each day, read off the sum of all your civilian building levels. A raw village trickles; a fully-developed realm pours in newcomers. This is the figure BEFORE the wall-damage penalty and BEFORE the housing cap — if you lack beds, the surplus is simply turned away.",
-    note: "Engine floors the result at 1 settler/day.",
-  },
   {
     key: "BUILDING_COST_CURVE",
     label: "Building cost multiplier",
@@ -148,8 +144,8 @@ export const CURVES: CurveMeta[] = [
     note: "Engine floors delivery at 10 turns.",
   },
   {
-    key: "WALL_BONUS_CURVE",
-    label: "Wall defence bonus",
+    key: "WALL_HP_CURVE",
+    label: "Wall health",
     yUnit: "× defence (fraction)",
     xLabel: "wall level",
     xMin: 0,
@@ -183,12 +179,13 @@ export const CURVES: CurveMeta[] = [
 ];
 
 const CURVE_VALUES: Record<string, Curve> = {
-  GROWTH_CURVE: C.GROWTH_CURVE,
   BUILDING_COST_CURVE: C.BUILDING_COST_CURVE,
   RESEARCH_COST_CURVE: C.RESEARCH_COST_CURVE,
   WORKER_OUTPUT_CURVE: C.WORKER_OUTPUT_CURVE,
   CARAVAN_DELIVERY_CURVE: C.CARAVAN_DELIVERY_CURVE,
-  WALL_BONUS_CURVE: C.WALL_BONUS_CURVE,
+  WALL_HP_CURVE: C.WALL_HP_CURVE,
+  BUILDING_HP_CURVE: C.BUILDING_HP_CURVE,
+  ARCHER_VS_WALL_CURVE: C.ARCHER_VS_WALL_CURVE,
   WALLS_SCORE_CURVE: C.WALLS_SCORE_CURVE,
   STORAGE_SHELTER_CURVE: C.STORAGE_SHELTER_CURVE,
 };
@@ -240,19 +237,25 @@ export const SCALARS: ScalarMeta[] = [
   { key: "GOLD_COST_SHARE", label: "Building gold share", unit: "×", group: "Economy", value: C.GOLD_COST_SHARE, min: 0, max: 2, step: 0.05, pct: true, desc: "How much gold a building costs relative to its material cost. At 0.5, gold is half the stone/wood bill — a second currency check on top of raw resources." },
   // Mercenaries
   { key: "MERC_PRICE_GOLD", label: "Mercenary price (light)", unit: "gold", group: "Mercenaries", value: C.MERC_PRICE_GOLD, min: 0, step: 10, desc: "Up-front gold to hire one light mercenary. Mercenaries need no training time or beds — instant strength you rent, at a premium." },
-  { key: "MERC_CAP_RATIO", label: "Mercenary cap", unit: "% of regulars", group: "Mercenaries", value: C.MERC_CAP_RATIO, min: 0, max: 1, step: 0.05, pct: true, desc: "Ceiling on hired troops as a share of your own trained regulars — so gold alone can't buy an army; you must raise real soldiers first." },
   { key: "MERC_UPKEEP_GOLD_PER_TURN", label: "Mercenary upkeep", unit: "gold / turn", group: "Mercenaries", value: C.MERC_UPKEEP_GOLD_PER_TURN, min: 0, step: 1, desc: "Ongoing wage per mercenary each turn. Rented muscle bleeds your treasury, so it's best for a short, decisive campaign rather than a standing force." },
   // Market
   { key: "CARAVAN_CAPACITY_PER_MARKET_LEVEL", label: "Caravan capacity / market level", unit: "units", group: "Market", value: C.CARAVAN_CAPACITY_PER_MARKET_LEVEL, min: 0, step: 100, desc: "How many goods one caravan can carry per Market Square level — so a taller market ships bigger loads AND (see the delivery curve) ships them faster." },
   { key: "MARKET_FEE", label: "Market sale fee (burned)", unit: "%", group: "Market", value: C.MARKET_FEE, min: 0, max: 1, step: 0.01, pct: true, desc: "Cut skimmed off every completed sale and removed from the economy — a gold sink that stops endless trading from inflating the realm." },
-  { key: "MARKET_PRICE_MIN", label: "Min ask price", unit: "gold / unit", group: "Market", value: C.MARKET_PRICE_MIN, min: 1, step: 1, desc: "Floor on the price you may list goods at, so the market can't be crashed to nothing." },
-  { key: "MARKET_PRICE_MAX", label: "Max ask price", unit: "gold / unit", group: "Market", value: C.MARKET_PRICE_MAX, min: 1, step: 1, desc: "Ceiling on the price you may list goods at, capping speculation." },
+  { key: "MARKET_PRICE_MIN", label: "Min ask price", unit: "gold / unit", group: "Market", value: C.MARKET_PRICE_MIN, min: 1, step: 1, desc: "Floor on the price you may list goods at, so the market can't be crashed to nothing. Keep it ABOVE the Black Market's sell price, or the fence undercuts every caravan." },
+  { key: "MARKET_PRICE_MAX", label: "Max ask price", unit: "gold / unit", group: "Market", value: C.MARKET_PRICE_MAX, min: 1, step: 1, desc: "Ceiling on the price you may list goods at, capping speculation. Keep it BELOW the Black Market's buy price, or nobody would ever buy from a player." },
+  { key: "MARKET_RECALL_LOSS", label: "Caravan recall loss", unit: "%", group: "Market", value: C.MARKET_RECALL_LOSS, min: 0, max: 1, step: 0.05, pct: true, desc: "Share of a recalled caravan's remaining load lost on the road home. At 0 the Bazaar becomes a raid-proof warehouse you can empty the moment an attack is inbound — the penalty is what makes posting goods a real commitment." },
+  // The Black Market (the fence) — a SYSTEM counterparty, instant and unlimited.
+  // The two prices must straddle the Bazaar's band: sell < MIN < MAX < buy. That
+  // spread is what stops a round trip through the fence from ever turning a
+  // profit, so it can't be farmed for free gold or free resources.
+  { key: "BLACK_MARKET_SELL_PRICE", label: "Fence pays (sell)", unit: "gold / unit", group: "Market", value: C.BLACK_MARKET.SELL_PRICE, min: 0, step: 1, desc: "Gold per unit the Black Market pays for resources, instantly. The hard FLOOR under every resource — goods are never worthless, but this should stay well below the Bazaar's min ask so players prefer each other." },
+  { key: "BLACK_MARKET_BUY_PRICE", label: "Fence charges (buy)", unit: "gold / unit", group: "Market", value: C.BLACK_MARKET.BUY_PRICE, min: 1, step: 1, desc: "Gold per unit the Black Market charges for resources, instantly and without limit. The hard CEILING on prices — gold can always buy bread, but above the Bazaar's max ask so it's the deal of last resort." },
   // Research
   { key: "MAX_FIELD_LEVEL", label: "Max research level / field", unit: "levels", group: "Research", value: C.MAX_FIELD_LEVEL, min: 1, step: 1, desc: "How high a single research field can be taken before it's maxed." },
   { key: "EFFECT_PER_LEVEL", label: "Research effect / level", unit: "%", group: "Research", value: C.EFFECT_PER_LEVEL, min: 0, max: 1, step: 0.05, pct: true, desc: "The bonus each research level grants in its field (e.g. +production, +combat). Multiplies out across levels, so a maxed field is a major edge." },
   { key: "RESEARCH_SWITCH_LOSS", label: "Research switch loss", unit: "% of progress", group: "Research", value: C.RESEARCH_SWITCH_LOSS, min: 0, max: 1, step: 0.05, pct: true, desc: "Progress forfeited if you abandon a study mid-way to chase another — the cost of indecision." },
   // Combat
-  { key: "K_LETHALITY", label: "Lethality k", unit: "÷ (k × defence)", group: "Combat", value: C.K_LETHALITY, min: 0.1, step: 0.1, desc: "The master dial on how deadly battles are. Casualties scale as attack ÷ (k × defence); a bigger k means fewer deaths per round and longer, grindier fights." },
+  { key: "MERC_SHARE", label: "Sellswords take this share of damage", unit: "%", group: "Combat", value: C.CASUALTY_SPLIT.MERC_SHARE, min: 0, max: 1, step: 0.05, pct: true, desc: "How much of a blow aimed at an arm lands on its hired blades rather than your own people. The rest ALWAYS reaches your regulars — which is what keeps losing them the worst thing that can happen to you, even while the buffer holds." },
   { key: "BREAK_THRESHOLD", label: "Break threshold", unit: "%", group: "Combat", value: C.BREAK_THRESHOLD, min: 0, max: 1, step: 0.05, pct: true, desc: "The share of an army that must fall before it breaks and the battle ends. Lower it for quick routs; raise it for fights to the last soldier." },
   { key: "LUCK_SWING", label: "Battle luck swing", unit: "± %", group: "Combat", value: C.LUCK_SWING, min: 0, max: 1, step: 0.01, pct: true, desc: "Random ± applied to each side's strength per battle, so an even matchup isn't a foregone conclusion. Higher means more upsets." },
   { key: "MAX_ROUNDS", label: "Max battle rounds", unit: "rounds", group: "Combat", value: C.MAX_ROUNDS, min: 1, step: 1, desc: "Hard cap on combat rounds; if neither side has broken by then the fight is called, protecting both armies from mutual annihilation." },
@@ -263,18 +266,50 @@ export const SCALARS: ScalarMeta[] = [
   // Growth-adjacent
   { key: "HOUSING_PER_HEARTHSTEAD", label: "Beds per Hearthstead", unit: "beds", group: "Growth", value: C.HOUSING_PER_HEARTHSTEAD, min: 1, step: 1, desc: "Civilians housed per level of Hearthstead. Population can only grow into available beds — build ahead of the growth curve or newcomers are turned away." },
   { key: "TROOPS_PER_MUSTER_HALL", label: "Beds per Muster Hall", unit: "troops", group: "Growth", value: C.TROOPS_PER_MUSTER_HALL, min: 1, step: 1, desc: "Soldiers quartered per level of Muster Hall. Your army can't exceed its barracks, so muster capacity gates military size." },
-  { key: "WALL_DAMAGE_POP_PENALTY", label: "Rubbled-wall growth penalty", unit: "% max", group: "Growth", value: C.WALL_DAMAGE_POP_PENALTY, min: 0, max: 1, step: 0.05, pct: true, desc: "How much daily settler intake is choked when your walls lie in rubble — a sacked city struggles to attract newcomers until it rebuilds." },
   // Action turns
   { key: "ATTACK_COST", label: "Attack cost", unit: "action turns", group: "Action turns", value: C.ACTION_TURNS.ATTACK_COST, min: 0, step: 1, desc: "Action turns spent to launch one attack. Action turns are the rate-limit on aggression — you can't march endlessly." },
-  { key: "SPY_MISSION_COST", label: "Spy mission cost", unit: "action turns", group: "Action turns", value: C.ACTION_TURNS.SPY_MISSION_COST, min: 0, step: 1, desc: "Action turns spent to run one espionage mission." },
-  { key: "SCOUT_RECON_COST", label: "Scout recon cost", unit: "action turns", group: "Action turns", value: C.ACTION_TURNS.SCOUT_RECON_COST, min: 0, step: 1, desc: "Action turns spent to scout a target's defences before committing." },
-  { key: "TURNS_PER_GAME_TURN", label: "Action turns regained / turn", unit: "action turns", group: "Action turns", value: C.ACTION_TURNS.PER_GAME_TURN, min: 0, step: 1, desc: "Action turns you recover each tick — the refill rate that decides how often you can act." },
+  // The covert clock (SPY_TURNS) is tuned under Covert, not here. ONE SLIDER
+  // PER CONSTANT: two entries reading the same constant means an edit on one
+  // tab is silently contradicted by the other, and the emitted diff carries
+  // two names for one number. Guarded by catalog.test.ts.
+  { key: "TURNS_PER_GAME_TURN", label: "Action turns regained / turn", unit: "action turns", group: "Action turns", value: C.ACTION_TURNS.PER_GAME_TURN, min: 0, step: 1, desc: "Action turns you recover each tick — the refill rate that decides how often you can act. Its covert counterpart, spy turns at half this rate, is tuned under Covert." },
   { key: "TURNS_CAP", label: "Action turn cap", unit: "action turns", group: "Action turns", value: C.ACTION_TURNS.CAP, min: 1, step: 10, desc: "Maximum action turns you can bank, so stepping away doesn't let them pile up without limit." },
+  // ── Siege (the rework) ──────────────────────────────────────────────
+  { key: "TREBUCHET_POWER", label: "Trebuchet power", unit: "pwr", group: "Siege", value: C.SIEGE_GEAR.trebuchets.power, min: 1, step: 25, desc: "THE ANCHOR of the whole siege model. Every other siege number is fitted around it: 40 crewed trebuchets, a mid-game attacker, ten bombards to level a Citadel. Raise it and every wall in the world falls faster." },
+  { key: "TREBUCHET_HEALTH", label: "Trebuchet health", unit: "pwr", group: "Siege", value: C.SIEGE_GEAR.trebuchets.health, min: 1, step: 50, desc: "How much counter-battery fire an engine absorbs before it is wreckage. Half the reason a bombard is a grind rather than a single volley." },
+  { key: "COUNTER_ENGINE_HEALTH", label: "Counter-Engine health", unit: "pwr", group: "Siege", value: C.SIEGE_COUNTERS.counter_engine.health, min: 1, step: 50, desc: "Emplaced and sturdy — twice a trebuchet's. This is the other half: a battery that survives long enough to shoot back is what turns ten bombards into twenty." },
+  { key: "TREB_VS_WALL", label: "Trebuchet accuracy vs walls", unit: "%", group: "Siege", value: C.EFFECTIVENESS.trebuchets.walls, min: 0, max: 1, step: 0.05, pct: true, desc: "How much of a trebuchet's power finds masonry. Low on purpose — trebuchets are inaccurate, and that inaccuracy is precisely what makes the battering ram (100%) the wall-breaker and leaves room for Siege Accuracy to matter." },
+  { key: "SIEGE_DESTROYED_BELOW", label: "Engine wreck threshold", unit: "%", group: "Siege", value: C.SIEGE_DESTROYED_BELOW, min: 0, max: 1, step: 0.05, pct: true, desc: "An engine battered below this share of its health is destroyed outright rather than repairable. Everything above it is worn but mendable." },
+  { key: "SIEGE_REPAIR_COST_FACTOR", label: "Engine repair cost", unit: "× build cost", group: "Siege", value: C.SIEGE_REPAIR_COST_FACTOR, min: 0, max: 1, step: 0.05, desc: "Mending an engine against building one anew. At a third, rebuilding costs three times repairing — which is what makes an online defender who mends between volleys genuinely hard to grind down." },
+  { key: "SIEGE_SALVAGE_VALUE", label: "Engine resale", unit: "% of cost", group: "Siege", value: C.SIEGE_SALVAGE_VALUE, min: 0, max: 1, step: 0.05, pct: true, desc: "What selling an engine back returns. The pressure valve when the treasury runs dry mid-campaign." },
+  { key: "OVERWHELM_RATIO", label: "Counter overwhelm ratio", unit: "×", group: "Siege", value: C.COUNTER_DUEL.OVERWHELM_RATIO, min: 1, step: 0.5, desc: "A counter outgunning the engines it faces by this much stops bothering with the woodwork and starts killing the crews." },
+  { key: "GIVE_UP_LOSS", label: "Battery falls silent after losing", unit: "%", group: "Siege", value: C.ARTILLERY_DUEL.GIVE_UP_LOSS, min: 0, max: 1, step: 0.05, pct: true, desc: "A defending battery stops answering only when this much of it is wreckage AND what remains is outgunned. Requiring BOTH is deliberate: it means you cannot reach the give-up state without first being ground down to it, so keeping no counters is never a cheap way to opt out of the duel." },
+  { key: "WALL_EDGE_BASE", label: "Wall defence edge", unit: "%", group: "Siege", value: C.WALL_EDGE.BASE, min: 0, max: 2, step: 0.05, pct: true, desc: "What ANY standing wall gives its defenders. Flat by design — a wall is a wall. Wall LEVEL buys health, not a bigger bonus." },
+  { key: "TROOPS_PER_TOWER", label: "Troops per siege tower", unit: "troops", group: "Siege", value: C.WALL_EDGE.TROOPS_PER_TOWER, min: 1, step: 10, desc: "A siege tower puts this many men on the parapet in formation, against a ladder's thirty and a grapple's ten — and they arrive fighting a far lesser wall." },
+  { key: "SORTIE_SCREEN_ABSORB", label: "Screen absorbs", unit: "× its own strength", group: "Siege", value: C.SORTIE.SCREEN_ABSORB, min: 1, step: 0.5, desc: "How much of a sortie the attacker's footmen and cavalry hold off before anything reaches the engineers and the engines behind them." },
+  { key: "RAM_CREW_SIZE", label: "Ram crew", unit: "troops per ram", group: "Siege", value: C.RAM_CREW.TROOPS_PER_RAM, min: 1, step: 5, desc: "Hands needed to push one ram. They are NOT in the battle line until the wall is breached, and boiling oil can scald them where they stand." },
+  // ── The mercenary cascade ───────────────────────────────────────────
+  { key: "MERC_CAP_RATIO", label: "Sellsword cap", unit: "% of an arm's regulars", group: "Mercenaries", value: C.MERCENARIES.CAP_RATIO, min: 0, max: 1, step: 0.01, pct: true, desc: "Hired blades may not exceed this share of the REGULARS of their own arm — footmen gate merc footmen, scouts gate merc scouts. Enforced continuously, not just at hire: when regulars die the sellswords who can no longer be commanded are paid off and ride away. This is the cascade that makes killing regulars cost an enemy more than the bodies themselves." },
+  // ── Civilians ───────────────────────────────────────────────────────
+  { key: "CIVILIAN_LOSS_CASTLE", label: "Civilians driven off by a castle attack", unit: "%", group: "Combat", value: C.CIVILIAN_LOSS.CASTLE.max, min: 0, max: 1, step: 0.01, pct: true, desc: "People flee a sacked town. Separate from — and compounding with — the peasant scattering that follows at dawn if the attack left the garrison too thin to reassure anyone." },
+  // ── The shadow war ──────────────────────────────────────────────────
+  { key: "SPY_TURNS_RATE", label: "Spy turns / game turn", unit: "spy turns", group: "Covert", value: C.SPY_TURNS.PER_GAME_TURN, min: 0, step: 1, desc: "The covert clock, deliberately half the army's rate (144/day against 288). Spies AND scouts both spend from it — every turn spent watching a rival is a turn not spent robbing them." },
+  { key: "SPY_TURNS_CEILING", label: "Spy turn ceiling", unit: "spy turns", group: "Covert", value: C.SPY_TURNS.CAP, min: 1, step: 10, desc: "About a day and a half of banking. One deep operation can spend the lot, which is what makes espionage something you plan rather than spam." },
+  { key: "INTERCEPT_AT_PARITY", label: "Intercepted at equal strength", unit: "%", group: "Covert", value: C.INTERCEPTION.AT_PARITY, min: 0, max: 1, step: 0.05, pct: true, desc: "The share of agents a watch stops when both sides are equally strong, before the operation's own detection multiplier. THE dial of the shadow war: everything about how many agents to commit hangs off it. Untested against real play." },
+  { key: "INTERCEPT_MAX", label: "Interception ceiling", unit: "%", group: "Covert", value: C.INTERCEPTION.MAX, min: 0, max: 1, step: 0.05, pct: true, desc: "Capped below 1 on purpose, so a determined infiltration always lands something and a huge ranger corps can never make you untouchable." },
+  { key: "INTERCEPT_REGULAR_SHARE", label: "Caught agent is one of your own", unit: "%", group: "Covert", value: C.INTERCEPTION.REGULAR_SHARE, min: 0, max: 1, step: 0.05, pct: true, desc: "While hired agents remain, this is how often the one lost is a regular. The covert echo of the battle line's mercenary buffer — it is what keeps your veterans alive." },
+  { key: "COVERT_CAP_PER_ARM", label: "Spies (or scouts) cap", unit: "% of population", group: "Covert", value: C.COVERT_CAPS.PER_ARM, min: 0, max: 1, step: 0.01, pct: true, desc: "Ceiling on each arm as a share of total population." },
+  { key: "COVERT_CAP_COMBINED", label: "Both arms together cap", unit: "% of population", group: "Covert", value: C.COVERT_CAPS.COMBINED, min: 0, max: 1, step: 0.01, pct: true, desc: "You cannot be a realm of nothing but knives and rangers — somebody has to farm." },
+  { key: "UNDERMINE_CAP", label: "Undermining cap", unit: "% of wall", group: "Covert", value: C.COVERT_EFFECTS.UNDERMINE_CAP, min: 0, max: 1, step: 0.01, pct: true, desc: "Hard cap on what spies can do to a wall in one mission. Deliberately tiny: if agents could meaningfully breach masonry, the entire siege economy — trebuchets, engineers, repairs, the artillery duel — would be pointless. A nuisance, not a siege." },
+  { key: "STEAL_RESEARCH_CAP", label: "Research levels stealable per era", unit: "levels", group: "Covert", value: C.COVERT_EFFECTS.STEAL_RESEARCH_LEVELS_PER_ERA, min: 0, step: 1, desc: "Stolen levels are COPIED — the victim keeps theirs and loses only the secret. Capped so theft can supplement doing the work but never replace it." },
+  { key: "COVERT_LUCK", label: "Shadow-war luck swing", unit: "± %", group: "Covert", value: C.COVERT_LUCK_SWING, min: 0, max: 1, step: 0.05, pct: true, desc: "Twice the battle swing — infiltration is a chancier business than a shield wall." },
+  { key: "GUILD_BONUS", label: "Shadow Guild / level", unit: "%", group: "Covert", value: C.GUILD_BONUS_PER_LEVEL, min: 0, max: 1, step: 0.05, pct: true, desc: "Additive bonus to your spies' strength per Guild level." },
+  { key: "LODGE_BONUS", label: "Rangers Lodge / level", unit: "%", group: "Covert", value: C.LODGE_BONUS_PER_LEVEL, min: 0, max: 1, step: 0.05, pct: true, desc: "Additive bonus to your scouts' strength per Lodge level — both the intelligence they bring back and the watch they stand." },
   // Victory
   { key: "CUMULATIVE_HOURS", label: "Crown hold — cumulative", unit: "hours", group: "Victory", value: C.HOLD_CLOCKS.CUMULATIVE_HOURS, min: 1, step: 1, desc: "Total hours at #1 (need not be consecutive) required to win the age as Grand Overlord." },
   { key: "STREAK_HOURS", label: "Crown hold — unbroken streak", unit: "hours", group: "Victory", value: C.HOLD_CLOCKS.STREAK_HOURS, min: 1, step: 1, desc: "Consecutive hours you must hold #1 without being knocked off — the harder half of the crown condition." },
-  { key: "FLOOR_OVERLORD", label: "Overlord population floor", unit: "population", group: "Victory", value: C.POPULATION_FLOORS.GRAND_OVERLORD, min: 0, step: 1000, desc: "Minimum population to be eligible for the Grand Overlord crown — a tiny #1 can't sneak a win." },
-  { key: "FLOOR_CLAN", label: "Clan population floor", unit: "population", group: "Victory", value: C.POPULATION_FLOORS.CLAN, min: 0, step: 10000, desc: "Minimum combined population for a clan to be eligible for the clan victory." },
+  { key: "FLOOR_OVERLORD", label: "Overlord army floor", unit: "regulars", group: "Victory", value: C.ARMY_FLOORS.INDIVIDUAL, min: 0, step: 100, desc: "Regular footmen, archers and cavalry needed before a lone empire's victory clock will tick. Regulars only — no mercenaries (gold should not buy a throne) and no engineers. The individual clock also requires having NEVER joined a clan this age." },
+  { key: "FLOOR_CLAN", label: "Clan army floor", unit: "regulars", group: "Victory", value: C.ARMY_FLOORS.CLAN, min: 0, step: 1000, desc: "Regulars summed across every member before a clan's victory clock will tick." },
 ];
 
 // ── Read-only reference tables (shown on both pages; not inline-editable v1) ──
@@ -308,36 +343,36 @@ export const REF_TABLES: RefTable[] = [
     group: "Units",
     desc: "Each unit comes in three tiers. A higher tier hits harder AND costs proportionally more to train — a light-vs-heavy trade of quantity against quality.",
     headers: ["Tier", "Combat power", "Cost ×"],
-    rows: (["light", "medium", "heavy"] as const).map((t) => [t, C.TIER_POWER[t], C.TIER_COST_MULT[t]]),
+    rows: (["light", "medium", "heavy"] as const).map((t) => [t, C.TIER_SCALE[t], C.TIER_COST_MULT[t]]),
   },
   {
     key: "unitstats",
     title: "Unit base stats (light)",
     group: "Units",
     desc: "Attack and defence of each light unit before race, research, tier and wall modifiers. Footmen anchor the line, archers hit hardest, cavalry balance both, siege engineers exist to crew engines.",
-    headers: ["Unit", "Attack", "Defence"],
-    rows: (["footman", "archer", "cavalry", "siegeEngineer"] as const).map((u) => [u, C.UNIT_STATS[u].attack, C.UNIT_STATS[u].defence]),
+    headers: ["Unit", "Power", "Health"],
+    rows: (["footman", "archer", "cavalry", "engineer"] as const).map((u) => [u, C.UNIT_POWER[u].power, C.UNIT_POWER[u].health]),
   },
   {
     key: "siege",
     title: "Siege gear — cost & crew",
     group: "War",
     desc: "Offensive engines used to break walls and buildings. Each needs resources to build and a number of crew (drawn from your army) to operate in the field.",
-    headers: ["Engine", "Gold", "Wood", "Stone", "Ore", "Crew"],
+    headers: ["Engine", "Power", "Health", "Gold", "Wood", "Ore", "Crew"],
     rows: (Object.keys(C.SIEGE_GEAR) as (keyof typeof C.SIEGE_GEAR)[]).map((k) => {
       const g = C.SIEGE_GEAR[k];
-      return [k, g.gold, g.wood, g.stone, g.ore, g.crew];
+      return [k, g.power, g.health, g.gold, g.wood, g.ore, g.crew];
     }),
   },
   {
     key: "counters",
     title: "Defensive counters",
     group: "War",
-    desc: "Each defensive counter neutralises one kind of attacking engine. It needs a Foundry of the listed level to build, plus gold and crew — the defender's answer to a siege.",
-    headers: ["Counter", "Cancels", "Gold", "Crew", "Foundry"],
+    desc: "Each counter duels the engine it answers — it does not cancel it, it shoots at it until one of them is wreckage. Needs a Foundry of the listed level, gold, and engineers to crew when you defend.",
+    headers: ["Counter", "Answers", "Power", "Health", "Gold", "Crew", "Foundry"],
     rows: (Object.keys(C.SIEGE_COUNTERS) as (keyof typeof C.SIEGE_COUNTERS)[]).map((k) => {
       const c = C.SIEGE_COUNTERS[k];
-      return [c.name, c.counters, c.gold, c.crew, c.foundryLevel];
+      return [c.name, c.counters, c.power, c.health, c.gold, c.crew, c.foundryLevel];
     }),
   },
   {
@@ -347,11 +382,11 @@ export const REF_TABLES: RefTable[] = [
     desc: "Experience earned by the attacker depends on how fair the fight was — picking on the much weaker earns nothing, while beating a stronger foe pays well. Defenders always earn something for holding.",
     headers: ["Situation", "XP"],
     rows: [
-      ["≥75% stronger", "attack refused"],
-      ["Bold (20–75% stronger)", `+${C.XP.BOLD.gain}`],
-      ["Fair (±20%)", `+${C.XP.FAIR.gain}`],
-      ["Weak (20–50% down)", `+${C.XP.WEAK.gain}`],
-      ["Bully (>50% down)", C.XP.BULLY_GAIN],
+      ["Per enemy REGULAR killed", `+${C.XP.PER_REGULAR_KILLED}`],
+      ["Per civilian driven off", `+${C.XP.PER_CIVILIAN_DISPLACED}`],
+      ["Per mercenary killed", `${C.XP.PER_MERC_KILLED} \u2014 they were never anybody\u2019s people`],
+      ["Ceiling per battle", `+${C.XP.MAX_PER_BATTLE}`],
+      ["Attack refused above", `\u00d7${C.XP.REFUSAL_RATIO} score ratio`],
       ["Defender (always)", `+${C.XP.DEFENDER_GAIN}`],
     ],
   },
@@ -362,9 +397,11 @@ export const REF_TABLES: RefTable[] = [
     desc: "What a successful raid carries home. You take a fraction of the loser's exposed resources, boosted against big targets and floored against small ones so bullying the weak pays little.",
     headers: ["Setting", "Value"],
     rows: [
-      ["Fraction taken", `${Math.round(C.LOOT.FRACTION * 100)}%`],
+      ["Raid, won", `${Math.round(C.LOOT.RAID_WIN.min * 100)}\u2013${Math.round(C.LOOT.RAID_WIN.max * 100)}% of exposed GOODS`],
+      ["Castle, won", `${Math.round(C.LOOT.CASTLE_WIN.min * 100)}\u2013${Math.round(C.LOOT.CASTLE_WIN.max * 100)}% of unvaulted GOLD`],
+      ["Either, yielded", `${Math.round(C.LOOT.RAID_YIELD.min * 100)}\u2013${Math.round(C.LOOT.RAID_YIELD.max * 100)}%`],
       ["Big-target bonus (≥150%)", `×${C.LOOT.BIG_TARGET_BONUS}`],
-      ["Small-target floor (≤50%)", `×${C.LOOT.SMALL_TARGET_FLOOR}`],
+      ["Small-target penalty (≤50%)", `×${C.LOOT.SMALL_TARGET_PENALTY}`],
     ],
   },
   {
@@ -417,6 +454,8 @@ export const GROUP_ORDER = [
   "Units",
   "War",
   "Combat",
+  "Siege",
+  "Covert",
   "Action turns",
   "Victory",
   "Ranking",

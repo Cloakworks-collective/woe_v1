@@ -1,28 +1,18 @@
-// Combat — battle resolution constants (spec/combat.md).
-// All numbers live in balance.ts — THE tuning file.
+// Combat constants — the surface `lib/constants` presents to the engine.
+// Every number lives in battleBalance.ts (THE battle tuning file); this file
+// only decides what is visible and pulls in the few battle-adjacent knobs that
+// still belong to the general balance file.
+
+export * from "./battleBalance";
 
 export {
   ACTION_TURNS,
-  STAMINA,
-  YIELD,
-  UNIT_STATS,
-  TIER_POWER,
-  ENGINE_FIRE,
-  BUILDING_DAMAGE_PER_TREB,
-  BUILDING_INTEGRITY_FLOOR,
-  WALL_BOMBARD_PIVOT,
-  ESCALADE_COVERAGE,
-  MAX_ROUNDS,
-  K_LETHALITY,
-  BREAK_THRESHOLD,
-  LUCK_SWING,
-  WALL_BONUS_CURVE,
-  XP,
-  LOOT,
-  REVENGE_WINDOW_HOURS,
-  ATTACK_HISTORY_HOURS,
-  ATTACK_HISTORY_TICKS,
-  SIEGE_GEAR_LOSS_ON_DEFEAT,
   WALL_REPAIR_COST_FACTOR,
   SCATTERING,
+  ATTACK_HISTORY_TICKS,
+  MERC_UPKEEP_GOLD_PER_TURN,
+  MERC_PRICE_GOLD,
+  MERC_PRICE_BY_ARM,
+  TIER_COST_MULT,
+  TRAINING_COSTS,
 } from "./balance";

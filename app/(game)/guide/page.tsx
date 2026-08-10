@@ -2,13 +2,15 @@ import Link from "next/link";
 import { Art } from "@/components/Art";
 import { Panel } from "@/components/Panel";
 import {
+  BLACK_MARKET,
   ERA_PEACE_DAYS,
   HOLD_CLOCKS,
   MARKET_FEE,
   MARKET_PRICE_MAX,
   MARKET_PRICE_MIN,
-  POPULATION_FLOORS,
+  ARMY_FLOORS,
   REVENGE_WINDOW_HOURS,
+  SIEGE_SALVAGE_VALUE,
   TURNS_PER_DAY,
 } from "@/lib/constants";
 
@@ -88,8 +90,10 @@ export default function GuidePage() {
             (this streak resets every time you&apos;re knocked off #1).
           </li>
           <li>
-            The clocks only tick while you are above <b>{fmt(POPULATION_FLOORS.GRAND_OVERLORD)}</b>{" "}
-            population (civilians + regular troops — mercenaries never count).
+            The clocks only tick while you field <b>{fmt(ARMY_FLOORS.INDIVIDUAL)}+ regular
+            troops</b> (footmen, archers, cavalry — mercenaries and engineers never count),{" "}
+            <b>and only if you have never joined a clan this age</b>. Gold cannot buy the solo
+            crown, and neither can a clan&apos;s vault.
           </li>
           <li>
             Touching #1 isn&apos;t enough — you must <b>defend</b> it. Rivals will bombard, revenge,
@@ -100,7 +104,7 @@ export default function GuidePage() {
         <p>
           The same two clocks, but for the <b>#1 clan</b> — its score is the sum of every member&apos;s
           score plus clan-building points. The clan must stay above{" "}
-          <b>{fmt(POPULATION_FLOORS.CLAN)}</b> total population. Losing a clan war freezes the clocks
+          <b>{fmt(ARMY_FLOORS.CLAN)}</b> regulars across its members. Losing a clan war freezes the clocks
           for 48 hours, so beating the leading clan is a direct play against their win.
         </p>
         <h4>What the ranking score measures — the visible empire</h4>
@@ -125,8 +129,14 @@ export default function GuidePage() {
         </p>
         <h4>Peasants → workers or soldiers</h4>
         <p>
-          New settlers arrive every dawn (from <b>1/day up to 100/day</b> as you raise civilian
-          buildings). On the <Link href="/train">Workers &amp; Levy</Link> page you assign peasants
+          New settlers arrive every dawn — <b>10/day up to 100/day</b>, and the four things that
+          decide it are all yours to change: a flat <b>+10 base</b>, up to <b>+10</b> for a garrison
+          that makes people feel safe (+4 at 20% troops-to-civilians, +8 at 25%, +10 at 30%), up to{" "}
+          <b>+40</b> for the four resource buildings (work to be had — storage does not count), and
+          up to <b>+40</b> for walls (+4 a level, scaled by how intact they are). Arrivals that find
+          no vacant bed walk on and are lost, so build Hearthsteads ahead of growth. The breakdown
+          is on your <Link href="/">Command View</Link>. On the{" "}
+          <Link href="/train">Workers &amp; Levy</Link> page you assign peasants
           as <b>workers</b> (who produce gold &amp; resources every turn) or train them into{" "}
           <b>military</b>, <b>spies</b>, or <b>scouts</b>.
         </p>
@@ -477,7 +487,7 @@ export default function GuidePage() {
         <h4>2 · Cross the population floor</h4>
         <p>
           The clocks only tick while you sit at <b>#1</b> <i>and</i> hold above{" "}
-          <b>{fmt(POPULATION_FLOORS.GRAND_OVERLORD)}</b> population (civilians + regulars — mercs
+          <b>{fmt(ARMY_FLOORS.INDIVIDUAL)}</b> regulars (footmen, archers, cavalry — mercs
           never count). Below the floor the clocks <b>freeze</b> even at #1 (the ladder footer tells
           you when a leader is frozen).
         </p>
@@ -500,7 +510,7 @@ export default function GuidePage() {
         <h4>The clan clock</h4>
         <p>
           A clan wins on the same two clocks for the <b>#1 clan</b> (score = every member&apos;s
-          score + clan buildings), held above <b>{fmt(POPULATION_FLOORS.CLAN)}</b> total population.
+          score + clan buildings), held with <b>{fmt(ARMY_FLOORS.CLAN)}</b> regulars across its members.
           Beating the leading clan in a <b>clan war freezes their clocks for 48h</b> — a direct play
           against their win.
         </p>
@@ -574,8 +584,38 @@ export default function GuidePage() {
           </li>
           <li>
             A <b>{MARKET_FEE * 100}% fee on every sale is burned</b> — the gold sink that keeps
-            prices meaningful. Recalling a caravan returns its goods and frees the merchant, even
-            mid-journey.
+            prices meaningful.
+          </li>
+          <li>
+            <b>Recalling costs you half the load.</b> You can turn a caravan around at any point and
+            the merchant is freed, but only <b>50%</b> of the remaining goods reach your stores. The
+            road is not a safe-deposit box: goods parked there to dodge a raid cost you more than
+            the raid would have.
+          </li>
+        </ul>
+
+        <h4>The Black Market — when you can&apos;t wait</h4>
+        <p>
+          The <Link href="/blackmarket">Black Market</Link> is the <b>fence</b>: you deal with the
+          system, not another empire, and it settles <b>instantly</b>. No caravan, no road, no
+          counterparty. You pay for that in price — it is the worst deal in the realm, on purpose.
+        </p>
+        <ul>
+          <li>
+            It <b>pays {BLACK_MARKET.SELL_PRICE}</b> gold a unit and <b>sells at{" "}
+            {BLACK_MARKET.BUY_PRICE}</b>. The Bazaar trades between{" "}
+            <b>{MARKET_PRICE_MIN}</b> and <b>{MARKET_PRICE_MAX}</b> — so a player caravan is{" "}
+            <i>always</i> the better deal on both sides. Patience is literally worth gold.
+          </li>
+          <li>
+            That spread also means there is <b>no way to farm it</b>: every round trip through the
+            fence loses money. Use it when you need gold <i>this turn</i> to finish a building, or
+            bread <i>this turn</i> to stop starving — never as a business.
+          </li>
+          <li>
+            It also runs the <b>breaker&apos;s yard</b>: sell siege engines for{" "}
+            {Math.round(SIEGE_SALVAGE_VALUE * 100)}% of their build cost, scaled by condition. Mend
+            them first — a wreck salvages for less.
           </li>
         </ul>
       </Guide>

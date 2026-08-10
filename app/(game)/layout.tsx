@@ -2,7 +2,7 @@ import { AdvisorAlerts } from "@/components/AdvisorAlerts";
 import { EventToasts, type ToastItem } from "@/components/EventToasts";
 import { FlashProvider } from "@/components/FlashProvider";
 import { MobileNav } from "@/components/MobileNav";
-import { ResourceBar } from "@/components/ResourceBar";
+import { ResourceBar, TopBar } from "@/components/ResourceBar";
 import { SideNav } from "@/components/SideNav";
 import { TopNav } from "@/components/TopNav";
 import { TipNudge } from "@/components/TipNudge";
@@ -27,10 +27,16 @@ export default async function GameLayout({ children }: { children: React.ReactNo
 
   return (
     <FlashProvider>
+      {/* TWO bars, not three. The realm's name, where you can go, and who you
+          are all belong to the same question, so they share one row; below 860px
+          .topnav hides and the burger takes its place inline. The holdings row
+          sits underneath, closest to the page it describes. */}
+      <TopBar player={player} meta={world.meta}>
+        <TopNav premium={!!player.premium} />
+        <MobileNav premium={!!player.premium} />
+      </TopBar>
       <ResourceBar player={player} meta={world.meta} />
       <EventToasts playerId={player.id} items={toasts} />
-      <TopNav premium={!!player.premium} />
-      <MobileNav premium={!!player.premium} />
       <AdvisorAlerts player={player} />
       {world.meta.winner && (
         <div className="alert alert-win" role="status">
@@ -38,8 +44,9 @@ export default async function GameLayout({ children }: { children: React.ReactNo
           <div>
             <div className="alert-title">The era is won by {world.meta.winner.name}!</div>
             <div className="alert-body">
-              The final ladder is frozen and archived. The next era will bear their name — and opens
-              with a 5-day peace while everyone rebuilds.
+              The world has stopped: no attacks, no building, no trade, and no turns are passing.
+              The final ladder stands exactly as it was won. The next era will bear their name — and
+              opens with a 5-day peace while everyone rebuilds.
             </div>
           </div>
         </div>

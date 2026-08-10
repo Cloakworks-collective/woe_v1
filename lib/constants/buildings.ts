@@ -53,6 +53,16 @@ export const CIVILIAN_BUILDINGS: BuildingMeta[] = [
 
 export const CIVILIAN_LEVELLED_IDS = CIVILIAN_BUILDINGS.map((b) => b.id);
 
+/** The four buildings that PRODUCE a resource — not the four that store it.
+ *  Settler intake counts these (work to be had) and pointedly ignores storage:
+ *  a full granary is somewhere to put grain, not a job. */
+export const RESOURCE_BUILDING_IDS = [
+  "grange", // food
+  "sawyers_mill", // wood
+  "masons_quarry", // stone
+  "deepvein_mine", // ore
+] as const satisfies readonly BuildingId[];
+
 export const MILITARY_BUILDINGS: BuildingMeta[] = [
   { id: "muster_hall", name: "Muster Hall", desc: "Barracks — houses 10 troops each (counted)" },
   { id: "drill_yard", name: "Drill Yard", desc: "Footmen: light → medium → heavy (levels 1–3)" },
@@ -84,8 +94,7 @@ export {
   HOUSING_PER_HEARTHSTEAD,
   TROOPS_PER_MUSTER_HALL,
   STORAGE_SHELTER_CURVE,
-  GROWTH_CURVE,
-  WALL_DAMAGE_POP_PENALTY,
+  POP_GROWTH,
   SETTLEMENT_TITLES,
   TRAINING_COSTS,
   TIER_COST_MULT,
@@ -104,14 +113,19 @@ export function bandIndex(level: number): number {
 
 // ── War Foundry ladder (levels 1–10, offense/counter pairs) ────────────────
 
+export type GearKey = "ropes" | "ladders" | "siege_towers" | "rams" | "ballistae" | "trebuchets";
+
 export interface FoundryStep {
   level: number;
   side: "offense" | "defense";
   name: string;
-  gearKey?: "ropes" | "ladders" | "rams" | "ballistae" | "trebuchets";
-  counters?: "ropes" | "ladders" | "rams" | "ballistae" | "trebuchets";
+  gearKey?: GearKey;
+  counters?: GearKey;
 }
 
+/** The Foundry ladder still runs 1–10 and still alternates offense/defense.
+ *  Levels 7 and 8 now unlock TWO things each: the missile engine and the
+ *  assault tower, and their two answers. */
 export const WAR_FOUNDRY_LADDER: FoundryStep[] = [
   { level: 1, side: "offense", name: "Ropes & Grapples", gearKey: "ropes" },
   { level: 2, side: "defense", name: "Bill-hooks", counters: "ropes" },
@@ -120,20 +134,36 @@ export const WAR_FOUNDRY_LADDER: FoundryStep[] = [
   { level: 5, side: "offense", name: "Battering Ram", gearKey: "rams" },
   { level: 6, side: "defense", name: "Boiling Oil", counters: "rams" },
   { level: 7, side: "offense", name: "Ballista", gearKey: "ballistae" },
+  { level: 7, side: "offense", name: "Siege Tower", gearKey: "siege_towers" },
   { level: 8, side: "defense", name: "Hoardings", counters: "ballistae" },
+  { level: 8, side: "defense", name: "Fire Pots", counters: "siege_towers" },
   { level: 9, side: "offense", name: "Trebuchet", gearKey: "trebuchets" },
   { level: 10, side: "defense", name: "Counter-Engine", counters: "trebuchets" },
 ];
 
-export type CounterType = "billhooks" | "forkpoles" | "boiling_oil" | "hoardings" | "counter_engine";
+export type CounterType =
+  | "billhooks"
+  | "forkpoles"
+  | "fire_pots"
+  | "boiling_oil"
+  | "hoardings"
+  | "counter_engine";
 
 /** Counter types heaviest-crew first — the order engineers man them (like gear). */
-export const COUNTER_TYPES: CounterType[] = ["counter_engine", "hoardings", "boiling_oil", "forkpoles", "billhooks"];
+export const COUNTER_TYPES: CounterType[] = [
+  "counter_engine",
+  "hoardings",
+  "boiling_oil",
+  "fire_pots",
+  "forkpoles",
+  "billhooks",
+];
 
-/** The counter that neutralises each offensive weapon. */
-export const COUNTER_FOR: Record<"ropes" | "ladders" | "rams" | "ballistae" | "trebuchets", CounterType> = {
+/** The counter that answers each offensive engine. */
+export const COUNTER_FOR: Record<GearKey, CounterType> = {
   ropes: "billhooks",
   ladders: "forkpoles",
+  siege_towers: "fire_pots",
   rams: "boiling_oil",
   ballistae: "hoardings",
   trebuchets: "counter_engine",

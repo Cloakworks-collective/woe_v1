@@ -29,9 +29,11 @@ function baseReport(over: Partial<BattleReport>): BattleReport {
     mode: "raid",
     rounds: 2,
     victor: "attacker",
-    attackerLosses: { footmen: 0, archers: 0, cavalry: 0, engineers: 0, mercenaries: 0 },
-    defenderLosses: { footmen: 0, archers: 0, cavalry: 0, engineers: 0, mercenaries: 0 },
-    wallIntegrityDamage: 0,
+    attackerLosses: { footmen: 0, archers: 0, cavalry: 0, engineers: 0, mercenaries: 0, mercenariesDisbanded: 0 },
+    defenderLosses: { footmen: 0, archers: 0, cavalry: 0, engineers: 0, mercenaries: 0, mercenariesDisbanded: 0 },
+    regularsKilled: { attacker: 0, defender: 0 },
+  civiliansDisplaced: 0,
+  wallIntegrityDamage: 0,
     siegeGearLost: {},
     loot: { gold: 0, resources: { food: 0, wood: 0, stone: 0, ore: 0 } },
     staminaLoss: { attacker: 0, defender: 0 },
@@ -41,12 +43,12 @@ function baseReport(over: Partial<BattleReport>): BattleReport {
   };
 }
 
-describe("expanded War Records (spec/victory.md)", () => {
+describe("expanded War Records (spec/overview.md)", () => {
   it("recordBattle folds lifetime feats for both sides", () => {
     const rec: EraRecords = newEraRecords();
     const r = baseReport({
-      defenderLosses: { footmen: 10, archers: 5, cavalry: 0, engineers: 0, mercenaries: 3 },
-      attackerLosses: { footmen: 2, archers: 0, cavalry: 0, engineers: 1, mercenaries: 0 },
+      defenderLosses: { footmen: 10, archers: 5, cavalry: 0, engineers: 0, mercenaries: 3, mercenariesDisbanded: 0 },
+      attackerLosses: { footmen: 2, archers: 0, cavalry: 0, engineers: 1, mercenaries: 0, mercenariesDisbanded: 0 },
       loot: { gold: 5000, resources: { food: 100, wood: 200, stone: 0, ore: 0 } },
       wallIntegrityDamage: 0.5,
       buildingDamage: [{ building: "granary", integrityLost: 0.2 }],

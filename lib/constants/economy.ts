@@ -1,4 +1,4 @@
-// Economy — taxes, production, food upkeep, mercenaries (spec/economy.md).
+// Economy — taxes, production, food upkeep, mercenaries (spec/empire.md).
 // All numbers live in balance.ts — THE tuning file. This module re-exports the
 // economy section so engine imports stay short and domain-grouped.
 
@@ -16,6 +16,10 @@ export {
   VACATION_TICKS_PER_ERA,
   VACATION_REATTACK_COOLDOWN_TICKS,
   MERC_UPKEEP_GOLD_PER_TURN,
-  MERC_CAP_RATIO,
   MERC_PRICE_GOLD,
 } from "./balance";
+
+/** The sellsword cap now lives with the rest of the battle model — it is a
+ *  combat rule (regulars of an arm gate its hirelings) rather than an economic
+ *  one. Re-exported here so economy callers keep one import. */
+export { MERCENARIES } from "./battleBalance";

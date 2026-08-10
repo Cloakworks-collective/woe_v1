@@ -70,7 +70,7 @@ const queuedLevels = (p: Player, field: ResearchField) =>
 
 // A 5-segment level track: owned levels solid, the next actionable, the rest
 // future. Nothing is ever locked — every level is researchable at any time; the
-// Collegium only sets how fast (spec/research.md).
+// Collegium only sets how fast (spec/empire.md).
 function PipTrack({ fid, lvl }: { fid: ResearchField; lvl: number }) {
   return (
     <span className="rpips" aria-label={`Level ${lvl} of ${MAX_FIELD_LEVEL}`}>
