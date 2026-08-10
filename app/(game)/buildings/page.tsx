@@ -17,7 +17,15 @@ import {
 } from "@/lib/constants";
 import { BUILDING_GUIDE, BUILDING_INFO } from "@/lib/constants";
 import type { BuildingId, BuildingMeta } from "@/lib/constants/buildings";
-import { buildingCost, buildingUpgradeBenefit, buildingIntegrity, level, repairCost, type Player } from "@/lib/engine";
+import {
+  buildingCost,
+  buildingIntegrity,
+  buildingUpgradeBenefit,
+  level,
+  repairCost,
+  structureIntegrity,
+  type Player,
+} from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
@@ -124,7 +132,7 @@ function BuildingCards({ ids, player, path }: { ids: string[]; player: Player; p
         const benefit = buildingUpgradeBenefit(player, bid);
         const counted = isCounted(bid);
         const name = bid === "walls" && lvl > 0 ? `${b.name} — ${WALL_NAMES[lvl]}` : b.name;
-        const integrity = bid === "walls" ? player.wallIntegrity : buildingIntegrity(player, bid);
+        const integrity = structureIntegrity(player, bid);
         const needsRepair = lvl > 0 && integrity < 1;
         const rcost = needsRepair ? repairCost(bid, lvl, integrity) : null;
         return (
@@ -198,7 +206,7 @@ function BuildingCards({ ids, player, path }: { ids: string[]; player: Player; p
             <p className="bcard-desc">{b.desc}</p>
             <div className="bcard-main">
               <span className="bcard-art">
-                <BuildingArt id={bid} level={lvl} size={208} title={info.title} />
+                <BuildingArt id={bid} level={lvl} size={208} title={info.title} integrity={integrity} />
               </span>
               {cost ? (
                 <CostList cost={cost} />

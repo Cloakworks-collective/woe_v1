@@ -12,3 +12,4 @@ export * from "./victory";
 export * from "./protection";
 export * from "./premium";
 export * from "./descriptions";
+export * from "./advisors";

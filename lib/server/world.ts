@@ -39,6 +39,7 @@ import {
   saveWorld,
   WorldConflictError,
   type ArchivedAge,
+  type TickRun,
   type World,
 } from "./store";
 import { fetchServiceWorld, worldServiceEnabled } from "./worldClient";
@@ -438,17 +439,50 @@ function lapseQuietWars(world: World, tick: number): void {
 }
 
 /** Process all wall-clock-due ticks (10 minutes each). Idempotent catch-up. */
+/** How much heartbeat history the Crown Chamber keeps. */
+const TICK_LOG_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Append a heartbeat entry and drop anything older than a week. */
+function recordTickRun(world: World, entry: TickRun): void {
+  const log = world.tickLog ?? [];
+  log.push(entry);
+  const cutoff = Date.now() - TICK_LOG_MS;
+  world.tickLog = log.filter((r) => Date.parse(r.at) >= cutoff);
+}
+
 export function runDueTicks(world: World, now = new Date()): number {
   const last = new Date(world.meta.lastTickAt).getTime();
   const step = TURN_MINUTES * 60 * 1000;
   const due = Math.floor((now.getTime() - last) / step);
   const capped = Math.min(due, 2016); // two weeks of downtime, max, per request
+  if (capped <= 0) return 0; // nothing due — not worth a log line
+
   // Each caught-up tick is credited at its own scheduled wall-clock time so the
   // §14.3 hold clocks stay monotonic through a catch-up run.
-  for (let i = 0; i < capped; i++) runOneTick(world, last + (i + 1) * step);
-  if (capped > 0) {
+  const startedAt = Date.now();
+  try {
+    for (let i = 0; i < capped; i++) runOneTick(world, last + (i + 1) * step);
     world.meta.lastTickAt = new Date(last + capped * step).toISOString();
+  } catch (e) {
+    // Record the failure on the world before rethrowing, so a crashed tick is
+    // visible in the Chamber rather than only in a server log nobody reads.
+    recordTickRun(world, {
+      at: new Date().toISOString(),
+      tick: world.meta.tickNumber,
+      processed: capped,
+      ms: Date.now() - startedAt,
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    throw e;
   }
+  recordTickRun(world, {
+    at: new Date().toISOString(),
+    tick: world.meta.tickNumber,
+    processed: capped,
+    ms: Date.now() - startedAt,
+    ok: true,
+  });
   return capped;
 }
 

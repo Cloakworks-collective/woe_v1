@@ -5,6 +5,13 @@
  *  viewer's own people when a race is given; everything else is universal. */
 const RACED = new Set(["workers", "units", "advisors"]);
 
+/** …and of those, the folders whose raceless file was only ever a byte-for-byte
+ *  copy of the human one. Asking for `units/footman` with no race now resolves
+ *  to `units/human/footman` — same pixels, one file. Advisors are excluded:
+ *  their raceless portraits are distinct art and the Advisors page leans on
+ *  them as a real fallback when a race has no portrait of its own. */
+const HUMAN_DEFAULT = new Set(["workers", "units"]);
+
 /** A pixel-art asset from public/art (PixelLab-generated), crisp-scaled. */
 export function Art({
   path,
@@ -18,7 +25,8 @@ export function Art({
   race?: string; // swaps in that race's version of a raced asset
 }) {
   const [folder, ...rest] = path.split("/");
-  const src = race && rest.length === 1 && RACED.has(folder) ? `${folder}/${race}/${rest[0]}` : path;
+  const people = race ?? (HUMAN_DEFAULT.has(folder) ? "human" : null);
+  const src = people && rest.length === 1 && RACED.has(folder) ? `${folder}/${people}/${rest[0]}` : path;
 
   return (
     <img

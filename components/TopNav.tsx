@@ -5,7 +5,12 @@ import { usePathname } from "next/navigation";
 import { useEffect, type MouseEvent } from "react";
 import { CHRONICLE_GROUPS } from "@/lib/lore/elderAges";
 
-type Item = { href: string; label: string; title: string };
+type Item = { href: string; label: string; icon: string; title: string };
+
+/** An emblem from the PixelLab sheet — see SideNav for why these aren't emoji. */
+function Emblem({ name, sm }: { name: string; sm?: boolean }) {
+  return <img src={`/art/ui/icons/${name}.png`} alt="" className={sm ? "nav-icon nav-icon-sm" : "nav-icon"} />;
+}
 
 /**
  * The desktop top bar for the WIDER WORLD and meta links — everything that
@@ -43,11 +48,11 @@ export function TopNav({ premium }: { premium: boolean }) {
     };
   }, []);
 
-  const worldItem: Item = { href: "/battles", label: "🌍 World", title: "The living age — clan wars, the latest battles, and the grand chronicle" };
-  const forum: Item = { href: "/forum", label: "🕯️ Forum", title: "The Forum — era chat & permanent letters with other empires" };
+  const worldItem: Item = { href: "/battles", label: "World", icon: "world", title: "The living age — clan wars, the latest battles, and the grand chronicle" };
+  const forum: Item = { href: "/forum", label: "Forum", icon: "forum", title: "The Forum — era chat & permanent letters with other empires" };
   const premiumItem: Item = premium
-    ? { href: "/steward", label: "👑 Premium", title: "Your Royal Charter — the Steward's build/research queues, standing orders & auto-banking" }
-    : { href: "/premium", label: "👑 Premium", title: "The Royal Charter (premium) — the Steward: queues, standing orders & auto-banking while you're away" };
+    ? { href: "/steward", label: "Premium", icon: "crown", title: "Your Royal Charter — the Steward's build/research queues, standing orders & auto-banking" }
+    : { href: "/premium", label: "Premium", icon: "crown", title: "The Royal Charter (premium) — the Steward: queues, standing orders & auto-banking while you're away" };
 
   const active = (href: string) =>
     href === "/"
@@ -58,7 +63,7 @@ export function TopNav({ premium }: { premium: boolean }) {
 
   const render = (item: Item) => (
     <Link key={item.href} href={item.href} className={active(item.href) ? "active" : ""} title={item.title}>
-      {item.label}
+      <Emblem name={item.icon} /> {item.label}
     </Link>
   );
 
@@ -74,17 +79,17 @@ export function TopNav({ premium }: { premium: boolean }) {
         <div className="topnav-group">
           <details className="topnav-dd">
             <summary className={rankingsActive ? "active" : ""} title="The ladder — empire ranks, clan ranks, and your war console">
-              📜 Rankings ▾
+              <Emblem name="trophy" /> Rankings
             </summary>
             <div className="topnav-menu" role="menu">
               <Link href="/rankings" onClick={closeMenu}>
-                🏰 Empire Ranks <span className="topnav-menu-sub">every empire · attack & spy</span>
+                <Emblem name="castle" sm /> Empire Ranks <span className="topnav-menu-sub">every empire · attack & spy</span>
               </Link>
               <Link href="/rankings/clans" onClick={closeMenu}>
-                🛡️ Clan Ranks <span className="topnav-menu-sub">the banners of the age</span>
+                <Emblem name="clan" sm /> Clan Ranks <span className="topnav-menu-sub">the banners of the age</span>
               </Link>
               <Link href="/rankings/records" onClick={closeMenu}>
-                🏆 Records of the Age <span className="topnav-menu-sub">rulers, champions & titles — still being written</span>
+                <Emblem name="trophy" sm /> Records of the Age <span className="topnav-menu-sub">rulers, champions & titles — still being written</span>
               </Link>
             </div>
           </details>
@@ -93,16 +98,16 @@ export function TopNav({ premium }: { premium: boolean }) {
 
           <details className="topnav-dd">
             <summary className={annalsActive ? "active" : ""} title="The finished history — sealed ages and the elder legends">
-              📚 Annals ▾
+              <Emblem name="chronicle" /> Annals
             </summary>
             <div className="topnav-menu" role="menu">
               <Link href="/annals" onClick={closeMenu}>
-                📚 Sealed Ages <span className="topnav-menu-sub">finished eras, kept for all time</span>
+                <Emblem name="chronicle" sm /> Sealed Ages <span className="topnav-menu-sub">finished eras, kept for all time</span>
               </Link>
               <div className="topnav-menu-head">Elder Ages</div>
               {CHRONICLE_GROUPS.map((g) => (
                 <Link key={g.key} href={`/annals#g-${g.key}`} onClick={closeMenu}>
-                  ⚜ {g.title} <span className="topnav-menu-sub">Ages {g.ageLabel}</span>
+                  <Emblem name="banner" sm /> {g.title} <span className="topnav-menu-sub">Ages {g.ageLabel}</span>
                 </Link>
               ))}
             </div>
@@ -114,14 +119,14 @@ export function TopNav({ premium }: { premium: boolean }) {
         <div className="topnav-group topnav-meta">
           <details className="topnav-dd">
             <summary className={guidesActive ? "active" : ""} title="Guides — the Field Manual and the Codex of Balance">
-              📜 Guides ▾
+              <Emblem name="scroll" /> Guides
             </summary>
             <div className="topnav-menu" role="menu">
               <Link href="/guide" onClick={closeMenu}>
-                📜 Field Manual <span className="topnav-menu-sub">how to win — growth, war & the market</span>
+                <Emblem name="scroll" sm /> Field Manual <span className="topnav-menu-sub">how to win — growth, war & the market</span>
               </Link>
               <Link href="/almanac" onClick={closeMenu}>
-                ⚖ Codex of Balance <span className="topnav-menu-sub">every curve & constant, charted</span>
+                <Emblem name="market" sm /> Codex of Balance <span className="topnav-menu-sub">every curve & constant, charted</span>
               </Link>
             </div>
           </details>

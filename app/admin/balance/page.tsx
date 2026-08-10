@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminTabs } from "@/components/AdminTabs";
 import { AdminLoginForm } from "@/components/AdminLoginForm";
 import { Panel } from "@/components/Panel";
 import { BalanceWorkbench } from "@/components/BalanceWorkbench";
@@ -30,6 +31,7 @@ export default async function AdminBalancePage() {
 
   return (
     <div className="frame" style={{ flexDirection: "column", maxWidth: 1180 }}>
+      <AdminTabs active="/admin/balance" />
       <div className="wb-topbar">
         <div>
           <h1 className="wb-title">⚖ Balance Workbench</h1>
@@ -39,7 +41,6 @@ export default async function AdminBalancePage() {
           </p>
         </div>
         <nav className="wb-topnav">
-          <Link href="/admin">← Crown Chamber</Link>
           <Link href="/almanac">Public Codex ↗</Link>
         </nav>
       </div>

@@ -48,6 +48,7 @@ import {
   productionRates,
   rankingScore,
   settlementTitle,
+  structureIntegrity,
   taxIncomePerTurn,
   totalPopulation,
   unbankedGold,
@@ -343,6 +344,10 @@ export default async function CommandView({
         </Panel>
 
         <Panel title="The Counting House — the realm's bank">
+          {/* Five columns ending in a button won't fold below phone width —
+              let the ledger scroll inside the panel rather than widening the
+              page and dragging every other column sideways with it. */}
+          <div className="tbl-scroll">
           <table className="tbl">
             <thead>
               <tr>
@@ -432,6 +437,7 @@ export default async function CommandView({
               })}
             </tbody>
           </table>
+          </div>
           <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 8, marginBottom: 0 }}>
             {p.premium ? (
               <>
@@ -475,7 +481,7 @@ export default async function CommandView({
               tone={enginesUnmanned > 0 ? "warn" : undefined}
             />
             <StatTile
-              icon={<BuildingArt id="war_foundry" level={level(p, "war_foundry")} size={46} title="War Foundry" />}
+              icon={<BuildingArt id="war_foundry" level={level(p, "war_foundry")} size={46} title="War Foundry" integrity={structureIntegrity(p, "war_foundry")} />}
               label="War Foundry"
               value={`level ${level(p, "war_foundry")} / 10`}
               sub={nextFoundryStep ? `next: ${nextFoundryStep.name}` : "the full ladder is forged"}
@@ -534,13 +540,13 @@ export default async function CommandView({
               sub={`unlimited — Lodge L${level(p, "rangers_lodge")} catches ops to L${catchableOpLevel(level(p, "rangers_lodge")) || 0}`}
             />
             <StatTile
-              icon={<BuildingArt id="shadow_guild" level={level(p, "shadow_guild")} size={46} title="Shadow Guild" />}
+              icon={<BuildingArt id="shadow_guild" level={level(p, "shadow_guild")} size={46} title="Shadow Guild" integrity={structureIntegrity(p, "shadow_guild")} />}
               label="Shadow Guild"
               value={`level ${level(p, "shadow_guild")}`}
               sub="steal ledgers, sabotage, torch stores"
             />
             <StatTile
-              icon={<BuildingArt id="rangers_lodge" level={level(p, "rangers_lodge")} size={46} title="Ranger's Lodge" />}
+              icon={<BuildingArt id="rangers_lodge" level={level(p, "rangers_lodge")} size={46} title="Ranger's Lodge" integrity={structureIntegrity(p, "rangers_lodge")} />}
               label="Ranger's Lodge"
               value={`level ${level(p, "rangers_lodge")}`}
               sub="recon rivals; catch their spies"

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { glyphs } from "./Glyph";
 import { Info } from "./Info";
 
 /**
@@ -20,7 +21,7 @@ export function Panel({
   return (
     <section className="panel">
       <h3>
-        {title}
+        {glyphs(title)}
         {info && (
           <span style={{ float: "right", fontWeight: 400 }}>
             <Info tip={info} guide={guide} />

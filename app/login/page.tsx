@@ -3,7 +3,8 @@ import { Flash } from "@/components/Flash";
 import { NameField } from "@/components/NameField";
 import { RACES, RACE_NAMES } from "@/lib/constants";
 import type { Race, RaceModifiers } from "@/lib/constants/races";
-import { createEmpire, enterEmpire, enterWithToken } from "@/app/actions";
+import { createEmpire, enterWithToken } from "@/app/actions";
+import { devOpenAdmin } from "@/lib/server/admin";
 import { currentPlayerId } from "@/lib/server/auth";
 import { getWorld } from "@/lib/server/world";
 
@@ -60,8 +61,9 @@ export default async function LoginPage({
     redirect("/");
   }
 
-  const devList = !process.env.CRON_SECRET; // open empire list is a dev convenience only
-  const humans = devList ? Object.values(world.players).filter((p) => !p.isBot) : [];
+  // Entering an existing empire without its token is a debug power, so it lives
+  // in the Crown Chamber now. Point there only while the chamber is unlocked.
+  const devDoor = devOpenAdmin();
   const contending = Object.keys(world.players).length;
 
   return (
@@ -221,19 +223,13 @@ export default async function LoginPage({
           terminal client) — the same empire in browser and CLI.
         </p>
 
-        {humans.length > 0 && (
+        {devDoor && (
           <div className="mst-devlist">
-            <div className="mst-devlist-head">⚙ Dev — open list, hidden in production</div>
-            <div className="mst-devlist-empires">
-              {humans.map((p) => (
-                <form key={p.id} action={enterEmpire}>
-                  <input type="hidden" name="playerId" value={p.id} />
-                  <button className="mst-throne-chip" type="submit">
-                    {p.name} · {RACE_NAMES[p.race]}
-                  </button>
-                </form>
-              ))}
-            </div>
+            <div className="mst-devlist-head">⚙ Dev — the chamber is unlocked</div>
+            <p style={{ fontSize: 13 }}>
+              Enter any existing empire from the{" "}
+              <a href="/admin">Crown Chamber&apos;s Ledger of Souls →</a>
+            </p>
           </div>
         )}
 

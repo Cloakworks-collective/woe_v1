@@ -72,19 +72,9 @@ export async function createEmpire(formData: FormData): Promise<void> {
   redirect("/");
 }
 
-export async function enterEmpire(formData: FormData): Promise<void> {
-  const id = String(formData.get("playerId") ?? "");
-  const world = await getWorld();
-  if (!world.players[id] || world.players[id].isBot) {
-    redirect(`/login?err=${encodeURIComponent("No such empire.")}`);
-  }
-  if (world.players[id].banned) {
-    redirect(`/login?err=${encodeURIComponent("This empire has been banished by the crown.")}`);
-  }
-  await setSession(id);
-  revalidatePath("/", "layout");
-  redirect("/");
-}
+/* enterEmpire (sit on any empire's throne by id) moved to app/admin/actions.ts
+   as adminEnterAs — it is a debug tool and now runs behind requireAdmin. It was
+   reachable here without any check at all. */
 
 /** Re-enter an empire with its realm token (the CLI credential works here too). */
 export async function enterWithToken(formData: FormData): Promise<void> {

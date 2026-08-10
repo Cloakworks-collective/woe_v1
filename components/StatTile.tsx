@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { glyphs } from "./Glyph";
 
 /** A framed icon + label + value tile — the visual replacement for rows of
  * `dl.kv` stat text. Group several inside a `.stat-grid`. */
@@ -17,9 +18,9 @@ export function StatTile({
 }) {
   return (
     <div className={`stat-tile${tone ? ` ${tone}` : ""}`}>
-      {icon != null && <span className="stat-icon">{icon}</span>}
+      {icon != null && <span className="stat-icon">{glyphs(icon)}</span>}
       <span className="stat-body">
-        <span className="stat-label">{label}</span>
+        <span className="stat-label">{glyphs(label)}</span>
         <span className="stat-value">{value}</span>
         {sub != null && <span className="stat-sub">{sub}</span>}
       </span>

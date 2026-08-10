@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { glyphs } from "@/components/Glyph";
 
 type Item = { href: string; label: string };
 type Group = { head: string; items: Item[] };
@@ -110,7 +111,7 @@ export function MobileNav({ premium }: { premium: boolean }) {
                   className={isActive(it.href) ? "active" : ""}
                   onClick={() => setOpen(false)}
                 >
-                  {it.label}
+                  {glyphs(it.label)}
                 </Link>
               ))}
             </div>

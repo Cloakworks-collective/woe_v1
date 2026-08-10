@@ -5,6 +5,7 @@ import { MobileNav } from "@/components/MobileNav";
 import { ResourceBar } from "@/components/ResourceBar";
 import { SideNav } from "@/components/SideNav";
 import { TopNav } from "@/components/TopNav";
+import { TipNudge } from "@/components/TipNudge";
 import { TourGuide } from "@/components/TourGuide";
 import { eventLine, eventTone } from "@/components/eventLine";
 import { isOnboardingActive } from "@/lib/engine";
@@ -52,6 +53,7 @@ export default async function GameLayout({ children }: { children: React.ReactNo
       <div className="footer">
         One turn every 10 minutes · settlers arrive at dawn · the ladder is the world
       </div>
+      <TipNudge />
       <TourGuide active={isOnboardingActive(player) && !player.onboarding?.toured} />
     </FlashProvider>
   );

@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { Art } from "@/components/Art";
+import { Glyph, glyphs } from "@/components/Glyph";
+import { advisor, advisorHref, type AdvisorKey } from "@/lib/constants/advisors";
 import {
   buildingIntegrity,
   civilians,
@@ -25,6 +28,12 @@ const STORE_NAMES: { id: BuildingId; name: string }[] = [
  * alarm from the empire's real numbers. Every banner links through to that
  * advisor (for the full counsel) and to the Field Manual (for the how), so the
  * red pill is a doorway, not a dead end. Ordered most-urgent first.
+ *
+ * An alert names its councillor by KEY, never by a written-out name: the name,
+ * the portrait and the "Ask …" link all come from lib/constants/advisors, so a
+ * banner cannot drift from the Council Chamber the way it used to (the housing
+ * banner said "Steward Maren", the Chamber said "The Steward", and the portrait
+ * beside it was whatever race you had picked).
  */
 export function AdvisorAlerts({ player: p }: { player: Player }) {
   const civ = civilians(p);
@@ -36,10 +45,16 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
   type Alert = {
     key: string;
     variant: "danger" | "warn";
+    /** Who is speaking — supplies the name, the portrait and the "Ask …" link. */
+    advisor: AdvisorKey;
+    /** A topic glyph, badged onto the portrait: what the alarm is ABOUT. */
     icon: string;
-    title: string;
+    /** The alarm itself. The councillor's name is prefixed on render. */
+    headline: string;
     body: React.ReactNode;
+    /** Actions that fix it. The "Ask …" and Field Manual links are appended. */
     ctas: Cta[];
+    manual: string;
   };
   const alerts: Alert[] = [];
 
@@ -48,8 +63,9 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
     alerts.push({
       key: "starving",
       variant: "danger",
+      advisor: "economic",
       icon: "☠",
-      title: "Treasurer Poll: the granaries are empty — the empire is frozen",
+      headline: "the granaries are empty — the empire is frozen",
       body: (
         <>
           Food hit zero, so production, research, tax income, growth, and attacks are all suspended
@@ -60,9 +76,8 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
       ctas: [
         { href: "/market", label: "⚖ Buy food at the Bazaar", primary: true },
         { href: "/train", label: "👥 Assign farmers", primary: true },
-        { href: "/advisors#economic", label: "Ask Treasurer Poll →" },
-        { href: "/guide#grow", label: "📜 Field Manual" },
       ],
+      manual: "/guide#grow",
     });
   }
 
@@ -71,8 +86,9 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
     alerts.push({
       key: "scatter",
       variant: "warn",
+      advisor: "military",
       icon: "🏃",
-      title: "General Vosk: your people are about to scatter",
+      headline: "your people are about to scatter",
       body: (
         <>
           Only <b>{mil}</b> soldiers guard <b>{civ}</b> civilians — below the <b>{scatterLine}</b>{" "}
@@ -83,9 +99,8 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
       ),
       ctas: [
         { href: "/troops", label: "⚔ Raise troops", primary: true },
-        { href: "/advisors#military", label: "Ask General Vosk →" },
-        { href: "/guide#battle", label: "📜 Field Manual" },
       ],
+      manual: "/guide#battle",
     });
   }
 
@@ -94,8 +109,9 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
     alerts.push({
       key: "walls",
       variant: "warn",
+      advisor: "defensive",
       icon: "🧱",
-      title: "Marshal Aldric: the walls are breached",
+      headline: "the walls are breached",
       body: (
         <>
           {theWallName(p)} is battered to <b>{Math.round(p.wallIntegrity * 100)}%</b> — its defence
@@ -105,9 +121,8 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
       ),
       ctas: [
         { href: "/buildings", label: "🧱 Repair the walls", primary: true },
-        { href: "/advisors#defensive", label: "Ask Marshal Aldric →" },
-        { href: "/guide#defense", label: "📜 Field Manual" },
       ],
+      manual: "/guide#defense",
     });
   }
 
@@ -120,8 +135,9 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
     alerts.push({
       key: "housing",
       variant: "warn",
+      advisor: "population",
       icon: "🏠",
-      title: "Steward Maren: there are no beds for the dawn's settlers",
+      headline: "there are no beds for the dawn's settlers",
       body: (
         <>
           <b>{perDay}</b> settlers will arrive at dawn but only <b>{vacant}</b> bed
@@ -132,9 +148,8 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
       ),
       ctas: [
         { href: "/buildings#housing", label: "🏠 Raise Hearthsteads", primary: true },
-        { href: "/advisors#population", label: "Ask Steward Maren →" },
-        { href: "/guide#grow", label: "📜 Field Manual" },
       ],
+      manual: "/guide#grow",
     });
   }
 
@@ -145,8 +160,9 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
     alerts.push({
       key: "stores",
       variant: "warn",
+      advisor: "economic",
       icon: "🔥",
-      title: "Treasurer Poll: your storehouses are breached",
+      headline: "your storehouses are breached",
       body: (
         <>
           {brokenStores.map((s, i) => (
@@ -162,9 +178,8 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
       ),
       ctas: [
         { href: "/buildings", label: "🔧 Repair the storehouses", primary: true },
-        { href: "/advisors#economic", label: "Ask Treasurer Poll →" },
-        { href: "/guide#defense", label: "📜 Field Manual" },
       ],
+      manual: "/guide#defense",
     });
   }
 
@@ -172,22 +187,42 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
 
   return (
     <>
-      {alerts.map((a) => (
-        <div key={a.key} className={`alert alert-${a.variant}`} role="alert">
-          <span className="alert-icon">{a.icon}</span>
-          <div>
-            <div className="alert-title">{a.title}</div>
-            <div className="alert-body">{a.body}</div>
-            <div className="alert-actions">
-              {a.ctas.map((c) => (
-                <Link key={c.href} className={c.primary ? "alert-cta" : "alert-cta alert-cta-ghost"} href={c.href}>
-                  {c.label}
+      {alerts.map((a) => {
+        const who = advisor(a.advisor);
+        return (
+          <div key={a.key} className={`alert alert-${a.variant}`} role="alert">
+            {/* The councillor's own face, in your people — with the topic glyph
+                badged on it, so a banner says WHO and WHAT before it is read. */}
+            <span className="alert-icon" style={{ ["--accent" as string]: who.accent }}>
+              <Art path={`advisors/${a.advisor}`} race={p.race} size={44} title={who.name} />
+              <span className="alert-icon-badge" aria-hidden>
+                {glyphs(a.icon)}
+              </span>
+            </span>
+            <div>
+              <div className="alert-title">
+                <span className="alert-who">{who.name}</span>
+                {": "}
+                {a.headline}
+              </div>
+              <div className="alert-body">{a.body}</div>
+              <div className="alert-actions">
+                {a.ctas.map((c) => (
+                  <Link key={c.href} className={c.primary ? "alert-cta" : "alert-cta alert-cta-ghost"} href={c.href}>
+                    {glyphs(c.label)}
+                  </Link>
+                ))}
+                <Link className="alert-cta alert-cta-ghost" href={advisorHref(a.advisor)}>
+                  Ask {who.name} →
                 </Link>
-              ))}
+                <Link className="alert-cta alert-cta-ghost" href={a.manual}>
+                  <Glyph char="📜" /> Field Manual
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </>
   );
 }

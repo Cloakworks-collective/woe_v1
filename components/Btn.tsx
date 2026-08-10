@@ -2,6 +2,7 @@
 
 import type { ButtonHTMLAttributes } from "react";
 import { useFormStatus } from "react-dom";
+import { glyphs } from "@/components/Glyph";
 
 /**
  * A submit button that knows its form is in flight. While the server action
@@ -22,7 +23,7 @@ export function Btn({ children, className = "btn", disabled, ...rest }: ButtonHT
           ⌛
         </span>
       )}
-      {children}
+      {glyphs(children)}
     </button>
   );
 }

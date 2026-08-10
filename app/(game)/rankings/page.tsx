@@ -95,7 +95,7 @@ export default async function RankingsPage({
             name="q"
             defaultValue={q}
             placeholder="Search name, race, clan, or title…"
-            style={{ padding: "3px 8px", border: "1px solid var(--border)", background: "var(--input-bg)", font: "14.5px Verdana", width: 240 }}
+            style={{ width: 240 }}
           />
           <ReqTip heading="Search the ladder" body="Filter to empires matching your query — by empire name, race, clan, or settlement title. Leave blank to see everyone.">
             <Btn className="btn">Search</Btn>

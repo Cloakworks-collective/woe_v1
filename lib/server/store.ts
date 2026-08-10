@@ -80,6 +80,19 @@ export interface ArchivedAge {
   sealedTables?: ElderTable[];
 }
 
+/** One run of the tick job — the world's heartbeat, recorded so an operator can
+ *  see it beating (and see it stop). Only runs that actually advanced the clock
+ *  are kept, plus every failure: the in-process path calls runDueTicks on every
+ *  world read, and logging those no-ops would drown the signal. */
+export interface TickRun {
+  at: string; // ISO, when the run finished
+  tick: number; // world tick after the run
+  processed: number; // how many ticks it applied
+  ms: number; // how long the run took
+  ok: boolean;
+  error?: string;
+}
+
 export interface PricePoint {
   t: number; // tick
   p: number | null; // lowest ask, null = no supply
@@ -103,6 +116,8 @@ export interface World {
   /** The living War Records of the current age — superlatives of arms, tallied
    *  as battles resolve. Optional for worlds seeded before records existed. */
   eraRecords?: EraRecords;
+  /** The last 7 days of tick runs, newest last. See TickRun. */
+  tickLog?: TickRun[];
 }
 
 const DATA_DIR = path.join(process.cwd(), "data");

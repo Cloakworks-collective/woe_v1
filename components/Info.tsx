@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { glyphs } from "@/components/Glyph";
 
 /**
  * A hover/focus tooltip. Two shapes:
@@ -38,7 +39,7 @@ export function Info({
             <br />
           </>
         )}
-        {tip}
+        {glyphs(tip)}
         {guide && (
           <Link className="tip-guide" href={guide}>
             📜 {guideLabel} →

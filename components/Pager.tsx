@@ -20,18 +20,20 @@ export function Pager<T>({
   const to = start + shown.length;
   return (
     <div className="rank-pager">
+      {/* The ◀ / ▶ keys are drawn by .rank-pager in globals.css (PixelLab kit),
+          so the words ship bare. */}
       {pageNo > 1 ? (
-        <Link href={href(pageNo - 1)}>← Prev</Link>
+        <Link href={href(pageNo - 1)}>Prev</Link>
       ) : (
-        <span className="pager-off">← Prev</span>
+        <span className="pager-off">Prev</span>
       )}
       <span>
         Showing {from}–{to} of {total.toLocaleString("en-US")} {noun} · Page {pageNo} of {pages}
       </span>
       {pageNo < pages ? (
-        <Link href={href(pageNo + 1)}>Next →</Link>
+        <Link href={href(pageNo + 1)}>Next</Link>
       ) : (
-        <span className="pager-off">Next →</span>
+        <span className="pager-off">Next</span>
       )}
     </div>
   );

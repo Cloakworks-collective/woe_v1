@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BuildingArt } from "@/components/BuildingArt";
 import { BUILDING_INFO, isCounted, maxLevel, type BuildingId } from "@/lib/constants";
-import { level, type Player } from "@/lib/engine";
+import { level, structureIntegrity, type Player } from "@/lib/engine";
 
 // The settlement, laid out as it would rise from the ground: hearth & walls at
 // the heart, then workshops, stores, civic halls, and the war yards. Plots you
@@ -40,7 +40,13 @@ export function SettlementView({ player }: { player: Player }) {
               title={`${BUILDING_INFO[id].title}${zenith ? ` — ZENITH, at its pinnacle (level ${l})` : built ? ` — level ${l}` : " — not yet raised"}. ${BUILDING_INFO[id].tip}`}
             >
               <span className="vplot-art">
-                <BuildingArt id={id} level={l} size={size} title={BUILDING_INFO[id].title} />
+                <BuildingArt
+                  id={id}
+                  level={l}
+                  size={size}
+                  title={BUILDING_INFO[id].title}
+                  integrity={structureIntegrity(player, id)}
+                />
                 {built && (zenith ? <span className="vplot-lv vplot-zenith">★</span> : <span className="vplot-lv">{l}</span>)}
               </span>
               <span className="vplot-name">{BUILDING_INFO[id].title}</span>

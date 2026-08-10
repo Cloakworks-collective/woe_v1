@@ -11,6 +11,7 @@ import {
   isAdmin,
   setAdminSession,
 } from "@/lib/server/admin";
+import { setSession } from "@/lib/server/auth";
 import { pushInbox, saveWorld } from "@/lib/server/store";
 import { eraReset, getWorld, runOneTick } from "@/lib/server/world";
 import {
@@ -39,6 +40,20 @@ export async function adminLogout(): Promise<void> {
 
 async function requireAdmin(): Promise<void> {
   if (!(await isAdmin())) redirect("/admin");
+}
+
+/** Sit on another empire's throne. This used to live on /login as an open list
+ *  of empires — an unguarded server action that would hand any caller a session
+ *  as any player. It is a debug tool, so it belongs here, behind requireAdmin. */
+export async function adminEnterAs(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const world = await getWorld();
+  const p = world.players[String(formData.get("playerId") ?? "")];
+  if (!p) back("No such empire.", false);
+  if (p!.isBot) back("Bots keep no session — pick a human empire.", false);
+  await setSession(p!.id);
+  revalidatePath("/", "layout");
+  redirect("/");
 }
 
 export async function adminSetBan(formData: FormData): Promise<void> {

@@ -1,5 +1,10 @@
-// Vercel Cron target (*/10): processes every due tick since the last run.
-// Idempotent — ticks are numbered and derived from wall-clock time.
+// Tick endpoint: processes every due tick since the last run. Idempotent —
+// ticks are numbered and derived from wall-clock time, so calling it twice (or
+// late) lands on the same world.
+//
+// Nothing schedules this any more: the world service ticks itself, and the
+// in-process path runs due ticks on read. Kept as a manual/external trigger —
+// point any scheduler at it, or curl it, if you ever need to force the clock.
 
 import { NextResponse, type NextRequest } from "next/server";
 import { writeSpectatorSnapshot } from "@/lib/server/analytics";

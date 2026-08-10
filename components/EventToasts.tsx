@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Glyph, glyphs } from "@/components/Glyph";
 
 export interface ToastItem {
   tick: number;
@@ -74,9 +75,9 @@ export function EventToasts({ playerId, items }: { playerId: string; items: Toas
           {t.glyph && GLYPH_TONES.has(t.tone) ? (
             <img className="toast-glyph" src={t.glyph} alt="" width={26} height={26} />
           ) : (
-            <span className="toast-glyph toast-glyph-emoji" aria-hidden="true">👑</span>
+            <span className="toast-glyph toast-glyph-emoji" aria-hidden="true"><Glyph char="👑" /></span>
           )}
-          <span className="toast-body">{t.line}</span>
+          <span className="toast-body">{glyphs(t.line)}</span>
           <button type="button" className="toast-x" aria-label="Dismiss" onClick={() => dismiss(t)}>
             ✕
           </button>

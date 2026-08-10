@@ -7,6 +7,7 @@ import { eventLine, eventTone } from "@/components/eventLine";
 import { timeAgo } from "@/components/timeAgo";
 import { paginate } from "@/lib/paginate";
 import { getGame } from "@/lib/server/session";
+import { glyphs } from "@/components/Glyph";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ export default async function ChroniclePage({
                   <li key={tidings.start + i} className={`chron-row tone-${eventTone(item.event)}`}>
                     <ToneGlyph tone={eventTone(item.event)} />
                     <span className="chron-line">
-                      {eventLine(item.event)}
+                      {glyphs(eventLine(item.event))}
                       {battleId && (
                         <>
                           {" "}

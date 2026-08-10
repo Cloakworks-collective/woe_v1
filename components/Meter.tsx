@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { glyphs } from "@/components/Glyph";
 
 /** A labeled pixel-fill meter — the visual replacement for bare numbers like
  * stamina, army experience, food balance, or population vs housing. */
@@ -23,8 +24,8 @@ export function Meter({
     <div className="meter">
       <div className="meter-head">
         <span className="meter-label">
-          {icon != null && <span className="meter-icon">{icon}</span>}
-          {label}
+          {icon != null && <span className="meter-icon">{glyphs(icon)}</span>}
+          {glyphs(label)}
         </span>
         <span className="meter-num">
           {display ?? `${value.toLocaleString("en-US")} / ${max.toLocaleString("en-US")}`}
