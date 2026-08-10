@@ -167,6 +167,33 @@ export function ChapterHead({
 
 const cellText = (c: ElderCell): string => (typeof c === "object" && c !== null ? c.text : String(c));
 
+/**
+ * An emblem for each title. The Hall was a wall of near-identical cards you had
+ * to READ to tell apart; a glyph makes each one recognisable at a glance and
+ * gives the epithet something to be about. Falls back to the trophy for any
+ * title added later, so a new feat is never iconless.
+ */
+const TITLE_ICON: Record<string, string> = {
+  "the Slayer": "skull",
+  "the Defender": "castle",
+  "the Plunderer": "coin",
+  "the Raider": "caravan",
+  "the Empire Destroyer": "blast",
+  "the Siege Master": "siege",
+  "the Undefeatable": "star",
+  "the Black Knight": "banner",
+  "the Wise": "research",
+  "the Marketeer": "market",
+  "the Generous": "heart",
+  "the Bountiful": "seedling",
+  "the Saboteur": "spyglass",
+  "the Vandal": "fire",
+  "the Populous": "workers",
+  "the Architect": "build",
+  "the Wealthy": "coin",
+};
+const titleIcon = (epithet: string) => TITLE_ICON[epithet] ?? "trophy";
+
 export function CharterCards({ table }: { table: ElderTable }) {
   // Rows arrive as [ "Name, the Epithet", clanCell, feat, total ].
   return (
@@ -179,8 +206,18 @@ export function CharterCards({ table }: { table: ElderTable }) {
         const epithet = comma >= 0 ? holderText.slice(comma + 2) : "";
         const clanIsLink = typeof clan === "object" && clan !== null;
         return (
-          <div className="charter" key={i}>
-            <div className="charter-epithet">{epithet || name}</div>
+          // The stagger is an index-driven delay, so the cards deal onto the
+          // table in order rather than all appearing at once.
+          <div className="charter" key={i} style={{ animationDelay: `${Math.min(i, 12) * 45}ms` }}>
+            <div className="charter-epithet">
+              <img
+                src={`/art/ui/icons/${titleIcon(epithet)}.png`}
+                alt=""
+                className="charter-mark"
+                aria-hidden="true"
+              />
+              {epithet || name}
+            </div>
             <div className="charter-holder">
               {name}
               {clanIsLink ? (

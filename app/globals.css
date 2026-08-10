@@ -8051,3 +8051,106 @@ body {
   font-size: 0.82em;
   opacity: 0.75;
 }
+
+/* ── The Records Hall: motion & marks ─────────────────────────────────────
+   The Hall is a page of superlatives, and it read like a spreadsheet of them.
+   These are small, one-shot entrances — things settle INTO place as you arrive
+   and then hold still. Nothing loops, because a page you come to read should
+   not be moving while you read it. Every rule is disabled wholesale under
+   prefers-reduced-motion at the foot of this block. */
+
+@keyframes records-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes records-deal {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes medal-strike {
+  0%   { transform: scale(0.4) rotate(-25deg); opacity: 0; }
+  60%  { transform: scale(1.15) rotate(4deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+@keyframes medal-sheen {
+  0%, 62% { transform: translateX(-120%); }
+  78%     { transform: translateX(120%); }
+  100%    { transform: translateX(120%); }
+}
+
+/* Chapters arrive one after another as you scroll into the page. */
+.records-chapter {
+  animation: records-rise 0.45s ease-out both;
+}
+.records-chapter:nth-of-type(2) { animation-delay: 0.06s; }
+.records-chapter:nth-of-type(3) { animation-delay: 0.12s; }
+.records-chapter:nth-of-type(4) { animation-delay: 0.18s; }
+
+/* Title cards deal onto the table in order (delay set inline, by index). */
+.charter {
+  animation: records-deal 0.4s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  position: relative;
+  overflow: hidden;
+}
+.charter:hover {
+  transform: translateY(-2px);
+  transition: transform 0.14s ease-out, box-shadow 0.14s ease-out;
+  box-shadow: 0 6px 16px rgba(40, 24, 6, 0.28);
+}
+
+/* The emblem that says what the title IS, before you read a word of it. */
+.charter-mark {
+  width: 26px;
+  height: 26px;
+  image-rendering: pixelated;
+  vertical-align: -6px;
+  margin-right: 7px;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+.charter:hover .charter-mark {
+  transform: scale(1.12) rotate(-4deg);
+  transition: transform 0.16s ease-out;
+}
+
+/* Leaderboard rows settle in; the podium three get a struck medal and one
+   pass of light across the row. */
+.elder-tbl tbody tr {
+  animation: records-rise 0.34s ease-out both;
+}
+.medal {
+  animation: medal-strike 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  animation-delay: inherit;
+}
+.medal-row {
+  position: relative;
+  overflow: hidden;
+}
+.medal-row::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    rgba(255, 245, 205, 0.5) 50%,
+    transparent 65%
+  );
+  animation: medal-sheen 2.4s ease-out 1 both;
+}
+.medal-row-2::after { animation-duration: 2.7s; }
+.medal-row-3::after { animation-duration: 3s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .records-chapter,
+  .charter,
+  .elder-tbl tbody tr,
+  .medal,
+  .medal-row::after {
+    animation: none !important;
+  }
+  .charter:hover,
+  .charter:hover .charter-mark {
+    transform: none;
+  }
+}

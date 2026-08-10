@@ -59,7 +59,11 @@ export function LeaderTable({ t }: { t: ElderTable }) {
           {t.rows.map((row, ri) => {
             const place = ranked && typeof row[0] === "number" ? (row[0] as number) : 0;
             return (
-              <tr key={ri} className={place >= 1 && place <= 3 ? `medal-row medal-row-${place}` : undefined}>
+              <tr
+                key={ri}
+                className={place >= 1 && place <= 3 ? `medal-row medal-row-${place}` : undefined}
+                style={{ animationDelay: `${Math.min(ri, 12) * 35}ms` }}
+              >
                 {row.map((cell, ci) => (
                   <td key={ci} className={numeric.has(ci) ? "num" : undefined}>
                     {ranked && ci === 0 && place >= 1 && place <= 3 ? (
