@@ -148,7 +148,7 @@ export function TargetActions({
         </div>
 
         <div className="act-section">
-          <Link className="btn act-ghost" href={`/messages?tab=dm&with=${target.id}`}>
+          <Link className="btn act-ghost" href={`/messages?with=${target.id}`}>
             ✉ Send a letter
           </Link>
         </div>

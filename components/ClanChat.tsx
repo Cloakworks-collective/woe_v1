@@ -48,7 +48,7 @@ export function ClanChat({
       </div>
       <p style={{ fontSize: 12.5, color: "var(--ink-soft)", margin: "6px 0 0" }}>
         Last {CHAT.CLAN_HISTORY} messages kept · also in the{" "}
-        <Link href="/messages?tab=clan">Messages</Link>.
+        <Link href="/messages">Letters</Link>.
       </p>
     </>
   );

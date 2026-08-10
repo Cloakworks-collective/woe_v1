@@ -236,7 +236,7 @@ export function WarCouncil({
       </div>
 
       <p className="wc-foot">
-        <Link href={`/messages?tab=dm&with=${target.id}`}>✉ Send a letter instead</Link>
+        <Link href={`/messages?with=${target.id}`}>✉ Send a letter instead</Link>
       </p>
     </section>
   );

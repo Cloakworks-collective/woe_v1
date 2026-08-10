@@ -49,7 +49,6 @@ export function TopNav({ premium }: { premium: boolean }) {
     };
   }, []);
 
-  const messages: Item = { href: "/messages", label: "Messages", icon: "forum", title: "Era chat and letters with other empires — in-game, and wiped when the age ends" };
   const forum: Item = { href: "/forum", label: "Forum", icon: "chronicle", title: "The public forum — its own login, and it outlives every era" };
   const premiumItem: Item = premium
     ? { href: "/steward", label: "Premium", icon: "crown", title: "Your Royal Charter — the Steward's build/research queues, standing orders & auto-banking" }
@@ -76,6 +75,7 @@ export function TopNav({ premium }: { premium: boolean }) {
   const annalsActive = pathname.startsWith("/annals");
   const guidesActive = pathname.startsWith("/guide") || pathname.startsWith("/almanac");
   const toolsActive = pathname.startsWith("/tools");
+  const commsActive = pathname.startsWith("/messages");
   const closeMenu = (e: MouseEvent<HTMLAnchorElement>) =>
     e.currentTarget.closest("details")?.removeAttribute("open");
 
@@ -100,7 +100,22 @@ export function TopNav({ premium }: { premium: boolean }) {
             </div>
           </details>
 
-          {render(messages)}
+          <details className="topnav-dd">
+            <summary className={commsActive ? "active" : ""} title="Letters and the era hall — in-game talk">
+              <Emblem name="letter" /> Communications
+            </summary>
+            <div className="topnav-menu" role="menu">
+              <Link href="/messages" onClick={closeMenu}>
+                <Emblem name="letter" sm /> Letters{" "}
+                <span className="topnav-menu-sub">private & permanent, one ruler at a time</span>
+              </Link>
+              <Link href="/messages/chat" onClick={closeMenu}>
+                <Emblem name="forum" sm /> Era Chat{" "}
+                <span className="topnav-menu-sub">one public room for this age — wiped when it ends</span>
+              </Link>
+            </div>
+          </details>
+
           {render(forum)}
 
           <details className="topnav-dd">
