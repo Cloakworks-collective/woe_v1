@@ -35,14 +35,14 @@ export default async function ForumPage({
     <>
       <Flash err={err} ok={ok} />
       <Panel
-        title="The Forum"
+        title="Messages"
         info="Era and clan chat are wiped when the era ends; letters persist forever."
       >
         <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
           {tabs.map((t) => (
             <a
               key={t.id}
-              href={`/forum?tab=${t.id}`}
+              href={`/messages?tab=${t.id}`}
               className="btn"
               style={
                 tab === t.id
@@ -96,7 +96,7 @@ export default async function ForumPage({
               )}
             </div>
             <div style={{ marginTop: 8 }}>
-              <CmdForm name="chat" path={`/forum?tab=${tab}${dmWith ? `&with=${dmWith}` : ""}`}>
+              <CmdForm name="chat" path={`/messages?tab=${tab}${dmWith ? `&with=${dmWith}` : ""}`}>
                 <input
                   type="hidden"
                   name="channel"

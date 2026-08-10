@@ -1,32 +1,13 @@
-import Link from "next/link";
-import { AdminLoginForm } from "@/components/AdminLoginForm";
-import { AdminTabs } from "@/components/AdminTabs";
-import { Flash } from "@/components/Flash";
-import { Panel } from "@/components/Panel";
-import { StatTile } from "@/components/StatTile";
-import { RACE_NAMES, TICKS_PER_HOUR } from "@/lib/constants";
-import { rankingScore, settlementTitle, totalPopulation } from "@/lib/engine";
-import { adminEnabled, isAdmin } from "@/lib/server/admin";
+import { TICKS_PER_HOUR } from "@/lib/constants";
+import { rankingScore } from "@/lib/engine";
 import { storeMode } from "@/lib/server/store";
 import { getWorld } from "@/lib/server/world";
-import {
-  adminBackfillStorage,
-  adminCloseAge,
-  adminEnterAs,
-  adminForceTicks,
-  adminGrant,
-  adminLogin,
-  adminLogout,
-  adminSeed,
-  adminSetBan,
-  adminSetPremium,
-} from "./actions";
+import { forumStoreMode } from "@/lib/server/forumStore";
+import { adminBackfillStorage, adminCloseAge, adminForceTicks, adminSeed } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");
-
-/** Minutes between ticks — the world's heartbeat. */
 const TICK_MINUTES = 60 / TICKS_PER_HOUR;
 
 function ago(ms: number): string {
@@ -38,358 +19,186 @@ function ago(ms: number): string {
   return `${Math.floor(h / 24)}d ${h % 24}h ago`;
 }
 
-export default async function AdminPage({
+/** A vitals figure. Flat, scannable, and the tone is the whole point — an
+ *  operator should be able to see "something is on fire" without reading. */
+function Vital({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "good" | "warn" | "bad";
+}) {
+  const colour = tone === "bad" ? "var(--neg)" : tone === "warn" ? "var(--coin)" : tone === "good" ? "var(--pos)" : undefined;
+  return (
+    <div style={{ border: "1px solid var(--flat-line)", borderRadius: 8, padding: "10px 12px" }}>
+      <div style={{ fontSize: 11.5, textTransform: "uppercase", letterSpacing: 0.6, color: "var(--ink-soft)" }}>
+        {label}
+      </div>
+      <div style={{ font: "700 20px/1.2 Verdana, sans-serif", color: colour }}>{value}</div>
+      {sub && <div className="flat-hint" style={{ fontSize: 12 }}>{sub}</div>}
+    </div>
+  );
+}
+
+export default async function AdminOverview({
   searchParams,
 }: {
-  searchParams: Promise<{ err?: string; ok?: string; q?: string; only?: string }>;
+  searchParams: Promise<{ err?: string; ok?: string }>;
 }) {
-  const { err, ok, q, only } = await searchParams;
-
-  if (!adminEnabled()) {
-    return (
-      <div className="frame" style={{ maxWidth: 560, flexDirection: "column", paddingTop: 40 }}>
-        <Panel title="🔒 The Crown Chamber">
-          <p style={{ fontSize: 14.5 }}>
-            The chamber is sealed. Set <code>ADMIN_PASSWORD</code> in the environment to open it.
-          </p>
-        </Panel>
-      </div>
-    );
-  }
-
-  if (!(await isAdmin())) {
-    return (
-      <div className="frame" style={{ maxWidth: 560, flexDirection: "column", paddingTop: 40 }}>
-        <Flash err={err} />
-        <Panel title="🔒 The Crown Chamber">
-          <AdminLoginForm action={adminLogin} />
-        </Panel>
-      </div>
-    );
-  }
-
+  const { err, ok } = await searchParams;
   const world = await getWorld();
   const players = Object.values(world.players).sort((a, b) => rankingScore(b) - rankingScore(a));
 
-  // ── Realm vitals — what an operator needs before touching anything ────────
-  // The world only advances when the tick cron fires, so tick lateness is the
-  // single most important signal on this page: if the heartbeat stops, the game
-  // has stopped, and nothing else here matters until it is running again.
+  // Tick lateness is the single most important signal here: the world only
+  // advances when the heartbeat fires, so if it has stopped, nothing else on
+  // this page matters until it is running again.
   const now = Date.now();
   const lastTickMs = Date.parse(world.meta.lastTickAt);
   const sinceTick = Number.isFinite(lastTickMs) ? now - lastTickMs : NaN;
   const tickLate = sinceTick / 60_000 - TICK_MINUTES;
-  const tickTone: "good" | "warn" | "bad" = !Number.isFinite(sinceTick)
-    ? "bad"
-    : tickLate > TICK_MINUTES * 2
+  const eraOver = Boolean(world.meta.winner);
+  const tickTone: "good" | "warn" | "bad" = eraOver
+    ? "warn"
+    : !Number.isFinite(sinceTick)
       ? "bad"
-      : tickLate > 1
-        ? "warn"
-        : "good";
+      : tickLate > TICK_MINUTES * 2
+        ? "bad"
+        : tickLate > 1
+          ? "warn"
+          : "good";
 
   const humans = players.filter((p) => !p.isBot);
-  const bots = players.filter((p) => p.isBot);
   const active24 = humans.filter((p) => p.lastSeenAtMs && now - p.lastSeenAtMs < 86_400_000).length;
   const banned = players.filter((p) => p.banned).length;
   const starving = players.filter((p) => p.starving).length;
-  const vacationing = players.filter((p) => p.onVacation).length;
   const premium = players.filter((p) => p.premium).length;
   const worldGold = players.reduce((s, p) => s + p.gold + p.bankedGold, 0);
-  const crown = players[0];
   const winner = world.meta.winner;
-
-  // The ledger is already 40-odd rows and only grows — a GET filter keeps it
-  // navigable without shipping any client JS.
-  const needle = (q ?? "").trim().toLowerCase();
-  const ledger = players.filter((p) => {
-    if (needle && !`${p.name} ${p.id} ${RACE_NAMES[p.race]}`.toLowerCase().includes(needle)) return false;
-    if (only === "humans") return !p.isBot;
-    if (only === "bots") return Boolean(p.isBot);
-    if (only === "banned") return Boolean(p.banned);
-    if (only === "premium") return Boolean(p.premium);
-    if (only === "trouble") return Boolean(p.starving) || Boolean(p.banned);
-    return true;
-  });
-  const FILTERS: { id: string; label: string }[] = [
-    { id: "", label: "All" },
-    { id: "humans", label: "Humans" },
-    { id: "bots", label: "Bots" },
-    { id: "trouble", label: "Trouble" },
-    { id: "banned", label: "Banished" },
-    { id: "premium", label: "Charters" },
-  ];
+  const forumMode = await forumStoreMode();
 
   return (
-    <div className="frame" style={{ maxWidth: 980, flexDirection: "column", paddingTop: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <div style={{ font: "bold 24px Georgia", color: "var(--heading)" }}>👑 The Crown Chamber</div>
-        <form action={adminLogout}>
-          <button className="btn btn-no" style={{ cursor: "pointer" }}>
-            Leave quietly
-          </button>
-        </form>
-      </div>
-      {/* The Workbench used to hang off a gold-on-parchment link here, which
-          was all but invisible. The rooms are tabs now. */}
-      <AdminTabs active="/admin" />
-      <Flash err={err} ok={ok} />
+    <>
+      {(err || ok) && <p className={`flat-notice ${err ? "is-bad" : "is-good"}`}>{err ?? ok}</p>}
 
-      <Panel
-        title="Realm Vitals — is anything on fire?"
-        info="Read top-left first: if the heartbeat is late, the tick cron has stopped and the whole world is frozen. Everything else is downstream of that."
-      >
-        <div className="stat-grid">
-          <StatTile
-            icon="💓"
+      <div className="flat-card">
+        <h2>Vitals</h2>
+        <p className="flat-sub">
+          Read the heartbeat first. If it has stalled the world is frozen and everything below is
+          downstream of that.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
+          <Vital
             label="Heartbeat"
-            value={Number.isFinite(sinceTick) ? ago(sinceTick) : "unknown"}
+            value={eraOver ? "stopped" : Number.isFinite(sinceTick) ? ago(sinceTick) : "unknown"}
             sub={
-              tickTone === "good"
-                ? `on time · every ${TICK_MINUTES}m`
-                : tickTone === "warn"
-                  ? `${Math.round(tickLate)}m late — watch it`
-                  : "STALLED — check the tick cron"
+              eraOver
+                ? "the age is won — the world is deliberately halted"
+                : tickTone === "good"
+                  ? `on time · every ${TICK_MINUTES}m`
+                  : tickTone === "warn"
+                    ? `${Math.round(tickLate)}m late`
+                    : "STALLED — check the cron"
             }
             tone={tickTone}
           />
-          <StatTile
-            icon="🗄"
-            label="Store"
+          <Vital
+            label="World store"
             value={storeMode() === "supabase" ? "Supabase" : "local file"}
             sub={storeMode() === "supabase" ? "durable" : "data/world.json — dev only"}
             tone={storeMode() === "supabase" ? "good" : "warn"}
           />
-          <StatTile
-            icon="👑"
+          <Vital
+            label="Forum store"
+            value={forumMode === "supabase" ? "Supabase" : "local file"}
+            sub={forumMode === "supabase" ? "outlives eras" : "data/forum.json — dev only"}
+            tone={forumMode === "supabase" ? "good" : "warn"}
+          />
+          <Vital
             label={winner ? "Age decided" : "Crown"}
-            value={winner ? winner.name : (crown?.name ?? "—")}
-            sub={winner ? `${winner.kind} · won at tick ${fmt(winner.atTick)}` : "current #1 by score"}
+            value={winner ? winner.name : (players[0]?.name ?? "—")}
+            sub={winner ? `${winner.kind} · tick ${fmt(winner.atTick)}` : "current #1 by score"}
             tone={winner ? "warn" : undefined}
           />
-          <StatTile
-            icon="🏰"
-            label="Empires"
-            value={fmt(players.length)}
-            sub={`${fmt(humans.length)} human · ${fmt(bots.length)} bot`}
-          />
-          <StatTile
-            icon="🔥"
+          <Vital label="Empires" value={fmt(players.length)} sub={`${fmt(humans.length)} human`} />
+          <Vital
             label="Active humans"
             value={fmt(active24)}
             sub="seen in the last 24h"
             tone={humans.length > 0 && active24 === 0 ? "bad" : undefined}
           />
-          <StatTile
-            icon="☠"
-            label="Starving"
-            value={fmt(starving)}
-            sub="frozen until fed"
-            tone={starving > 0 ? "warn" : "good"}
-          />
-          <StatTile
-            icon="⛔"
-            label="Banished"
-            value={fmt(banned)}
-            sub={`${fmt(vacationing)} on vacation`}
-            tone={banned > 0 ? "warn" : undefined}
-          />
-          <StatTile icon="✦" label="Charters" value={fmt(premium)} sub="premium holders" />
-          <StatTile icon="💰" label="Gold in world" value={fmt(worldGold)} sub="loose + vaulted" />
-          <StatTile
-            icon="⚖"
-            label="Market"
-            value={fmt(world.orders.length)}
-            sub={`${fmt(world.battles.length)} battles on file`}
-          />
+          <Vital label="Starving" value={fmt(starving)} sub="frozen until fed" tone={starving > 0 ? "warn" : "good"} />
+          <Vital label="Banished" value={fmt(banned)} tone={banned > 0 ? "warn" : undefined} />
+          <Vital label="Charters" value={fmt(premium)} sub="premium holders" />
+          <Vital label="Gold in world" value={fmt(worldGold)} sub="loose + vaulted" />
         </div>
-      </Panel>
+      </div>
 
-      <Panel title={`The World — ${world.meta.eraName}, tick ${fmt(world.meta.tickNumber)}`}>
-        <form action={adminForceTicks} style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-          <input type="hidden" name="ticks" value="1" />
-          <button className="btn">⏩ Force +1 turn</button>
-        </form>{" "}
-        <form action={adminForceTicks} style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-          <input type="hidden" name="ticks" value="144" />
-          <button className="btn">⏭ Force +1 day</button>
-        </form>{" "}
-        <form action={adminForceTicks} style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-          <input
-            name="ticks"
-            type="number"
-            defaultValue={6}
-            min={1}
-            max={1008}
-            aria-label="Turns to force"
-            style={{ width: 70 }}
-          />
-          <button className="btn">Force N turns</button>
-        </form>
-        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 4 }}>
-          Forced turns run on top of the wall clock (max 1,008 = 1 week per press).
+      <div className="flat-card">
+        <h3>The world clock</h3>
+        <p className="flat-sub">
+          {world.meta.eraName} · tick {fmt(world.meta.tickNumber)}. Forced turns run on top of the
+          wall clock, up to a week per press.
         </p>
-        <hr className="rule" />
-        <form action={adminCloseAge} style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-          <button className="btn" style={{ background: "linear-gradient(#a8853f,#7c5426)", borderColor: "#4e3113" }}>
-            📜 Close the Age
-          </button>
-        </form>
-        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 4 }}>
-          Seals this age&apos;s Annals for good and opens the next era (named for the current winner,
-          or &ldquo;an Unnamed Victor&rdquo; if none). <b>This wipes the world</b> — empires, ladder,
-          and chat reset; the sealed Annals persist.
-        </p>
-      </Panel>
+        <div className="flat-row">
+          <form action={adminForceTicks} className="flat-shrink">
+            <input type="hidden" name="ticks" value="1" />
+            <button className="flat-btn is-ghost" type="submit">+1 turn</button>
+          </form>
+          <form action={adminForceTicks} className="flat-shrink">
+            <input type="hidden" name="ticks" value="144" />
+            <button className="flat-btn is-ghost" type="submit">+1 day</button>
+          </form>
+          <form action={adminForceTicks} className="flat-row flat-shrink" style={{ gap: 6 }}>
+            <input name="ticks" type="number" defaultValue={6} min={1} max={1008} aria-label="Turns to force" style={{ width: 90 }} />
+            <button className="flat-btn is-ghost" type="submit">Force N</button>
+          </form>
+        </div>
+      </div>
 
-      <Panel title="Royal Grant — give (or take, with negatives) resources">
-        <form action={adminGrant} style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", fontSize: 14.5 }}>
-          <select name="playerId" aria-label="Empire">
-            {players.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.isBot ? " 🤖" : ""}
-              </option>
-            ))}
-          </select>
-          {(["gold", "food", "wood", "stone", "ore"] as const).map((r) => (
-            <label key={r} style={{ fontSize: 13.5 }}>
-              {r} <input name={r} type="number" defaultValue={0} style={{ width: 90 }} aria-label={`Grant ${r}`} />
-            </label>
-          ))}
-          <button className="btn">👑 Decree</button>
+      <div className="flat-card">
+        <h3>Close the age</h3>
+        <p className="flat-sub">
+          Seals this age&apos;s Annals for good and opens the next era, named for the current winner.
+          <b> This wipes the world</b> — empires, ladder and in-game chat all reset. The Annals, and
+          the forum, persist.
+        </p>
+        <form action={adminCloseAge}>
+          <button className="flat-btn is-danger" type="submit">Close the age</button>
         </form>
-      </Panel>
+      </div>
 
-      <Panel title={`The Ledger of Souls — ${fmt(ledger.length)} of ${fmt(players.length)} empires`}>
-        <form method="get" className="admin-filter">
-          <input
-            name="q"
-            defaultValue={q ?? ""}
-            placeholder="Search name, id, or race…"
-            aria-label="Search empires"
-          />
-          {only && <input type="hidden" name="only" value={only} />}
-          <button className="btn">Search</button>
-          <span className="admin-filter-chips">
-            {FILTERS.map((f) => {
-              const params = new URLSearchParams();
-              if (q) params.set("q", q);
-              if (f.id) params.set("only", f.id);
-              const href = `/admin${params.toString() ? `?${params}` : ""}`;
-              const on = (only ?? "") === f.id;
-              return (
-                <Link key={f.id || "all"} href={href} className={`chip${on ? " chip-on" : ""}`}>
-                  {f.label}
-                </Link>
-              );
-            })}
-          </span>
-        </form>
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th>Empire</th>
-              <th>Race</th>
-              <th className="num">Score</th>
-              <th className="num">Pop</th>
-              <th className="num">Gold</th>
-              <th>Status</th>
-              <th>Charter</th>
-              <th>Fate</th>
-              <th>Throne</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ledger.map((p) => (
-              <tr key={p.id} style={p.banned ? { opacity: 0.55 } : undefined}>
-                <td>
-                  <b>{p.name}</b>
-                  {p.isBot ? " 🤖" : ""}
-                  <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{p.id}</div>
-                  <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>
-                    {p.isBot ? "—" : p.lastSeenAtMs ? `seen ${ago(now - p.lastSeenAtMs)}` : "never seen"}
-                  </div>
-                </td>
-                <td>{RACE_NAMES[p.race]}</td>
-                <td className="num">{fmt(rankingScore(p))}</td>
-                <td className="num">{fmt(totalPopulation(p))}</td>
-                <td className="num">{fmt(p.gold + p.bankedGold)}</td>
-                <td>
-                  {settlementTitle(p)}
-                  {p.banned && <b style={{ color: "var(--warn)" }}> · BANISHED</b>}
-                  {p.starving && " · ☠ starving"}
-                  {p.onVacation && " · 🏳"}
-                </td>
-                <td>
-                  <form action={adminSetPremium} style={{ display: "inline" }}>
-                    <input type="hidden" name="playerId" value={p.id} />
-                    <input type="hidden" name="flag" value={p.premium ? "0" : "1"} />
-                    <button className="btn" title={p.premium ? "Revoke the Royal Charter" : "Grant the Royal Charter"}>
-                      {p.premium ? "✦ revoke" : "grant ✦"}
-                    </button>
-                  </form>
-                </td>
-                <td>
-                  <form action={adminSetBan} style={{ display: "inline" }}>
-                    <input type="hidden" name="playerId" value={p.id} />
-                    <input type="hidden" name="flag" value={p.banned ? "0" : "1"} />
-                    <button className="btn" title={p.banned ? "Pardon — restore access" : "Banish — block all logins and commands"}>
-                      {p.banned ? "🕊 pardon" : "⛔ banish"}
-                    </button>
-                  </form>
-                </td>
-                <td>
-                  {p.isBot ? (
-                    <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>—</span>
-                  ) : (
-                    <form action={adminEnterAs} style={{ display: "inline" }}>
-                      <input type="hidden" name="playerId" value={p.id} />
-                      <button className="btn" title={`Take the session as ${p.name} — you leave the chamber`}>
-                        🔑 enter
-                      </button>
-                    </form>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 6 }}>
-          Banishment blocks the session cookie, the realm token, and every command — the empire
-          stays in the world (still attackable, still ticks) until pardoned.
+      <div className="flat-card">
+        <h3>Dev tools</h3>
+        <div className="flat-row" style={{ marginBottom: 10 }}>
+          <form action={adminSeed} className="flat-row" style={{ gap: 8 }}>
+            <select name="playerId" aria-label="Empire to seed">
+              {players.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.isBot ? " (bot)" : ""}
+                </option>
+              ))}
+            </select>
+            <button className="flat-btn is-ghost flat-shrink" type="submit">Seed rich data</button>
+          </form>
+        </div>
+        <p className="flat-hint">
+          Overwrites the chosen empire with a full, screenshot-ready state and refills the market
+          book and price charts.
         </p>
-        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 4 }}>
-          <b>🔑 enter</b> swaps your player session for that empire&apos;s and drops you on its
-          Command View — the debug door that used to sit on the founding screen. Bots hold no
-          session. Your admin cookie survives, so <code>/admin</code> takes you back.
-        </p>
-      </Panel>
-
-      <Panel title="🔧 Dev Tools — testing shortcuts">
-        <form action={adminSeed} style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", fontSize: 14.5 }}>
-          <select name="playerId" aria-label="Empire to seed">
-            {players.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.isBot ? " 🤖" : ""}
-              </option>
-            ))}
-          </select>
-          <button className="btn">🌱 Seed rich data</button>
-          <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>
-            Overwrites the chosen empire with a full, screenshot-ready state (buildings, army,
-            research, coffers, premium) and refills the market book + price charts.
-          </span>
+        <hr style={{ border: 0, borderTop: "1px solid var(--flat-line)", margin: "14px 0" }} />
+        <form action={adminBackfillStorage}>
+          <button className="flat-btn is-ghost" type="submit">Backfill storage</button>
         </form>
-        <hr className="rule" />
-        <form action={adminBackfillStorage} style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-          <button className="btn">🏦 Backfill storage</button>
-        </form>
-        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 4 }}>
-          Grants level-1 banking (Counting House + the four resource stores) to any empire missing
-          it, and vaults their loose goods up to capacity. Idempotent — fills gaps, never lowers.
+        <p className="flat-hint" style={{ marginTop: 6 }}>
+          Grants level-1 banking to any empire missing it and vaults loose goods up to capacity.
+          Idempotent — fills gaps, never lowers.
         </p>
-      </Panel>
-    </div>
+      </div>
+    </>
   );
 }

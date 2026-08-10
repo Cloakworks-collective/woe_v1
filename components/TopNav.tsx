@@ -49,7 +49,8 @@ export function TopNav({ premium }: { premium: boolean }) {
   }, []);
 
   const worldItem: Item = { href: "/battles", label: "World", icon: "world", title: "The living age — clan wars, the latest battles, and the grand chronicle" };
-  const forum: Item = { href: "/forum", label: "Forum", icon: "forum", title: "The Forum — era chat & permanent letters with other empires" };
+  const messages: Item = { href: "/messages", label: "Messages", icon: "forum", title: "Era chat and letters with other empires — in-game, and wiped when the age ends" };
+  const forum: Item = { href: "/forum", label: "Forum", icon: "chronicle", title: "The public forum — its own login, and it outlives every era" };
   const premiumItem: Item = premium
     ? { href: "/steward", label: "Premium", icon: "crown", title: "Your Royal Charter — the Steward's build/research queues, standing orders & auto-banking" }
     : { href: "/premium", label: "Premium", icon: "crown", title: "The Royal Charter (premium) — the Steward: queues, standing orders & auto-banking while you're away" };
@@ -119,6 +120,7 @@ export function TopNav({ premium }: { premium: boolean }) {
             </div>
           </details>
 
+          {render(messages)}
           {render(forum)}
 
           <details className="topnav-dd">

@@ -71,7 +71,8 @@ export function MobileNav({ premium }: { premium: boolean }) {
         { href: "/rankings/records", label: "🏆 Records of the Age" },
         { href: "/battles", label: "🌍 World" },
         { href: "/annals", label: "📚 Annals — sealed ages" },
-        { href: "/forum", label: "🕯️ Forum" },
+        { href: "/messages", label: "🕯️ Messages" },
+        { href: "/forum", label: "💬 Forum (public)" },
       ],
     },
     {

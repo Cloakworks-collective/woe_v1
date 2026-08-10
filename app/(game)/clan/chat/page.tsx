@@ -39,7 +39,7 @@ export default async function ClanChatPage({
           {messages.length === 0
             ? "Nothing has been said yet."
             : `${messages.length} message${messages.length === 1 ? "" : "s"} kept (the last ${CHAT.CLAN_HISTORY}).`}{" "}
-          The same channel appears in the <Link href="/forum">Forum</Link> — this is not a second hall.
+          The same channel appears under <Link href="/messages">Messages</Link> — this is not a second hall.
         </p>
       </Panel>
     </>
