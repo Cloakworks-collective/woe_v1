@@ -6,8 +6,12 @@ import { TickCountdown } from "@/components/TickCountdown";
 import { ACTION_TURNS, POP_GROWTH, SPY_TURNS } from "@/lib/constants";
 import {
   bankedRes,
+  civilians,
   foodUpkeepPerTurn,
   growthBreakdown,
+  mercTroops,
+  regularTroops,
+  troopTotal,
   productionRates,
   taxIncomePerTurn,
   vacantHousing,
@@ -66,6 +70,9 @@ export function ResourceBar({ player, meta }: { player: Player; meta: WorldMeta 
   const g = growthBreakdown(player);
   const beds = vacantHousing(player);
   const arriving = player.starving ? 0 : Math.min(g.total, beds);
+  const civ = civilians(player);
+  const workers = Object.values(player.workers).reduce((sum, n) => sum + n, 0);
+  const regulars = regularTroops(player) + player.army.siegeEngineers;
 
   // Per-turn truths for the popovers: production, tax, upkeep, and what's vaulted.
   const rates = productionRates(player);
@@ -170,6 +177,59 @@ export function ResourceBar({ player, meta }: { player: Player; meta: WorldMeta 
           <div className="res" data-res="spyturns" title="Spy turns">
             <span style={{ fontSize: 22, lineHeight: 1 }}>🗝</span>
             {player.spyTurnsAvailable ?? 0}
+          </div>
+        </ResTip>
+
+        {/* Who you are, in four numbers. These were only on the Command View,
+            which meant checking your own headcount cost a navigation. */}
+        <ResTip
+          heading="People"
+          rows={[
+            { label: "Idle peasants", value: fmt(player.idlePeasants) },
+            { label: "At work", value: fmt(workers) },
+            { label: "Housing", value: `${fmt(civ)} / ${fmt(beds + civ)}` },
+          ]}
+          note="Civilians only — troops, spies and scouts are counted beside this. Population is what your tax income is drawn from."
+        >
+          <div className="res" data-res="people" title="Civilian population">
+            <span style={{ fontSize: 20, lineHeight: 1 }}>👥</span>
+            {fmt(civ)}
+          </div>
+        </ResTip>
+
+        <ResTip
+          heading="The battle line"
+          rows={[
+            { label: "Footmen", value: fmt(troopTotal(player.army.footmen)) },
+            { label: "Archers", value: fmt(troopTotal(player.army.archers)) },
+            { label: "Cavalry", value: fmt(troopTotal(player.army.cavalry)) },
+            { label: "Engineers", value: fmt(player.army.siegeEngineers) },
+            { label: "Sellswords", value: fmt(mercTroops(player.army.mercenaries)) },
+          ]}
+          note="Regulars only in the headline figure — mercenaries are listed but never counted toward the victory floor, because gold should not buy a throne."
+        >
+          <div className="res" data-res="troops" title="Regular troops">
+            <span style={{ fontSize: 20, lineHeight: 1 }}>⚔️</span>
+            {fmt(regulars)}
+          </div>
+        </ResTip>
+
+        <ResTip
+          heading="The shadow arms"
+          rows={[
+            { label: "Spies", value: fmt(player.army.spies) },
+            { label: "Scouts", value: fmt(player.army.scouts) },
+            { label: "Hired spies", value: fmt(player.army.mercenaries.spies) },
+            { label: "Hired scouts", value: fmt(player.army.mercenaries.scouts) },
+          ]}
+          note="Spies strike, scouts watch — and both spend from the same pool of spy turns, so every turn spent watching is a turn not spent striking."
+        >
+          <div className="res" data-res="agents" title="Spies · scouts">
+            <span style={{ fontSize: 18, lineHeight: 1 }}>🗡</span>
+            {fmt(player.army.spies)}
+            <span style={{ opacity: 0.55, margin: "0 2px" }}>·</span>
+            <span style={{ fontSize: 18, lineHeight: 1 }}>🏹</span>
+            {fmt(player.army.scouts)}
           </div>
         </ResTip>
 

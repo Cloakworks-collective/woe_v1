@@ -1,0 +1,316 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Info } from "@/components/Info";
+import { Panel } from "@/components/Panel";
+import { RACE_NAMES, SCORE, SIEGE_COUNTERS, WALL_NAMES } from "@/lib/constants";
+import { RESEARCH_FIELDS } from "@/lib/constants/research";
+import type { Race } from "@/lib/constants/races";
+import type { CounterType } from "@/lib/constants/buildings";
+import { buildSandboxPlayer, EMPTY_ARMY, rankingScore, type SandboxArmy } from "@/lib/engine";
+
+// Runs the REAL rankingScore. The breakdown is computed by zeroing one
+// component at a time and re-scoring, so it can never drift from the function
+// it claims to explain — no parallel copy of the formula lives here.
+
+const RACES = Object.keys(RACE_NAMES) as Race[];
+const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
+type Trio = [number, number, number];
+
+function Num({
+  value,
+  onChange,
+  label,
+  width = 76,
+  max,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  label: string;
+  width?: number;
+  max?: number;
+}) {
+  return (
+    <input
+      type="number"
+      aria-label={label}
+      className="calc-num"
+      style={{ width }}
+      min={0}
+      max={max}
+      value={value}
+      onChange={(e) => onChange(Math.max(0, Number(e.target.value)))}
+    />
+  );
+}
+
+function ArmRow({ label, trio, onChange }: { label: string; trio: Trio; onChange: (t: Trio) => void }) {
+  return (
+    <tr>
+      <td>{label}</td>
+      {[0, 1, 2].map((i) => (
+        <td key={i}>
+          <Num
+            label={`${label} ${i}`}
+            value={trio[i]}
+            onChange={(n) => {
+              const next = [...trio] as Trio;
+              next[i] = n;
+              onChange(next);
+            }}
+          />
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+export function RankingCalculator() {
+  const [a, setA] = useState<SandboxArmy>({ ...EMPTY_ARMY, name: "Empire", peasants: 1000 });
+  const set = (patch: Partial<SandboxArmy>) => setA({ ...a, ...patch });
+
+  const { total, parts, byRace } = useMemo(() => {
+    const score = (x: SandboxArmy) => rankingScore(buildSandboxPlayer(x, "calc"));
+    const full = score(a);
+
+    // Each part = full score minus the score with that part removed. Derived
+    // from the real function, so it cannot disagree with it.
+    const without = (patch: Partial<SandboxArmy>) => full - score({ ...a, ...patch });
+    const parts = [
+      { label: "People (civilians + scouts)", value: without({ peasants: 0, scouts: 0 }) },
+      {
+        label: "Regulars",
+        value: without({ footmen: [0, 0, 0], archers: [0, 0, 0], cavalry: [0, 0, 0] }),
+      },
+      {
+        label: "Sellswords",
+        value: without({ mercFootmen: [0, 0, 0], mercArchers: [0, 0, 0], mercCavalry: [0, 0, 0] }),
+      },
+      { label: "Engineers", value: without({ engineers: 0, mercEngineers: 0 }) },
+      { label: "Defensive works (crewed)", value: without({ counters: {} }) },
+      { label: "Walls", value: without({ wallLevel: 0 }) },
+      { label: "Veterancy", value: without({ experience: 0 }) },
+      { label: "Research (ranked fields)", value: without({ research: {} }) },
+    ];
+
+    // The same empire under every banner — this is the teaching bit.
+    const byRace = RACES.map((r) => ({ race: r, score: score({ ...a, race: r }) }));
+    return { total: full, parts, byRace };
+  }, [a]);
+
+  const spread = Math.max(...byRace.map((r) => r.score)) - Math.min(...byRace.map((r) => r.score));
+
+  return (
+    <>
+      <Panel
+        title="📜 Ranking Calculator — what the ladder actually counts"
+        info="Runs the REAL rankingScore. The breakdown is measured by removing one component at a time and re-scoring, so it can never drift from the function it explains."
+        guide="/guide#clocks"
+      >
+        <div className="calc-score">
+          <span className="calc-score-num">{fmt(total)}</span>
+          <span className="calc-score-label">ranking points</span>
+        </div>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Component</th>
+              <th className="num">Points</th>
+              <th className="num">Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            {parts.map((p) => (
+              <tr key={p.label}>
+                <td>{p.label}</td>
+                <td className="num">{fmt(p.value)}</td>
+                <td className="num">{total > 0 ? `${Math.round((p.value / total) * 100)}%` : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="calc-hint">
+          <b>Not counted at all:</b> offensive siege gear, spies, gold and resources, civilian
+          buildings, and the three shadow research fields. Your siege train is the most valuable
+          thing a rival could learn about you, so the ladder never publishes it — that is what a
+          scout is for.
+        </p>
+      </Panel>
+
+      <Panel
+        title="Race on the ladder — where it counts, and where it deliberately doesn't"
+        info="Race changes your score through what a besieger can SEE: your troops, your defensive engines and your walls. It cannot change what stays hidden."
+      >
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Race</th>
+              <th className="num">Score with this army</th>
+              <th className="num">vs Human</th>
+            </tr>
+          </thead>
+          <tbody>
+            {byRace.map((r) => {
+              const human = byRace.find((x) => x.race === "human")!.score;
+              const d = r.score - human;
+              return (
+                <tr key={r.race} style={r.race === a.race ? { fontWeight: 700 } : undefined}>
+                  <td>{RACE_NAMES[r.race]}</td>
+                  <td className="num">{fmt(r.score)}</td>
+                  <td className="num" style={{ color: d > 0 ? "var(--pos)" : d < 0 ? "var(--neg)" : undefined }}>
+                    {d === 0 ? "—" : `${d > 0 ? "+" : ""}${fmt(d)}`}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p className="calc-hint">
+          {spread === 0 ? (
+            <>This army scores identically under every banner — it has nothing race modifies.</>
+          ) : (
+            <>
+              A <b>{fmt(spread)}</b>-point spread across the six races, from the same headcount. Race
+              counts because it is <b>public on every profile</b> — a rival can already read it, so
+              folding it in reveals nothing and stops the ladder pretending a Dwarf shield wall and a
+              Gnoll one are the same wall.
+            </>
+          )}
+        </p>
+        <p className="calc-hint">
+          What race <i>cannot</i> reach: veterancy and research are scored separately and explicitly,
+          never folded into unit power — so the ladder still never tells anyone how sharp your army
+          is. Rank tells a rival <b>whether</b> you are worth their turns; only a scout tells them{" "}
+          <b>how</b> to attack you.
+        </p>
+      </Panel>
+
+      <Panel title="The empire">
+        <div className="calc-side-head">
+          <select
+            aria-label="Race"
+            className="calc-select"
+            value={a.race}
+            onChange={(e) => set({ race: e.target.value as Race })}
+          >
+            {RACES.map((r) => (
+              <option key={r} value={r}>
+                {RACE_NAMES[r]}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <table className="tbl calc-tbl">
+          <thead>
+            <tr>
+              <th>Regulars</th>
+              <th>Light</th>
+              <th>Medium</th>
+              <th>Heavy</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ArmRow label="Footmen" trio={a.footmen} onChange={(t) => set({ footmen: t })} />
+            <ArmRow label="Archers" trio={a.archers} onChange={(t) => set({ archers: t })} />
+            <ArmRow label="Cavalry" trio={a.cavalry} onChange={(t) => set({ cavalry: t })} />
+          </tbody>
+          <thead>
+            <tr>
+              <th>
+                Sellswords{" "}
+                <Info tip={`Counted at ${Math.round(SCORE.MERC_POWER_FACTOR * 100)}% of a regular's power and at BASE — hired blades bring their arms and nothing else, so race never touches them.`} />
+              </th>
+              <th>Light</th>
+              <th>Medium</th>
+              <th>Heavy</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ArmRow label="Merc footmen" trio={a.mercFootmen} onChange={(t) => set({ mercFootmen: t })} />
+            <ArmRow label="Merc archers" trio={a.mercArchers} onChange={(t) => set({ mercArchers: t })} />
+            <ArmRow label="Merc cavalry" trio={a.mercCavalry} onChange={(t) => set({ mercCavalry: t })} />
+          </tbody>
+        </table>
+
+        <div className="calc-grid">
+          <label>
+            Peasants
+            <Num label="Peasants" value={a.peasants} onChange={(n) => set({ peasants: n })} width={96} />
+          </label>
+          <label>
+            Scouts{" "}
+            <Info tip="Scouts count, at a discount — they stand in the open and everyone can see the rangers on your roads. Spies never appear." />
+            <Num label="Scouts" value={a.scouts} onChange={(n) => set({ scouts: n })} />
+          </label>
+          <label>
+            Spies{" "}
+            <Info tip="Score exactly nothing. It would be a strange ladder that advertised how deep your spy service runs." />
+            <Num label="Spies" value={a.spies} onChange={(n) => set({ spies: n })} />
+          </label>
+          <label>
+            Engineers
+            <Num label="Engineers" value={a.engineers} onChange={(n) => set({ engineers: n })} />
+          </label>
+          <label>
+            Army XP
+            <Num label="Experience" value={a.experience} onChange={(n) => set({ experience: n })} max={100} />
+          </label>
+          <label>
+            Wall level
+            <select
+              aria-label="Wall level"
+              className="calc-select"
+              value={a.wallLevel}
+              onChange={(e) => set({ wallLevel: Number(e.target.value) })}
+            >
+              {Array.from({ length: 11 }, (_, i) => (
+                <option key={i} value={i}>
+                  {i === 0 ? "None" : `${i} — ${WALL_NAMES[i]}`}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <details className="calc-more" open>
+          <summary>Defensive works — crewed engines only</summary>
+          <div className="calc-grid">
+            {(Object.keys(SIEGE_COUNTERS) as CounterType[]).map((t) => (
+              <label key={t}>
+                {SIEGE_COUNTERS[t].name}
+                <Num
+                  label={SIEGE_COUNTERS[t].name}
+                  value={a.counters[t] ?? 0}
+                  onChange={(n) => set({ counters: { ...a.counters, [t]: n } })}
+                />
+              </label>
+            ))}
+          </div>
+          <p className="calc-hint">
+            Only what your engineers can actually man is counted — forty uncrewed engines are
+            lumber. Raise Engineers above to see the score follow.
+          </p>
+        </details>
+
+        <details className="calc-more">
+          <summary>Research</summary>
+          <div className="calc-grid">
+            {RESEARCH_FIELDS.map((f) => (
+              <label key={f.id}>
+                {f.id.replace(/_/g, " ")}
+                {!f.ranked && <span style={{ color: "var(--ink-soft)" }}> (unranked)</span>}
+                <Num
+                  label={f.id}
+                  value={a.research[f.id] ?? 0}
+                  max={5}
+                  onChange={(n) => set({ research: { ...a.research, [f.id]: Math.min(5, n) } })}
+                />
+              </label>
+            ))}
+          </div>
+        </details>
+      </Panel>
+    </>
+  );
+}

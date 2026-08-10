@@ -75,6 +75,7 @@ export function TopNav({ premium }: { premium: boolean }) {
   const rankingsActive = pathname.startsWith("/rankings");
   const annalsActive = pathname.startsWith("/annals");
   const guidesActive = pathname.startsWith("/guide") || pathname.startsWith("/almanac");
+  const toolsActive = pathname.startsWith("/tools");
   const closeMenu = (e: MouseEvent<HTMLAnchorElement>) =>
     e.currentTarget.closest("details")?.removeAttribute("open");
 
@@ -130,6 +131,22 @@ export function TopNav({ premium }: { premium: boolean }) {
               </Link>
               <Link href="/almanac" onClick={closeMenu}>
                 <Emblem name="market" sm /> Codex of Balance <span className="topnav-menu-sub">every curve & constant, charted</span>
+              </Link>
+            </div>
+          </details>
+
+          <details className="topnav-dd">
+            <summary className={toolsActive ? "active" : ""} title="Sandboxes — test a battle or a ranking with no effect on the world">
+              <Emblem name="siege" /> Tools
+            </summary>
+            <div className="topnav-menu" role="menu">
+              <Link href="/tools/battle" onClick={closeMenu}>
+                <Emblem name="army" sm /> Battle Calculator{" "}
+                <span className="topnav-menu-sub">pit any two armies — real engine, no consequences</span>
+              </Link>
+              <Link href="/tools/ranking" onClick={closeMenu}>
+                <Emblem name="trophy" sm /> Ranking Calculator{" "}
+                <span className="topnav-menu-sub">what the ladder counts, and what it hides</span>
               </Link>
             </div>
           </details>

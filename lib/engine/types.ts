@@ -173,6 +173,24 @@ export interface Player {
   vacationEndedAtTick?: number;
   starving: boolean; // food hit 0 — empire frozen until fed
 
+  // ── Recruitment: a 24-hour average, on the ruler's own clock ─────────────
+  /** Running total of what WOULD have arrived at each tick since the last
+   *  dawn, each sample already capped by free beds. Settlers are paid out as
+   *  the average of these, not as one reading taken at dawn — otherwise the
+   *  whole day's intake is decided by whatever you owned in the last minute
+   *  before it, and buying Hearthsteads at 23:59 is the dominant strategy. */
+  growthSum?: number;
+  growthSamples?: number;
+  /** Absolute tick of this ruler's next dawn. Absent = the old global dawn
+   *  (tick % 144), which is what every pre-existing empire keeps until it
+   *  chooses otherwise. */
+  nextRecruitAtTick?: number;
+  lastRecruitAtTick?: number;
+  /** The dawn hour may be moved ONCE an era, so a player in Delhi and one in
+   *  New York can both be awake for it. Cleared by eraReset with everything
+   *  else. */
+  recruitHourChanged?: boolean;
+
   // Buildings: level for levelled/tiered buildings, count for counted ones
   buildings: Partial<Record<BuildingId, number>>;
   wallIntegrity: number; // 0.0–1.0

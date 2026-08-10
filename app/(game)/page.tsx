@@ -4,6 +4,7 @@ import { Art } from "@/components/Art";
 import { BuildingArt } from "@/components/BuildingArt";
 import { Census } from "@/components/Census";
 import { CmdForm } from "@/components/CmdForm";
+import { ReqTip } from "@/components/CostTip";
 import { Flash } from "@/components/Flash";
 import { HealthBar } from "@/components/HealthBar";
 import { Info } from "@/components/Info";
@@ -372,6 +373,46 @@ export default async function CommandView({
                 </>
               );
             })()}
+          </div>
+
+          {/* Your dawn. Everyone plays from a different timezone, so the hour
+              recruitment lands is yours to choose — ONCE an era, and never in a
+              way that pays out twice inside a day (see setRecruitHour). */}
+          <div className="dawn-row">
+            <span className="dawn-when">
+              🌅 Settlers arrive{" "}
+              <b>
+                {p.nextRecruitAtTick === undefined
+                  ? `at the realm's dawn (turn ${TURNS_PER_DAY - (world.meta.tickNumber % TURNS_PER_DAY)} from now)`
+                  : `in ${Math.max(0, p.nextRecruitAtTick - world.meta.tickNumber)} turns`}
+              </b>
+            </span>
+            {p.recruitHourChanged ? (
+              <span className="dawn-locked">
+                Your dawn is set for this era.{" "}
+                <Info tip="The hour may be moved once an age. It resets when the next era opens." />
+              </span>
+            ) : (
+              <CmdForm name="setRecruitHour" path="/">
+                <label className="dawn-pick">
+                  Move it to{" "}
+                  <select name="offset" defaultValue={String(world.meta.tickNumber % TURNS_PER_DAY)} className="calc-select">
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <option key={h} value={h * 6}>
+                        {String(h).padStart(2, "0")}:00 realm time
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <ReqTip
+                  heading="Move your dawn"
+                  body="Pick the hour your settlers arrive, so it falls when you are actually awake."
+                  note="ONCE per era. Moving it can only ever delay the next arrival, never bring one forward — a full day must pass between payouts, so this can never be used to collect twice."
+                >
+                  <Btn className="btn">Set my dawn</Btn>
+                </ReqTip>
+              </CmdForm>
+            )}
           </div>
           <div style={{ marginTop: 8 }}>
             <Meter

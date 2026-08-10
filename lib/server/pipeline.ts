@@ -65,6 +65,7 @@ import {
   repairSiege,
   sellSiege,
   setSortie,
+  setRecruitHour,
   repairWalls,
   resolveBattle,
   resolveBombard,
@@ -327,6 +328,12 @@ function dispatch(
         };
       }
       return;
+    }
+    case "setRecruitHour": {
+      const r = setRecruitHour(player, num(args.offset), tick);
+      put(r.player);
+      for (const e of r.events) pushInbox(world, player.id, e);
+      return { ok: true, message: r.events[0]?.type === "info" ? "Your dawn is moved." : undefined };
     }
     case "repairWalls":
       return put(repairWalls(player).player), undefined;

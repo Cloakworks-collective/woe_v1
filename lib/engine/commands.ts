@@ -23,6 +23,7 @@ import {
   storageShelterAtLevel,
   TIER_COST_MULT,
   TRAINING_COSTS,
+  TURNS_PER_DAY,
   TROOPS_PER_MUSTER_HALL,
   WAR_FOUNDRY_LADDER,
   maxLevel,
@@ -291,6 +292,56 @@ export function build(input: Player, id: BuildingId, count = 1): EngineResult {
     events.push({ type: "buildComplete", building: id, level: target });
   }
   return { player: p, events };
+}
+
+/**
+ * Move your dawn — the hour recruitment lands — ONCE per era.
+ *
+ * The obvious abuse is collect-then-reschedule: take today's settlers, move
+ * dawn six hours later, and collect again the same day. Two rules stop it:
+ *
+ *   1. Once an era. You get one move, not a lever to pull daily.
+ *   2. The next dawn can never fall within 24h of the last one. If the hour
+ *      you picked would arrive sooner, it is pushed forward whole days until
+ *      it does not — so moving your clock can only ever DELAY the next
+ *      payout, never bring one forward.
+ *
+ * Rule 2 is what makes rule 1 safe to relax later if we ever want to: the
+ * schedule cannot produce two payouts inside a day no matter how it is set.
+ */
+export function setRecruitHour(input: Player, offsetTicks: number, currentTick: number): EngineResult {
+  const p = structuredClone(input);
+  if (!Number.isInteger(offsetTicks) || offsetTicks < 0 || offsetTicks >= TURNS_PER_DAY) {
+    throw new EngineError("hour", "Pick an hour of the day");
+  }
+  if (p.recruitHourChanged) {
+    throw new EngineError("once", "You have already set your dawn this era — it may be moved once.");
+  }
+
+  // The next occurrence of the chosen slot, strictly in the future…
+  let next = currentTick - (currentTick % TURNS_PER_DAY) + offsetTicks;
+  while (next <= currentTick) next += TURNS_PER_DAY;
+  // …then pushed out until a full day has passed since the last payout. An
+  // empire that has never recorded one is assumed to have collected at the most
+  // recent global dawn, which is exactly where it would have: that keeps the
+  // 24h guarantee honest for legacy saves without making a newcomer wait an
+  // extra day for a slot they are already past.
+  const lastPayout =
+    p.lastRecruitAtTick ?? currentTick - (currentTick % TURNS_PER_DAY);
+  const floor = lastPayout + TURNS_PER_DAY;
+  while (next < floor) next += TURNS_PER_DAY;
+
+  p.nextRecruitAtTick = next;
+  p.recruitHourChanged = true;
+  return {
+    player: p,
+    events: [
+      {
+        type: "info",
+        detail: `🧺 Your dawn is moved — the next settlers arrive in ${next - currentTick} turns, and every ${TURNS_PER_DAY} turns after.`,
+      },
+    ],
+  };
 }
 
 export function setResearch(input: Player, field: ResearchField): EngineResult {

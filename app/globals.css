@@ -244,10 +244,10 @@ h3 {
    destinations, so it needs more width than it used to. Tighten first, then
    hand over to the burger EARLY — a wrapped nav would read as the third bar
    this layout exists to avoid. */
-@media (max-width: 1400px) {
+@media (max-width: 1700px) {
   .topnav a,
   .topnav-dd > summary {
-    padding: 7px 9px;
+    padding: 7px 7px;
     font-size: 13px;
   }
 }
@@ -7474,13 +7474,29 @@ body {
   box-shadow: none;
   background: transparent;
   padding: 0;
-  flex: 1 1 auto;
+  /* The nav is the ONE thing in this row allowed to give. Title, crown and
+     theme switch are fixed-size; if the links cannot fit they scroll sideways
+     rather than wrapping the bar onto a second line — two bars is the whole
+     point of this layout, and a wrapped nav is a third bar wearing a disguise. */
+  flex: 1 1 0;
   min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
-.topbar > .topnav .topnav-inner {
+.topbar > .topnav .topnav-inner,
+.topbar > .topnav .topnav-group {
   max-width: none;
   margin: 0;
   padding: 0;
+  flex-wrap: nowrap;
+}
+/* Never let the identity row wrap, whatever it is carrying. */
+.topbar {
+  flex-wrap: nowrap;
+}
+.topbar .title,
+.topbar .whoami {
+  flex: 0 0 auto;
 }
 /* The burger replaces the link row below 860px — same slot, same alignment. */
 .topbar > .mnav {
@@ -7495,9 +7511,14 @@ body {
    read as a seam rather than a frame. */
 .topbar.topbar-res {
   box-shadow: none;
-  border-top-width: 0;
-  padding-top: 3px;
-  padding-bottom: 3px;
+  /* SYMMETRIC frame. The base .topbar carries a heavier bottom edge (12px vs
+     10px) to seat the header against the page; inheriting that here — and
+     worse, zeroing the top edge as this rule first did — left the chips sitting
+     visibly high in their own bar. Equal borders, equal padding, centred. */
+  border-width: 10px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  align-items: center;
 }
 
 /* Points inside a tooltip — for "what this actually does for me". A popover
@@ -7524,4 +7545,135 @@ body {
 }
 .clanwork-perks li {
   margin: 3px 0;
+}
+
+/* ── The calculators (/tools) ─────────────────────────────────────────────
+   Dense forms. These are workbenches, not pages you read, so the styling gets
+   out of the way: tight inputs, two-up sides on wide screens, one column when
+   there isn't room. */
+.calc-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 1080px) {
+  .calc-sides {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.calc-num {
+  font: 14px Verdana, sans-serif;
+  padding: 3px 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--panel-alt);
+  color: var(--ink);
+}
+.calc-select,
+.calc-name {
+  font: 14px Verdana, sans-serif;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--panel-alt);
+  color: var(--ink);
+}
+.calc-name {
+  font-weight: 700;
+  min-width: 140px;
+}
+.calc-side-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.calc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px 12px;
+  margin: 8px 0;
+}
+.calc-grid label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: space-between;
+  font-size: 13px;
+  text-transform: capitalize;
+}
+.calc-check {
+  justify-content: flex-start !important;
+  text-transform: none !important;
+}
+.calc-tbl td,
+.calc-tbl th {
+  padding: 3px 6px;
+}
+.calc-total {
+  font-weight: 700;
+  color: var(--coin);
+}
+.calc-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.calc-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+}
+.calc-hint {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 8px 0 0;
+  line-height: 1.55;
+}
+.calc-tally {
+  font-size: 14.5px;
+  margin: 8px 0 0;
+}
+.calc-more > summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13.5px;
+  margin-top: 6px;
+}
+.calc-score {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.calc-score-num {
+  font: 700 30px var(--font-heading, Georgia), Georgia, serif;
+  color: var(--coin);
+}
+.calc-score-label {
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+/* Your dawn — the hour recruitment lands, movable once an era. */
+.dawn-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+.dawn-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dawn-locked,
+.dawn-when {
+  color: var(--ink-soft);
 }

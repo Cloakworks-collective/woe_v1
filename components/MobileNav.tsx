@@ -77,6 +77,8 @@ export function MobileNav({ premium }: { premium: boolean }) {
     {
       head: "Guides & Account",
       items: [
+        { href: "/tools/battle", label: "⚔️ Battle Calculator" },
+        { href: "/tools/ranking", label: "📜 Ranking Calculator" },
         { href: "/guide", label: "📜 Field Manual" },
         { href: "/almanac", label: "⚖ Codex of Balance" },
         premium

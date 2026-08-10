@@ -459,12 +459,22 @@ export function runOneTick(world: World, nowMs = Date.now()): void {
   }
 
   // Daily reset — recruitment then scattering.
-  if (tick % TURNS_PER_DAY === 0) {
-    for (const p of Object.values(world.players)) {
-      const { player: next, events } = processDailyReset(p, tick);
-      world.players[p.id] = next;
-      for (const e of events) pushInbox(world, p.id, e);
-    }
+  // Dawn, on each ruler's OWN clock. A player in Delhi and one in New York
+  // should both be able to be awake for their recruitment, so the hour is
+  // theirs to set once an era (see setRecruitHour). An empire that has never
+  // moved it has no `nextRecruitAtTick` and keeps the old global dawn, which
+  // means no migration for anyone already playing.
+  for (const p of Object.values(world.players)) {
+    const due = p.nextRecruitAtTick;
+    const dawn = due === undefined ? tick % TURNS_PER_DAY === 0 : tick >= due;
+    if (!dawn) continue;
+    const { player: next, events } = processDailyReset(p, tick);
+    next.lastRecruitAtTick = tick;
+    // Anchored to the schedule, not to `tick`, so a catch-up run cannot drift
+    // a ruler's dawn later and later.
+    next.nextRecruitAtTick = (due ?? tick) + TURNS_PER_DAY;
+    world.players[p.id] = next;
+    for (const e of events) pushInbox(world, p.id, e);
   }
 
   updateCrown(world, nowMs);

@@ -36,6 +36,7 @@ import {
 } from "../constants";
 import type { ResearchField } from "../constants/research";
 import type { BuildingId } from "../constants/buildings";
+import { sampleGrowth } from "./dailyReset";
 import {
   bankedRes,
   buildingIntegrity,
@@ -256,6 +257,10 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
     SPY_TURNS.CAP,
     (p.spyTurnsAvailable ?? 0) + SPY_TURNS.PER_GAME_TURN,
   );
+
+  // Record what settlers WOULD have arrived this moment. Dawn pays the average
+  // of the day's samples, not a single reading — see sampleGrowth.
+  sampleGrowth(p, currentTick);
 
   // Vacation allowance: every turn away spends the era budget.
   // When it runs dry you are returned to the world — you can hide no longer.

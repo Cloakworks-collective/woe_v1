@@ -84,19 +84,56 @@ export function popPerDay(p: Player): number {
   return growthBreakdown(p).total;
 }
 
+// ── The 24-hour average ─────────────────────────────────────────────────────
+//
+// Settlers are NOT decided by one reading taken at dawn. Every tick records
+// what would actually have landed at that moment — already capped by free beds
+// — and dawn pays out the average of the day's samples.
+//
+// The cap has to be inside the sample, not applied to the average, and that is
+// the whole point. Paying on a dawn reading makes the last minute before dawn
+// the only minute that matters: buy Hearthsteads at 23:59 and collect a full
+// day's intake you had no room for all day. Averaging capped samples means an
+// empire that was full for 143 ticks collects almost nothing today, and the
+// full amount tomorrow — the beds have to be there while the settlers arrive.
+
+/** What would actually land right now: the day's rate, capped by free beds, and
+ *  zero while the empire is starving or in unrest. One sample. */
+export function arrivalsNow(p: Player, currentTick: number): number {
+  if (p.starving) return 0;
+  if ((p.unrestUntilTick ?? 0) > currentTick) return 0;
+  return Math.max(0, Math.min(popPerDay(p), vacantHousing(p)));
+}
+
+/** Record this tick's sample. Called once per tick, from processTurnTick. */
+export function sampleGrowth(p: Player, currentTick: number): void {
+  p.growthSum = (p.growthSum ?? 0) + arrivalsNow(p, currentTick);
+  p.growthSamples = (p.growthSamples ?? 0) + 1;
+}
+
+/** The day's payout: the mean of its samples, rounded up. Divided by the
+ *  samples actually taken rather than a flat 144, so an empire founded at
+ *  dusk is not charged for the hours before it existed. */
+export function averagedArrivals(p: Player): number {
+  const n = p.growthSamples ?? 0;
+  if (n <= 0) return 0;
+  return Math.ceil((p.growthSum ?? 0) / n);
+}
+
 export function processDailyReset(input: Player, currentTick = 0): EngineResult {
   const p = structuredClone(input);
   const events: EngineResult["events"] = [];
 
-  // 1. Recruitment — arrivals that find no vacant Hearthstead are lost, not
-  //    queued. Halted while starving or under Incite Unrest.
-  const unrest = (p.unrestUntilTick ?? 0) > currentTick;
-  if (!p.starving && !unrest) {
-    const wanted = popPerDay(p);
-    const arrived = Math.min(wanted, vacantHousing(p));
-    p.idlePeasants += arrived;
-    events.push({ type: "dailyRecruitment", arrived, turnedAway: wanted - arrived });
-  }
+  // 1. Recruitment — the average of the day's capped samples (see above), so
+  //    what arrives reflects the beds and the garrison you kept ALL day, not
+  //    whatever you owned in the last minute before dawn.
+  const wanted = popPerDay(p);
+  const arrived = Math.min(averagedArrivals(p), vacantHousing(p));
+  p.idlePeasants += arrived;
+  events.push({ type: "dailyRecruitment", arrived, turnedAway: Math.max(0, wanted - arrived) });
+  // The ledger resets for the new day either way.
+  p.growthSum = 0;
+  p.growthSamples = 0;
 
   // 2. Scattering — civilians only stay where they feel protected.
   //    Empires below 500 total population are exempt.
