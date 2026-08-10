@@ -13,11 +13,12 @@ function Emblem({ name, sm }: { name: string; sm?: boolean }) {
 }
 
 /**
- * The desktop top bar for the WIDER WORLD and meta links — everything that
- * isn't managing your own empire (that all lives in the left SideNav now:
- * Command, economy, war, and your court). Kept to a handful of entries —
- * two direct links plus two themed dropdowns (Rankings, Annals) — so the row
- * always fits on one line and never wraps. On mobile it's hidden and
+ * The desktop top bar for META links — the annals, messages, the public forum,
+ * guides, the sandboxes and the Charter. Everything you MANAGE lives in the
+ * left SideNav, and so now does the wider world: the ladder and the age's
+ * battles moved down there, because the header also carries the realm's name
+ * and the throne and had run out of room. Kept short so the row always fits on
+ * one line and never wraps. On mobile it's hidden and
  * MobileNav's burger takes over. The premium entry always reads "Premium"; it
  * routes to the Royal Charter buy page until owned, then to the Steward manager
  * (the Charter's automation) — one product, one nav label.
@@ -48,7 +49,6 @@ export function TopNav({ premium }: { premium: boolean }) {
     };
   }, []);
 
-  const worldItem: Item = { href: "/battles", label: "World", icon: "world", title: "The living age — clan wars, the latest battles, and the grand chronicle" };
   const messages: Item = { href: "/messages", label: "Messages", icon: "forum", title: "Era chat and letters with other empires — in-game, and wiped when the age ends" };
   const forum: Item = { href: "/forum", label: "Forum", icon: "chronicle", title: "The public forum — its own login, and it outlives every era" };
   const premiumItem: Item = premium
@@ -73,7 +73,6 @@ export function TopNav({ premium }: { premium: boolean }) {
     </Link>
   );
 
-  const rankingsActive = pathname.startsWith("/rankings");
   const annalsActive = pathname.startsWith("/annals");
   const guidesActive = pathname.startsWith("/guide") || pathname.startsWith("/almanac");
   const toolsActive = pathname.startsWith("/tools");
@@ -84,25 +83,6 @@ export function TopNav({ premium }: { premium: boolean }) {
     <nav className="topnav" aria-label="The wider world">
       <div className="topnav-inner">
         <div className="topnav-group">
-          <details className="topnav-dd">
-            <summary className={rankingsActive ? "active" : ""} title="The ladder — empire ranks, clan ranks, and your war console">
-              <Emblem name="trophy" /> Rankings
-            </summary>
-            <div className="topnav-menu" role="menu">
-              <Link href="/rankings" onClick={closeMenu}>
-                <Emblem name="castle" sm /> Empire Ranks <span className="topnav-menu-sub">every empire · attack & spy</span>
-              </Link>
-              <Link href="/rankings/clans" onClick={closeMenu}>
-                <Emblem name="clan" sm /> Clan Ranks <span className="topnav-menu-sub">the banners of the age</span>
-              </Link>
-              <Link href="/rankings/records" onClick={closeMenu}>
-                <Emblem name="trophy" sm /> Records of the Age <span className="topnav-menu-sub">rulers, champions & titles — still being written</span>
-              </Link>
-            </div>
-          </details>
-
-          {render(worldItem)}
-
           <details className="topnav-dd">
             <summary className={annalsActive ? "active" : ""} title="The finished history — sealed ages and the elder legends">
               <Emblem name="chronicle" /> Annals

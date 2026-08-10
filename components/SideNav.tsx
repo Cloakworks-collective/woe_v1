@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type Item = { href: string; label: string; icon: string; desc: string };
+type Item = { href: string; label: string; icon: string; desc: string; exact?: boolean };
 
-// The sidebar holds everything you manage in your OWN empire — overview,
-// economy, war, and your court. The wider world (rankings, the age's battles,
-// the annals, the forum) plus the meta links (manual, premium) live in the
-// horizontal TopNav.
+// The sidebar holds everything you manage in your OWN empire — court, economy,
+// war — plus THE WIDER WORLD: the ladder and the age's battles. Those two moved
+// down from the header, which had run out of room once it also carried the
+// realm's name and the throne; and the ladder is visited far too often to live
+// behind a dropdown. What stays up top is the meta: annals, messages, forum,
+// guides, tools, premium.
 //
 // `icon` names an emblem in /art/ui/icons, cut from the PixelLab sheet by
 // scripts/ui-kit.py. These replaced emoji labels: an OS emoji renders in full
@@ -49,6 +51,20 @@ const SECTIONS: { head: string; sub: string; items: Item[] }[] = [
       { href: "/clan", label: "Clan", icon: "clan", desc: "Your banner — hall, works & vault, chat, wars" },
     ],
   },
+  // Moved down from the top bar. These are destinations you visit constantly —
+  // the ladder is the game's scoreboard — and the header had run out of room.
+  // A dropdown you have to open is also a worse home for the three ranking
+  // pages than three permanent rows.
+  {
+    head: "The Wider World",
+    sub: "beyond your walls",
+    items: [
+      { href: "/rankings", label: "Empire Ranks", icon: "trophy", desc: "Every empire — attack & spy from the ladder", exact: true },
+      { href: "/rankings/clans", label: "Clan Ranks", icon: "clan", desc: "The banners of the age" },
+      { href: "/rankings/records", label: "Records of the Age", icon: "trophy", desc: "Rulers, champions & titles — still being written" },
+      { href: "/battles", label: "World", icon: "world", desc: "The living age — clan wars, latest battles, the chronicle" },
+    ],
+  },
 ];
 
 export function SideNav() {
@@ -61,7 +77,8 @@ export function SideNav() {
             {s.head} <span className="nav-head-sub">{s.sub}</span>
           </div>
           {s.items.map((item) => {
-            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            const active =
+              item.href === "/" || item.exact ? pathname === item.href : pathname.startsWith(item.href);
             return (
               <Link key={item.href} href={item.href} className={active ? "active" : ""} title={item.desc}>
                 <img src={`/art/ui/icons/${item.icon}.png`} alt="" className="nav-icon" />

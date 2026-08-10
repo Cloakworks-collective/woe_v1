@@ -316,10 +316,21 @@ export async function TopBar({
           {dark ? "☀️" : "🌙"}
         </button>
       </form>
-      <form action={leaveSession} className="whoami">
-        <span title="Your empire">👑 {player.name}</span>
-        <button title="Leave this throne and return to the gate">abdicate</button>
-      </form>
+      {/* The throne. Just the name — signing out is a rare, destructive-feeling
+          action and does not deserve a permanent button beside it. It lives one
+          hover (or keyboard focus) away instead. */}
+      <div className="throne">
+        <button type="button" className="throne-name" aria-haspopup="menu" aria-expanded="false">
+          👑 {player.name}
+        </button>
+        <div className="throne-pop" role="menu">
+          <form action={leaveSession}>
+            <button type="submit" role="menuitem" title="Leave this throne and return to the gate">
+              Sign out
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }

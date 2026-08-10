@@ -269,9 +269,11 @@ h3 {
   margin-top: 0;
 }
 
-/* Below this the link row cannot share a line with the title and the throne,
-   so the burger takes its place — same slot, one row still. */
-@media (max-width: 1180px) {
+/* Below this the link row cannot share a line with the title and the throne —
+   measured, not guessed: the links need ~865px and the title, theme switch and
+   throne take ~600px of a 1500px bar. Under it the burger takes the slot, so
+   the header is still exactly one row. */
+@media (max-width: 1500px) {
   .topnav {
     display: none;
   }
@@ -7474,14 +7476,16 @@ body {
   box-shadow: none;
   background: transparent;
   padding: 0;
-  /* The nav is the ONE thing in this row allowed to give. Title, crown and
-     theme switch are fixed-size; if the links cannot fit they scroll sideways
-     rather than wrapping the bar onto a second line — two bars is the whole
-     point of this layout, and a wrapped nav is a third bar wearing a disguise. */
-  flex: 1 1 0;
+  /* The nav must NOT clip: Rankings, Annals, Guides and Tools open <details>
+     dropdowns that are absolutely positioned and hang below the bar. An
+     `overflow-x: auto` here (an earlier attempt at stopping the row wrapping)
+     computes overflow-y to auto as well and swallows every one of them — the
+     menus opened, you just could not see them.
+     So the row is kept to one line by NOT WRAPPING and by handing over to the
+     burger early enough that the links always fit (see the 1500px breakpoint). */
+  flex: 0 1 auto;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  overflow: visible;
 }
 .topbar > .topnav .topnav-inner,
 .topbar > .topnav .topnav-group {
@@ -7988,4 +7992,62 @@ body {
 :root[data-theme="dark"] .flat textarea {
   background: #1c1409 !important;
   color: #ecdcb8 !important;
+}
+
+/* The throne — the empire's name in the header, with sign-out one hover away.
+   Opens on hover AND on keyboard focus, so it is not mouse-only. */
+.throne {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+.throne-name {
+  font: 700 14px Verdana, sans-serif;
+  color: #f4e2b8;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 5px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.throne:hover .throne-name,
+.throne:focus-within .throne-name {
+  border-color: var(--gold);
+}
+.throne-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 70;
+  min-width: 150px;
+  padding: 5px;
+  border: 1px solid var(--gold);
+  border-radius: 6px;
+  background: var(--wood-dark);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.throne:hover .throne-pop,
+.throne:focus-within .throne-pop {
+  opacity: 1;
+  pointer-events: auto;
+}
+.throne-pop button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: 14px Verdana, sans-serif;
+  color: #f6ead0;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.throne-pop button:hover,
+.throne-pop button:focus-visible {
+  background: var(--wood-light);
 }
