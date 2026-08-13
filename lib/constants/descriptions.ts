@@ -129,7 +129,8 @@ export const BUILDING_INFO: Record<BuildingId, { title: string; tip: string }> =
   drill_yard: { title: "Drill Yard", tip: "Where footmen are trained. Its level (1–3) sets how heavy your footmen can be armed: light, then medium, then heavy." },
   fletchers_range: { title: "Fletcher's Range", tip: "Where archers are trained. Its level (1–3) sets how heavy your archers can be armed: light, then medium, then heavy." },
   knights_stables: { title: "Knights' Stables", tip: "Where cavalry are raised. Its level (1–3) sets how heavy your riders can be armed: light, then medium, then heavy." },
-  forge: { title: "The Forge", tip: "The military spine — it stocks the weapons and armour every equipped troop needs. Its level gates every trainer: heavy troops need a level-3 Forge as well as a level-3 trainer." },
+  forge: { title: "The Forge", tip: "Sharper steel for everyone under your banner. Every level adds 5% to the attack of every REGULAR you field — footmen, archers and cavalry alike — up to +50% at level 10. Sellswords bring their own steel and draw nothing from it. It no longer gates troop tiers; the three trainers do that on their own now. Hungry for ore, which your soldiers and siege engines also want." },
+  armoury: { title: "The Armoury", tip: "Mail, plate and shield for everyone under your banner. Every level adds 5% to the defence of every REGULAR you field, up to +50% at level 10 — the Forge's twin, and the other half of arming an army properly. Sellswords draw nothing from it either. Equally hungry for ore." },
   war_foundry: { title: "War Foundry", tip: "The siege engineering works. Its ten levels alternate an offensive weapon then the defensive counter that blunts it — only a full level-10 Foundry owns the complete kit." },
   walls: { title: "The Walls", tip: "Your ring of stone. Any standing wall gives every defender behind it the same +50% — a wall is a wall. What LEVEL buys is how much punishment it absorbs before it is rubble, and that scales hard: a Citadel soaks a hundred times what a palisade does. Battered walls also frighten off up to half your incoming settlers until repaired." },
 };
@@ -228,6 +229,7 @@ export const BUILDING_GUIDE: Record<BuildingId, string> = {
   fletchers_range: "/guide#army",
   knights_stables: "/guide#army",
   forge: "/guide#army",
+  armoury: "/guide#army",
   war_foundry: "/guide#battle",
   walls: "/guide#defense",
 };

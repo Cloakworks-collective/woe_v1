@@ -11,7 +11,7 @@ import {
   setTax,
   trainTroops,
 } from "./commands";
-import { CIVILIAN_LEVELLED_IDS, COLLEGIUM_COST, GUILD_COST, LODGE_COST, MARKET_COST, PRODUCER_COST, RESEARCH_FIELDS, STORAGE_COST, TURNS_PER_DAY, WALLS_COST, goldShelterAtLevel, maxLevel, shelterAtLevel, workerOutputAtLevel } from "../constants";
+import { CIVILIAN_LEVELLED_IDS, COLLEGIUM_COST, GUILD_COST, LODGE_COST, MARKET_COST, PRODUCER_COST, WARWORKS_COST, RESEARCH_FIELDS, STORAGE_COST, TURNS_PER_DAY, WALLS_COST, goldShelterAtLevel, maxLevel, shelterAtLevel, workerOutputAtLevel } from "../constants";
 import { buildingCost } from "./costs";
 import { newEmpire } from "./newEmpire";
 import { level, mercTotal, normalizePlayer, shelterCapacity, type Player } from "./types";
@@ -167,9 +167,37 @@ describe("building costs (spec/empire.md examples)", () => {
   });
 
   it("tiered level 3 uses the top band — stone-heavy, and ore enters the bill", () => {
-    const c = buildingCost("forge", 3);
+    // The Drill Yard, not the Forge — the Forge stopped being a tiered trainer
+    // when it became a ten-level war-works.
+    const c = buildingCost("drill_yard", 3);
     expect(c.ore).toBeGreaterThan(0); // levels 9–10 want iron fittings too
     expect(c.stone).toBeGreaterThan(c.wood);
+  });
+
+  it("the war-works are ten levels, ore-heavy, and identically priced", () => {
+    expect(buildingCost("forge", 1)).toEqual({ gold: 10000, wood: 1000, stone: 1000, ore: 3000 });
+    expect(buildingCost("armoury", 1)).toEqual(buildingCost("forge", 1));
+    expect(maxLevel("forge")).toBe(10);
+    expect(maxLevel("armoury")).toBe(10);
+    // Ore is the majority of the bill at every level — everything else in the
+    // game spends timber and masonry; these two eat the war-metal.
+    for (let l = 1; l <= 10; l++) {
+      const c = buildingCost("forge", l);
+      expect(c.ore, `level ${l}`).toBeGreaterThan(c.wood + c.stone);
+      if (l > 1) {
+        expect(c.gold / buildingCost("forge", l - 1).gold).toBeCloseTo(WARWORKS_COST.RATE, 4);
+      }
+    }
+  });
+
+  it("the Forge no longer gates troop tiers — the trainers do that alone", () => {
+    const p = fresh();
+    p.buildings = { ...p.buildings, muster_hall: 5, drill_yard: 3, forge: 0 };
+    // Heavy footmen with a level-3 Drill Yard and NO Forge at all.
+    expect(() => trainTroops(p, "footman", "heavy", 1)).not.toThrow();
+    // …but the arm's own trainer still gates it.
+    p.buildings.drill_yard = 2;
+    expect(() => trainTroops(p, "footman", "heavy", 1)).toThrowError(/drill_yard/i);
   });
 });
 
@@ -207,13 +235,11 @@ describe("training & army", () => {
     expect(() => trainTroops(fresh(), "footman", "light", 1)).toThrowError(/muster/i);
   });
 
-  it("training goes peasant → footman directly (no warrior step); needs trainer AND forge", () => {
+  it("training goes peasant → footman directly (no warrior step); needs the trainer", () => {
     let p = fresh();
     p = build(p, "muster_hall").player; // 3rd hall → 30 slots, 20 used → 10 free
     expect(() => trainTroops(p, "footman", "light", 5)).toThrowError(/drill_yard/i);
     p.buildings.drill_yard = 1;
-    expect(() => trainTroops(p, "footman", "light", 5)).toThrowError(/forge/i);
-    p.buildings.forge = 1;
     const { player } = trainTroops(p, "footman", "light", 5);
     expect(player.army.footmen.light).toBe(25); // 20 starter + 5
     expect(player.idlePeasants).toBe(75); // peasants spent directly

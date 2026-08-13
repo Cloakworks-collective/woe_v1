@@ -692,6 +692,46 @@ export const LODGE_COST = {
   RATE: 1.7,
 } as const;
 
+/**
+ * THE FORGE and THE ARMOURY — the war-works.
+ *
+ * The Forge used to be a second gate on troop tiers, level-for-level alongside
+ * the Drill Yard, Fletcher's Range and Knights' Stables. That was two buildings
+ * asking the same question: you always needed both, in the same order, with no
+ * choice between them. The three trainers gate light → medium → heavy on their
+ * own now, and the Forge does something it alone can do.
+ *
+ * Both are ten-level ladders adding a flat percentage to every unit you field —
+ * the Forge to what they deal, the Armoury to what they endure. They are the
+ * only buildings that touch combat directly, and they are deliberately a matched
+ * pair: an empire that forges swords and neglects mail is a real choice, and so
+ * is the reverse.
+ *
+ * ORE-HEAVY by design: 3,000 of the 5,000 goods at level 1, against 1,000 each
+ * of wood and stone. Everything else in the game spends timber and masonry;
+ * these two eat the war-metal, and they compete directly with the troops and
+ * siege engines that need it. Arming your army better and arming it wider draw
+ * on the same vein.
+ *
+ * The Ranger's Lodge rate (1.7) — the gentlest ladder in the game — because
+ * the return is FLAT at +5% a level and a steep tail would price the last
+ * levels out of anyone who was not already winning.
+ */
+export const WARWORKS_COST = {
+  BASE: { gold: 10000, wood: 1000, stone: 1000, ore: 3000 },
+  RATE: LODGE_COST.RATE,
+} as const;
+
+export const WARWORKS_COST_CURVE: Curve = {
+  kind: "expr",
+  formula: `${WARWORKS_COST.RATE} ^ (x - 1)`,
+};
+
+/** Added to the attack (Forge) or defence (Armoury) bonus pool per level.
+ *  +50% at level 10 — half what a maxed Art of War or Shieldcraft gives, so
+ *  the buildings support the research rather than replacing it. */
+export const WARWORKS_BONUS_PER_LEVEL = 0.05; // frac
+
 export const GUILD_COST_CURVE: Curve = { kind: "expr", formula: `${GUILD_COST.RATE} ^ (x - 1)` };
 export const LODGE_COST_CURVE: Curve = { kind: "expr", formula: `${LODGE_COST.RATE} ^ (x - 1)` };
 

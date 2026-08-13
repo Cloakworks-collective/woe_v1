@@ -174,15 +174,20 @@ export function assignWorkers(input: Player, role: WorkerRole, count: number): E
   return { player: p, events: [] };
 }
 
-/** Assert the trainer + Forge levels a tier requires (shared by regulars and
- *  the sellswords hired at the Black Market). Tier N needs trainer N AND Forge N. */
+/**
+ * Assert the trainer level a tier requires (shared by regulars and the
+ * sellswords hired at the Black Market). Tier N needs that arm's trainer at N.
+ *
+ * The Forge used to be a SECOND gate here, checked at the same level as the
+ * trainer. It was two buildings asking one question — you always needed both,
+ * in the same order, and there was never a choice between them. The Forge now
+ * does something only it can (see WARWORKS_COST) and the trainers gate tiers
+ * alone.
+ */
 function requireTierBuildings(p: Player, type: TroopType, tier: Tier): void {
   const need = TIER_INDEX[tier];
   if (level(p, TRAINER[type]) < need) {
     throw new EngineError("trainer", `${TRAINER[type]} level ${need} required`);
-  }
-  if (level(p, "forge") < need) {
-    throw new EngineError("forge", `The Forge level ${need} required`);
   }
 }
 

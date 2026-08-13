@@ -11,7 +11,7 @@ const GROUPS: { head: string; ids: BuildingId[] }[] = [
   { head: "Workshops", ids: ["grange", "sawyers_mill", "masons_quarry", "deepvein_mine"] },
   { head: "Stores & Vault", ids: ["granary", "timberyard", "masons_yard", "ironhold", "counting_house"] },
   { head: "Civic Halls", ids: ["market_square", "collegium", "shadow_guild", "rangers_lodge"] },
-  { head: "War Yards", ids: ["drill_yard", "fletchers_range", "knights_stables", "forge", "war_foundry"] },
+  { head: "War Yards", ids: ["drill_yard", "fletchers_range", "knights_stables", "forge", "armoury", "war_foundry"] },
 ];
 const ALL_IDS = GROUPS.flatMap((g) => g.ids);
 

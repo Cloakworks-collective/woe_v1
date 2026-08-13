@@ -24,9 +24,11 @@ import {
   UNIT_POWER,
   WALL_ROLE_BONUS,
   WAR,
+  WARWORKS_BONUS_PER_LEVEL,
   type TargetKind,
 } from "../../constants";
 import {
+  level,
   mercsOfArm,
   regularsOfArm,
   researchLevel,
@@ -110,24 +112,41 @@ export interface BonusContext {
   entrenched?: boolean;
   /** Clan war doubles the blood. */
   war?: boolean;
-  /** Sellswords carry none of your race, veterancy or research — only the
-   *  shared exhaustion everyone feels. */
+  /** Sellswords carry your EQUIPMENT and DOCTRINE — the Forge, the Armoury,
+   *  the Art of War — but none of your race or veterancy. Bought steel and
+   *  bought drill; not bought blood, not bought scars. */
   isMerc?: boolean;
 }
 
 export function bonusPool(p: Player, ctx: BonusContext): number {
-  // Hired blades bring their arms and nothing else.
-  if (ctx.isMerc) {
-    let hired = 0;
-    if (ctx.wallEdge) hired += ctx.wallEdge;
-    if (ctx.sortie && ctx.arm === "cavalry") hired += SORTIE_CAVALRY_BONUS();
-    if (ctx.entrenched) hired += ENTRENCHED();
-    if (ctx.war) hired += WAR.DAMAGE_BONUS;
-    return 1 + hired;
-  }
+  let sum = 0;
+
+  // ── What EVERY soldier under your banner gets, hired or raised ────────────
+  //
+  // Equipment and doctrine are the empire's, not the soldier's. You arm a
+  // sellsword from your own Forge and Armoury and you drill them to your own
+  // Art of War, so these reach the whole line. Only what a mercenary CANNOT
+  // acquire by being paid is withheld below: the blood they were born with, and
+  // the years your own veterans spent earning their scars.
+  //
+  // It also keeps the arithmetic honest. When hired and raised troops share a
+  // multiplier, "what is my army worth?" is one sum rather than two, and every
+  // downstream comparison — the ranking score, the battle calculator, the
+  // harnesses — gets simpler for it.
+  sum += researchLevel(p, ctx.kind === "attack" ? "art_of_war" : "shieldcraft") * EFFECT_PER_LEVEL;
+  sum += level(p, ctx.kind === "attack" ? "forge" : "armoury") * WARWORKS_BONUS_PER_LEVEL;
+
+  // ── Situational: the ground, not the soldier ──────────────────────────────
+  if (ctx.wallEdge) sum += ctx.wallEdge;
+  if (ctx.sortie && ctx.arm === "cavalry") sum += SORTIE_CAVALRY_BONUS();
+  if (ctx.entrenched) sum += ENTRENCHED();
+  if (ctx.war) sum += WAR.DAMAGE_BONUS;
+
+  // Hired blades stop here. No race, no veterancy — and no wall ROLE bonus,
+  // which is a drilled position rather than a place to stand.
+  if (ctx.isMerc) return 1 + sum;
 
   const race = RACES[p.race];
-  let sum = 0;
 
   // Race — a global stat modifier plus a per-arm one.
   sum += (ctx.kind === "attack" ? race.attack : race.defence) - 1;
@@ -136,18 +155,10 @@ export function bonusPool(p: Player, ctx: BonusContext): number {
   // Veterancy: up to +100% at 100 XP.
   sum += p.army.experience / 100;
 
-  // Research.
-  sum += researchLevel(p, ctx.kind === "attack" ? "art_of_war" : "shieldcraft") * EFFECT_PER_LEVEL;
-
-  // The wall, and what each arm does with one.
-  if (ctx.wallEdge) sum += ctx.wallEdge;
+  // What each arm does with a wall it has TRAINED on — archers lethal from a
+  // parapet, cavalry wasted behind one. The wall edge itself is shared above;
+  // this is the drilled role, which is why a sellsword does not get it.
   if (ctx.onWall && ctx.arm) sum += WALL_ROLE_BONUS[ctx.arm];
-
-  // Riding out — cavalry's element.
-  if (ctx.sortie && ctx.arm === "cavalry") sum += SORTIE_CAVALRY_BONUS();
-  if (ctx.entrenched) sum += ENTRENCHED();
-
-  if (ctx.war) sum += 1;
 
   return 1 + sum;
 }

@@ -11,6 +11,8 @@ import { newEmpire } from "./newEmpire";
 import { seededRng } from "./rng";
 import { STAMINA, storageShelterAtLevel } from "../constants";
 import { buildingIntegrity, type Player } from "./types";
+import { bonusPool } from "./combat/model";
+import { WAR } from "../constants";
 
 function empire(name: string, mods: (p: Player) => void): Player {
   const p = newEmpire({ id: name, name, race: "human" });
@@ -452,5 +454,71 @@ describe("stamina drain scales with damage dealt", () => {
     const d = empire("D", (p) => void (p.shieldUntilTick = 0));
     const { report } = resolveBombard(a, d, { ...OPTS, rng: seededRng(9) });
     expect(report.staminaLoss).toEqual({ attacker: 0, defender: 0 });
+  });
+});
+
+describe("the war-works", () => {
+  const armed = (forge: number, armoury: number) =>
+    empire("A", (p) => {
+      p.army.footmen.light = 200;
+      p.buildings = { ...p.buildings, muster_hall: 25, forge, armoury };
+    });
+
+  it("the Forge sharpens and the Armoury hardens, +5% a level", () => {
+    const plain = armed(0, 0);
+    const forged = armed(10, 0);
+    const mailed = armed(0, 10);
+    // +50% at level 10, on the additive pool — so the multiplier moves from
+    // 1 + Σ to 1 + Σ + 0.5.
+    const atk = (p: Player) => bonusPool(p, { kind: "attack", arm: "footman" });
+    const def = (p: Player) => bonusPool(p, { kind: "defence", arm: "footman" });
+    expect(atk(forged) - atk(plain)).toBeCloseTo(0.5, 6);
+    expect(def(mailed) - def(plain)).toBeCloseTo(0.5, 6);
+    // Each touches only its own side of the ledger.
+    expect(def(forged)).toBeCloseTo(def(plain), 6);
+    expect(atk(mailed)).toBeCloseTo(atk(plain), 6);
+  });
+
+  it("sellswords are armed from YOUR forge and drilled to YOUR doctrine", () => {
+    const merc = (f: number, r: number) => {
+      const p = armed(f, 0);
+      p.research.levels.art_of_war = r;
+      return bonusPool(p, { kind: "attack", arm: "footman", isMerc: true });
+    };
+    // The war-works reach hired blades exactly as they reach regulars…
+    expect(merc(10, 0) - merc(0, 0)).toBeCloseTo(0.5, 6);
+    // …and so does the research.
+    expect(merc(0, 5) - merc(0, 0)).toBeCloseTo(1.0, 6);
+    // What they still do NOT get: your blood, and your veterans' scars.
+    const p = armed(0, 0);
+    p.army.experience = 100;
+    const hired = bonusPool(p, { kind: "attack", arm: "footman", isMerc: true });
+    const raised = bonusPool(p, { kind: "attack", arm: "footman" });
+    expect(raised).toBeGreaterThan(hired);
+  });
+
+  it("moving the shared bonuses above the merc branch did not double-count them", () => {
+    // Every situational modifier is applied exactly once for regulars too.
+    const p = armed(0, 0);
+    const base = bonusPool(p, { kind: "defence", arm: "footman" });
+    const walled = bonusPool(p, { kind: "defence", arm: "footman", wallEdge: 0.3 });
+    expect(walled - base).toBeCloseTo(0.3, 6);
+    const atWar = bonusPool(p, { kind: "attack", arm: "footman", war: true });
+    expect(atWar - bonusPool(p, { kind: "attack", arm: "footman" })).toBeCloseTo(WAR.DAMAGE_BONUS, 6);
+  });
+
+  it("a forged army actually wins a fight it would otherwise lose", () => {
+    const seeds = [3, 11, 29, 47, 73];
+    const wins = (forge: number) =>
+      seeds.filter((s) => {
+        const a = armed(forge, 0);
+        const d = empire("D", (p) => {
+          p.army.footmen.light = 200;
+          p.buildings = { ...p.buildings, muster_hall: 25 };
+        });
+        return resolveBattle(a, d, "raid", { ...OPTS, rng: seededRng(s) }).report.victor === "attacker";
+      }).length;
+    // Same dice, same numbers on both sides — the only difference is the steel.
+    expect(wins(10)).toBeGreaterThan(wins(0));
   });
 });

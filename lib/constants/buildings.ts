@@ -27,6 +27,7 @@ export type BuildingId =
   | "knights_stables"
   | "forge"
   | "war_foundry"
+  | "armoury"
   | "walls";
 
 import { STORAGE_COST } from "./balance";
@@ -70,18 +71,23 @@ export const MILITARY_BUILDINGS: BuildingMeta[] = [
   { id: "drill_yard", name: "Drill Yard", desc: "Footmen: light → medium → heavy (levels 1–3)" },
   { id: "fletchers_range", name: "Fletcher's Range", desc: "Archers: light → medium → heavy (levels 1–3)" },
   { id: "knights_stables", name: "Knights' Stables", desc: "Cavalry: light → medium → heavy (levels 1–3)" },
-  { id: "forge", name: "The Forge", desc: "Weapons & armour stock — gates troop tiers (levels 1–3)" },
+  { id: "forge", name: "The Forge", desc: "Better weapons: +5% attack per level for every regular you field (levels 1–10)" },
+  { id: "armoury", name: "The Armoury", desc: "Better mail: +5% defence per level for every regular you field (levels 1–10)" },
   { id: "war_foundry", name: "War Foundry", desc: "Siege engineering ladder (levels 1–10)" },
   { id: "walls", name: "The Walls", desc: "Defence (levels 1–10); damaged walls cut pop growth up to 50%" },
 ];
 
 /** Tiered trainers: 3 levels mapping 1:1 to light/medium/heavy. */
+/** Tiered trainers: 3 levels mapping 1:1 to light/medium/heavy. The Forge was
+ *  here too until it stopped gating tiers — see WARWORKS_COST. */
 export const TIERED_BUILDING_IDS: BuildingId[] = [
   "drill_yard",
   "fletchers_range",
   "knights_stables",
-  "forge",
 ];
+
+/** The war-works: the Forge sharpens, the Armoury hardens. Ten levels each. */
+export const WARWORKS_BUILDING_IDS: BuildingId[] = ["forge", "armoury"];
 
 // ── Every tunable number, from THE tuning file ─────────────────────────────
 
@@ -108,6 +114,9 @@ export {
   GUILD_COST_CURVE,
   LODGE_COST,
   LODGE_COST_CURVE,
+  WARWORKS_COST,
+  WARWORKS_COST_CURVE,
+  WARWORKS_BONUS_PER_LEVEL,
   GOLD_SHELTER_CURVE,
   TIERED_BAND_INDEX,
   HOUSING_PER_HEARTHSTEAD,
@@ -216,7 +225,7 @@ export function maxLevel(id: BuildingId): number {
   // Storehouses climb two rungs further than anything else — what you can
   // protect has to keep pace with what the late game asks you to save up.
   if (STORAGE_BUILDING_IDS.includes(id)) return STORAGE_COST.MAX_LEVEL;
-  return 10;
+  return 10; // includes the war-works, which are ten-level ladders
 }
 
 /** Which of the three art stages a structure wears at a given level, so the

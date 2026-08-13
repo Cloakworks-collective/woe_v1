@@ -75,8 +75,8 @@ describe("build queue", () => {
 
   it("caps the queue and rejects queueing past max level", () => {
     let p = charterHolder();
-    p.buildings.forge = 3; // maxed tiered building
-    expect(() => queueBuild(p, "forge")).toThrow(/max/i);
+    p.buildings.drill_yard = 3; // maxed tiered building
+    expect(() => queueBuild(p, "drill_yard")).toThrow(/max/i);
     for (let i = 0; i < 10; i++) p = queueBuild(p, "hearthstead").player;
     expect(() => queueBuild(p, "hearthstead")).toThrow(/full/i);
     p = dequeueBuild(p, 0).player;

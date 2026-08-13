@@ -16,6 +16,7 @@ import {
   TROOPS_PER_MUSTER_HALL,
   wallBonusAtLevel,
   WALL_NAMES,
+  WARWORKS_BONUS_PER_LEVEL,
   WAR_FOUNDRY_LADDER,
   GUILD_BONUS_PER_LEVEL,
   LODGE_BONUS_PER_LEVEL,
@@ -404,7 +405,10 @@ export function buildingUpgradeBenefit(p: Player, id: BuildingId): string | null
   if (id === "drill_yard") return `lets you arm ${TIER_WORD[next]} footmen`;
   if (id === "fletchers_range") return `lets you arm ${TIER_WORD[next]} archers`;
   if (id === "knights_stables") return `lets you raise ${TIER_WORD[next]} cavalry`;
-  if (id === "forge") return `stocks ${TIER_WORD[next]} weapons & armour (arms your ${TIER_WORD[next]} troops)`;
+  if (id === "forge" || id === "armoury") {
+    const what = id === "forge" ? "attack" : "defence";
+    return `+${Math.round(cur * WARWORKS_BONUS_PER_LEVEL * 100)}% → +${Math.round(next * WARWORKS_BONUS_PER_LEVEL * 100)}% ${what} for every regular you field`;
+  }
 
   if (id === "walls") {
     return `wall defence +${Math.round(wallBonusAtLevel(cur) * 100)}% → +${Math.round(wallBonusAtLevel(next) * 100)}% for every defender`;
