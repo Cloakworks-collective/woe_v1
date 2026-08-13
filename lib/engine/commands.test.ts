@@ -51,17 +51,20 @@ describe("building costs (spec/empire.md examples)", () => {
     const rates = [MARKET_COST.RATE, COLLEGIUM_COST.RATE, GUILD_COST.RATE, LODGE_COST.RATE];
     expect(new Set(rates).size).toBe(4);
     expect([...rates].sort((a, b) => b - a)).toEqual(rates);
-    // Two bases, not one. The Market and Collegium start at 4,500 goods; the
-    // covert pair start at 7,000 and climb more gently — weight at the entry,
-    // because their return is flat and a steep tail would price the last levels
-    // out of anyone without a dedicated covert game.
+    // Three bases, not one. The Market and Collegium start at 4,500 goods, the
+    // Lodge at 7,000 and the Guild at 9,500 — weight at the ENTRY for the covert
+    // pair, because their return is flat and a steep tail would price the last
+    // levels out of anyone without a dedicated covert game.
     expect(buildingCost("market_square", 1)).toEqual(buildingCost("collegium", 1));
-    expect(buildingCost("shadow_guild", 1)).toEqual(buildingCost("rangers_lodge", 1));
     const goods = (id: Parameters<typeof buildingCost>[0]) => {
       const c = buildingCost(id, 1);
       return c.wood + c.stone + c.ore;
     };
-    expect(goods("shadow_guild")).toBeGreaterThan(goods("market_square"));
+    // Watching must stay affordable; going over the wall is a campaign. So the
+    // Guild is dearer than the Lodge on BOTH axes — base and rate.
+    expect(goods("shadow_guild")).toBeGreaterThan(goods("rangers_lodge"));
+    expect(goods("rangers_lodge")).toBeGreaterThan(goods("market_square"));
+    expect(GUILD_COST.RATE).toBeGreaterThan(LODGE_COST.RATE);
   });
 
   it("producers are priced apart, and double what a worker digs per level", () => {

@@ -668,17 +668,22 @@ export const COLLEGIUM_COST_CURVE: Curve = {
  * is defence that does not exist. The Guild sits a rung above it because
  * espionage is a campaign you choose to run.
  *
- * These two also carry a HEAVIER BASE than the Market and Collegium — 7,000
- * goods at level 1 against 4,500 — paired with the two softest rates. That is
- * the right shape for a flat return: weight at the entry, where committing to a
- * covert arm at all is the real decision, rather than in a tail where a level
- * costs a fortune for the same +10% the first one gave. Steeper rates were
- * considered and rejected for exactly that reason — ×1.9 put the Guild's last
- * level at 2.26M goods and its degradation at 323×, which is a level nobody
+ * These two also carry a HEAVIER BASE than the Market and Collegium — 9,500 and
+ * 7,000 goods at level 1 against 4,500 — paired with the two softest rates.
+ * That is the right shape for a flat return: weight at the ENTRY, where
+ * committing to a covert arm at all is the real decision, rather than in a tail
+ * where a level costs a fortune for the same +10% the first one gave. Steeper
+ * rates were considered and rejected for exactly that reason — ×1.9 put the
+ * Guild's last level at 2.26M goods and its degradation at 323×, which nobody
  * without a dedicated spy game would ever buy.
+ *
+ * The Guild's entry is dearer than the Lodge's on both axes now: a third more
+ * base as well as the steeper rate. Watching is something every ruler must be
+ * able to afford; going over the wall is a campaign, and it should cost like one
+ * from the first stone.
  */
 export const GUILD_COST = {
-  BASE: { gold: 9000, wood: 3000, stone: 3000, ore: 1000 },
+  BASE: { gold: 12000, wood: 4000, stone: 4000, ore: 1500 },
   RATE: 1.8,
 } as const;
 
