@@ -397,6 +397,35 @@ Trebuchets against Counter-Engines and nothing else. No troops march.
 Every structure has a **50% integrity floor**: artillery cracks things open but
 never levels them.
 
+### What a bombard may burn
+
+**The walls must fall first.** Nothing in the town is reachable until the
+masonry is breached, which is what makes bombardment a campaign rather than a
+button.
+
+Past the breach, a bombard burns the **town**, never the **army**:
+
+| Hit | Weight | What the damage costs |
+| --- | --- | --- |
+| The five stores | 3 | Protected capacity — the vault spills, and the spill is lootable |
+| The four producers | 2 | That resource line's output |
+| The Collegium | 1 | Research per scholar |
+| The Market Square | 1 | Caravan capacity — a cracked market loads smaller |
+
+Immune, by design and not by oversight:
+
+- **The war yards** (Drill Yard, Fletcher's Range, Knight's Stables, Forge, War
+  Foundry). An enemy may not disarm you by shelling. You break an army by
+  killing it, not by cracking the sheds that built it.
+- **Shadow Guild and Ranger's Lodge.** Spies and scouts are the intel game;
+  blinding a rival from outside their walls would gut it.
+- **Hearthstead and Muster Hall** — the peasants' housing and the barracks.
+  Terror already displaces civilians on every bombard; their roofs are not a
+  second lever on the same thing.
+
+Anything added to this table needs an integrity **effect** wired somewhere, or
+the damage is inert and the battered sprite lies to the player.
+
 ### The anchor
 
 Every siege number is fitted to one target, and it is written into

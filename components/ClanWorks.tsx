@@ -3,10 +3,10 @@
 // the NEXT level buys plus its pool cost. Read-only for outsiders; leadership
 // gets Build/Repair buttons (editable). Shared by /clan and /clan/[id].
 
-import { Art } from "@/components/Art";
 import { Btn } from "@/components/Btn";
 import { CmdForm } from "@/components/CmdForm";
 import { ReqTip } from "@/components/CostTip";
+import { DamagedArt } from "@/components/DamagedArt";
 import { Info } from "@/components/Info";
 import { ResIcon } from "@/components/ResIcon";
 import {
@@ -142,10 +142,12 @@ function Card({
 
   return (
     <div className={`clanwork${cracked ? " is-cracked" : ""}`}>
-      {/* The work itself — it grows through three forms as the pool builds it. */}
+      {/* The work itself — it grows through three forms as the pool builds it,
+          and wears its bombardment damage once an enemy clan has worked it. */}
       <span className={`clanwork-art${level <= 0 ? " is-unbuilt" : ""}`}>
-        <Art
+        <DamagedArt
           path={`clan/${which}/${clanArtStage(which, level)}`}
+          integrity={level > 0 ? integrity : 1}
           size={188}
           title={level > 0 ? `${info.title} — level ${level}` : `${info.title} — not yet raised`}
         />

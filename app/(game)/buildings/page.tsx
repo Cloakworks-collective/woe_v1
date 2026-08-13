@@ -59,7 +59,7 @@ const MIL = Object.fromEntries(MILITARY_BUILDINGS.map((b) => [b.id, b])) as Reco
 const CIVILIAN_GROUPS: { slug: string; title: string; note: string; ids: string[] }[] = [
   { slug: "production", title: "🌾 Production — the resource engines", note: "Workers are unlimited — each building level makes every worker produce more (5 × level per turn). Goods are deliberately scarce in this age: coin is what your people are plentiful in, so the Bazaar is where most materials come from. A bombarded producer yields proportionally less until repaired.", ids: ["grange", "masons_quarry", "deepvein_mine", "sawyers_mill"] },
   { slug: "storage", title: "🏛 Storage — protect the wealth", note: "Protected capacity = 20,000 × level × integrity. What sits above capacity is lootable.", ids: ["granary", "timberyard", "masons_yard", "ironhold", "counting_house"] },
-  { slug: "knowledge", title: "📚 Knowledge & Trade", note: "The Collegium researches slower when cracked; the Market Square speeds caravans; the Guild and Lodge sharpen every spy and scout.", ids: ["market_square", "collegium", "shadow_guild", "rangers_lodge"] },
+  { slug: "knowledge", title: "📚 Knowledge & Trade", note: "The Collegium researches slower when cracked, and a cracked Market Square loads smaller caravans. The Guild and Lodge sharpen every spy and scout — and no bombard can touch them.", ids: ["market_square", "collegium", "shadow_guild", "rangers_lodge"] },
   { slug: "housing", title: "🏘 Housing", note: "Settlers arrive at dawn and walk on if no bed is free — build ahead of growth.", ids: ["hearthstead"] },
 ];
 

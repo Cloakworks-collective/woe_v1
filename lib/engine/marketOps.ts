@@ -15,10 +15,25 @@ import {
   MARKET_PRICE_MIN,
   MARKET_RECALL_LOSS,
 } from "../constants";
-import { EngineError, level, type MarketOrder, type Player, type Resource } from "./types";
+import {
+  buildingIntegrity,
+  EngineError,
+  level,
+  type MarketOrder,
+  type Player,
+  type Resource,
+} from "./types";
 
+/** How much one caravan can haul. Scaled by the Market Square's integrity: a
+ *  bombarded market keeps its road to the Bazaar but loses the stalls, pens and
+ *  loading yard that fill a wagon, so a cracked market trades in smaller loads.
+ *  Floored to a whole number — see the rounding note at the top of this file. */
 export function caravanCapacity(p: Player): number {
-  return CARAVAN_CAPACITY_PER_MARKET_LEVEL * level(p, "market_square");
+  return Math.floor(
+    CARAVAN_CAPACITY_PER_MARKET_LEVEL *
+      level(p, "market_square") *
+      buildingIntegrity(p, "market_square"),
+  );
 }
 
 /** Turns a fresh caravan takes to reach the Bazaar, by Market Square level:

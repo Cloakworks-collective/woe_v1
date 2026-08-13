@@ -5,6 +5,7 @@ import {
   blackMarketSell,
   buyFromMarket,
   cancelOrder,
+  caravanCapacity,
   caravanDeliveryTurns,
   marketPrice,
   postOrder,
@@ -28,7 +29,18 @@ describe("the Grand Bazaar", () => {
   });
 
   it("caravan capacity is 1,000 × Market Square level", () => {
+    expect(caravanCapacity(seller("s1"))).toBe(2000);
     expect(() => postOrder(seller("s1"), [], "wood", 2500, 3, "o1", 10)).toThrowError(/at most/);
+  });
+
+  it("a bombarded Market Square loads smaller caravans", () => {
+    // Bombard floors integrity at 0.5, so a wrecked market halves its loads.
+    const s = seller("s1");
+    s.buildingIntegrity = { market_square: 0.5 };
+    expect(caravanCapacity(s)).toBe(1000);
+    // …and the posting limit moves with it, so a load that fit while whole is
+    // refused once the stalls are rubble.
+    expect(() => postOrder(s, [], "wood", 1500, 3, "o1", 10)).toThrowError(/at most/);
   });
 
   it("one merchant per listed caravan", () => {

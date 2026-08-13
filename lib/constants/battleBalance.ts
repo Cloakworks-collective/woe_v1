@@ -467,9 +467,35 @@ export const SIEGE_GEAR_LOSS_ON_DEFEAT = 0.5; // frac
 export const REVENGE_WINDOW_HOURS = 18;
 export const ATTACK_HISTORY_HOURS = 72;
 
-/** Once the walls are breached, stray bombard fire lands on a random building,
- *  weighted — storages take the most, because that is where the loot is, and
- *  cracking them spills goods out for a follow-up raid. */
+/**
+ * Once the walls are breached, stray bombard fire lands on a random building,
+ * weighted — storages take the most, because that is where the loot is, and
+ * cracking them spills goods out for a follow-up raid.
+ *
+ * A bombard burns the TOWN, never the army. What it can touch is the civilian
+ * economy and nothing else:
+ *
+ * - **Stores** (weight 3) — the loot is behind those doors.
+ * - **Producers** (weight 2) — the yield that refills them.
+ * - **Collegium and Market Square** (weight 1) — knowledge and trade, the slow
+ *   hurts.
+ *
+ * Deliberately immune, and they must stay that way:
+ *
+ * - **The Walls** — damaged, but on their own `wallIntegrity` field, and they
+ *   have to come down BEFORE any of this is reachable. Never list them here.
+ * - **The war yards** (Drill Yard, Fletcher's Range, Knight's Stables, Forge,
+ *   War Foundry) — an enemy may not disarm you by shelling; you break an army
+ *   by killing it, not by cracking the sheds that made it.
+ * - **Shadow Guild and Ranger's Lodge** — spies and scouts are the intel game,
+ *   and blinding someone from outside the walls would gut it.
+ * - **Hearthstead and Muster Hall** — the peasants' housing and the barracks.
+ *   Terror already displaces civilians (see CIVILIAN_LOSS); their roofs are not
+ *   a second lever on the same thing.
+ *
+ * Everything listed here needs an integrity EFFECT wired somewhere, or damage
+ * to it is inert and the sprite lies to the player.
+ */
 export const BOMBARDABLE: { id: string; weight: number }[] = [
   { id: "granary", weight: 3 },
   { id: "timberyard", weight: 3 },
@@ -481,4 +507,5 @@ export const BOMBARDABLE: { id: string; weight: number }[] = [
   { id: "deepvein_mine", weight: 2 },
   { id: "sawyers_mill", weight: 2 },
   { id: "collegium", weight: 1 },
+  { id: "market_square", weight: 1 },
 ];
