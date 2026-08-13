@@ -485,8 +485,11 @@ export const ATTACK_HISTORY_HOURS = 72;
  * - **The Walls** — damaged, but on their own `wallIntegrity` field, and they
  *   have to come down BEFORE any of this is reachable. Never list them here.
  * - **The war yards** (Drill Yard, Fletcher's Range, Knight's Stables, Forge,
- *   War Foundry) — an enemy may not disarm you by shelling; you break an army
- *   by killing it, not by cracking the sheds that made it.
+ *   Armoury, War Foundry) — an enemy may not disarm you by shelling; you break
+ *   an army by killing it, not by cracking the sheds that made it. This matters
+ *   more since the Forge and Armoury started granting combat bonuses outright:
+ *   shelling them would let a besieger weaken the garrison they are about to
+ *   fight, which is precisely the lever this rule exists to deny.
  * - **Shadow Guild and Ranger's Lodge** — spies and scouts are the intel game,
  *   and blinding someone from outside the walls would gut it.
  * - **Hearthstead and Muster Hall** — the peasants' housing and the barracks.

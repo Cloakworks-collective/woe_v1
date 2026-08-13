@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { BOMBARDABLE } from "./battleBalance";
-import { COUNTED_BUILDING_IDS, type BuildingId } from "./buildings";
+import {
+  CIVILIAN_LEVELLED_IDS,
+  COUNTED_BUILDING_IDS,
+  MILITARY_BUILDINGS,
+  type BuildingId,
+} from "./buildings";
 
 // A bombard burns the TOWN, never the army. These lock the design rule so it
 // cannot drift: adding a building to BOMBARDABLE is a deliberate act, and the
@@ -13,6 +18,7 @@ const WAR_YARDS: BuildingId[] = [
   "fletchers_range",
   "knights_stables",
   "forge",
+  "armoury",
   "war_foundry",
 ];
 
@@ -51,6 +57,23 @@ describe("bombard targets", () => {
 
   it("never lists the Walls — they live on wallIntegrity and gate the rest", () => {
     expect(ids).not.toContain("walls");
+  });
+
+  it("EVERY building is deliberately on one list or the other", () => {
+    // The real guard. The two tests above only catch a building someone thought
+    // to name; this catches the one nobody did. A new building that is neither
+    // bombardable nor explicitly immune fails here, so the question has to be
+    // answered when it is added rather than discovered when it is shelled.
+    const all = new Set<BuildingId>([
+      ...CIVILIAN_LEVELLED_IDS,
+      ...MILITARY_BUILDINGS.map((b) => b.id),
+      ...COUNTED_BUILDING_IDS,
+    ]);
+    const immune = new Set<BuildingId>([...WAR_YARDS, ...INTEL, ...COUNTED_BUILDING_IDS, "walls"]);
+    const unaccounted = [...all].filter((id) => !ids.includes(id) && !immune.has(id));
+    expect(unaccounted, `not on either list: ${unaccounted.join(", ")}`).toEqual([]);
+    // …and nothing is on both.
+    expect(ids.filter((id) => immune.has(id as BuildingId))).toEqual([]);
   });
 
   it("weights storages heaviest, since that is where the loot is", () => {
