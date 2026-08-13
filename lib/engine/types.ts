@@ -20,6 +20,9 @@ export type SiegeGearType =
   | "trebuchets";
 /** The arms that can be hired as well as raised. */
 export type MercArm = "footman" | "archer" | "cavalry" | "engineer" | "spy" | "scout";
+/** Every arm you can hire, in the order the troops page offers them. Exported
+ *  so a UI listing prices per arm cannot fall out of step with the type. */
+export const MERC_ARMS: MercArm[] = ["footman", "archer", "cavalry", "engineer", "spy", "scout"];
 export type WorkerRole =
   | "farmers"
   | "quarrymen"

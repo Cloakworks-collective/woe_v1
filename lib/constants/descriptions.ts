@@ -3,6 +3,20 @@
 
 import type { BuildingId } from "./buildings";
 import type { ResearchField } from "./research";
+import {
+  EFFECT_PER_LEVEL,
+  KINGS_ROADS,
+  MARKET_FEE,
+  MARKET_RECALL_LOSS,
+  MAX_FIELD_LEVEL,
+  MERCHANTS_CHARTER,
+  RESEARCH_EFFECT_PER_LEVEL,
+  SCHOLARSHIP,
+} from "./balance";
+
+/** Whole-percent helper for the copy below — every figure here is interpolated
+ *  from the constant that governs it, so a retune moves the words with it. */
+const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 export const UNIT_INFO: Record<string, { title: string; tip: string }> = {
   footman: {
@@ -135,23 +149,171 @@ export const BUILDING_INFO: Record<BuildingId, { title: string; tip: string }> =
   walls: { title: "The Walls", tip: "Your ring of stone. Any standing wall gives every defender behind it the same +50% — a wall is a wall. What LEVEL buys is how much punishment it absorbs before it is rubble, and that scales hard: a Citadel soaks a hundred times what a palisade does. Battered walls also frighten off up to half your incoming settlers until repaired." },
 };
 
-export const RESEARCH_INFO: Record<ResearchField, { title: string; tip: string }> = {
-  crop_rotation: { title: "Crop Rotation", tip: "Cleverer farming. Every level lifts your farmers' food output by another 20%, up to double at mastery — the surest way to feed a growing empire." },
-  forestry: { title: "Forestry", tip: "Managed woodlands. Every level lifts your lumberjacks' wood output by another 20%, up to double at mastery." },
-  masonry: { title: "Masonry", tip: "Better quarrying and cutting. Every level lifts your quarrymen's stone output by another 20%, up to double at mastery." },
-  deep_smelting: { title: "Deep Smelting", tip: "Hotter furnaces, deeper shafts. Every level lifts your miners' ore output by another 20%, up to double at mastery." },
-  granarycraft: { title: "Granarycraft", tip: "Deeper vaults, drier cellars, better locks. Every level adds 5% to what all five storehouses shelter — up to +25% at mastery. It never shows on the ladder: what you are sitting on is precisely what a raider would most like to know." },
-  kings_roads: { title: "The King's Roads", tip: "Metalled roads and a courier chain. Every level takes 5% off what it costs to train regulars AND 5% off the turns a caravan spends on the road — up to a quarter off each. Moving soldiers and moving goods are the same problem, and this solves both." },
-  merchants_charter: { title: "The Merchants' Charter", tip: "Guild privileges and bonded warehouses. Every level cuts the Bazaar's 20% fee by four points — reaching ZERO at mastery — adds 5% to what a caravan carries, and softens the recall forfeit from half your goods toward a quarter." },
-  scholarship: { title: "Scholarship", tip: "Endowed chairs and a library that keeps its notes. Every level adds 20% to what each scholar produces — but the real prize is the second half: re-pointing your scholars to a different field costs you 10% less of your banked progress per level, and nothing at all at mastery. A free hand to change your mind is worth more than the speed." },
-  tradecraft: { title: "Tradecraft", tip: "The spymaster's art. Each level unlocks a new spy operation and makes every mission 20% more effective — but it's shadow work, so it earns power, not ranking prestige." },
-  pathfinding: { title: "Pathfinding", tip: "Sharper scouting. Each level sharpens your recon and boosts the odds your home scouts catch enemy spies. Shadow work — it brings power, not prestige." },
-  art_of_war: { title: "The Art of War", tip: "Drill, tactics, and ferocity. Every level makes all your troops strike 20% harder in every battle, up to double at mastery." },
-  shieldcraft: { title: "Shieldcraft", tip: "Discipline and better armour. Every level makes all your troops 20% tougher to kill, up to double at mastery." },
-  siegecraft: { title: "Siegecraft", tip: "Master engineers. Every level adds 20% to the raw power of every engine you own, offensive and defensive alike, against every kind of target." },
-  siege_accuracy: { title: "Siege Accuracy", tip: "Ranging, plumb-lines and patient practice. Trebuchets are inaccurate things — only 30% of their power finds a wall and 20% a building. This study takes those to 60% and 50%, and sharpens your Counter-Engines too. It does nothing for rams, which already strike true; it is the bombardier's field, and it is the strongest study in the game for one." },
-  free_companies: { title: "Free Companies", tip: "Standing contracts with the sellsword captains. Each level cuts 10% from the price of hiring, up to half off — the field that makes a long war affordable, since mercenaries now bleed away steadily and must be replaced." },
-  statecraft: { title: "Statecraft", tip: "Efficient collection, honest clerks, fewer hands in the till. Every level lifts what the SAME tax rate yields, up to double at mastery — so a well-governed realm funds a war without squeezing its workers, who pay for high taxes in lost output. It touches gold and nothing else; the four production fields already cover the fields and quarries." },
+/**
+ * What each field actually DOES, as a lead line plus the specific effects.
+ *
+ * Bullets rather than prose because a research card is read while deciding, and
+ * "cleverer farming, every level lifts output by another 20%, up to double at
+ * mastery, the surest way to feed a growing empire" is one sentence carrying
+ * four separate claims. Every number is interpolated from the constant that
+ * governs it, so a retune moves the copy with it.
+ */
+export const RESEARCH_INFO: Record<ResearchField, { title: string; tip: string; bullets: string[] }> = {
+  crop_rotation: {
+    title: "Crop Rotation",
+    tip: "Cleverer farming — the surest way to feed a growing empire.",
+    bullets: [
+      `+${pct(EFFECT_PER_LEVEL)} farmer food output per level, +${pct(EFFECT_PER_LEVEL * MAX_FIELD_LEVEL)} at mastery`,
+      "Food is the one resource that stops EVERYTHING when it runs out — tax, production, growth and attacking all freeze",
+      "Counts toward your ranking score",
+    ],
+  },
+  forestry: {
+    title: "Forestry",
+    tip: "Managed woodlands, and lumberjacks who know which tree to fell.",
+    bullets: [
+      `+${pct(EFFECT_PER_LEVEL)} lumberjack wood output per level, +${pct(EFFECT_PER_LEVEL * MAX_FIELD_LEVEL)} at mastery`,
+      "Timber is the early bottleneck — nearly every building's first levels are wood-led",
+      "Counts toward your ranking score",
+    ],
+  },
+  masonry: {
+    title: "Masonry",
+    tip: "Better quarrying and cutting.",
+    bullets: [
+      `+${pct(EFFECT_PER_LEVEL)} quarryman stone output per level, +${pct(EFFECT_PER_LEVEL * MAX_FIELD_LEVEL)} at mastery`,
+      "Stone dominates the mid and late ladders — walls and storehouses are hungriest for it",
+      "Counts toward your ranking score",
+    ],
+  },
+  deep_smelting: {
+    title: "Deep Smelting",
+    tip: "Hotter furnaces, deeper shafts.",
+    bullets: [
+      `+${pct(EFFECT_PER_LEVEL)} miner ore output per level, +${pct(EFFECT_PER_LEVEL * MAX_FIELD_LEVEL)} at mastery`,
+      "Ore is the war-metal: troops, siege engines, the Forge and the Armoury all eat it",
+      "Counts toward your ranking score",
+    ],
+  },
+  statecraft: {
+    title: "Statecraft",
+    tip: "The treasury's own field — it makes the SAME tax rate yield more.",
+    bullets: [
+      `+${pct(EFFECT_PER_LEVEL)} tax income per level, ×2 at mastery`,
+      "Touches the treasury ONLY — it does not raise worker output, so it is not a fifth production field",
+      "Lets you fund a war without squeezing your workers, who pay for high taxes with lost output",
+      "Counts toward your ranking score",
+    ],
+  },
+  granarycraft: {
+    title: "Granarycraft",
+    tip: "Deeper vaults, drier cellars, better locks.",
+    bullets: [
+      `+${pct(RESEARCH_EFFECT_PER_LEVEL.granarycraft ?? 0.05)} protected capacity per level in ALL FIVE storehouses, gold included`,
+      "Anything above your shelter sits loose and is lootable — this is what a raid cannot reach",
+      "Deliberately UNRANKED: what you are sitting on is exactly what a raider would most like to read off the ladder",
+    ],
+  },
+  scholarship: {
+    title: "Scholarship",
+    tip: "Endowed chairs, and a library that keeps its notes.",
+    bullets: [
+      `+${pct(SCHOLARSHIP.OUTPUT_PER_LEVEL)} to every scholar per level, ×2 at mastery`,
+      `Re-pointing your scholars costs ${pct(SCHOLARSHIP.SWITCH_LOSS_PER_LEVEL)} less of your banked progress per level — NOTHING at mastery`,
+      "The free hand is the real prize: research prices climb faster than any output bonus can chase, so being able to change your mind is worth more than speed",
+      "Unranked",
+    ],
+  },
+  merchants_charter: {
+    title: "The Merchants' Charter",
+    tip: "Guild privileges, bonded warehouses and safe passage.",
+    bullets: [
+      `The Bazaar's ${pct(MARKET_FEE)} cut falls ${pct(MERCHANTS_CHARTER.FEE_PER_LEVEL)} per level — to ZERO at mastery, so trade becomes free`,
+      `+${pct(MERCHANTS_CHARTER.CAPACITY_PER_LEVEL)} caravan capacity per level`,
+      `A recalled caravan forfeits ${pct(MERCHANTS_CHARTER.RECALL_LOSS_PER_LEVEL)} less per level (${pct(MARKET_RECALL_LOSS)} → ${pct(MARKET_RECALL_LOSS - MERCHANTS_CHARTER.RECALL_LOSS_PER_LEVEL * MAX_FIELD_LEVEL)})`,
+      "The fee is fixed when a caravan DEPARTS — finishing this will not re-cut loads already on the road",
+      "Unranked",
+    ],
+  },
+  kings_roads: {
+    title: "The King's Roads",
+    tip: "Metalled roads and a courier chain — moving people and moving goods are the same problem.",
+    bullets: [
+      `−${pct(KINGS_ROADS.TROOP_COST_PER_LEVEL)} on the cost of training regulars per level, −${pct(KINGS_ROADS.TROOP_COST_PER_LEVEL * MAX_FIELD_LEVEL)} at mastery`,
+      `−${pct(KINGS_ROADS.DELIVERY_PER_LEVEL)} on caravan road time per level, and always rounded UP to a whole turn`,
+      "Compounds with your Market Square's own level, though a maxed market already sits on the floor",
+      "Unranked",
+    ],
+  },
+  tradecraft: {
+    title: "Tradecraft",
+    tip: "The spymaster's art — despite the name, this is espionage, not commerce.",
+    bullets: [
+      "Each level UNLOCKS a new spy operation, from torching stores up to stealing a research level outright",
+      `+${pct(EFFECT_PER_LEVEL)} to every mission's effect per level`,
+      "Unranked — shadow work earns power, not prestige",
+    ],
+  },
+  pathfinding: {
+    title: "Pathfinding",
+    tip: "Rangers who read ground, and see who else has been walking on it.",
+    bullets: [
+      "Each level unlocks a sharper scout operation, up to reading a rival's whole Collegium",
+      `+${pct(EFFECT_PER_LEVEL)} to recon accuracy and to your chance of intercepting incoming spies, per level`,
+      "Scouts are the ONLY defence against spies — this is your counter-espionage",
+      "Unranked",
+    ],
+  },
+  art_of_war: {
+    title: "The Art of War",
+    tip: "Doctrine, drill and the handling of a line.",
+    bullets: [
+      `+${pct(EFFECT_PER_LEVEL)} ATTACK for every troop per level, +${pct(EFFECT_PER_LEVEL * MAX_FIELD_LEVEL)} at mastery`,
+      "Reaches sellswords as well as your own — you drill hired blades to your doctrine",
+      "Twice what a maxed Forge gives, so the two stack rather than compete",
+      "Counts toward your ranking score",
+    ],
+  },
+  shieldcraft: {
+    title: "Shieldcraft",
+    tip: "Formations that hold, and the discipline to keep them.",
+    bullets: [
+      `+${pct(EFFECT_PER_LEVEL)} DEFENCE for every troop per level, +${pct(EFFECT_PER_LEVEL * MAX_FIELD_LEVEL)} at mastery`,
+      "Reaches sellswords as well as your own",
+      "The Armoury's twin at the research tier — twice what a maxed Armoury gives",
+      "Counts toward your ranking score",
+    ],
+  },
+  siegecraft: {
+    title: "Siegecraft",
+    tip: "Engineers who know their trade.",
+    bullets: [
+      `+${pct(EFFECT_PER_LEVEL)} siege engine power per level, +${pct(EFFECT_PER_LEVEL * MAX_FIELD_LEVEL)} at mastery`,
+      "EVERY engine and every target — rams against masonry, trebuchets against the town, counters on your own wall",
+      "Counts toward your ranking score",
+    ],
+  },
+  siege_accuracy: {
+    title: "Siege Accuracy",
+    tip: "Trebuchets stop missing — the one research that moves a delivery gate rather than the bonus pool.",
+    bullets: [
+      "Trebuchets against walls: 30% → 60% of their power finds masonry",
+      "Against buildings: 20% → 50%",
+      "Sharper counter-battery fire on your own wall as well",
+      "Because it multiplies rather than adds, it is the strongest single pick a siege specialist can make",
+      "Counts toward your ranking score",
+    ],
+  },
+  free_companies: {
+    title: "Free Companies",
+    tip: "Standing contracts with the sellsword companies.",
+    bullets: [
+      `−${pct(RESEARCH_EFFECT_PER_LEVEL.free_companies ?? 0.1)} on the price of hiring per level, −${pct((RESEARCH_EFFECT_PER_LEVEL.free_companies ?? 0.1) * MAX_FIELD_LEVEL)} at mastery`,
+      "Cuts the PRICE only — upkeep is still a gold a turn each, and unpaid sellswords all defect at once",
+      "The field that makes a long war affordable, since mercenaries churn constantly",
+      "Unranked",
+    ],
+  },
 };
 
 // ── Guide deep-links ─────────────────────────────────────────────────────────

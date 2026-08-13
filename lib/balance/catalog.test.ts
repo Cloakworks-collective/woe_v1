@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { CURVES, SCALARS } from "./catalog";
+import { CATEGORIES, CURVES, SCALARS } from "./catalog";
 
 // ONE SLIDER PER CONSTANT.
 //
@@ -52,6 +52,50 @@ describe("the balance catalog", () => {
   it("has unique keys across scalars and curves", () => {
     const keys = [...SCALARS.map((s) => s.key), ...CURVES.map((c) => c.key)];
     expect(keys.length).toBe(new Set(keys).size);
+  });
+
+  /** Every `export const NAME: Curve` across the tuning files. Curves live in
+   *  balance.ts AND battleBalance.ts — scanning only the first is how
+   *  WALL_HP_CURVE looked like a ghost. */
+  function declaredCurves(): string[] {
+    const files = ["balance.ts", "battleBalance.ts", "covertBalance.ts"];
+    return files.flatMap((f) => {
+      const src = readFileSync(path.join(__dirname, "..", "constants", f), "utf8");
+      return [...src.matchAll(/export const ([A-Z_0-9]+): Curve/g)].map((m) => m[1]);
+    });
+  }
+
+  it("charts EVERY curve declared in the tuning files", () => {
+    // The Codex and the Workbench both render from CURVES, so a curve missing
+    // here is a curve no reader can see and no admin can tune. Ten were missing
+    // at once after the 2026-08 pass — every new cost ladder plus the scholar
+    // output line — which is exactly the drift this catches. Reads the SOURCE,
+    // so it sees a new curve the day it is written and needs no annotation.
+    const declared = declaredCurves();
+    expect(declared.length, "found no curves — have the tuning files changed shape?").toBeGreaterThan(10);
+    const charted = new Set(CURVES.map((c) => c.key));
+    const missing = declared.filter((k) => !charted.has(k));
+    expect(missing, `not in the Codex: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("charts no curve the tuning files no longer declare", () => {
+    const declared = new Set(declaredCurves());
+    const ghosts = CURVES.map((c) => c.key).filter((k) => !declared.has(k));
+    expect(ghosts, `charted but gone from the constants: ${ghosts.join(", ")}`).toEqual([]);
+  });
+
+  it("files every entry under a group that a category claims", () => {
+    // An entry whose group no category lists renders on no tab — present in the
+    // data, invisible on both pages.
+    const claimed = new Set(CATEGORIES.flatMap((c) => c.groups));
+    const orphans = [
+      ...SCALARS.map((s) => ({ key: s.key, group: s.group })),
+      ...CURVES.map((c) => ({ key: c.key, group: c.group })),
+    ].filter((e) => !claimed.has(e.group));
+    expect(
+      orphans.map((o) => `${o.key} (group "${o.group}")`),
+      "these appear on no tab",
+    ).toEqual([]);
   });
 
   it("keeps the Black Market's spread straddling the player band", () => {

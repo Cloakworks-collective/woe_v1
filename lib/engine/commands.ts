@@ -205,7 +205,7 @@ export function trainTroops(input: Player, type: TroopType, tier: Tier, count: n
   // The King's Roads: a faster muster is a cheaper one — metalled roads and a
   // courier chain get levies to the drill yard without feeding them for a week
   // on the way. Applies to the whole bill, gold and materials alike.
-  pay(p, scale(TRAINING_COSTS[type], count * TIER_COST_MULT[tier] * troopCostFactor(p)));
+  pay(p, trainingCost(p, type, tier, count));
   p.idlePeasants -= count;
   p.army[ARMY_KEY[type]][tier] += count;
   return { player: p, events: [] };
@@ -479,6 +479,51 @@ export function bankResource(input: Player, r: Resource, amount: number): Engine
  * see settleMercenaries). Free Companies is the field that makes a long war
  * affordable, since they now bleed away steadily and must be replaced.
  */
+/**
+ * What ONE hired blade of this arm and tier actually costs this empire.
+ *
+ * Exported because the troops page was computing its own and getting it wrong
+ * twice over: it used the flat MERC_PRICE_GOLD for every arm (so a cavalry
+ * sellsword displayed 900 when the engine charged 1,400) and it ignored Free
+ * Companies entirely, so a ruler who had researched it was quoted a price they
+ * would not be charged. A screen that lies about a price is worse than a screen
+ * that shows none.
+ *
+ * Every caller — the display, the affordability gate, the max-quantity hint —
+ * now asks this, and hireMercenaries multiplies it by the count.
+ */
+export function mercPrice(
+  p: Player,
+  arm: MercArm,
+  tier: Tier,
+  wonderDiscount = 0,
+): number {
+  const tiered = arm === "footman" || arm === "archer" || arm === "cavalry";
+  const freeCompanies =
+    researchLevel(p, "free_companies") *
+    (RESEARCH_EFFECT_PER_LEVEL.free_companies ?? EFFECT_PER_LEVEL);
+  return Math.round(
+    MERC_PRICE_BY_ARM[arm] *
+      RACES[p.race].mercCost *
+      (tiered ? TIER_COST_MULT[tier] : 1) *
+      (1 - wonderDiscount) *
+      Math.max(0, 1 - freeCompanies),
+  );
+}
+
+/**
+ * What training `count` of this troop actually costs — the King's Roads
+ * discount included, rounded exactly as `pay` will round it.
+ *
+ * Same reason as mercPrice: the troops page was showing raw TRAINING_COSTS, so
+ * a ruler with metalled roads saw the undiscounted bill AND had their
+ * affordability gate computed against it — told they could not afford something
+ * they could.
+ */
+export function trainingCost(p: Player, type: TroopType, tier: Tier, count = 1): Cost {
+  return scale(TRAINING_COSTS[type], count * TIER_COST_MULT[tier] * troopCostFactor(p));
+}
+
 export function hireMercenaries(
   input: Player,
   arm: MercArm,
@@ -511,17 +556,7 @@ export function hireMercenaries(
     throw new EngineError("housing", "No barracks room — even hired blades need a bed");
   }
 
-  const freeCompanies =
-    researchLevel(p, "free_companies") *
-    (RESEARCH_EFFECT_PER_LEVEL.free_companies ?? EFFECT_PER_LEVEL);
-  const price =
-    Math.round(
-      MERC_PRICE_BY_ARM[arm] *
-        RACES[p.race].mercCost *
-        (tiered ? TIER_COST_MULT[tier] : 1) *
-        (1 - wonderDiscount) *
-        Math.max(0, 1 - freeCompanies),
-    ) * count;
+  const price = mercPrice(p, arm, tier, wonderDiscount) * count;
   if (p.gold < price) throw new EngineError("gold", "Not enough gold");
   p.gold -= price;
 

@@ -16,8 +16,6 @@ import {
   ACTION_GUIDE,
   ACTION_INFO,
   MERCENARIES,
-  MERC_PRICE_GOLD,
-  RACES,
   TIER_COST_MULT,
   TIER_INFO,
   TRAINING_COSTS,
@@ -28,11 +26,15 @@ import {
 import {
   civilians,
   level,
+  MERC_ARMS,
+  mercPrice,
   mercTotal,
   military,
+  trainingCost,
   safeDischargeCount,
   troopTotal,
   wonderDiscount,
+  type MercArm,
   type Tier,
   type TroopType,
 } from "@/lib/engine";
@@ -114,7 +116,12 @@ export default async function TroopsPage({
   const discount = wonderDiscount(clan);
   const mercCap = Math.floor(MERCENARIES.CAP_RATIO * military(p));
   const mercInService = mercTotal(p.army.mercenaries);
-  const mercPriceLight = Math.round(MERC_PRICE_GOLD * RACES[p.race].mercCost * (1 - discount));
+  // Per ARM and per TIER, straight from the engine — this used to be a local
+  // recompute off the flat MERC_PRICE_GOLD, which quoted 900 for a cavalry
+  // sellsword the engine charged 1,400 for, and ignored Free Companies entirely.
+  const mercAsk = (arm: MercArm, tier: Tier = "light") => mercPrice(p, arm, tier, discount);
+  const mercPriceLight = mercAsk("footman");
+  const mercPriceDearest = Math.max(...MERC_ARMS.map((a) => mercAsk(a)));
 
   const musterFree = level(p, "muster_hall") * TROOPS_PER_MUSTER_HALL - military(p);
   const housingFree = level(p, "hearthstead") * 10 - civilians(p);
@@ -129,8 +136,12 @@ export default async function TroopsPage({
     p.resources.wood >= (c.wood ?? 0) * mult &&
     p.resources.stone >= (c.stone ?? 0) * mult &&
     p.resources.ore >= (c.ore ?? 0) * mult;
-  const canTrainOne = (type: keyof typeof TRAINING_COSTS) =>
-    p.idlePeasants >= 1 && musterFree >= 1 && canAfford(TRAINING_COSTS[type], TIER_COST_MULT.light);
+  // The bill as `pay` will compute it — King's Roads discount and all. Showing
+  // the undiscounted TRAINING_COSTS here told a ruler with metalled roads the
+  // wrong price AND gated affordability against a number they were not charged.
+  const trainAsk = (type: TroopType, tier: Tier = "light") => trainingCost(p, type, tier, 1);
+  const canTrainOne = (type: TroopType) =>
+    p.idlePeasants >= 1 && musterFree >= 1 && canAfford(trainAsk(type), 1);
   const canHireMerc = mercInService < mercCap && p.gold >= mercPriceLight;
 
   return (
@@ -140,7 +151,7 @@ export default async function TroopsPage({
       <div id="train">
       <Panel
         title={`The Army — ${p.idlePeasants} idle peasants, ${musterFree} Muster Hall slots free`}
-        info="Peasants are trained straight into footmen/archers/cavalry — no warrior step. Tier N needs its trainer at level N and The Forge at level N, plus a free Muster Hall slot. Discharge sends a soldier home (their gear is lost) if a Hearthstead bed stands empty."
+        info="Peasants are trained straight into footmen/archers/cavalry — no warrior step. Tier N needs that arm's trainer at level N, plus a free Muster Hall slot. The Forge and Armoury no longer gate tiers; they add attack and defence to every regular instead. Discharge sends a soldier home (their gear is lost) if a Hearthstead bed stands empty."
         guide="/guide#army"
       >
         <div className="card-grid">
@@ -173,7 +184,7 @@ export default async function TroopsPage({
                     <li key={t} className={`tier-li tier-li-${t}`}>
                       <span className="cost-tier">{t}</span>
                       <span className="cost-have">have {p.army[key][t]}</span>
-                      <CostBits cost={TRAINING_COSTS[type]} mult={TIER_COST_MULT[t]} />
+                      <CostBits cost={trainAsk(type, t)} mult={1} />
                     </li>
                   ))}
                 </ul>
@@ -193,9 +204,9 @@ export default async function TroopsPage({
                     rows={[
                       PEASANT_ROW(1, p.idlePeasants),
                       BED_ROW(1, Math.max(0, musterFree)),
-                      ...resReqs(TRAINING_COSTS[type], have),
+                      ...resReqs(trainAsk(type), have),
                     ]}
-                    note="Costs shown per light soldier — medium ×2, heavy ×4. Higher tiers also need the trainer + Forge at that level."
+                    note="Costs shown are what you will actually pay, King's Roads included. Higher tiers need that arm's trainer at the matching level."
                     disabledReason={
                       canTrainOne(type)
                         ? undefined
@@ -381,14 +392,18 @@ export default async function TroopsPage({
           </dd>
         </dl>
 
-        {/* Price per tier — gold token, no "g". */}
-        <ul className="cost-list" style={{ maxWidth: 320 }}>
-          {TIERS.map((t) => (
-            <li key={t}>
-              <span className="cost-tier">{t}</span>
+        {/* Price per ARM — they differ, and a single figure hid that a cavalry
+            sellsword costs half again what a footman does. Tiered arms show the
+            light price; medium and heavy scale from it. */}
+        <ul className="cost-list" style={{ maxWidth: 360 }}>
+          {MERC_ARMS.map((arm) => (
+            <li key={arm}>
+              <span className="cost-tier">{arm}</span>
               <span className="cost-row">
-                <CostBit kind="gold" amount={mercPriceLight * TIER_COST_MULT[t]} />
-                <span className="bcard-sub">a head</span>
+                <CostBit kind="gold" amount={mercAsk(arm)} />
+                <span className="bcard-sub">
+                  {arm === "footman" || arm === "archer" || arm === "cavalry" ? "a head, light" : "a head"}
+                </span>
               </span>
             </li>
           ))}
@@ -448,9 +463,12 @@ export default async function TroopsPage({
                   ariaLabel="Mercenary tier to hire"
                   options={TIERS.map((t) => ({ value: t, label: t, title: TIER_INFO[t] }))}
                 />
+                {/* Sized off the DEAREST arm — the picker above can still be
+                    switched to cavalry, and a max that over-promises is worse
+                    than one that under-promises. */}
                 <CountInput
                   ariaLabel="Mercenaries to hire"
-                  max={Math.min(Math.max(0, mercCap - mercInService), Math.floor(p.gold / Math.max(1, mercPriceLight)))}
+                  max={Math.min(Math.max(0, mercCap - mercInService), Math.floor(p.gold / Math.max(1, mercPriceDearest)))}
                 />
                 <ReqTip
                   heading="Hire mercenaries (light)"

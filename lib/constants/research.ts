@@ -55,6 +55,53 @@ export const RESEARCH_FIELDS: ResearchFieldMeta[] = [
   { id: "scholarship", name: "Scholarship", desc: "+20%/lvl to every scholar, and the penalty for re-pointing them falls 50% → 0%", ranked: false },
 ];
 
+/**
+ * The branches of the tree, and which fields hang from each.
+ *
+ * Lives HERE, beside RESEARCH_FIELDS, because it used to live in the research
+ * page as a hand-written list of ids. Two lists of the same thing in different
+ * files drift, and this one did: six fields — siege_accuracy, free_companies,
+ * and the four added in the 2026-08 pass — existed in the game, cost points,
+ * and could be researched by the Steward, but never appeared on the page a
+ * player researches from. They were invisible.
+ *
+ * `research.test.ts` asserts every field appears in exactly one discipline, so
+ * adding a field without placing it now fails the suite instead of vanishing.
+ */
+export interface ResearchDiscipline {
+  key: string;
+  name: string;
+  blurb: string;
+  fields: ResearchField[];
+}
+
+export const RESEARCH_DISCIPLINES: ResearchDiscipline[] = [
+  {
+    key: "economy",
+    name: "⚒ Economy",
+    blurb: "Feed, enrich, and grow the realm",
+    fields: ["crop_rotation", "forestry", "masonry", "deep_smelting", "statecraft", "granarycraft", "scholarship"],
+  },
+  {
+    key: "trade",
+    name: "🐎 Trade & Roads",
+    blurb: "Move goods further, and levies faster",
+    fields: ["merchants_charter", "kings_roads"],
+  },
+  {
+    key: "war",
+    name: "⚔ War",
+    blurb: "Sharpen the army for battle",
+    fields: ["art_of_war", "shieldcraft", "siegecraft", "siege_accuracy", "free_companies"],
+  },
+  {
+    key: "shadow",
+    name: "🗡 Shadow",
+    blurb: "Spies & scouts — power, not prestige",
+    fields: ["tradecraft", "pathfinding"],
+  },
+];
+
 export {
   MAX_FIELD_LEVEL,
   EFFECT_PER_LEVEL,

@@ -10,6 +10,7 @@ import { ResearchStatus } from "@/components/ResearchStatus";
 import {
   MAX_FIELD_LEVEL,
   RESEARCH_FIELDS,
+  RESEARCH_DISCIPLINES,
   RESEARCH_GUIDE,
   RESEARCH_INFO,
   researchOrdinalCost,
@@ -43,27 +44,9 @@ const META: Record<ResearchField, ResearchFieldMeta> = Object.fromEntries(
   RESEARCH_FIELDS.map((f) => [f.id, f]),
 ) as Record<ResearchField, ResearchFieldMeta>;
 
-// The three disciplines the ten fields fall into — the branches of the tree.
-const DISCIPLINES: { key: string; name: string; blurb: string; fields: ResearchField[] }[] = [
-  {
-    key: "economy",
-    name: "⚒ Economy",
-    blurb: "Feed, enrich, and grow the realm",
-    fields: ["crop_rotation", "forestry", "masonry", "deep_smelting", "statecraft"],
-  },
-  {
-    key: "war",
-    name: "⚔ War",
-    blurb: "Sharpen the army for battle",
-    fields: ["art_of_war", "shieldcraft", "siegecraft"],
-  },
-  {
-    key: "shadow",
-    name: "🗡 Shadow",
-    blurb: "Spies & scouts — power, not prestige",
-    fields: ["tradecraft", "pathfinding"],
-  },
-];
+// The branches of the tree live in lib/constants/research.ts, beside the field
+// list itself — see RESEARCH_DISCIPLINES for why.
+const DISCIPLINES = RESEARCH_DISCIPLINES;
 
 const queuedLevels = (p: Player, field: ResearchField) =>
   (p.researchQueue ?? []).filter((e) => e.field === field).length;
@@ -187,6 +170,7 @@ export default async function ResearchPage({
                 <div className="rtree-branch-name">{d.name}</div>
                 <div className="rtree-branch-blurb">{d.blurb}</div>
               </div>
+              <div className="rtree-fields">
               {d.fields.map((fid) => {
                 const f = META[fid];
                 const lvl = researchLevel(p, fid);
@@ -207,6 +191,7 @@ export default async function ResearchPage({
                           <Info
                             tip={RESEARCH_INFO[fid].tip}
                             title={RESEARCH_INFO[fid].title}
+                            bullets={RESEARCH_INFO[fid].bullets}
                             guide={RESEARCH_GUIDE[fid]}
                           >
                             {f.name}
@@ -282,6 +267,7 @@ export default async function ResearchPage({
                   </section>
                 );
               })}
+              </div>
             </div>
           ))}
         </div>

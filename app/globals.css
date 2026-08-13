@@ -3556,39 +3556,32 @@ a.repair-hint:hover {
   position: relative;
 }
 
+/* Disciplines STACK, and each one's fields flow in a responsive grid beneath
+   its heading. This replaced a fixed three-column layout where each discipline
+   was its own tall column: it broke the moment a fourth branch was added, and
+   it was already poor with branches of seven fields beside branches of two. */
 .rtree-branches {
-  display: grid;
-  /* Equal columns so each branch's centre (where its drop line sits) is
-     predictable — the horizontal rail below spans between the outer centres. */
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
   position: relative;
   margin-top: 20px;
+}
+
+.rtree-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 12px;
+  align-items: start;
 }
 
 /* The horizontal rail joining the three branches, dropping from the trunk.
    With three equal columns each branch centre sits at ~1/6, 1/2, 5/6, so a rail
    inset ~15% from each edge runs cleanly under the outer branch drop-lines. */
-.rtree-branches::before {
-  content: "";
-  position: absolute;
-  top: -11px;
-  left: 15%;
-  right: 15%;
-  height: 2px;
-  background: var(--border);
-}
+/* The horizontal rail is gone with the three-column layout — a rail joining
+   stacked full-width sections joins nothing. */
 
-.rtree-branches::after {
-  content: "";
-  position: absolute;
-  top: -20px;
-  left: 50%;
-  width: 2px;
-  height: 9px;
-  background: var(--border);
-  transform: translateX(-50%);
-}
+
 
 .rtree-branch {
   position: relative;
@@ -3598,22 +3591,14 @@ a.repair-hint:hover {
 }
 
 /* Short vertical dropping from the rail into each branch header. */
-.rtree-branch::before {
-  content: "";
-  position: absolute;
-  top: -11px;
-  left: 50%;
-  width: 2px;
-  height: 11px;
-  background: var(--border);
-  transform: translateX(-50%);
-}
+/* The drop line into each branch head went with the rail above it. */
 
 .rtree-branch-head {
   background: var(--panelhead-grad);
   border: 2px solid var(--border);
   padding: 6px 10px;
   text-align: center;
+  margin-bottom: 10px;
 }
 
 .rtree-branch-name {
@@ -3632,8 +3617,8 @@ a.repair-hint:hover {
   }
   .rtree-branches::before,
   .rtree-branches::after,
-  .rtree-branch::before {
-    display: none;
+  .rtree-fields {
+    grid-template-columns: 1fr;
   }
 }
 
