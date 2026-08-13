@@ -6,6 +6,7 @@
 // drifts from the real one the moment a field is added.
 
 import { newEmpire, type Player } from "@/lib/engine";
+import { SIEGE_GEAR, type SiegeGearKey } from "@/lib/constants";
 import type { Race } from "@/lib/constants/races";
 
 export interface ArmySpec {
@@ -17,6 +18,21 @@ export interface ArmySpec {
   /** Light / medium / heavy split. Defaults to all light. */
   tier?: "light" | "medium" | "heavy";
   engineers?: number;
+  /**
+   * A siege train sized to the army — gear, the Foundry that built it, and
+   * enough engineers to crew it.
+   *
+   * Without this an "attacker" walks up to a castle with bare hands. That is
+   * not a castle assault, and measuring it told us walls beyond level 1 were
+   * worthless: the wall was never engaged at all, so its LEVEL could not
+   * matter, and the harness dutifully reported a flat line. Passing engineers
+   * alone is not enough — engineers crew engines, they are not engines.
+   *
+   * The number is engines per 100 regulars, so the train scales with the army
+   * rather than being a fixed lump that is overwhelming at 500 and trivial at
+   * 5,000.
+   */
+  siegePer100?: number;
   experience?: number;
   /** All footmen instead of the 50/30/20 split — isolates the archer phase. */
   footmenOnly?: boolean;
@@ -55,6 +71,29 @@ export function army(spec: ArmySpec, id = "x"): Player {
     knights_stables: 3,
   };
   p.wallIntegrity = walls > 0 ? 1 : 0;
+
+  // The siege train. Weighted toward the wall-breakers, because that is what a
+  // besieger actually brings — and the Foundry at 10 so every rung is legal.
+  if (spec.siegePer100) {
+    const n = (per100: number) => Math.round((size / 100) * per100);
+    p.buildings = { ...p.buildings, war_foundry: 10 };
+    p.army.siegeGear = {
+      ...p.army.siegeGear,
+      ropes: n(spec.siegePer100 * 2),
+      ladders: n(spec.siegePer100 * 2),
+      rams: n(spec.siegePer100 * 1.5),
+      ballistae: n(spec.siegePer100),
+      trebuchets: n(spec.siegePer100),
+      siege_towers: n(spec.siegePer100 * 0.5),
+    };
+    // Crew for the whole train, since an uncrewed engine is lumber (and scores
+    // nothing — see SCORE.SIEGE_REQUIRES_CREW).
+    const crewNeeded = Object.entries(p.army.siegeGear).reduce(
+      (sum, [k, count]) => sum + count * (SIEGE_GEAR[k as SiegeGearKey]?.crew ?? 0),
+      0,
+    );
+    p.army.siegeEngineers = Math.max(p.army.siegeEngineers, crewNeeded);
+  }
 
   if (spec.loose !== undefined) {
     p.resources = { food: spec.loose, wood: spec.loose, stone: spec.loose, ore: spec.loose };

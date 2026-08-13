@@ -31,7 +31,7 @@ import {
   TURNS_PER_DAY,
 } from "./balance";
 import { LOOT, REVENGE_WINDOW_HOURS, XP } from "./battleBalance";
-import { storageShelterAtLevel, workerOutputAtLevel } from "./derived";
+import { goldShelterAtLevel, storageShelterAtLevel, workerOutputAtLevel } from "./derived";
 
 export interface ExamQuestion {
   /** Stable id — the answer log is keyed by position, but ids make the bank
@@ -78,7 +78,7 @@ export const EXAM: ExamQuestion[] = [
       "It depends entirely on your race",
     ],
     answer: 1,
-    why: `A civilian pays ${GOLD_PER_CIVILIAN_AT_FULL_TAX.toLocaleString("en-US")} gold a turn at full tax while a worker digs ${workerOutputAtLevel(1)}. That is the whole shape of the economy: the binding question is almost never "can I afford it" but "can I get the materials" — which is why the Bazaar matters so much.`,
+    why: `A civilian pays ${GOLD_PER_CIVILIAN_AT_FULL_TAX.toLocaleString("en-US")} gold a turn at full tax — enough for ${(GOLD_PER_CIVILIAN_AT_FULL_TAX / BLACK_MARKET.BUY_PRICE).toLocaleString("en-US", { maximumFractionDigits: 1 })} goods at the Black Market's ${BLACK_MARKET.BUY_PRICE} a unit — while a worker digs ${workerOutputAtLevel(1)} a turn at a level-1 building and ${workerOutputAtLevel(10)} at level 10. Coin comes easily; the materials are what you wait on, which is why the Bazaar matters so much.`,
     guide: "/guide#grow",
   },
   {
@@ -131,12 +131,12 @@ export const EXAM: ExamQuestion[] = [
     prompt: "What does a storehouse level actually buy you?",
     options: [
       "More production from every worker",
-      `${storageShelterAtLevel(1).toLocaleString("en-US")} more of each resource SHELTERED from raids`,
+      `It DOUBLES what it shelters from raids — ${storageShelterAtLevel(1).toLocaleString("en-US")} at level 1, ${storageShelterAtLevel(10).toLocaleString("en-US")} at level 10`,
       "Faster caravans to the Bazaar",
       "A higher ranking score",
     ],
     answer: 1,
-    why: `Shelter is flat per level — ${storageShelterAtLevel(1).toLocaleString("en-US")} per resource, per level. Anything above that sits loose and is lootable, which is exactly why hoarding past your storehouses is punished far harder than being small.`,
+    why: `Shelter DOUBLES every level — ${storageShelterAtLevel(1).toLocaleString("en-US")} per resource at level 1, ${storageShelterAtLevel(10).toLocaleString("en-US")} at level 10, and the Counting House holds more still (${goldShelterAtLevel(1).toLocaleString("en-US")} gold at level 1). Anything above your shelter sits loose and is lootable, which is why hoarding past your storehouses is punished far harder than being small.`,
     guide: "/guide#defense",
   },
 

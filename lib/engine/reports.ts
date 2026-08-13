@@ -11,7 +11,8 @@ import {
   researchOutputAtLevel,
   workerOutputAtLevel,
   STORAGE_BUILDING,
-  storageShelterAtLevel,
+  CARAVAN_CAPACITY_PER_MARKET_LEVEL,
+  shelterAtLevel,
   TROOPS_PER_MUSTER_HALL,
   wallBonusAtLevel,
   WALL_NAMES,
@@ -31,6 +32,7 @@ import {
   level,
   military,
   researchLevel,
+  shelterCapacity,
   totalPopulation,
   troopTotal,
   type Player,
@@ -102,7 +104,10 @@ export function theWallName(p: Player): string {
 
 export function protectedCapacity(p: Player, r: Resource): number {
   const building = STORAGE_BUILDING[r];
-  return storageShelterAtLevel(level(p, building)) * buildingIntegrity(p, building);
+  // Dispatched rather than assuming the goods curve. `Resource` excludes gold
+  // today, so this is equivalent — but the Counting House is on its own curve
+  // now, and this stays right if Resource ever grows to include coin.
+  return shelterCapacity(p, building) * buildingIntegrity(p, building);
 }
 
 // ── Public battle view (the War Ledger) ─────────────────────────────────────
@@ -374,7 +379,7 @@ export function buildingUpgradeBenefit(p: Player, id: BuildingId): string | null
   // The other unit halls — uncapped too; the level makes each unit BETTER.
   if (word) {
     if (id === "market_square") {
-      return `each caravan carries ${num(cur * 1000)} → ${num(next * 1000)} goods and reaches the Bazaar in ${caravanDeliveryTurns(cur)} → ${caravanDeliveryTurns(next)} turns (merchants unlimited)`;
+      return `each caravan carries ${num(cur * CARAVAN_CAPACITY_PER_MARKET_LEVEL)} → ${num(next * CARAVAN_CAPACITY_PER_MARKET_LEVEL)} goods and reaches the Bazaar in ${caravanDeliveryTurns(cur)} → ${caravanDeliveryTurns(next)} turns (merchants unlimited)`;
     }
     if (id === "collegium") {
       return `each scholar makes ${researchOutputAtLevel(cur)} → ${researchOutputAtLevel(next)} research/turn (scholars unlimited)`;
@@ -390,7 +395,7 @@ export function buildingUpgradeBenefit(p: Player, id: BuildingId): string | null
 
   const stored = STORAGE_WORD[id];
   if (stored) {
-    return `shelters ${stored} ${num(storageShelterAtLevel(cur))} → ${num(storageShelterAtLevel(next))} from raiders`;
+    return `shelters ${stored} ${num(shelterAtLevel(id, cur))} → ${num(shelterAtLevel(id, next))} from raiders`;
   }
 
   if (id === "hearthstead") return `housing for ${num(cur * HOUSING_PER_HEARTHSTEAD)} → ${num(next * HOUSING_PER_HEARTHSTEAD)} people`;

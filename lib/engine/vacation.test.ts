@@ -22,7 +22,7 @@ describe("vacation — production penalty", () => {
   it("halves production while away", () => {
     const build = () => {
       const p = fresh();
-      p.buildings.grange = 1; // 20 slots
+      p.buildings.grange = 1;
       p.workers.farmers = 20;
       p.idlePeasants = 60;
       return p;
@@ -31,14 +31,14 @@ describe("vacation — production penalty", () => {
     const onVacation = build();
     onVacation.onVacation = true;
     const flagged = processTurnTick(onVacation).player;
-    // Normal produces 20 × (5 × 1 × (1−0.5 tax)) × 1.25 human = 62.5 → 62 food;
-    // vacation halves the production to 31.25 → 31 (upkeep, a flat 10, is the
+    // Normal produces 20 × (10 × 1 × (1−0.5 tax)) × 1.25 human = 125 food;
+    // vacation halves the production to 62.5 → 62 (upkeep, a flat 10, is the
     // same either way).
-    const normalGain = normal.resources.food - 1000; // 62 − 10 upkeep = 52
-    const flaggedGain = flagged.resources.food - 1000; // 31 − 10 upkeep = 21
-    expect(normalGain).toBe(52);
-    expect(flaggedGain).toBe(21);
-    expect(normalGain - flaggedGain).toBe(31); // half the production, ±the floored unit
+    const normalGain = normal.resources.food - 1000; // 125 − 10 upkeep = 115
+    const flaggedGain = flagged.resources.food - 1000; // 62 − 10 upkeep = 52
+    expect(normalGain).toBe(115);
+    expect(flaggedGain).toBe(52);
+    expect(normalGain - flaggedGain).toBe(63); // half the production, ±the floored unit
   });
 });
 

@@ -16,11 +16,11 @@ import { carryWorldVersion, pushInbox, saveWorld } from "@/lib/server/store";
 import { eraReset, getWorld, runOneTick } from "@/lib/server/world";
 import {
   STORAGE_BUILDING,
-  storageShelterAtLevel,
   TICKS_PER_HOUR,
   type BuildingId,
 } from "@/lib/constants";
 import type { MarketOrder, Player, Resource } from "@/lib/engine";
+import { shelterCapacity } from "@/lib/engine";
 import { emptyMercForce, emptySiegeCounters, emptySiegeGear, fullCounterIntegrity, fullGearIntegrity } from "@/lib/engine/types";
 
 const back = (msg: string, ok = true): never =>
@@ -337,7 +337,7 @@ export async function adminBackfillStorage(): Promise<void> {
     if (!p.bankedResources) {
       const banked = { food: 0, wood: 0, stone: 0, ore: 0 };
       for (const r of ["food", "wood", "stone", "ore"] as const) {
-        const cap = storageShelterAtLevel(p.buildings[STORAGE_BUILDING[r]] ?? 0);
+        const cap = shelterCapacity(p, STORAGE_BUILDING[r]);
         const move = Math.min(p.resources[r], cap);
         p.resources[r] -= move;
         banked[r] = move;

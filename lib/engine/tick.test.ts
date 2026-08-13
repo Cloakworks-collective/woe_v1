@@ -22,16 +22,16 @@ describe("turn tick", () => {
     expect(player.resources.food).toBe(990);
   });
 
-  it("output scales with building level and is UNCAPPED by slots (5×level per worker)", () => {
+  it("output scales with building level and is UNCAPPED by slots (10×level per worker)", () => {
     const p = fresh();
     p.buildings.grange = 1;
     p.workers.farmers = 30; // no slot cap — all 30 produce
     p.idlePeasants = 50;
     const { player } = processTurnTick(p);
-    // 30 farmers × (5 × 1 level × (1−0.5) tax) × 1.25 human = 93.75 → floored
-    // to 93 (stocks are whole; see ROUNDING in tick.ts). Upkeep 10 taken first.
-    expect(workerOutputAtLevel(1)).toBe(5);
-    expect(player.resources.food).toBe(1000 - 10 + 93);
+    // 30 farmers × (10 × 1 level × (1−0.5) tax) × 1.25 human = 187.5 → floored
+    // to 187 (stocks are whole; see ROUNDING in tick.ts). Upkeep 10 taken first.
+    expect(workerOutputAtLevel(1)).toBe(10);
+    expect(player.resources.food).toBe(1000 - 10 + 187);
   });
 
   it("a bombarded production building yields proportionally less", () => {
@@ -41,9 +41,9 @@ describe("turn tick", () => {
     p.idlePeasants = 60;
     p.buildingIntegrity = { grange: 0.5 }; // cracked to the floor
     const { player } = processTurnTick(p);
-    // 20 × (5 × 1 × 0.5 tax) × 0.5 integrity × 1.25 human = 31.25 → floored to
-    // 31, minus upkeep 10.
-    expect(player.resources.food).toBe(1000 - 10 + 31);
+    // 20 × (10 × 1 × 0.5 tax) × 0.5 integrity × 1.25 human = 62.5 → floored to
+    // 62, minus upkeep 10.
+    expect(player.resources.food).toBe(1000 - 10 + 62);
   });
 
   it("a cracked Collegium banks research slower", () => {
@@ -54,11 +54,10 @@ describe("turn tick", () => {
     p.research.activeField = "masonry";
     p.buildingIntegrity = { collegium: 0.5 };
     const { player } = processTurnTick(p);
-    // 20 scholars × (50 × 1 level × 0.5 tax) × 0.5 integrity = 250 RP.
-    // Scholars are on their own curve and did NOT take the tenfold goods cut —
-    // making goods scarce should not silently make the tech tree ten times
-    // slower against a fixed research price.
-    expect(player.research.banked.masonry).toBe(250);
+    // 20 scholars × (10 × 1 level × 0.5 tax) × 0.5 integrity = 50 RP.
+    // Scholars are on their own curve (RESEARCH_OUTPUT_CURVE) — what it sets is
+    // how far up the progressive research price an age can climb.
+    expect(player.research.banked.masonry).toBe(50);
   });
 
   it("research needs no Collegium gate — any level completes when the RP is banked", () => {
@@ -91,9 +90,9 @@ describe("turn tick", () => {
     p.workers.farmers = 20;
     p.research.levels.statecraft = 5;
     const { player } = processTurnTick(p);
-    // 20 × (5 × 2 level × 0.5 tax) × 1.25 human = 125 food, minus upkeep 12 —
+    // 20 × (10 × 2 level × 0.5 tax) × 1.25 human = 250 food, minus upkeep 12 —
     // statecraft multiplies none of it.
-    expect(player.resources.food).toBe(1000 - 12 + 125);
+    expect(player.resources.food).toBe(1000 - 12 + 250);
   });
 
   it("the granary vault feeds the people when loose food runs dry", () => {

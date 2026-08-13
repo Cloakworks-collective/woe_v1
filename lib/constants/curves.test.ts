@@ -3,6 +3,7 @@ import { compileExpr, evalCurve, type Curve } from "./curves";
 import {
   buildingCostMultiplier,
   caravanDeliveryTurnsAt,
+  goldShelterAtLevel,
   storageShelterAtLevel,
   wallBonusAtLevel,
   wallHealthAtLevel,
@@ -76,25 +77,39 @@ describe("the default curves reproduce the classic formulas exactly", () => {
     expect(buildingCostMultiplier(4)).toBeCloseTo(1.5 ** 3);
   });
 
-  it("research ordinal cost: 2000 × 1.3^(N−1), rounded", () => {
-    expect(researchOrdinalCost(1)).toBe(2000);
-    expect(researchOrdinalCost(2)).toBe(2600);
-    expect(researchOrdinalCost(12)).toBe(Math.round(2000 * 1.3 ** 11));
+  it("research ordinal cost: 1000 × 1.2^(N−1), rounded", () => {
+    expect(researchOrdinalCost(1)).toBe(1000);
+    expect(researchOrdinalCost(2)).toBe(1200);
+    expect(researchOrdinalCost(12)).toBe(Math.round(1000 * 1.2 ** 11));
   });
 
   it("worker output, wall bonus, walls score, storage, delivery", () => {
-    expect(workerOutputAtLevel(1)).toBe(5);
-    expect(workerOutputAtLevel(10)).toBe(50);
-    // Scholars kept the old rate — research is not a resource.
-    expect(researchOutputAtLevel(1)).toBe(50);
-    expect(researchOutputAtLevel(10)).toBe(500);
+    expect(workerOutputAtLevel(1)).toBe(10);
+    expect(workerOutputAtLevel(10)).toBe(100);
+    // Scholars are on their own curve, and it sets how far up the progressive
+    // research price a single age can climb.
+    expect(researchOutputAtLevel(1)).toBe(10);
+    expect(researchOutputAtLevel(10)).toBe(100);
     expect(wallBonusAtLevel(10)).toBeCloseTo(0.5); // flat edge — level buys health, not bonus
     expect(wallHealthAtLevel(10)).toBe(1_000_000); // the Citadel, the 10-bombard anchor
     expect(wallHealthAtLevel(5)).toBe(250_000);
     expect(wallsScoreAtLevel(8)).toBe(6400);
-    expect(storageShelterAtLevel(6)).toBe(120000);
-    expect(caravanDeliveryTurnsAt(1)).toBe(100);
-    expect(caravanDeliveryTurnsAt(10)).toBe(10);
-    expect(caravanDeliveryTurnsAt(15)).toBe(10); // floored
+    // Shelter grows 1.9× per level, and the vault starts higher than the barns.
+    expect(storageShelterAtLevel(1)).toBe(20_000);
+    expect(goldShelterAtLevel(1)).toBe(50_000);
+    expect(storageShelterAtLevel(12)).toBeCloseTo(20_000 * 1.9 ** 11, 0);
+    expect(goldShelterAtLevel(12)).toBeCloseTo(50_000 * 1.9 ** 11, 0);
+    // The ratio is the load-bearing number, not any single level: shelter at 1.9
+    // against a store cost of 2.4 is what makes each level ~1.26× dearer per unit
+    // protected than the last. Matched rates would make maxing stores a
+    // formality; a wider gap pushes the top levels past "costs more than it
+    // holds" and nobody builds them.
+    for (const l of [2, 5, 9, 12]) {
+      expect(storageShelterAtLevel(l) / storageShelterAtLevel(l - 1)).toBeCloseTo(1.9, 6);
+      expect(goldShelterAtLevel(l) / goldShelterAtLevel(l - 1)).toBeCloseTo(1.9, 6);
+    }
+    expect(caravanDeliveryTurnsAt(1)).toBe(60);
+    expect(caravanDeliveryTurnsAt(10)).toBe(6);
+    expect(caravanDeliveryTurnsAt(15)).toBe(6); // floored
   });
 });

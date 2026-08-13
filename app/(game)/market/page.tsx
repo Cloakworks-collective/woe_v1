@@ -8,7 +8,7 @@ import { Panel } from "@/components/Panel";
 import { PriceChart } from "@/components/PriceChart";
 import { ResIcon } from "@/components/ResIcon";
 import { BLACK_MARKET, MARKET_FEE, MARKET_PRICE_MAX, MARKET_PRICE_MIN, MARKET_RECALL_LOSS } from "@/lib/constants";
-import { caravanArrived, caravanCapacity, caravanDeliveryTurns, freeMerchants, level, marketPrice, recallReturn, type Resource } from "@/lib/engine";
+import { caravanArrived, caravanCapacity, caravanDeliveryTurnsFor, freeMerchants, level, marketPrice, recallReturn, type Resource } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +40,7 @@ export default async function MarketPage({
   const merchantsFree = freeMerchants(p, world.orders);
   const capacity = caravanCapacity(p);
   const marketLevel = level(p, "market_square");
-  const deliveryTurns = caravanDeliveryTurns(marketLevel);
+  const deliveryTurns = caravanDeliveryTurnsFor(p);
 
   return (
     <>
@@ -323,8 +323,8 @@ export default async function MarketPage({
                             heading={`Recall — lose ${Math.round(MARKET_RECALL_LOSS * 100)}%`}
                             body={
                               enRoute
-                                ? `Turn the caravan around before it arrives. Half the load is lost on the road home: of ${fmt(o.remaining)} ${o.resource}, only ${fmt(recallReturn(o.remaining))} reaches your stores.`
-                                : `Bring the caravan home. Half the unsold load is lost on the road: of ${fmt(o.remaining)} ${o.resource}, only ${fmt(recallReturn(o.remaining))} reaches your stores.`
+                                ? `Turn the caravan around before it arrives. Part of the load is lost on the road home: of ${fmt(o.remaining)} ${o.resource}, only ${fmt(recallReturn(p, o.remaining))} reaches your stores.`
+                                : `Bring the caravan home. Part of the unsold load is lost on the road: of ${fmt(o.remaining)} ${o.resource}, only ${fmt(recallReturn(p, o.remaining))} reaches your stores.`
                             }
                             note="The merchant is freed either way, and gold already earned from units that sold stays yours. Sell to the Black Market instead if you only need the gold."
                           >

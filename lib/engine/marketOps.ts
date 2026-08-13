@@ -9,6 +9,9 @@
 import {
   BLACK_MARKET,
   CARAVAN_CAPACITY_PER_MARKET_LEVEL,
+  CARAVAN_DELIVERY_MIN_TURNS,
+  KINGS_ROADS,
+  MERCHANTS_CHARTER,
   caravanDeliveryTurnsAt,
   MARKET_FEE,
   MARKET_PRICE_MAX,
@@ -19,6 +22,7 @@ import {
   buildingIntegrity,
   EngineError,
   level,
+  researchLevel,
   type MarketOrder,
   type Player,
   type Resource,
@@ -29,11 +33,31 @@ import {
  *  loading yard that fill a wagon, so a cracked market trades in smaller loads.
  *  Floored to a whole number — see the rounding note at the top of this file. */
 export function caravanCapacity(p: Player): number {
+  const charter = 1 + researchLevel(p, "merchants_charter") * MERCHANTS_CHARTER.CAPACITY_PER_LEVEL;
   return Math.floor(
     CARAVAN_CAPACITY_PER_MARKET_LEVEL *
       level(p, "market_square") *
+      charter *
       buildingIntegrity(p, "market_square"),
   );
+}
+
+/**
+ * The Bazaar's cut of a sale, after The Merchants' Charter — MARKET_FEE at no
+ * research, falling to exactly ZERO at mastery. Clamped at both ends so a
+ * mis-set constant can never mint gold by paying the seller more than the buyer
+ * spent.
+ */
+export function marketFee(p: Player): number {
+  const cut = MARKET_FEE - researchLevel(p, "merchants_charter") * MERCHANTS_CHARTER.FEE_PER_LEVEL;
+  return Math.min(1, Math.max(0, cut));
+}
+
+/** The share of a recalled caravan lost on the road — 50% falling toward 25%. */
+export function recallLossFraction(p: Player): number {
+  const loss =
+    MARKET_RECALL_LOSS - researchLevel(p, "merchants_charter") * MERCHANTS_CHARTER.RECALL_LOSS_PER_LEVEL;
+  return Math.min(1, Math.max(0, loss));
 }
 
 /** Turns a fresh caravan takes to reach the Bazaar, by Market Square level:
@@ -41,6 +65,21 @@ export function caravanCapacity(p: Player): number {
  *  default. A level-0 market can't trade. */
 export function caravanDeliveryTurns(marketLevel: number): number {
   return caravanDeliveryTurnsAt(marketLevel);
+}
+
+/**
+ * Road time for THIS empire — the Market Square's curve, then The King's Roads.
+ *
+ * Math.ceil, deliberately: a caravan arrives in 18 turns, never 18.45. Turns are
+ * the unit the whole game is told in, and a fractional one is a number no player
+ * can act on. Rounding UP also keeps the research honest — it can never shave a
+ * turn it did not fully pay for. Floored at CARAVAN_DELIVERY_MIN_TURNS, so the
+ * road can be made shorter but never instant.
+ */
+export function caravanDeliveryTurnsFor(p: Player): number {
+  const base = caravanDeliveryTurnsAt(level(p, "market_square"));
+  const roads = 1 - researchLevel(p, "kings_roads") * KINGS_ROADS.DELIVERY_PER_LEVEL;
+  return Math.max(CARAVAN_DELIVERY_MIN_TURNS, Math.ceil(base * roads));
 }
 
 /** Has a caravan reached the market yet? Legacy orders (no arrivesAtTick) count
@@ -98,15 +137,17 @@ export function postOrder(
     pricePerUnit,
     createdTick: currentTick,
     // The caravan rides for a while before its goods reach the Bazaar.
-    arrivesAtTick: currentTick + caravanDeliveryTurns(level(seller, "market_square")),
+    arrivesAtTick: currentTick + caravanDeliveryTurnsFor(seller),
+    // Terms struck at departure — see MarketOrder.feeRate.
+    feeRate: marketFee(seller),
   };
   return { seller, order };
 }
 
 /** What actually makes it home from a recalled caravan — the rest is lost on
  *  the road. Floored, so the loss is never rounded in the seller's favour. */
-export function recallReturn(remaining: number): number {
-  return Math.floor(remaining * (1 - MARKET_RECALL_LOSS));
+export function recallReturn(p: Player, remaining: number): number {
+  return Math.floor(remaining * (1 - recallLossFraction(p)));
 }
 
 /**
@@ -127,7 +168,7 @@ export function cancelOrder(
   const seller = structuredClone(sellerIn);
   const order = orders.find((o) => o.id === orderId && o.sellerId === seller.id);
   if (!order) throw new EngineError("order", "No such caravan of yours");
-  const returned = recallReturn(order.remaining);
+  const returned = recallReturn(seller, order.remaining);
   seller.resources[order.resource] += returned;
   return {
     seller,
@@ -162,10 +203,11 @@ export interface Fill {
   netGold: number; // after the burned fee — a whole number, floored
 }
 
-/** Seller's take after the burned fee. Floored: the fraction of a gold that
- *  rounding would create is burned along with the fee rather than invented. */
-export function netOfFee(grossGold: number): number {
-  return Math.floor(grossGold * (1 - MARKET_FEE));
+/** Seller's take after the burned fee, at the rate this caravan carries.
+ *  Floored: the fraction of a gold that rounding would create is burned along
+ *  with the fee rather than invented. */
+export function netOfFee(order: Pick<MarketOrder, "feeRate">, grossGold: number): number {
+  return Math.floor(grossGold * (1 - (order.feeRate ?? MARKET_FEE)));
 }
 
 /**
@@ -210,7 +252,7 @@ export function buyFromMarket(
       sellerId: o.sellerId,
       amount: take,
       grossGold: gross,
-      netGold: netOfFee(gross),
+      netGold: netOfFee(o, gross),
     });
     o.remaining -= take;
     cost += gross;

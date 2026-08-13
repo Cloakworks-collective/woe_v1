@@ -9,7 +9,6 @@ import {
   CIVILIAN_LOSS,
   LOOT,
   STORAGE_BUILDING,
-  storageShelterAtLevel,
 } from "../../constants";
 import { rollBand, type Rng } from "../rng";
 import {
@@ -17,6 +16,7 @@ import {
   buildingIntegrity,
   civilians,
   level,
+  shelterCapacity,
   type AttackMode,
   type Player,
   type Resource,
@@ -27,13 +27,13 @@ import {
  *  precisely how a bombard sets up the raid that follows. */
 export function unstored(p: Player, r: Resource): number {
   const building = STORAGE_BUILDING[r];
-  const cap = storageShelterAtLevel(level(p, building)) * buildingIntegrity(p, building);
+  const cap = shelterCapacity(p, building) * buildingIntegrity(p, building);
   return p.resources[r] + Math.max(0, bankedRes(p)[r] - cap);
 }
 
 /** Gold outside the Counting House — a wrecked vault spills like any store. */
 export function unbankedGold(p: Player): number {
-  const cap = storageShelterAtLevel(level(p, "counting_house")) * buildingIntegrity(p, "counting_house");
+  const cap = shelterCapacity(p, "counting_house") * buildingIntegrity(p, "counting_house");
   return p.gold + Math.max(0, p.bankedGold - cap);
 }
 

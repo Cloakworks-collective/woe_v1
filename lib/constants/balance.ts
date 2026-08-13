@@ -131,37 +131,72 @@ export const SETTLEMENT_TITLES = [
 /**
  * Gold per civilian per turn at 100% tax.
  *
- * 40 → 0.4 (2026-07, sim-driven), then 0.4 → 400 (2026-08): the age now runs a
- * COIN-RICH, GOODS-POOR economy. Gold stops being the thing you save up and
- * becomes the thing you spend — on the Bazaar and the Black Market, which is
- * where the goods actually come from now that a worker digs a tenth of what
- * they used to (see WORKER_OUTPUT_CURVE).
+ * 40 → 0.4 (2026-07, sim-driven), then 0.4 → 400 (2026-08), then 400 → 50
+ * (2026-08, harness-driven). The age still runs COIN-RICH and GOODS-POOR —
+ * gold is the thing you spend rather than the thing you hoard — but 400
+ * overshot, and the buildings harness showed exactly how far.
+ *
+ * The swing paired a tenfold CUT to what a worker digs (WORKER_OUTPUT_CURVE,
+ * 50 → 5) with a thousandfold RISE in what a civilian pays. That left the two
+ * sides a hundredfold apart, and the Black Market — which converts one into the
+ * other at a price fixed long before (BLACK_MARKET.BUY_PRICE) — was never
+ * re-tuned to match. The result, at the default tax rate:
+ *
+ *   · a peasant's own taxes bought 10 goods/turn with NO building at all,
+ *     which is what a level-4 producer yields — so producer levels 1–4 earned
+ *     less than nothing, and a maxed level 10 beat buying by only 2.5×;
+ *   · for a mid-sized empire the fence supplied ~44% of all goods, making it
+ *     the main road rather than the "floor and ceiling" §11b describes.
+ *
+ * At 50 a peasant pays 25 gold/turn at the default rate, buying 1.25 goods
+ * against the 2.5 they dig at a level-1 building: digging leads from the first
+ * level and the ladder spans 2× → 20× as it climbs, so every level is worth
+ * wanting. The fence falls to ~9% of a mid empire's goods — a real lifeline
+ * when you are stuck, never the economy itself.
+ *
+ * Still 125× the pre-swing 0.4: this corrects the magnitude, it does not undo
+ * the swing. Re-derive with `SIM_ONLY=buildings pnpm sim` — the slider section
+ * prints this trade-off level by level for a range of candidate values.
  */
-export const GOLD_PER_CIVILIAN_AT_FULL_TAX = 400; // gold/turn
+export const GOLD_PER_CIVILIAN_AT_FULL_TAX = 50; // gold/turn
 
 export const DEFAULT_TAX_RATE = 0.5; // frac
 
 /**
  * The production model: workers are UNLIMITED; each building level lifts every
  * worker's output. y = units/turn per worker at 0% tax, as a CURVE of
- * x = building level. Linear 5 × level — 5/turn at level 1 up to 50/turn at
+ * x = building level. Linear 10 × level — 10/turn at level 1 up to 100/turn at
  * level 10.
  *
- * Cut 50 → 5 (2026-08) as the other half of the coin-rich, goods-poor swing:
- * what you dig is now scarce and what you tax is not, so wood and ore are worth
- * hauling to the Bazaar and worth taking off somebody in a raid.
+ * 50 → 5 (2026-08) was the other half of the coin-rich, goods-poor swing: what
+ * you dig became scarce and what you tax did not. 5 → 10 (2026-08, later the
+ * same month) came with PRODUCER_COST: the producers were taken off the shared
+ * civilian ladder and made a real investment, so what they return had to double
+ * to be worth the new price.
+ *
+ * LINEAR is a deliberate choice and a known compromise. It keeps the number a
+ * player can read off the building card — "+10 a level, 100 at the top" — at the
+ * cost of a FLAT marginal return, which is what makes payback degrade across the
+ * ladder (see PRODUCER_COST for the arithmetic and why 2.0 is the rate that
+ * keeps every rung reachable anyway).
  */
-export const WORKER_OUTPUT_CURVE: Curve = { kind: "linear", base: 0, perX: 5 };
+export const WORKER_OUTPUT_CURVE: Curve = { kind: "linear", base: 0, perX: 10 };
 
 /**
- * Research is NOT a resource and does not follow the cut above.
+ * Research points per scholar per turn, as a curve of x = Collegium level.
+ * Linear 10 × level — 10/turn at level 1 up to 100/turn at level 10.
  *
- * The Collegium runs on the same per-worker shape, but scholars produce points
- * against a fixed, progressive research cost — scaling them with the ore curve
- * would have quietly made the whole tech tree ten times slower, which is a
- * different design decision than making goods scarce.
+ * Was 50 × level. Cut fivefold alongside COLLEGIUM_COST, which took the
+ * Collegium off the shared civilian ladder and made it a real investment: the
+ * old rate finished a research level in minutes and made the Collegium's own
+ * level nearly irrelevant to what you could reach.
+ *
+ * Research prices are GLOBAL and progressive (RESEARCH_COST_CURVE, 2000 × 1.3^n),
+ * so what this really sets is HOW FAR UP that curve an age can climb. The tree
+ * is not meant to be finished — the order you research in is the strategy — and
+ * this rate decides where the wall stands.
  */
-export const RESEARCH_OUTPUT_CURVE: Curve = { kind: "linear", base: 0, perX: 50 };
+export const RESEARCH_OUTPUT_CURVE: Curve = { kind: "linear", base: 0, perX: 10 };
 
 /** Food consumed per person (civilians + regular troops) per turn. */
 export const FOOD_UPKEEP_PER_PERSON = 0.1; // food/turn
@@ -196,9 +231,104 @@ export const MERC_PRICE_BY_ARM = {
   scout: 800,
 };
 
-/** Protected capacity as a CURVE of x = storage-building level (× integrity
- *  applied by the engine). Default: linear 20,000 per level. */
-export const STORAGE_SHELTER_CURVE: Curve = { kind: "linear", base: 0, perX: 20000 };
+/**
+ * Protected capacity as a CURVE of x = storage-building level (× integrity
+ * applied by the engine). GEOMETRIC, doubling every level: 20,000 at level 1
+ * up to 10,240,000 at level 10.
+ *
+ * It was linear (+20,000 a level, flat) and that could not survive the wall
+ * repricing. A maxed store sheltered 200,000 against a Citadel's 26,000,000
+ * stone bill — 132× more than could ever be protected — so anyone climbing the
+ * top of the wall ladder carried a fortune in the open for weeks with no play
+ * available to them. Storage that cannot keep pace with the things you save FOR
+ * is not a decision, it is a tax on ambition.
+ *
+ * Doubling also fixes the shape. Flat capacity under a geometric cost curve
+ * meant the price of sheltering one more unit rose 38× across the ladder;
+ * matched growth holds it constant, so every level of a store is the same
+ * proposition as the last.
+ */
+export const STORAGE_SHELTER_CURVE: Curve = { kind: "expr", formula: "20000 * 1.9 ^ (x - 1)" };
+
+/**
+ * The Counting House shelters COIN, and starts higher — 50,000 at level 1,
+ * doubling to 25,600,000 at level 10.
+ *
+ * Gold is the abundant resource by design (see GOLD_PER_CIVILIAN_AT_FULL_TAX)
+ * and walls alone cost more in coin than in materials, so a vault sized to a
+ * granary would leave every treasury permanently overflowing.
+ */
+export const GOLD_SHELTER_CURVE: Curve = { kind: "expr", formula: "50000 * 1.9 ^ (x - 1)" };
+
+/**
+ * THE STOREHOUSES — priced apart, like the walls, and for the same reason.
+ *
+ * On the shared civilian ladder (800 base × 1.5) the whole five-store ladder
+ * cost 453,330 goods — less than a single level-5 wall. Storage was free in
+ * practice, so "can I protect this?" was never a question anyone asked.
+ *
+ *   BASE        1,000 gold and 900 goods at level 1, ore included from the
+ *               start — a store is a real building, not a shed.
+ *   RATE        2.4 per level against shelter's 1.9, so each level is ~1.26×
+ *               dearer per unit protected than the last. Storage stays a
+ *               decision at the top of the ladder rather than an automatic buy.
+ *   MAX_LEVEL   12, two beyond every other civilian building.
+ *
+ * The gap between 2.4 and 1.9 is the whole design. Matched rates would make
+ * every level an identical trade and maxing stores a formality; too wide a gap
+ * (2.4 against 1.8) pushes the top levels past 1.0 goods per unit sheltered,
+ * where a level costs more than the capacity it buys and nobody sane builds it.
+ * 1.9 keeps every rung worth having while making the last few cost real thought.
+ */
+export const STORAGE_COST = {
+  BASE: { gold: 1000, wood: 400, stone: 400, ore: 100 },
+  RATE: 2.4,
+  MAX_LEVEL: 12,
+} as const;
+
+/**
+ * THE FOUR PRODUCERS — the Grange, Sawyer's Mill, Mason's Quarry and Deepvein
+ * Mine, priced apart like the walls and the storehouses.
+ *
+ * On the shared civilian ladder (800 × 1.5) the whole four-producer tree cost
+ * 362,664 goods — less than a single level-6 wall. The buildings that generate
+ * the entire economy were the cheapest ladder in the game.
+ *
+ * THE RATE IS THE WHOLE DESIGN, and it is chosen against a hard constraint:
+ * WORKER_OUTPUT_CURVE is linear, so each level adds a FLAT +10 per worker while
+ * cost multiplies. Payback therefore degrades by the cost rate to the ninth
+ * power, and the only question that matters is whether the top of the ladder is
+ * still reachable by an empire that actually exists:
+ *
+ *     rate   L10 cost      diggers to repay L10 in a day
+ *     2.6    5,972,454     4,148   — unreachable
+ *     2.5    4,196,167     2,914   — unreachable
+ *     2.0    1,126,400       782   — reachable
+ *
+ * A season's empire fields roughly 1,400 workers per resource (harness D), so
+ * 2.0 is the rate at which every rung can actually be paid for. Above it the
+ * last two or three levels are arithmetic nobody can complete — not a hard
+ * choice, an impossible one.
+ *
+ * Doubling the base instead buys the same weight without that cost: a level-1
+ * producer is a real building at 2,200 goods rather than pocket change at 800.
+ */
+export const PRODUCER_COST = {
+  BASE: { gold: 2000, wood: 1000, stone: 1000, ore: 200 },
+  RATE: 2.0,
+} as const;
+
+/** Cost MULTIPLIER for a producer as a curve of x = target level. */
+export const PRODUCER_COST_CURVE: Curve = {
+  kind: "expr",
+  formula: `${PRODUCER_COST.RATE} ^ (x - 1)`,
+};
+
+/** Cost MULTIPLIER for a storehouse as a curve of x = target level. */
+export const STORAGE_COST_CURVE: Curve = {
+  kind: "expr",
+  formula: `${STORAGE_COST.RATE} ^ (x - 1)`,
+};
 
 // ─── 5 · BUILDING COSTS ─────────────────────────────────────────────────────
 // resourceCost(level) = baseCost × BUILDING_COST_CURVE(level), split by ratio
@@ -209,7 +339,18 @@ export const BUILDING_COST_CURVE: Curve = { kind: "expr", formula: "1.5 ^ (x - 1
 export const GOLD_COST_SHARE = 0.5; // frac of the resource cost, paid in gold
 
 export const BASE_COSTS = {
-  civilian: 800, // levelled civilian buildings
+  /**
+   * UNUSED as of the 2026-08 pass, and kept only as the reference point every
+   * bespoke ladder was priced against.
+   *
+   * All thirteen levelled civilian buildings now have their own cost block —
+   * PRODUCER_COST, STORAGE_COST, MARKET_COST, COLLEGIUM_COST, GUILD_COST,
+   * LODGE_COST — because a single 800 × 1.5 ladder could not serve buildings
+   * whose returns range from accelerating (the Market Square) to flat (the
+   * Ranger's Lodge). Nothing reads this; `buildingCost` has no civilian
+   * fall-through left.
+   */
+  civilian: 800, // levelled civilian buildings — see above, no longer read
   military: 1200, // levelled/tiered military buildings
   hearthstead: 300, // flat per instance
   muster_hall: 500, // flat per instance
@@ -249,6 +390,80 @@ export const MILITARY_BANDS: RatioBand[] = [
 /** Tiered trainers (3 levels): which cost band each tier level uses. */
 export const TIERED_BAND_INDEX: Record<number, number> = { 1: 0, 2: 1, 3: 3 };
 
+/**
+ * THE WALLS — priced apart from every other structure, on purpose.
+ *
+ * Walls used to ride the shared military ladder (BASE_COSTS.military on
+ * BUILDING_COST_CURVE), and the pacing harness showed where that led: an empire
+ * that never fought finished the entire wall ladder, Citadel included, on
+ * DAY EIGHT. A 500-strong realm went level 6 → 10 in 41 turns — under three
+ * hours. The most formidable structure in the game was an afternoon's errand.
+ *
+ * Three departures from the shared machinery, each doing a different job:
+ *
+ *   BASE_GOODS  a level-1 Palisade costs 4,000 goods rather than 1,200, so the
+ *               first wall is a real decision on day one instead of pocket
+ *               change.
+ *   GOLD_SHARE  walls cost MORE in coin than in materials (1.25× the resource
+ *               bill, against GOLD_COST_SHARE's 0.5 everywhere else). They are
+ *               the one thing a coin-rich empire should pour its treasury into.
+ *   RATE        a single flat step per level, steeper than the 1.5 everything
+ *               else climbs, and capped so no rung is ever a cliff.
+ *
+ * The rate is what makes the upper levels a campaign rather than a purchase —
+ * and it deliberately outruns storage. A Citadel's stone bill is far beyond what
+ * a maxed Mason's Yard can shelter (STORAGE_SHELTER_CURVE), so the pile you are
+ * saving sits loose and raidable. Building the greatest wall in the realm should
+ * mean surviving the window in which you are visibly carrying a fortune.
+ *
+ * Re-derive with `SIM_ONLY=pacing pnpm sim`, which reports the day each ladder
+ * tops out. The target is a season that ends with everything BARELY finished.
+ */
+export const WALLS_COST = {
+  BASE_GOODS: 4000, // goods at level 1 — 2,000 wood + 2,000 stone
+  GOLD_SHARE: 1.25, // × the resource cost, paid in gold — 5,000 at level 1
+  /**
+   * What each level costs relative to the one below it. FLAT — every rung is
+   * the same step, and no rung may exceed 3×.
+   *
+   * This replaced a pivot-and-steepen shape (ordinary 1.5 through level 6, then
+   * a compounding ×5.5, then a gentler top). It priced the season correctly and
+   * was still wrong: it made levels 7, 8 and 9 cost 8.25× the rung below, so the
+   * ladder had a cliff in the middle that no amount of planning could smooth.
+   * A ruler saving for Concentric Walls was not climbing, they were stopped.
+   *
+   * A single rate has no cliff anywhere by construction, and it is the whole
+   * shape in one number — there is no interaction between three regimes to
+   * reason about when this moves.
+   */
+  RATE: 2.8,
+} as const;
+
+/** Cost MULTIPLIER for walls as a curve of x = target level: RATE per level,
+ *  the same at every rung. */
+export const WALLS_COST_CURVE: Curve = {
+  kind: "geometric",
+  base: 1 / WALLS_COST.RATE, // so that x = 1 yields exactly 1
+  ratio: WALLS_COST.RATE,
+};
+
+/**
+ * Walls' own [wood, stone, ore] bands. Level 1 is an even split of timber and
+ * stone; stone takes over as the realm grows into masonry.
+ *
+ * From level 7 the mix is PINNED — stone at 2.5× the wood, ore at 0.5× — and it
+ * does not keep tilting toward stone and iron the way MILITARY_BANDS does. Ore
+ * is the war-metal: troops and siege engines both eat it, and a wall ladder that
+ * demanded ever more of it would quietly price an empire out of the army it
+ * needs to fight behind that wall.
+ */
+export const WALLS_BANDS: RatioBand[] = [
+  [0.5, 0.5, 0.0], // levels 1–3  — palisade, rampart, motte
+  [0.3, 0.7, 0.0], // levels 4–6  — the realm's stone age
+  [0.25, 0.625, 0.125], // levels 7–8  — stone 2.5× wood, ore 0.5× wood
+  [0.25, 0.625, 0.125], // levels 9–10 — the same mix, at the Citadel's scale
+];
+
 export const TROOPS_PER_MUSTER_HALL = 10; // beds per hall
 
 /** Wall repair: damagedFraction × wall build cost × this factor. */
@@ -276,19 +491,77 @@ export const RESEARCH_EFFECT_PER_LEVEL: Record<string, number> = {
    *  gates instead of contributing to the additive pool. Listed as 0 so nothing
    *  double-counts it. */
   siege_accuracy: 0,
+  /** Deeper vaults: +5% protected capacity per level, +25% at level 5. Modest
+   *  on purpose — shelter already doubles-ish with each storehouse level, so a
+   *  research field that moved it 20% a level would outrun the building it is
+   *  meant to supplement. */
+  granarycraft: 0.05,
 };
 
 /**
  * Research cost is GLOBAL and progressive: the price of your x-th research
  * level overall (any field) is this CURVE, in research points — the ORDER you
- * research in is the strategy. Default: geometric 2000 × 1.3^(x−1). (Engine
- * rounds to whole points.)
+ * research in is the strategy. Geometric 1000 × 1.2^(x−1). (Engine rounds to
+ * whole points.)
+ *
+ * The BASE (1000) and the EXPONENT (1.2) do different jobs, and it is worth
+ * keeping them straight. The base scales every price uniformly, so halving it
+ * is exactly equivalent to doubling everyone's research output — it shifts the
+ * ceiling by a fixed ~3.8 levels and changes nothing about the shape. The
+ * exponent decides how steeply the ladder climbs, and therefore how much any
+ * investment in scholars is ever worth. Reach for the base to move the whole
+ * game a notch; reach for the exponent to change what research IS.
+ *
+ * 1.3 → 1.2 (2026-08). At 1.3 the tree cost 2.34 TRILLION points and a 60-day
+ * age reached 33 levels of 80: over half the tree was decorative, unreachable
+ * by any empire at any size, and 10× more research output bought only 8.8 more
+ * levels — so investing in scholars barely moved the ceiling.
+ *
+ * THIS EXPONENT IS THE ONLY LEVER ON THAT CEILING. The Collegium sets the speed;
+ * this sets how far up the price an age can climb, and nothing else does. At 1.2
+ * the same age reaches ~45, a committed one ~67, and 10× output buys 12.6
+ * levels — so scale finally tells.
+ *
+ * The trade, deliberately accepted: research responds ~43% more to investment,
+ * which favours whoever is already largest. Art of War, Shieldcraft and
+ * Siegecraft are all +100% fields, so a big empire now maxes more of the
+ * military tree where before it had to choose.
  */
-export const RESEARCH_COST_CURVE: Curve = { kind: "expr", formula: "2000 * 1.3 ^ (x - 1)" };
+export const RESEARCH_COST_CURVE: Curve = { kind: "expr", formula: "1000 * 1.2 ^ (x - 1)" };
 
 /** Fraction of the CURRENT field's banked progress LOST when the scholars are
  *  re-pointed to a different field. */
-export const RESEARCH_SWITCH_LOSS = 0.5; // frac
+export const RESEARCH_SWITCH_LOSS = 0.5; // frac, before Scholarship
+
+/**
+ * SCHOLARSHIP — endowed chairs, a standing faculty, and a library that keeps
+ * its notes when the scholars are re-pointed.
+ *
+ * Two effects, and the SMALLER number is the one that matters:
+ *
+ *   OUTPUT       +20% a level, ×2.00 at mastery. Reads like the headline and is
+ *                nearly decorative. Research prices climb 1.3× a level, so
+ *                breaking even on five levels spent would need 1.3^5 = 3.71×
+ *                output. Doubling buys back 2.6 levels against the 5 it cost —
+ *                a net loss of about two. It is here because it makes the field
+ *                feel like something, not because it pays.
+ *   SWITCH LOSS  −10 POINTS a level, so 50% → 0% at mastery. This is the real
+ *                product. Every ill-timed redirection currently burns half of
+ *                whatever is banked toward the current field — up to half a
+ *                level, a quarter on average — and twenty of those across an age
+ *                is the five levels the field costs.
+ *
+ * Deliberately NOT a counter to espionage, though it was considered. Scouts are
+ * the only defence against spies (see covertBalance.ts) and the whole covert
+ * economy rests on that: a research field granting free, agentless mitigation
+ * would have half-obsoleted Pathfinding.
+ */
+export const SCHOLARSHIP = {
+  /** Off RESEARCH_SWITCH_LOSS per level, in ABSOLUTE fractions: 50% → 0%. */
+  SWITCH_LOSS_PER_LEVEL: 0.1,
+  /** Added to every scholar's output per level. ×2.00 at mastery. */
+  OUTPUT_PER_LEVEL: 0.2, // frac
+};
 
 // ─── 7 · UNITS & TRAINING ───────────────────────────────────────────────────
 
@@ -334,18 +607,105 @@ export const ATTACK_HISTORY_TICKS = 72 * TICKS_PER_HOUR;
 
 // ─── 11 · MARKET (the Grand Bazaar) ─────────────────────────────────────────
 
-/** Caravan capacity per merchant = this × Market Square level. */
-export const CARAVAN_CAPACITY_PER_MARKET_LEVEL = 1000; // units
+/** Caravan capacity per merchant = this × Market Square level. 10,000 at level
+ *  1 up to 100,000 at level 10 — a caravan is a real shipment, not a cart. */
+export const CARAVAN_CAPACITY_PER_MARKET_LEVEL = 10000; // units
+
+/**
+ * THE MARKET SQUARE — its own ladder, apart from the other civilian buildings.
+ *
+ * It earned one: it is the only building whose return ACCELERATES. Every level
+ * raises capacity AND cuts the road time, and throughput is their product, so
+ * the last level adds +9,167 units/turn where the first added 167. A ×2.0 cost
+ * rate against a 100× throughput range leaves value degradation at ~5.7× — and
+ * the top of the ladder is the best-value rung on it, which is true of nothing
+ * else in the game.
+ */
+export const MARKET_COST = {
+  BASE: { gold: 6000, wood: 2000, stone: 2000, ore: 500 },
+  RATE: 2.0,
+} as const;
+
+export const MARKET_COST_CURVE: Curve = {
+  kind: "expr",
+  formula: `${MARKET_COST.RATE} ^ (x - 1)`,
+};
+
+/**
+ * THE COLLEGIUM — off the shared ladder, on its own ×1.9.
+ *
+ * Gentler than the Market Square's ×2.0 on purpose. The Market's return
+ * accelerates (capacity × speed), so it can carry a steep price; the Collegium's
+ * is FLAT at +10 RP a level, and it is spending those points against a cost
+ * curve that climbs 1.3× per research level. Its late levels are therefore
+ * fighting an exponential from both sides, and pricing them like the Market's
+ * would make the last two or three worth nobody's stone.
+ */
+export const COLLEGIUM_COST = {
+  BASE: { gold: 6000, wood: 2000, stone: 2000, ore: 500 },
+  RATE: 1.9,
+} as const;
+
+export const COLLEGIUM_COST_CURVE: Curve = {
+  kind: "expr",
+  formula: `${COLLEGIUM_COST.RATE} ^ (x - 1)`,
+};
+
+/**
+ * THE SHADOW GUILD and THE RANGER'S LODGE — the last two off the shared ladder.
+ *
+ * All four of the old shared buildings now climb at their OWN rate, and the
+ * order is not arbitrary — it tracks how much a level actually returns:
+ *
+ *     Market Square    2.0   return ACCELERATES (capacity × road speed)
+ *     Collegium        1.9   flat +10 RP, against a 1.2 price curve
+ *     Shadow Guild     1.8   flat +10% to spy work
+ *     Ranger's Lodge   1.7   flat +10% to scout work
+ *
+ * The Lodge is the cheapest deliberately. Scouts are the ONLY defence against
+ * spies (covertBalance.ts) as well as the whole intelligence arm, so its levels
+ * are the ones a player cannot opt out of — and defence a newcomer cannot afford
+ * is defence that does not exist. The Guild sits a rung above it because
+ * espionage is a campaign you choose to run.
+ *
+ * These two also carry a HEAVIER BASE than the Market and Collegium — 7,000
+ * goods at level 1 against 4,500 — paired with the two softest rates. That is
+ * the right shape for a flat return: weight at the entry, where committing to a
+ * covert arm at all is the real decision, rather than in a tail where a level
+ * costs a fortune for the same +10% the first one gave. Steeper rates were
+ * considered and rejected for exactly that reason — ×1.9 put the Guild's last
+ * level at 2.26M goods and its degradation at 323×, which is a level nobody
+ * without a dedicated spy game would ever buy.
+ */
+export const GUILD_COST = {
+  BASE: { gold: 9000, wood: 3000, stone: 3000, ore: 1000 },
+  RATE: 1.8,
+} as const;
+
+export const LODGE_COST = {
+  BASE: { gold: 9000, wood: 3000, stone: 3000, ore: 1000 },
+  RATE: 1.7,
+} as const;
+
+export const GUILD_COST_CURVE: Curve = { kind: "expr", formula: `${GUILD_COST.RATE} ^ (x - 1)` };
+export const LODGE_COST_CURVE: Curve = { kind: "expr", formula: `${LODGE_COST.RATE} ^ (x - 1)` };
 
 /** Delivery time (turns) as a curve of x = Market Square level, floored at
  *  MIN_TURNS by the engine. Default: 110 − 10×level — 100 turns at L1 down to
  *  10 at L10. Goods aren't buyable (and don't count toward price/supply)
  *  until they arrive. */
-export const CARAVAN_DELIVERY_CURVE: Curve = { kind: "linear", base: 110, perX: -10 };
-export const CARAVAN_DELIVERY_MIN_TURNS = 10; // turns floor
+export const CARAVAN_DELIVERY_CURVE: Curve = { kind: "linear", base: 66, perX: -6 };
+export const CARAVAN_DELIVERY_MIN_TURNS = 6; // turns floor — level 10 sits on it
 
-/** Fee on every sale, paid by the seller, BURNED (the gold sink). */
-export const MARKET_FEE = 0.05; // frac
+/**
+ * Fee on every sale, paid by the seller, BURNED (the gold sink).
+ *
+ * 5% → 20%, and now fully removable: The Merchants' Charter cuts it by
+ * MARKET_FEE_PER_RESEARCH_LEVEL a level and reaches ZERO at mastery. A flat 5%
+ * was too small to notice and too small to sink meaningful gold; a fifth of
+ * every sale is a real cost, and buying your way out of it is a real reward.
+ */
+export const MARKET_FEE = 0.2; // frac, before The Merchants' Charter
 
 /** Ask prices are whole gold per unit, bounded to this band. The band sits
  *  strictly INSIDE the Black Market's spread (see §11b): the system pays
@@ -357,7 +717,53 @@ export const MARKET_PRICE_MAX = 19; // gold
 /** Fraction of a recalled caravan's remaining goods LOST on the road home.
  *  Turning a caravan around costs you — it stops the Bazaar being a free
  *  parking space you can pull goods out of the moment a raid is inbound. */
-export const MARKET_RECALL_LOSS = 0.5; // frac
+export const MARKET_RECALL_LOSS = 0.5; // frac, before The Merchants' Charter
+
+// ─── 11c · THE TWO TRADE FIELDS ─────────────────────────────────────────────
+//
+// Every other economic pillar had a research field behind it — four for
+// production, one for the treasury, one for storage — and trade had none. These
+// two fill that gap, and they are deliberately shaped so neither is a strict
+// upgrade of the other: one shortens the ROAD, the other changes the TERMS.
+//
+// Both are unranked. What they publish is how efficiently you trade and how
+// cheaply you muster, and neither is martial strength (see SCORE).
+
+/**
+ * THE KING'S ROADS — metalled roads and a courier chain.
+ *
+ * Cuts BOTH the muster bill and the road time, because they are the same
+ * problem: moving people and goods across your own territory. The delivery cut
+ * compounds with the Market Square's own curve, so a maxed market on maxed
+ * roads runs 6 turns → 5 (Math.ceil keeps every figure a whole turn — a caravan
+ * arrives in 18 turns, never 18.45).
+ */
+export const KINGS_ROADS = {
+  /** Off the gold+goods cost of training regulars, per level. −25% at mastery. */
+  TROOP_COST_PER_LEVEL: 0.05, // frac
+  /** Off caravan delivery turns, per level. −25% at mastery, then rounded UP. */
+  DELIVERY_PER_LEVEL: 0.05, // frac
+};
+
+/**
+ * THE MERCHANTS' CHARTER — guild privileges, bonded warehouses, safe passage.
+ *
+ * Three things at once, all about the TERMS of trade rather than its speed:
+ * the Bazaar's cut, how much a caravan carries, and how much survives a recall.
+ * The fee reaching exactly zero at mastery is the headline — it turns the
+ * Bazaar from something you pay to use into something you own.
+ */
+export const MERCHANTS_CHARTER = {
+  /** Off MARKET_FEE, per level, in ABSOLUTE fractions. 0.04 × 5 = the whole
+   *  0.20 fee, so mastery trades free. */
+  FEE_PER_LEVEL: 0.04,
+  /** Added to caravan capacity, per level. +25% at mastery. */
+  CAPACITY_PER_LEVEL: 0.05, // frac
+  /** Off MARKET_RECALL_LOSS, per level, in ABSOLUTE fractions: 50% → 25%.
+   *  Turning a caravan around stays costly — it must never become a free undo,
+   *  or the Bazaar is a raid-proof warehouse again (see cancelOrder). */
+  RECALL_LOSS_PER_LEVEL: 0.05,
+};
 
 // ─── 11b · THE BLACK MARKET (the fence) ─────────────────────────────────────
 //

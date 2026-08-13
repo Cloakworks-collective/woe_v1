@@ -9,7 +9,7 @@ import {
 } from "./combat";
 import { newEmpire } from "./newEmpire";
 import { seededRng } from "./rng";
-import { STAMINA } from "../constants";
+import { STAMINA, storageShelterAtLevel } from "../constants";
 import { buildingIntegrity, type Player } from "./types";
 
 function empire(name: string, mods: (p: Player) => void): Player {
@@ -242,9 +242,15 @@ describe("bombard", () => {
     const defender = empire("D", (p) => {
       p.buildings.walls = 2;
       p.wallIntegrity = 0.4; // already breached — bombard goes straight to town
-      p.buildings.granary = 5; // holds 100k at full integrity
+      p.buildings.granary = 5;
       p.resources.food = 0;
-      p.bankedResources = { food: 100000, wood: 0, stone: 0, ore: 0 }; // all vaulted
+      // Vaulted EXACTLY to capacity, read from the curve. The point of the case
+      // is the boundary: at full integrity nothing is exposed, and any crack in
+      // the granary drops the cap below what is inside and spills the excess.
+      // This was a hardcoded 100,000 that happened to equal the old linear cap
+      // at level 5 — when shelter went geometric it became a third of capacity
+      // and the test quietly stopped exercising the spill at all.
+      p.bankedResources = { food: storageShelterAtLevel(5), wood: 0, stone: 0, ore: 0 };
     });
     expect(unstored(defender, "food")).toBe(0);
     const { report, defender: d2 } = resolveBombard(attacker, defender, { ...OPTS, rng: seededRng(9) });

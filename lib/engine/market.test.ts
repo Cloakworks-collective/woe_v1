@@ -7,6 +7,7 @@ import {
   cancelOrder,
   caravanCapacity,
   caravanDeliveryTurns,
+  caravanDeliveryTurnsFor,
   marketPrice,
   postOrder,
 } from "./marketOps";
@@ -28,19 +29,25 @@ describe("the Grand Bazaar", () => {
     expect(order.remaining).toBe(1000);
   });
 
-  it("caravan capacity is 1,000 × Market Square level", () => {
-    expect(caravanCapacity(seller("s1"))).toBe(2000);
-    expect(() => postOrder(seller("s1"), [], "wood", 2500, 3, "o1", 10)).toThrowError(/at most/);
+  it("caravan capacity is 10,000 × Market Square level", () => {
+    expect(caravanCapacity(seller("s1"))).toBe(20000); // level 2
+    expect(() => postOrder(seller("s1"), [], "wood", 25000, 3, "o1", 10)).toThrowError(/at most/);
+  });
+
+  it("The Merchants' Charter widens every caravan by 5% a level", () => {
+    const s = seller("s1"); // level 2 → 20,000 base
+    s.research.levels.merchants_charter = 5;
+    expect(caravanCapacity(s)).toBe(25000); // +25% at mastery
   });
 
   it("a bombarded Market Square loads smaller caravans", () => {
     // Bombard floors integrity at 0.5, so a wrecked market halves its loads.
     const s = seller("s1");
     s.buildingIntegrity = { market_square: 0.5 };
-    expect(caravanCapacity(s)).toBe(1000);
+    expect(caravanCapacity(s)).toBe(10000);
     // …and the posting limit moves with it, so a load that fit while whole is
     // refused once the stalls are rubble.
-    expect(() => postOrder(s, [], "wood", 1500, 3, "o1", 10)).toThrowError(/at most/);
+    expect(() => postOrder(s, [], "wood", 15000, 3, "o1", 10)).toThrowError(/at most/);
   });
 
   it("one merchant per listed caravan", () => {
@@ -69,14 +76,34 @@ describe("the Grand Bazaar", () => {
     expect(marketPrice(left, "wood")).toBe(3); // the cheap end was eaten
   });
 
-  it("the 5% fee is burned, not paid to anyone", () => {
-    const orders: MarketOrder[] = [
-      { id: "a", sellerId: "s1", resource: "ore", remaining: 100, pricePerUnit: 10, createdTick: 1 },
+  it("the fee is burned, not paid to anyone — and rides on the caravan", () => {
+    const mk = (feeRate?: number): MarketOrder[] => [
+      { id: "a", sellerId: "s1", resource: "ore", remaining: 100, pricePerUnit: 10, createdTick: 1, feeRate },
     ];
-    const buyer = newEmpire({ id: "b1", name: "Buyer", race: "human" });
-    const { fills } = buyFromMarket(buyer, orders, "ore", 100);
-    expect(fills[0].grossGold).toBe(1000);
-    expect(fills[0].netGold).toBe(950); // seller receives 95%
+    const buyer = () => newEmpire({ id: "b1", name: "Buyer", race: "human" });
+    // No rate recorded (a caravan from before the Charter) → the base 20%.
+    expect(buyFromMarket(buyer(), mk(undefined), "ore", 100).fills[0].netGold).toBe(800);
+    // The rate is fixed when the caravan departs, so a Charter finished mid-road
+    // neither helps nor harms a load already posted.
+    expect(buyFromMarket(buyer(), mk(0.2), "ore", 100).fills[0].netGold).toBe(800);
+    expect(buyFromMarket(buyer(), mk(0.08), "ore", 100).fills[0].netGold).toBe(920);
+    expect(buyFromMarket(buyer(), mk(0), "ore", 100).fills[0].netGold).toBe(1000); // mastery: free trade
+    // The buyer always pays the same gross whatever the seller's terms.
+    expect(buyFromMarket(buyer(), mk(0), "ore", 100).fills[0].grossGold).toBe(1000);
+  });
+
+  it("The King's Roads shortens the road, and always to a whole turn", () => {
+    const s = seller("s1"); // level 2 → 54 turns
+    expect(caravanDeliveryTurnsFor(s)).toBe(54);
+    s.research.levels.kings_roads = 1; // 54 × 0.95 = 51.3 → 52, never 51.3
+    expect(caravanDeliveryTurnsFor(s)).toBe(52);
+    s.research.levels.kings_roads = 5; // 54 × 0.75 = 40.5 → 41
+    expect(caravanDeliveryTurnsFor(s)).toBe(41);
+    // Never below the floor, however good the roads.
+    const best = seller("s2");
+    best.buildings.market_square = 10; // 6 turns, already at the floor
+    best.research.levels.kings_roads = 5;
+    expect(caravanDeliveryTurnsFor(best)).toBe(6);
   });
 
   it("a short purse takes what it can afford from the cheap end", () => {
@@ -90,15 +117,15 @@ describe("the Grand Bazaar", () => {
     expect(b2.gold).toBe(0);
   });
 
-  it("delivery time falls with Market Square level: L1 → 100 turns, L10 → 10", () => {
-    expect(caravanDeliveryTurns(1)).toBe(100);
-    expect(caravanDeliveryTurns(5)).toBe(60);
-    expect(caravanDeliveryTurns(10)).toBe(10);
-    expect(caravanDeliveryTurns(11)).toBe(10); // floored
+  it("delivery time falls with Market Square level: L1 → 60 turns, L10 → 6", () => {
+    expect(caravanDeliveryTurns(1)).toBe(60);
+    expect(caravanDeliveryTurns(5)).toBe(36);
+    expect(caravanDeliveryTurns(10)).toBe(6);
+    expect(caravanDeliveryTurns(11)).toBe(6); // floored
   });
 
   it("a posted caravan is en route — its goods don't reach the Bazaar instantly", () => {
-    const s = seller("s1"); // Market Square level 2 → 90-turn road
+    const s = seller("s1"); // Market Square level 2 → 54-turn road
     const { order } = postOrder(s, [], "wood", 1000, 3, "o1", 10);
     expect(order.arrivesAtTick).toBe(10 + caravanDeliveryTurns(2)); // 100
 

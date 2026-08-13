@@ -5,6 +5,7 @@
 import type { Race } from "../constants/races";
 import type { BuildingId, CounterType } from "../constants/buildings";
 import type { ResearchField } from "../constants/research";
+import { EFFECT_PER_LEVEL, RESEARCH_EFFECT_PER_LEVEL, shelterAtLevel } from "../constants";
 
 export type Resource = "food" | "wood" | "stone" | "ore";
 export type Tier = "light" | "medium" | "heavy";
@@ -438,6 +439,19 @@ export interface MarketOrder {
   /** Tick the caravan reaches the Bazaar; until then it's en route and not
    *  buyable. Legacy orders lack it — treated as already arrived. */
   arrivesAtTick?: number;
+  /**
+   * The Bazaar's cut on THIS caravan, fixed when it was posted.
+   *
+   * Carried on the order rather than read from the seller at sale time for two
+   * reasons. Practically, `buyFromMarket` works off the order book alone and has
+   * no seller Player to consult. Design-wise it is the better rule anyway: the
+   * terms are struck when the caravan sets out, so finishing The Merchants'
+   * Charter does not retroactively re-cut every load already on the road — and
+   * a seller cannot be made worse off by anything that happens after posting.
+   *
+   * Absent on orders posted before the Charter existed — treated as MARKET_FEE.
+   */
+  feeRate?: number;
 }
 
 // ── Events ──────────────────────────────────────────────────────────────────
@@ -672,6 +686,24 @@ export function structureIntegrity(p: Player, id: BuildingId): number {
 
 export function researchLevel(p: Player, field: ResearchField): number {
   return p.research.levels[field] ?? 0;
+}
+
+/**
+ * What one storehouse actually protects, for THIS empire — the building's curve
+ * lifted by Granarycraft. Integrity is NOT applied: some callers want the sound
+ * capacity (what a Bank-all would fill) and some want the damaged one, so they
+ * multiply by `buildingIntegrity` themselves.
+ *
+ * Shelter stopped being a pure function of level the moment research could move
+ * it, and there are seven call sites that ask this question. This is the one
+ * place that knows the answer — an eighth caller reaching for
+ * `storageShelterAtLevel` directly would silently ignore the research a player
+ * paid for.
+ */
+export function shelterCapacity(p: Player, building: BuildingId): number {
+  const base = shelterAtLevel(building, level(p, building));
+  const perLevel = RESEARCH_EFFECT_PER_LEVEL.granarycraft ?? EFFECT_PER_LEVEL;
+  return base * (1 + researchLevel(p, "granarycraft") * perLevel);
 }
 
 /** Total research levels earned across every field — the ordinal that drives the

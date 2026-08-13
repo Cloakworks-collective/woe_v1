@@ -19,8 +19,9 @@ import {
   XP,
   SIEGE_GEAR,
   SIEGE_COUNTERS,
+  KINGS_ROADS,
+  SCHOLARSHIP,
   STAMINA,
-  storageShelterAtLevel,
   TIER_COST_MULT,
   TRAINING_COSTS,
   TURNS_PER_DAY,
@@ -42,6 +43,7 @@ import {
   regularsOfArm,
   researchLevel,
   military,
+  shelterCapacity,
   structureIntegrity,
   totalPopulation,
   type EngineResult,
@@ -87,18 +89,42 @@ function pay(p: Player, cost: Cost) {
   p.resources.ore -= cost.ore;
 }
 
+/**
+ * Scale a cost, rounded UP on every line.
+ *
+ * The multiplier used to be whole (count × tier), so this could stay exact.
+ * The King's Roads makes it fractional — 150 gold × 0.75 is 112.5 — and a stock
+ * carrying half a gold is one nobody can reason about or display. Ceil rather
+ * than round, keeping to the convention in tick.ts: debits round AGAINST the
+ * player, so a discount can never mint a fraction of a unit.
+ */
 function scale(cost: { gold: number; wood: number; stone: number; ore: number }, mult: number): Cost {
   return {
-    gold: cost.gold * mult,
-    wood: cost.wood * mult,
-    stone: cost.stone * mult,
-    ore: cost.ore * mult,
+    gold: Math.ceil(cost.gold * mult),
+    wood: Math.ceil(cost.wood * mult),
+    stone: Math.ceil(cost.stone * mult),
+    ore: Math.ceil(cost.ore * mult),
   };
 }
 
+/**
+ * Multiplier on the cost of training regulars, after The King's Roads.
+ * 1.0 with no research, 0.75 at mastery. Clamped so a mis-set constant can
+ * never make troops free (or paid).
+ */
+export function troopCostFactor(p: Player): number {
+  const cut = researchLevel(p, "kings_roads") * KINGS_ROADS.TROOP_COST_PER_LEVEL;
+  return Math.min(1, Math.max(0.01, 1 - cut));
+}
+
 /** Barracks room left. Sellswords take a bed like any other soldier — hiring
- *  them skips population and training time, not quartering. */
-function musterVacancy(p: Player): number {
+ *  them skips population and training time, not quartering.
+ *
+ *  Exported so callers can size a muster BEFORE attempting it rather than
+ *  discovering the ceiling by catching an error — the balance harnesses need
+ *  exactly that, and the alternative is them recomputing this by hand and
+ *  drifting the moment quartering rules change. */
+export function musterVacancy(p: Player): number {
   return (
     level(p, "muster_hall") * TROOPS_PER_MUSTER_HALL -
     military(p) -
@@ -171,7 +197,10 @@ export function trainTroops(input: Player, type: TroopType, tier: Tier, count: n
     throw new EngineError("muster", "No free Muster Hall slots — build barracks first");
   }
   requireTierBuildings(p, type, tier);
-  pay(p, scale(TRAINING_COSTS[type], count * TIER_COST_MULT[tier]));
+  // The King's Roads: a faster muster is a cheaper one — metalled roads and a
+  // courier chain get levies to the drill yard without feeding them for a week
+  // on the way. Applies to the whole bill, gold and materials alike.
+  pay(p, scale(TRAINING_COSTS[type], count * TIER_COST_MULT[tier] * troopCostFactor(p)));
   p.idlePeasants -= count;
   p.army[ARMY_KEY[type]][tier] += count;
   return { player: p, events: [] };
@@ -344,17 +373,26 @@ export function setRecruitHour(input: Player, offsetTicks: number, currentTick: 
   };
 }
 
+/** What a redirection costs this empire — RESEARCH_SWITCH_LOSS, bought down by
+ *  Scholarship to exactly zero at mastery. Clamped, so a mis-set constant can
+ *  never make switching PAY. */
+export function researchSwitchLoss(p: Player): number {
+  const relief = researchLevel(p, "scholarship") * SCHOLARSHIP.SWITCH_LOSS_PER_LEVEL;
+  return Math.min(1, Math.max(0, RESEARCH_SWITCH_LOSS - relief));
+}
+
 export function setResearch(input: Player, field: ResearchField): EngineResult {
   if (!RESEARCH_FIELDS.some((f) => f.id === field)) {
     throw new EngineError("field", "Unknown research field");
   }
   const p = structuredClone(input);
   const prev = p.research.activeField;
-  // Switching the scholars to a NEW field abandons half the progress banked
+  // Switching the scholars to a NEW field abandons part of the progress banked
   // toward the current field's next level (spec/empire.md) — the price of an
-  // undisciplined programme. Re-selecting the same field costs nothing.
+  // undisciplined programme. Re-selecting the same field costs nothing, and
+  // Scholarship buys the penalty down to zero.
   if (prev && prev !== field) {
-    p.research.banked[prev] = Math.floor((p.research.banked[prev] ?? 0) * (1 - RESEARCH_SWITCH_LOSS));
+    p.research.banked[prev] = Math.floor((p.research.banked[prev] ?? 0) * (1 - researchSwitchLoss(p)));
   }
   p.research.activeField = field;
   return { player: p, events: [] };
@@ -381,7 +419,7 @@ export function bankGold(input: Player, amount: number): EngineResult {
   if (!Number.isFinite(amount) || amount === 0) throw new EngineError("amount", "Invalid amount");
   if (amount > 0) {
     if (p.gold < amount) throw new EngineError("gold", "Not enough gold on hand");
-    const capacity = storageShelterAtLevel(level(p, "counting_house"));
+    const capacity = shelterCapacity(p, "counting_house");
     if (p.bankedGold + amount > capacity) {
       throw new EngineError("capacity", "Counting House is full");
     }
@@ -403,7 +441,7 @@ export function bankResource(input: Player, r: Resource, amount: number): Engine
   const banked = { ...bankedRes(p) };
   if (amount > 0) {
     if (p.resources[r] < amount) throw new EngineError("resources", `Not enough loose ${r}`);
-    const capacity = storageShelterAtLevel(level(p, STORAGE_BUILDING[r]));
+    const capacity = shelterCapacity(p, STORAGE_BUILDING[r]);
     if (banked[r] + amount > capacity) {
       throw new EngineError("capacity", "That store is full");
     }

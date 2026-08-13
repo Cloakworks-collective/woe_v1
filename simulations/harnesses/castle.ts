@@ -28,7 +28,7 @@ function breakpointFor(walls: number, seeds: number[]): { size: number; ratio: n
     const wins = rateOf(
       seeds.slice(0, 40).map((s) =>
         resolveBattle(
-          army({ size, engineers: 60 }, "a"),
+          army({ size, siegePer100: 4 }, "a"),
           army({ size: DEFENDER, walls, gold: TREASURY }, "d"),
           "siege",
           { rng: rngFor(s), battleId: "b", tick: 1 },
@@ -74,7 +74,7 @@ function wallValueSection(seeds: number[]): Section {
     table: {
       columns: ["Wall", "Attackers needed", "Ratio", "Marginal gain"],
       rows,
-      note: "Attackers bring 60 engineers so the counter-engine duel is real rather than walked over.",
+      note: "Attackers bring a siege train scaled to their numbers (4 engines per 100 regulars, fully crewed) — without engines the wall is never engaged and its level cannot matter.",
     },
     findings,
   };
@@ -87,7 +87,7 @@ function spoilsSection(seeds: number[]): Section {
     for (const size of [1000, 2000]) {
       const outcomes = seeds.slice(0, 60).map((s) =>
         resolveBattle(
-          army({ size, engineers: 60 }, "a"),
+          army({ size, siegePer100: 4 }, "a"),
           army({ size: DEFENDER, walls, gold: TREASURY }, "d"),
           "siege",
           { rng: rngFor(s), battleId: "sp", tick: 1 },

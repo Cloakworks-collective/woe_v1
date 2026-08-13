@@ -9,7 +9,7 @@ import { LearnLink } from "@/components/LearnLink";
 import { Info } from "@/components/Info";
 import { Panel } from "@/components/Panel";
 import { ResIcon } from "@/components/ResIcon";
-import { GUILD_BONUS_PER_LEVEL, researchOutputAtLevel, workerOutputAtLevel, TRAINING_COSTS, UNIT_GUIDE, UNIT_INFO } from "@/lib/constants";
+import { GUILD_BONUS_PER_LEVEL, researchOutputAtLevel, workerOutputAtLevel, TRAINING_COSTS, UNIT_GUIDE, UNIT_INFO, CARAVAN_CAPACITY_PER_MARKET_LEVEL } from "@/lib/constants";
 import { caravanDeliveryTurns, level, type Player, type WorkerRole } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
@@ -145,7 +145,7 @@ export default async function TrainPage({
       <div id="workers">
       <Panel
         title="The Assignment Hall"
-        info={`Worker assignment is free and reversible. EVERY worker is UNLIMITED — you only need the building. Its level raises how effective each worker is: farmers, quarrymen, miners and lumberjacks make ${workerOutputAtLevel(1)}/turn at L1 up to ${workerOutputAtLevel(10)} at L10, while scholars make ${researchOutputAtLevel(1)} up to ${researchOutputAtLevel(10)} research a turn; each Market Square level lets every caravan carry another 1,000 goods AND shortens the road to the Bazaar (${caravanDeliveryTurns(1)} turns at L1 down to ${caravanDeliveryTurns(10)} at L10).`}
+        info={`Worker assignment is free and reversible. EVERY worker is UNLIMITED — you only need the building. Its level raises how effective each worker is: farmers, quarrymen, miners and lumberjacks make ${workerOutputAtLevel(1)}/turn at L1 up to ${workerOutputAtLevel(10)} at L10, while scholars make ${researchOutputAtLevel(1)} up to ${researchOutputAtLevel(10)} research a turn; each Market Square level lets every caravan carry another ${CARAVAN_CAPACITY_PER_MARKET_LEVEL.toLocaleString("en-US")} goods AND shortens the road to the Bazaar (${caravanDeliveryTurns(1)} turns at L1 down to ${caravanDeliveryTurns(10)} at L10).`}
         guide="/guide#grow"
       >
         <div className="card-grid">
@@ -155,7 +155,7 @@ export default async function TrainPage({
             // Every worker is uncapped; the building level lifts the per-worker effect.
             const effect =
               role === "merchants"
-                ? `each caravan carries ${(1000 * lvl).toLocaleString("en-US")} goods · ${caravanDeliveryTurns(lvl)}-turn road to the Bazaar`
+                ? `each caravan carries ${(CARAVAN_CAPACITY_PER_MARKET_LEVEL * lvl).toLocaleString("en-US")} goods · ${caravanDeliveryTurns(lvl)}-turn road to the Bazaar`
                 : `each makes ${workerOutputAtLevel(lvl)}/turn`;
             return (
               <div className="bcard" key={role} id={`w-${role}`}>

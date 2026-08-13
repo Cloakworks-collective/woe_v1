@@ -33,7 +33,6 @@ import {
   GUILD_BONUS_PER_LEVEL,
   STAMINA,
   STORAGE_BUILDING,
-  storageShelterAtLevel,
   VACATION_DAYS_PER_ERA,
   VACATION_TICKS_PER_ERA,
   TURNS_PER_DAY,
@@ -46,6 +45,7 @@ import {
   crewGear,
   foodUpkeepPerTurn,
   level,
+  shelterCapacity,
   military,
   popPerDay,
   productionRates,
@@ -109,7 +109,7 @@ export default async function CommandView({
     const building = STORAGE_BUILDING[key];
     const loose = key === "gold" ? p.gold : p.resources[key];
     const vaulted = key === "gold" ? p.bankedGold : bankedRes(p)[key];
-    const fullCap = storageShelterAtLevel(level(p, building));
+    const fullCap = shelterCapacity(p, building);
     const integrity = buildingIntegrity(p, building);
     const protectedCap = Math.floor(fullCap * integrity);
     const spilled = Math.max(0, vaulted - protectedCap);

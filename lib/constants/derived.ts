@@ -7,6 +7,7 @@ import {
   BUILDING_COST_CURVE,
   CARAVAN_DELIVERY_CURVE,
   CARAVAN_DELIVERY_MIN_TURNS,
+  GOLD_SHELTER_CURVE,
   STORAGE_SHELTER_CURVE,
   WALL_EDGE,
   WALL_HP_CURVE,
@@ -52,9 +53,32 @@ export function wallsScoreAtLevel(level: number): number {
   return evalCurve(WALLS_SCORE_CURVE, level);
 }
 
-/** Protected storage capacity (units) at a store level, before integrity. */
+/** Protected storage capacity (units) at a store level, before integrity.
+ *  RESOURCES ONLY — the Counting House is on its own curve, below. */
 export function storageShelterAtLevel(level: number): number {
   return evalCurve(STORAGE_SHELTER_CURVE, level);
+}
+
+/** Protected GOLD capacity at a Counting House level, before integrity. */
+export function goldShelterAtLevel(level: number): number {
+  return evalCurve(GOLD_SHELTER_CURVE, level);
+}
+
+/**
+ * Shelter for whichever store this is — coin or goods.
+ *
+ * Call sites that already know they mean gold (banking, gold loot) should use
+ * `goldShelterAtLevel` directly. This exists for the ones handed a building and
+ * asked how much it protects, where forgetting the Counting House is special
+ * would silently under-report a treasury by 2.5×.
+ *
+ * Takes a plain string rather than BuildingId so constants need not import from
+ * the building module it is itself imported by.
+ */
+export function shelterAtLevel(building: string, level: number): number {
+  return building === "counting_house"
+    ? goldShelterAtLevel(level)
+    : storageShelterAtLevel(level);
 }
 
 /** Turns a fresh caravan takes to reach the Bazaar, by Market Square level —

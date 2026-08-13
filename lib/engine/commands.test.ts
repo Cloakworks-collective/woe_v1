@@ -11,27 +11,152 @@ import {
   setTax,
   trainTroops,
 } from "./commands";
+import { CIVILIAN_LEVELLED_IDS, COLLEGIUM_COST, GUILD_COST, LODGE_COST, MARKET_COST, PRODUCER_COST, RESEARCH_FIELDS, STORAGE_COST, TURNS_PER_DAY, WALLS_COST, goldShelterAtLevel, maxLevel, shelterAtLevel, workerOutputAtLevel } from "../constants";
 import { buildingCost } from "./costs";
 import { newEmpire } from "./newEmpire";
-import { mercTotal, normalizePlayer, type Player } from "./types";
+import { level, mercTotal, normalizePlayer, shelterCapacity, type Player } from "./types";
+import { researchSwitchLoss } from "./commands";
+import { processTurnTick } from "./tick";
+import { RESEARCH_SWITCH_LOSS } from "../constants";
 
 function fresh(): Player {
   return newEmpire({ id: "t", name: "Test", race: "human" });
 }
 
 describe("building costs (spec/empire.md examples)", () => {
-  it("buildings never cost ore — it's reserved for troops", () => {
-    for (const id of ["grange", "walls", "forge", "hearthstead", "muster_hall"] as const) {
-      expect(buildingCost(id, 1).ore).toBe(0);
+  it("every levelled civilian building has its OWN cost block", () => {
+    // The shared `BASE_COSTS.civilian × 1.5^(n−1)` ladder is gone — all thirteen
+    // were priced individually in the 2026-08 pass. This is the guard that a new
+    // civilian building cannot be added and silently cost nothing: if it has no
+    // bespoke branch in buildingCost, it will not resolve here.
+    for (const id of CIVILIAN_LEVELLED_IDS) {
+      const c = buildingCost(id, 1);
+      const total = c.gold + c.wood + c.stone + c.ore;
+      expect(total, `${id} level 1 must cost something`).toBeGreaterThan(0);
+      expect(Number.isFinite(total), `${id} produced a non-finite cost`).toBe(true);
     }
   });
 
-  it("civilian level 1 is timber-hungry: 400g + 560 wood / 240 stone", () => {
-    expect(buildingCost("grange", 1)).toEqual({ gold: 400, wood: 560, stone: 240, ore: 0 });
+  it("the four support buildings each climb at their own rate", () => {
+    // Market 2.0 > Collegium 1.9 > Guild 1.8 > Lodge 1.7 — ordered by how much
+    // a level actually returns, with the Lodge cheapest because scouts are the
+    // only defence against spies and must stay affordable.
+    const rate = (id: Parameters<typeof buildingCost>[0]) =>
+      buildingCost(id, 2).gold / buildingCost(id, 1).gold;
+    expect(rate("market_square")).toBeCloseTo(MARKET_COST.RATE, 4);
+    expect(rate("collegium")).toBeCloseTo(COLLEGIUM_COST.RATE, 4);
+    expect(rate("shadow_guild")).toBeCloseTo(GUILD_COST.RATE, 4);
+    expect(rate("rangers_lodge")).toBeCloseTo(LODGE_COST.RATE, 4);
+    // All four distinct, and strictly ordered.
+    const rates = [MARKET_COST.RATE, COLLEGIUM_COST.RATE, GUILD_COST.RATE, LODGE_COST.RATE];
+    expect(new Set(rates).size).toBe(4);
+    expect([...rates].sort((a, b) => b - a)).toEqual(rates);
+    // Two bases, not one. The Market and Collegium start at 4,500 goods; the
+    // covert pair start at 7,000 and climb more gently — weight at the entry,
+    // because their return is flat and a steep tail would price the last levels
+    // out of anyone without a dedicated covert game.
+    expect(buildingCost("market_square", 1)).toEqual(buildingCost("collegium", 1));
+    expect(buildingCost("shadow_guild", 1)).toEqual(buildingCost("rangers_lodge", 1));
+    const goods = (id: Parameters<typeof buildingCost>[0]) => {
+      const c = buildingCost(id, 1);
+      return c.wood + c.stone + c.ore;
+    };
+    expect(goods("shadow_guild")).toBeGreaterThan(goods("market_square"));
+  });
+
+  it("producers are priced apart, and double what a worker digs per level", () => {
+    expect(buildingCost("grange", 1)).toEqual({ gold: 2000, wood: 1000, stone: 1000, ore: 200 });
+    // All four share the path — a deeper mine is the same mine.
+    for (const id of ["grange", "sawyers_mill", "masons_quarry", "deepvein_mine"] as const) {
+      expect(buildingCost(id, 1)).toEqual(buildingCost("grange", 1));
+    }
+    // One flat rate, composition never shifts.
+    for (let l = 2; l <= 10; l++) {
+      const prev = buildingCost("grange", l - 1);
+      const cur = buildingCost("grange", l);
+      expect(cur.gold / prev.gold).toBeCloseTo(PRODUCER_COST.RATE, 4);
+      expect(cur.ore / cur.wood).toBeCloseTo(200 / 1000, 3);
+    }
+    // The rate is chosen so the TOP of the ladder stays payable. Output is
+    // linear, so marginal is flat at +10; the workers needed for level 10 to
+    // repay itself in a day must stay inside what an empire can field (~1,400
+    // per resource by day 60, harness D). At 2.0 that is 782 — at 2.5 it would
+    // be 2,914 and nobody would ever finish the ladder.
+    const l10 = buildingCost("grange", 10);
+    const goods = l10.wood + l10.stone + l10.ore;
+    const marginal = workerOutputAtLevel(10) - workerOutputAtLevel(9);
+    expect(Math.round(goods / (marginal * TURNS_PER_DAY))).toBeLessThan(1000);
   });
 
   it("military level 1: 600g + 660 wood / 540 stone", () => {
-    expect(buildingCost("walls", 1)).toEqual({ gold: 600, wood: 660, stone: 540, ore: 0 });
+    // The War Foundry, not the Walls — walls left the shared military ladder
+    // when they got their own base, bands and curve (WALLS_COST). This case
+    // exists to pin the SHARED military path, so it needs a building that is
+    // actually still on it.
+    expect(buildingCost("war_foundry", 1)).toEqual({ gold: 600, wood: 660, stone: 540, ore: 0 });
+  });
+
+  it("walls are priced apart, and climb at one flat rate with no cliff", () => {
+    // A Palisade is the deliberate outlier: dearer in coin than in materials
+    // (GOLD_SHARE 1.25 against 0.5 everywhere else) and an even split of the two.
+    expect(buildingCost("walls", 1)).toEqual({ gold: 5000, wood: 2000, stone: 2000, ore: 0 });
+
+    // EVERY rung is the same step, and none may exceed 3×. An earlier shape
+    // pivoted and steepened, which put an 8.25× cliff at levels 7–9 — a ladder
+    // you could not climb, only stop at. This is the guard against that.
+    const goods = (l: number) => {
+      const c = buildingCost("walls", l);
+      return c.wood + c.stone + c.ore;
+    };
+    for (let l = 2; l <= 10; l++) {
+      const step = goods(l) / goods(l - 1);
+      expect(step).toBeCloseTo(WALLS_COST.RATE, 2);
+      expect(step).toBeLessThanOrEqual(3.001);
+    }
+  });
+
+  it("walls past level 7 hold their mix: stone 2.5× wood, ore 0.5× wood", () => {
+    // Ore is the war-metal — troops and siege both eat it — so the wall ladder
+    // is capped rather than tilting further toward iron as it climbs.
+    for (const l of [7, 8, 9, 10]) {
+      const c = buildingCost("walls", l);
+      expect(c.stone / c.wood).toBeCloseTo(2.5, 2);
+      expect(c.ore / c.wood).toBeCloseTo(0.5, 2);
+    }
+  });
+
+  it("storehouses are priced apart, climb at one rate, and reach level 12", () => {
+    const c1 = buildingCost("granary", 1);
+    expect(c1).toEqual({ gold: 1000, wood: 400, stone: 400, ore: 100 });
+    // All five share the path — a store is a store.
+    for (const id of ["granary", "timberyard", "masons_yard", "ironhold", "counting_house"] as const) {
+      expect(buildingCost(id, 1)).toEqual(c1);
+      expect(maxLevel(id)).toBe(12);
+    }
+    // Flat rate, and the composition never shifts: it is the same building, deeper.
+    for (let l = 2; l <= 12; l++) {
+      const prev = buildingCost("granary", l - 1);
+      const cur = buildingCost("granary", l);
+      expect(cur.gold / prev.gold).toBeCloseTo(STORAGE_COST.RATE, 2);
+      // 3dp, not 4: costs are rounded to whole units, so the ratio drifts by a
+      // fraction of a unit at the top of the ladder.
+      expect(cur.ore / cur.wood).toBeCloseTo(100 / 400, 3);
+    }
+  });
+
+  it("Granarycraft deepens every vault, and does nothing to anything else", () => {
+    const p = fresh();
+    const before = shelterCapacity(p, "granary");
+    p.research.levels.granarycraft = 5;
+    // +5% a level, so mastery is +25% — on all five stores, coin included.
+    for (const id of ["granary", "timberyard", "masons_yard", "ironhold", "counting_house"] as const) {
+      const plain = shelterAtLevel(id, level(p, id));
+      expect(shelterCapacity(p, id)).toBeCloseTo(plain * 1.25, 6);
+    }
+    expect(shelterCapacity(p, "granary")).toBeCloseTo(before * 1.25, 6);
+    // It is NOT a ranked field — what you can hoard is exactly what a raider
+    // would most like to read off the ladder.
+    expect(RESEARCH_FIELDS.find((f) => f.id === "granarycraft")!.ranked).toBe(false);
   });
 
   it("hearthstead: flat 150g + 210 wood / 90 stone", () => {
@@ -49,8 +174,13 @@ describe("build command", () => {
   it("pays the cost and raises the level", () => {
     const { player, events } = build(fresh(), "grange");
     expect(player.buildings.grange).toBe(1);
-    expect(player.gold).toBe(5000 - 400);
-    expect(player.resources.wood).toBe(1000 - 560);
+    expect(player.gold).toBe(5000 - 2000);
+    // A first Grange now takes the ENTIRE starting woodpile and quarry — the
+    // opening is one producer and then a trip to the Black Market. That is the
+    // deliberate consequence of PRODUCER_COST; if it ever wants softening, the
+    // lever is START.RESOURCES_EACH, not the producer price.
+    expect(player.resources.wood).toBe(0);
+    expect(player.resources.stone).toBe(0);
     expect(events).toContainEqual({ type: "buildComplete", building: "grange", level: 1 });
   });
 
@@ -199,9 +329,12 @@ describe("economy commands", () => {
   });
 
   it("banking respects Counting House capacity", () => {
-    const p = fresh(); // starts with Counting House 1 → 20k capacity
-    p.bankedGold = 19500;
-    expect(() => bankGold(p, 1000)).toThrowError(/full/i); // would breach 20k
+    const p = fresh(); // starts with Counting House 1
+    // Read from the curve, not written by hand: the vault's size has moved
+    // twice and a hardcoded boundary silently stops testing the boundary.
+    const cap = goldShelterAtLevel(1);
+    p.bankedGold = cap - 500;
+    expect(() => bankGold(p, 1000)).toThrowError(/full/i); // would breach the cap
     p.bankedGold = 0;
     const { player } = bankGold(p, 3000);
     expect(player.bankedGold).toBe(3000);
@@ -223,5 +356,46 @@ describe("economy commands", () => {
     full.resources.food = 1000;
     full.bankedResources = { food: 19900, wood: 0, stone: 0, ore: 0 };
     expect(() => bankResource(full, "food", 200)).toThrowError(/full/i);
+  });
+});
+
+describe("Scholarship", () => {
+  it("lifts every scholar by 20% a level", () => {
+    const p = fresh();
+    p.buildings = { ...p.buildings, collegium: 1 };
+    p.workers.researchers = 100;
+    p.idlePeasants = 0;
+    p.research.activeField = "masonry";
+    const banked = (lvl: number) => {
+      const q: Player = structuredClone(p);
+      q.research.levels.scholarship = lvl;
+      return processTurnTick(q).player.research.banked.masonry ?? 0;
+    };
+    // 100 scholars × (10 RP × L1 × 0.5 tax) = 500 RP with no Scholarship.
+    expect(banked(0)).toBe(500);
+    expect(banked(1)).toBe(600); // ×1.2
+    expect(banked(5)).toBe(1000); // ×2.00 at mastery
+  });
+
+  it("buys the switch penalty down to nothing", () => {
+    const p = fresh();
+    p.research.activeField = "masonry";
+    p.research.banked.masonry = 1000;
+    const after = (lvl: number) => {
+      const q: Player = structuredClone(p);
+      q.research.levels.scholarship = lvl;
+      return setResearch(q, "forestry").player.research.banked.masonry;
+    };
+    expect(researchSwitchLoss(fresh())).toBe(RESEARCH_SWITCH_LOSS);
+    expect(after(0)).toBe(500); // half abandoned
+    expect(after(2)).toBe(700); // 30% lost
+    expect(after(5)).toBe(1000); // mastery: a free hand
+  });
+
+  it("re-selecting the same field is free, Scholarship or not", () => {
+    const p = fresh();
+    p.research.activeField = "masonry";
+    p.research.banked.masonry = 1000;
+    expect(setResearch(p, "masonry").player.research.banked.masonry).toBe(1000);
   });
 });

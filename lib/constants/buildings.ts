@@ -29,6 +29,8 @@ export type BuildingId =
   | "war_foundry"
   | "walls";
 
+import { STORAGE_COST } from "./balance";
+
 export interface BuildingMeta {
   id: BuildingId;
   name: string;
@@ -36,17 +38,17 @@ export interface BuildingMeta {
 }
 
 export const CIVILIAN_BUILDINGS: BuildingMeta[] = [
-  { id: "grange", name: "The Grange", desc: "Each level lifts every farmer's food output (5/turn at L1 → 50 at L10). Farmers are unlimited." },
-  { id: "masons_quarry", name: "Mason's Quarry", desc: "Each level lifts every quarryman's stone output (5→50/turn). Quarrymen are unlimited." },
-  { id: "deepvein_mine", name: "Deepvein Mine", desc: "Each level lifts every miner's ore output (5→50/turn). Miners are unlimited." },
-  { id: "sawyers_mill", name: "Sawyer's Mill", desc: "Each level lifts every lumberjack's wood output (5→50/turn). Lumberjacks are unlimited." },
-  { id: "granary", name: "Granary", desc: "+20,000 protected food capacity per level" },
-  { id: "timberyard", name: "Timberyard", desc: "+20,000 protected wood capacity per level" },
-  { id: "masons_yard", name: "Mason's Yard", desc: "+20,000 protected stone capacity per level" },
-  { id: "ironhold", name: "Ironhold", desc: "+20,000 protected ore capacity per level" },
-  { id: "counting_house", name: "Counting House", desc: "Bank — +20,000 protected gold capacity per level" },
-  { id: "market_square", name: "Market Square", desc: "Merchants are unlimited; each level lets every caravan carry +1,000 goods AND reach the Bazaar faster (L1: 100 turns → L10: 10)" },
-  { id: "collegium", name: "The Collegium", desc: "Researchers are unlimited; each level lifts every scholar's research (50→500/turn)" },
+  { id: "grange", name: "The Grange", desc: "Each level lifts every farmer's food output (10/turn at L1 → 100 at L10). Farmers are unlimited." },
+  { id: "masons_quarry", name: "Mason's Quarry", desc: "Each level lifts every quarryman's stone output (10→100/turn). Quarrymen are unlimited." },
+  { id: "deepvein_mine", name: "Deepvein Mine", desc: "Each level lifts every miner's ore output (10→100/turn). Miners are unlimited." },
+  { id: "sawyers_mill", name: "Sawyer's Mill", desc: "Each level lifts every lumberjack's wood output (10→100/turn). Lumberjacks are unlimited." },
+  { id: "granary", name: "Granary", desc: "Shelters food from raiders — capacity grows 1.9× per level, to level 12" },
+  { id: "timberyard", name: "Timberyard", desc: "Shelters wood from raiders — capacity grows 1.9× per level, to level 12" },
+  { id: "masons_yard", name: "Mason's Yard", desc: "Shelters stone from raiders — capacity grows 1.9× per level, to level 12" },
+  { id: "ironhold", name: "Ironhold", desc: "Shelters ore from raiders — capacity grows 1.9× per level, to level 12" },
+  { id: "counting_house", name: "Counting House", desc: "Bank — shelters gold from a castle assault; capacity grows 1.9× per level, to level 12" },
+  { id: "market_square", name: "Market Square", desc: "Merchants are unlimited; each level adds 10,000 to what every caravan carries AND shortens the road to the Bazaar (L1: 60 turns → L10: 6)" },
+  { id: "collegium", name: "The Collegium", desc: "Researchers are unlimited; each level lifts every scholar's research (10→100/turn)" },
   { id: "shadow_guild", name: "Shadow Guild", desc: "Spies are unlimited; each level makes every spy mission bite deeper" },
   { id: "rangers_lodge", name: "Ranger's Lodge", desc: "Scouts are unlimited; each level sharpens recon & catches higher-level enemy spies" },
 ];
@@ -90,6 +92,23 @@ export {
   type RatioBand,
   CIVILIAN_BANDS,
   MILITARY_BANDS,
+  // Walls are priced apart from every other structure — see WALLS_COST.
+  WALLS_COST,
+  WALLS_COST_CURVE,
+  WALLS_BANDS,
+  STORAGE_COST,
+  STORAGE_COST_CURVE,
+  PRODUCER_COST,
+  PRODUCER_COST_CURVE,
+  MARKET_COST,
+  MARKET_COST_CURVE,
+  COLLEGIUM_COST,
+  COLLEGIUM_COST_CURVE,
+  GUILD_COST,
+  GUILD_COST_CURVE,
+  LODGE_COST,
+  LODGE_COST_CURVE,
+  GOLD_SHELTER_CURVE,
   TIERED_BAND_INDEX,
   HOUSING_PER_HEARTHSTEAD,
   TROOPS_PER_MUSTER_HALL,
@@ -194,6 +213,9 @@ export function isCounted(id: BuildingId): boolean {
 export function maxLevel(id: BuildingId): number {
   if (isCounted(id)) return Infinity;
   if (TIERED_BUILDING_IDS.includes(id)) return 3;
+  // Storehouses climb two rungs further than anything else — what you can
+  // protect has to keep pace with what the late game asks you to save up.
+  if (STORAGE_BUILDING_IDS.includes(id)) return STORAGE_COST.MAX_LEVEL;
   return 10;
 }
 
@@ -208,6 +230,15 @@ export function artStage(id: BuildingId, level: number): 1 | 2 | 3 {
 }
 
 // ── Bombard targets & integrity effects (spec/combat.md) ────────────────────
+
+/** The five storehouses, as a list — they share a cost path and a level cap. */
+export const STORAGE_BUILDING_IDS: BuildingId[] = [
+  "granary",
+  "timberyard",
+  "masons_yard",
+  "ironhold",
+  "counting_house",
+];
 
 /** Storage buildings — their integrity scales protected capacity. */
 export const STORAGE_BUILDING: Record<"food" | "wood" | "stone" | "ore" | "gold", BuildingId> = {

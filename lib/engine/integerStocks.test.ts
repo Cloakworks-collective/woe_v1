@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buyFromMarket, cancelOrder, netOfFee, postOrder, recallReturn } from "./marketOps";
+import { MARKET_FEE } from "../constants";
 import { blackMarketBuy, blackMarketSell } from "./marketOps";
 import { newEmpire } from "./newEmpire";
 import { processTurnTick } from "./tick";
@@ -67,9 +68,13 @@ describe("stocks are always whole numbers", () => {
 
   it("the market fee never credits a fraction of a gold", () => {
     // 3 gold × 1 unit × 0.95 = 2.8499999999999996 before this was floored.
+    // Swept across EVERY fee rate The Merchants' Charter can produce, since the
+    // rate now rides on the order rather than being a single constant.
+    const rates = [0, 0.04, 0.08, 0.12, 0.16, 0.2, undefined];
+    for (const feeRate of rates)
     for (let amount = 1; amount <= 40; amount++) {
       for (let price = 2; price <= 19; price++) {
-        const net = netOfFee(amount * price);
+        const net = netOfFee({ feeRate }, amount * price);
         expect(Number.isInteger(net), `${amount} × ${price} → ${net}`).toBe(true);
         expect(net).toBeLessThanOrEqual(amount * price); // the fee is never negative
       }
@@ -87,7 +92,8 @@ describe("stocks are always whole numbers", () => {
     const s = newEmpire({ id: "s1", name: "Seller", race: "human" });
     s.gold += fills[0].netGold;
     stocksAreWhole(s, "seller after payout");
-    expect(fills[0].netGold).toBe(Math.floor(7 * 13 * 0.95)); // 86, not 86.45
+    // 7 × 13 = 91 gross; the base 20% fee leaves 72.8, floored to 72 — never 72.8.
+    expect(fills[0].netGold).toBe(Math.floor(7 * 13 * (1 - MARKET_FEE)));
   });
 
   it("black market trades settle whole in both directions", () => {
@@ -101,10 +107,21 @@ describe("stocks are always whole numbers", () => {
   });
 
   it("a recalled caravan returns a whole number of goods", () => {
+    const noCharter = newEmpire({ id: "r", name: "r", race: "human" });
     for (const remaining of [1, 3, 7, 999, 1001]) {
-      const back = recallReturn(remaining);
+      const back = recallReturn(noCharter, remaining);
       expect(Number.isInteger(back)).toBe(true);
       expect(back).toBe(Math.floor(remaining / 2)); // odd loads lose the odd unit
+    }
+    // …and at every Charter level, where the fraction is no longer a clean half.
+    const charter = newEmpire({ id: "c", name: "c", race: "human" });
+    for (let lvl = 0; lvl <= 5; lvl++) {
+      charter.research.levels.merchants_charter = lvl;
+      for (const remaining of [1, 3, 7, 999, 1001]) {
+        const back = recallReturn(charter, remaining);
+        expect(Number.isInteger(back), `lvl ${lvl}, ${remaining}`).toBe(true);
+        expect(back).toBeLessThanOrEqual(remaining);
+      }
     }
     const s = newEmpire({ id: "s", name: "s", race: "human" });
     s.buildings.market_square = 2;

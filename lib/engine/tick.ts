@@ -26,12 +26,12 @@ import {
   RACES,
   STAMINA,
   STORAGE_BUILDING,
-  storageShelterAtLevel,
   VACATION_TAX_FACTOR,
   VACATION_PRODUCTION_FACTOR,
   VACATION_TICKS_PER_ERA,
   VACATION_DAYS_PER_ERA,
   researchOrdinalCost,
+  SCHOLARSHIP,
   EFFECT_PER_LEVEL,
   MAX_FIELD_LEVEL,
 } from "../constants";
@@ -47,6 +47,7 @@ import {
   mercTotal,
   military,
   researchLevel,
+  shelterCapacity,
   totalResearchLevels,
   type EngineResult,
   type Player,
@@ -200,8 +201,14 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
     // rangers at all.
     const doubtMult =
       (p.researchDoubtUntilTick ?? 0) > currentTick ? 1 - RESEARCH_DOUBT.RESEARCH_PENALTY : 1;
+    // Scholarship lifts every scholar; the Collegium's level sets the base.
+    const scholarshipMult = 1 + researchLevel(p, "scholarship") * SCHOLARSHIP.OUTPUT_PER_LEVEL;
     const rpPerScholar =
-      productionPerWorker(p, "collegium", hallPenaltyFactor) * unrestMult * vacationMult * doubtMult;
+      productionPerWorker(p, "collegium", hallPenaltyFactor) *
+      unrestMult *
+      vacationMult *
+      doubtMult *
+      scholarshipMult;
     if (researchers > 0 && field && rpPerScholar > 0) {
       p.research.banked[field] =
         (p.research.banked[field] ?? 0) +
@@ -243,7 +250,7 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
     const banked = { ...bankedRes(p) };
     let vaulted = false;
     for (const r of ["food", "wood", "stone", "ore"] as const) {
-      const cap = storageShelterAtLevel(level(p, STORAGE_BUILDING[r]));
+      const cap = shelterCapacity(p, STORAGE_BUILDING[r]);
       const move = Math.min(p.resources[r], Math.max(0, cap - banked[r]));
       if (move > 0) {
         p.resources[r] -= move;

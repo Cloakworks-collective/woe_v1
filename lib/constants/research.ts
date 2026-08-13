@@ -17,7 +17,11 @@ export type ResearchField =
   | "siegecraft"
   | "siege_accuracy"
   | "free_companies"
-  | "statecraft";
+  | "statecraft"
+  | "granarycraft"
+  | "kings_roads"
+  | "merchants_charter"
+  | "scholarship";
 
 export interface ResearchFieldMeta {
   id: ResearchField;
@@ -40,6 +44,15 @@ export const RESEARCH_FIELDS: ResearchFieldMeta[] = [
   { id: "siege_accuracy", name: "Siege Accuracy", desc: "Trebuchets stop missing: 30%→60% against walls, 20%→50% against buildings, and sharper counter-battery fire", ranked: true },
   { id: "free_companies", name: "Free Companies", desc: "Sellsword contracts, up to −50% on the price of hiring", ranked: false },
   { id: "statecraft", name: "Statecraft", desc: "Multiplies your tax income, ×2 at level 5 — the treasury, not the workshops", ranked: true },
+  // Deliberately UNRANKED. It publishes nothing about your army and everything
+  // about how much you are sitting on — a raider who could read it off the
+  // ladder would know exactly who is worth the march.
+  { id: "granarycraft", name: "Granarycraft", desc: "Deeper vaults: +5%/lvl protected capacity in all five storehouses, up to +25%", ranked: false },
+  // The two trade fields. Unranked: they publish how efficiently you trade and
+  // how cheaply you muster, and neither is martial strength.
+  { id: "kings_roads", name: "The King's Roads", desc: "Metalled roads: −5%/lvl on troop training cost AND on caravan road time, up to −25% each", ranked: false },
+  { id: "merchants_charter", name: "The Merchants' Charter", desc: "Bazaar fee 20% → 0% at mastery, +5%/lvl caravan capacity, and the recall forfeit falls 50% → 25%", ranked: false },
+  { id: "scholarship", name: "Scholarship", desc: "+20%/lvl to every scholar, and the penalty for re-pointing them falls 50% → 0%", ranked: false },
 ];
 
 export {
