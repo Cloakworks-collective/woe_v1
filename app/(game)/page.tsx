@@ -1,5 +1,6 @@
 import { Btn } from "@/components/Btn";
 import Link from "next/link";
+import { MagicKeyPanel } from "@/components/MagicKeyPanel";
 import { Art } from "@/components/Art";
 import { BuildingArt } from "@/components/BuildingArt";
 import { Census } from "@/components/Census";
@@ -12,6 +13,7 @@ import { LearnLink } from "@/components/LearnLink";
 import { Meter } from "@/components/Meter";
 import { Panel } from "@/components/Panel";
 import { ResIcon } from "@/components/ResIcon";
+import { CollegiumCall } from "@/components/CollegiumCall";
 import { RegentCharges } from "@/components/RegentCharges";
 import { ResearchView } from "@/components/ResearchView";
 import { SettlementView } from "@/components/SettlementView";
@@ -154,6 +156,7 @@ export default async function CommandView({
       <Flash err={err} ok={ok} />
       <LearnLink href="/guide#clocks">The crown race — ranking &amp; starting the clocks</LearnLink>
       <RegentCharges player={p} />
+      <CollegiumCall player={p} />
       <VictoryTracker world={world} me={p} />
       {(() => {
         // Anything cracked by bombardment, surfaced where the ruler actually looks.
@@ -661,23 +664,7 @@ export default async function CommandView({
         </Panel>
       )}
 
-      <Panel title="🖥 Rule from the terminal">
-        <details>
-          <summary style={{ cursor: "pointer", fontSize: 14.5 }}>
-            Your realm token — plays this same empire from the CLI (click to reveal)
-          </summary>
-          <p style={{ margin: "6px 0 4px" }}>
-            <code style={{ background: "var(--panel-alt)", padding: "2px 6px", fontSize: 14.5 }}>
-              {p.apiToken}
-            </code>
-          </p>
-          <p style={{ fontSize: 13.5, color: "var(--ink-soft)" }}>
-            Keep it secret — it IS your throne. In the repo:{" "}
-            <code>node cli/woe.mjs link {"<token>"}</code>, then <code>node cli/woe.mjs</code> to
-            play. Also re-enters this empire at the login gate from any browser.
-          </p>
-        </details>
-      </Panel>
+      <MagicKeyPanel />
     </>
   );
 }

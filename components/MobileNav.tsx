@@ -46,6 +46,14 @@ export function MobileNav({ premium }: { premium: boolean }) {
       ],
     },
     {
+      head: "Take Action · against another empire",
+      items: [
+        { href: "/rankings?act=attack", label: "🎯 Attack" },
+        { href: "/rankings?act=spy", label: "🗡️ Spy" },
+        { href: "/rankings?act=scout", label: "🏹 Scout" },
+      ],
+    },
+    {
       head: "The Realm · economy",
       items: [
         { href: "/buildings", label: "🏗️ Buildings" },
@@ -56,7 +64,7 @@ export function MobileNav({ premium }: { premium: boolean }) {
       ],
     },
     {
-      head: "The War · military",
+      head: "Your Forces · what you raise at home",
       items: [
         { href: "/troops", label: "⚔️ The Army" },
         { href: "/siege", label: "🏹 Siege Works" },
@@ -66,10 +74,10 @@ export function MobileNav({ premium }: { premium: boolean }) {
     {
       head: "The Wider World",
       items: [
-        { href: "/rankings", label: "📜 Empire Ranks — the ladder" },
+        { href: "/rankings", label: "📜 Empire Ranks — the standings" },
         { href: "/rankings/clans", label: "🛡️ Clan Ranks" },
         { href: "/rankings/records", label: "🏆 Records of the Age" },
-        { href: "/battles", label: "🌍 World" },
+        { href: "/battles", label: "🌍 World Chronicle" },
         { href: "/annals", label: "📚 Annals — sealed ages" },
         { href: "/messages", label: "✉️ Letters" },
         { href: "/messages/chat", label: "🕯️ Era Chat" },

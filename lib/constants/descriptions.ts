@@ -111,7 +111,7 @@ export const CLAN_BUILDING_INFO: Record<"storage" | "hall" | "wonder" | "beacon"
 };
 
 export const BUILDING_INFO: Record<BuildingId, { title: string; tip: string }> = {
-  grange: { title: "The Grange", tip: "Farmland and granaries where your farmers grow the empire's food. You can put ANY number of farmers to work — each level of the Grange lifts how much every one of them produces (50/turn at level 1 up to 500 at level 10, before tax). Food is life: run out and everything freezes." },
+  grange: { title: "The Grange", tip: "Farmland and granaries where your farmers grow the empire's food. You can put ANY number of farmers to work — each level of the Grange lifts how much every one of them produces (5/turn at level 1 up to 50 at level 10, before tax). Food is life: run out and everything freezes." },
   masons_quarry: { title: "Mason's Quarry", tip: "The stone pit that feeds every wall and heavy building. Quarrymen are unlimited; each Quarry level raises every quarryman's output (50→500/turn). Stone is the backbone of the late game." },
   deepvein_mine: { title: "Deepvein Mine", tip: "Shafts sunk after ore and metal — the stuff of weapons, armour, and siege engines. Miners are unlimited; each Mine level raises every miner's output (50→500/turn)." },
   sawyers_mill: { title: "Sawyer's Mill", tip: "The lumber yard where woodlots become planks, arrows, and scaffolding. Lumberjacks are unlimited; each Mill level raises every lumberjack's output (50→500/turn); wood never goes out of demand." },

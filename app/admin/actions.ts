@@ -11,7 +11,7 @@ import {
   isAdmin,
   setAdminSession,
 } from "@/lib/server/admin";
-import { setSession } from "@/lib/server/auth";
+import { setAccountSession } from "@/lib/server/auth";
 import { carryWorldVersion, pushInbox, saveWorld } from "@/lib/server/store";
 import { eraReset, getWorld, runOneTick } from "@/lib/server/world";
 import {
@@ -52,7 +52,11 @@ export async function adminEnterAs(formData: FormData): Promise<void> {
   const p = world.players[String(formData.get("playerId") ?? "")];
   if (!p) back("No such empire.", false);
   if (p!.isBot) back("Bots keep no session — pick a human empire.", false);
-  await setSession(p!.id);
+  // Sessions hold an ACCOUNT now, not an empire, so entering as someone means
+  // wearing the account that founded them. An empire with no account is a bot
+  // or a seed and has no throne to sit on.
+  if (!p!.accountId) back("That empire has no account behind it.", false);
+  await setAccountSession(p!.accountId!);
   revalidatePath("/", "layout");
   redirect("/");
 }

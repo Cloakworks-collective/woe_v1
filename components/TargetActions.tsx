@@ -31,11 +31,16 @@ export function TargetActions({
   state,
   last,
   hint,
+  only,
 }: {
   target: { id: string; name: string };
   revengeOpen: boolean;
   tradecraft: number;
   pathfinding: number;
+  /** Show a single arm. The ladder is reached three ways — "Attack", "Spy" and
+   *  "Scout" in the sidebar — and arriving by one of them should not put the
+   *  other two orders under your cursor forty times over. Unset shows all. */
+  only?: "attack" | "scout" | "spy";
   /** Shield / vacation / revenge. Gated by the SAME rules as the profile's
    *  War Council (lib/constants/attackGating) so the two can never disagree. */
   state?: TargetState;
@@ -56,6 +61,7 @@ export function TargetActions({
           and spying cost different currencies, carry different risk, and are
           almost never chosen against each other — stacking them behind one
           "Act" made you read all three every time you wanted one. */}
+      {(!only || only === "attack") && (
       <details className="act">
         <summary
           className={marchStop ? "act-btn is-off" : "act-btn"}
@@ -101,10 +107,12 @@ export function TargetActions({
         </div>
         </div>
       </details>
+      )}
 
       {/* Rangers. Open, safe, never intercepted — the whole intelligence
           service, and the only thing standing between your storehouses and
           someone else's knives. */}
+      {(!only || only === "scout") && (
       <details className="act">
         <summary className={covertStop ? "act-btn is-off" : "act-btn"} title={covertStop ?? `Scout ${target.name}`}>
           🏹 Scout
@@ -148,10 +156,12 @@ export function TargetActions({
 
         </div>
       </details>
+      )}
 
       {/* Shadows. They go over the wall: they do the damage, and being caught
           names you. Both arms spend from the same pool of spy turns, so
           watching a rival and robbing them compete for one purse. */}
+      {(!only || only === "spy") && (
       <details className="act">
         <summary className={covertStop ? "act-btn is-off" : "act-btn"} title={covertStop ?? `Send spies against ${target.name}`}>
           🗡 Spy
@@ -200,6 +210,7 @@ export function TargetActions({
         </div>
         </div>
       </details>
+      )}
     </div>
   );
 }

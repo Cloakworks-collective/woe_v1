@@ -173,7 +173,7 @@ export default async function BlackMarketPage({
       <Panel
         title="🔨 Breaker's yard — sell siege engines"
         info={`The fence buys engines by the pound. You get ${Math.round(SIEGE_SALVAGE_VALUE * 100)}% of the build cost back in gold, wood and ore, scaled by what condition the engine is in — a wreck is worth less than a whole machine. Mend before you sell if you mean to sell at all.`}
-        guide="/guide#siege"
+        guide="/guide#battle"
       >
         {engines.length === 0 ? (
           <p style={{ fontSize: 13.5, fontStyle: "italic", color: "var(--ink-soft)", margin: 0 }}>

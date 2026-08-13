@@ -10,3 +10,7 @@ build/
 data/
 .env*
 __pycache__/
+
+# Harness reports are regenerable and stamped with a run time; only the
+# baseline is worth committing.
+simulations/reports/*.md

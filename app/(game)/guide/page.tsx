@@ -9,9 +9,14 @@ import {
   MARKET_PRICE_MAX,
   MARKET_PRICE_MIN,
   ARMY_FLOORS,
+  CHAT_LIMITS,
+  CLAN_MUTE_DAYS,
+  GOLD_PER_CIVILIAN_AT_FULL_TAX,
   REVENGE_WINDOW_HOURS,
   SIEGE_SALVAGE_VALUE,
+  STEWARD_QUEUE_CAP,
   TURNS_PER_DAY,
+  workerOutputAtLevel,
 } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +60,7 @@ export default function GuidePage() {
           game in a few minutes.
         </p>
         <div className="guide-toc">
+          <Link href="#account">🔑 Your Account</Link>
           <Link href="#winning">🏆 Winning the Era</Link>
           <Link href="#grow">🌱 How to Grow</Link>
           <Link href="#army">⚔️ Building an Army</Link>
@@ -62,6 +68,8 @@ export default function GuidePage() {
           <Link href="#shadows">🗡️ Spies &amp; Scouts</Link>
           <Link href="#clans">🛡️ Clans</Link>
           <Link href="#defense">🏰 Defending the Realm</Link>
+          <Link href="#heralds">✉️ Letters, Halls &amp; the Forum</Link>
+          <Link href="#charter">👑 The Royal Charter</Link>
           <Link href="#strategy">🎯 Strategy &amp; First Days</Link>
         </div>
         <p style={{ fontSize: 13.5, fontWeight: 700, margin: "12px 0 4px", color: "var(--heading)" }}>
@@ -75,6 +83,46 @@ export default function GuidePage() {
           <Link href="#rich">💰 Getting Rich</Link>
         </div>
       </Panel>
+
+      <Guide id="account" title="🔑 Your Account — one key, one empire an age" illo="buildings/hearthstead">
+        <p>
+          There is <b>no password and no email</b>. When you first raise a banner you are given a{" "}
+          <b>magic link</b> — a single secret that is your account. Clicking it on any device signs
+          that device in; pasting it into the box at the gate does the same. It never expires, and
+          it is the only key you will ever need.
+        </p>
+        <p>
+          Find it any time in the <Link href="/">Command View</Link>, under{" "}
+          <b>🔑 Your magic link</b>. <b>Keep it secret — whoever holds it is you.</b> It cannot be
+          reset or recovered, because nothing was ever collected that could prove the account is
+          yours.
+        </p>
+        <h4>One key, three doors</h4>
+        <ul>
+          <li>
+            <b>This empire</b>, in a browser.
+          </li>
+          <li>
+            <b>The <Link href="/forum">forum</Link></b>, which outlives every age. The first time
+            you post there you choose a <b>forum name</b> — that one you keep forever, unlike your
+            empire&apos;s. Reading needs no account at all.
+          </li>
+          <li>
+            <b>The terminal client</b>: <code>node cli/woe.mjs link &lt;key&gt;</code>.
+          </li>
+        </ul>
+        <h4>One empire per age</h4>
+        <p>
+          An account may hold <b>exactly one empire in each age</b>. When an age is sealed every
+          empire in it is gone — the ladder, the clans, the armies — and your account founds a{" "}
+          <b>new</b> one in the age that follows, with a different name and a different race if you
+          like. Your forum name, your posts and your history carry over; the empire does not.
+        </p>
+        <p className="guide-tip">
+          💡 That rule is why alts cannot stuff a clan or feed a rank: the empire is bound to the
+          account that founded it, and one account can only ever field one army.
+        </p>
+      </Guide>
 
       <Guide id="winning" title="🏆 Winning the Era — the goal of the game" illo="buildings/ironhold">
         <p>
@@ -109,16 +157,21 @@ export default function GuidePage() {
         </p>
         <h4>What the ranking score measures — the visible empire</h4>
         <p>
-          Your score is what a traveller riding through would see. <b>It counts:</b> civilian
-          population, regular troops, wall level (scaled by integrity), levelled buildings, treasury
-          (gold + resources), army experience, and <b>7 of the 10 research fields</b>.
+          Your score is what a besieger outside your gate could see. <b>It counts:</b> civilian
+          population, regular troops (by tier, and scaled by your race), <b>sellswords</b> at a
+          discount, scouts at a discount, engineers, your <b>crewed defensive works</b>, wall level
+          scaled by integrity, army experience, and the <b>{fmt(9)} ranked research fields</b> of{" "}
+          {fmt(12)}.
         </p>
         <p>
-          <b>It counts for nothing:</b> siege engines &amp; engineers, spies &amp; scouts,
-          mercenaries, and the three &ldquo;shadow&rdquo; research fields (Siegecraft, Tradecraft,
-          Pathfinding). <b>Power in the shadows brings no prestige</b> — to win you must build the
-          visible empire, then protect it. See the live race on your{" "}
-          <Link href="/">Command View</Link> and the full <Link href="/rankings">ladder</Link>.
+          <b>It counts for nothing:</b> your offensive siege train, spies, gold and resources,
+          civilian buildings and housing, and the three unranked research fields (Tradecraft,
+          Pathfinding, Free Companies). Wealth buys no prestige and{" "}
+          <b>power in the shadows brings none either</b> — the ladder tells a rival{" "}
+          <i>whether</i> you are worth their turns, and only a scout tells them <i>how</i> to attack
+          you. That is why your engines never appear. See the live race on your{" "}
+          <Link href="/">Command View</Link>, the full <Link href="/rankings">ladder</Link>, or take
+          it apart yourself in the <Link href="/tools/ranking">Ranking Calculator</Link>.
         </p>
       </Guide>
 
@@ -144,12 +197,24 @@ export default function GuidePage() {
         <ul>
           <li>
             Tax runs <b>0–100%</b>. Higher tax = more gold, but your producers make fewer resources
-            (they&apos;re the same workers). Around <b>29 gold per citizen per day</b> at the 50%
-            default. Set it on the <Link href="/">Command View</Link>.
+            (they&apos;re the same workers). Around{" "}
+            <b>{fmt(GOLD_PER_CIVILIAN_AT_FULL_TAX * 0.5 * TURNS_PER_DAY)} gold per citizen per
+            day</b> at the 50% default. Set it on the <Link href="/">Command View</Link>.
           </li>
           <li>
-            <b>Gold is scarce, resources are bulk.</b> Gold buys troops, mercenaries, and siege gear;
-            resources build and equip. Bank gold in the Counting House so it can&apos;t be looted.
+            <b>Coin is plentiful; goods are not.</b> A worker digs{" "}
+            <b>{fmt(workerOutputAtLevel(1))}/turn at building level 1</b>, rising to{" "}
+            <b>{fmt(workerOutputAtLevel(10))}</b> at level 10 — while your treasury fills far
+            faster. So the binding question is rarely &ldquo;can I afford it&rdquo; and almost
+            always <b>&ldquo;can I get the materials&rdquo;</b>. That makes the{" "}
+            <Link href="/market">Bazaar</Link> and the{" "}
+            <Link href="/blackmarket">Black Market</Link> the centre of the economy: gold is how you
+            buy goods, and goods are what everything is built from. It also makes a{" "}
+            <b>raid</b> on somebody&apos;s unstored stockpile worth far more than their purse.
+          </li>
+          <li>
+            Bank gold in the Counting House and shelter goods in your storehouses — anything loose
+            is lootable.
           </li>
         </ul>
         <h4>Food is life</h4>
@@ -168,15 +233,16 @@ export default function GuidePage() {
         </p>
         <h4>Research — the Collegium</h4>
         <p>
-          <Link href="/research">The Collegium</Link> has <b>10 fields × 5 levels</b>. Any field is
+          <Link href="/research">The Collegium</Link> has <b>12 fields × 5 levels</b>. Any field is
           researchable at any time — the Collegium only sets the <b>speed</b> (its level lifts how
           much research each of your scholars banks per turn). But every level you earn, in{" "}
           <i>any</i> field, makes the <b>next one costlier</b> — a single global, escalating price —
           so the <b>order you research is the strategy</b>, and you can never master all ten.
           Assign researchers on the <Link href="/train">Workers</Link> page; switching fields
-          forfeits <b>half</b> the progress banked toward the current one. Seven fields (farming,
-          forestry, masonry, smelting, and the war arts) also raise your ranking score; the three
-          shadow fields (Siegecraft, Tradecraft, Pathfinding) do not.
+          forfeits <b>half</b> the progress banked toward the current one. Nine fields also raise
+          your ranking score; the three that do not are <b>Tradecraft</b>, <b>Pathfinding</b> and{" "}
+          <b>Free Companies</b> — it would be a strange ladder that advertised how deep your spy
+          service runs. <b>Statecraft</b> multiplies your <i>tax income</i>, not your workshops.
         </p>
         <p className="guide-tip">
           💡 Early game: raise housing + production, keep food positive, pick <b>one</b> research
@@ -233,7 +299,9 @@ export default function GuidePage() {
         <p>
           Every attack costs <b>10 action turns</b> (you earn 2 per game turn, start with 200). Find
           targets on the <Link href="/rankings">ladder</Link> — there&apos;s no map — and launch
-          straight from each empire&apos;s <b>⚔ Act</b> console there.
+          straight from each empire&apos;s row there — <b>⚔ Attack</b>, <b>🏹 Scout</b> and{" "}
+          <b>🗡 Spy</b> each have their own button, and the sidebar&apos;s <b>Take Action</b> group
+          opens the same ladder at your own rank with just that one order showing.
         </p>
         <h4>The four attack modes</h4>
         <ul>
@@ -288,7 +356,8 @@ export default function GuidePage() {
       <Guide id="shadows" title="🗡️ Spies & Scouts — the shadow war" illo="units/spy">
         <p>
           <b>Spies</b> run five Tradecraft operations — intel, sabotage, arson, sowing unrest —
-          from any empire&apos;s <b>⚔ Act</b> console on the <Link href="/rankings">ladder</Link>.
+          from any empire&apos;s row on the <Link href="/rankings">ladder</Link>, or from the full
+          War Council on their profile.
           Send more spies for more damage,
           but higher catch risk; <b>caught spies are executed</b> (you lose the population).{" "}
           <b>Scouts</b> gather recon on rivals and, at home, catch enemy spies — your Ranger&apos;s
@@ -427,6 +496,62 @@ export default function GuidePage() {
         </p>
       </Panel>
 
+      <Guide id="heralds" title="✉️ The Heralds — letters, halls & the forum" illo="buildings/collegium">
+        <p>
+          Three places to speak, and they do not outlive each other.
+        </p>
+        <ul>
+          <li>
+            <b><Link href="/messages">Letters</Link></b> — a private thread with one other ruler.
+            Wiped when the age is sealed.
+          </li>
+          <li>
+            <b><Link href="/messages/chat">Era Chat</Link></b> — one public room for everyone
+            playing this age. Also wiped with it.
+          </li>
+          <li>
+            <b><Link href="/clan/chat">The clan hall</Link></b> — your banner only. It keeps its
+            last words and no more.
+          </li>
+          <li>
+            <b><Link href="/forum">The Forum</Link></b> — the permanent one. It outlives every age,
+            needs no empire to read, and is where anything worth keeping should go.
+          </li>
+        </ul>
+        <h4>Limits, and why they exist</h4>
+        <p>
+          Any room can be shouted down by one person with a keyboard, so the halls hold you to{" "}
+          <b>{CHAT_LIMITS.BURST.messages} messages every {CHAT_LIMITS.BURST.minutes} minutes</b>,{" "}
+          <b>{CHAT_LIMITS.HOURLY.messages} an hour</b>, and{" "}
+          <b>{CHAT_LIMITS.DAILY.messages} a day</b>. The windows slide rather than resetting on the
+          hour, so the limit loosens as your oldest words age out. <b>Letters are exempt</b> — a
+          private thread with one other player is not a room anyone can be shouted out of.
+        </p>
+        <p>
+          A clan&apos;s leadership may also <b>silence</b> a member in the hall for{" "}
+          <b>{CLAN_MUTE_DAYS.join(" or ")} days</b>. A silenced member still <b>reads</b>{" "}
+          everything — someone who cannot see the hall cannot follow the war they are fighting in.
+        </p>
+      </Guide>
+
+      <Guide id="charter" title="👑 The Royal Charter — the Steward" illo="buildings/counting_house">
+        <p>
+          The <Link href="/premium">Royal Charter</Link> is optional and lasts <b>one age</b>. It
+          buys no troops, no resources and no combat advantage — it buys{" "}
+          <b>not having to be at the keyboard</b>.
+        </p>
+        <p>
+          It unlocks the <Link href="/steward">Steward</Link>: build and research{" "}
+          <b>queues</b> of up to {STEWARD_QUEUE_CAP} entries each, <b>standing orders</b>, and{" "}
+          <b>auto-banking</b> so your coin is sheltered while you sleep instead of sitting loose for
+          the first raider who rides past.
+        </p>
+        <p className="guide-tip">
+          💡 Everything the Steward does you can do by hand, on time, for free. What you are buying
+          is the <i>on time</i>.
+        </p>
+      </Guide>
+
       <Guide id="regulars" title="💀 Saving & Killing Regulars — the population war" illo="units/footman">
         <p>
           <b>Regular troops are real population.</b> Every regular is a citizen who counts toward
@@ -520,7 +645,7 @@ export default function GuidePage() {
         <p>
           <b>Revenge</b> opens for <b>{REVENGE_WINDOW_HOURS} hours</b> after <i>anyone</i> attacks
           you, and it&apos;s the single most surgical weapon in the game — launch it from that
-          empire&apos;s <b>⚔ Act</b> console on the <Link href="/rankings">ladder</Link>.
+          empire&apos;s row on the <Link href="/rankings">ladder</Link>.
         </p>
         <h4>Why it&apos;s special</h4>
         <ul>
@@ -622,7 +747,7 @@ export default function GuidePage() {
 
       <Guide id="rich" title="💰 Getting Rich — turning bulk into a war chest" illo="resources/gold">
         <p>
-          <b>Gold is scarce; resources are bulk.</b> Taxes trickle gold, but the fastest fortunes
+          <b>Coin is plentiful; goods are not.</b> Taxes pour gold in, but the fastest fortunes
           are <i>traded</i>, not taxed — the market is how you convert a mountain of ore into the
           gold that buys armies.
         </p>

@@ -24,7 +24,15 @@ function Emblem({ name, sm }: { name: string; sm?: boolean }) {
  * routes to the Royal Charter buy page until owned, then to the Steward manager
  * (the Charter's automation) — one product, one nav label.
  */
-export function TopNav({ premium }: { premium: boolean }) {
+export function TopNav({
+  premium,
+  exam,
+}: {
+  premium: boolean;
+  /** The Collegium Examination is offered until it is passed, then vanishes for
+   *  the age — a tutorial that lingers after you have done it is clutter. */
+  exam?: boolean;
+}) {
   const pathname = usePathname();
 
   // Native <details> only closes via its own summary. Close any open dropdown
@@ -73,7 +81,8 @@ export function TopNav({ premium }: { premium: boolean }) {
   );
 
   const annalsActive = pathname.startsWith("/annals");
-  const guidesActive = pathname.startsWith("/guide") || pathname.startsWith("/almanac");
+  const guidesActive =
+    pathname.startsWith("/guide") || pathname.startsWith("/almanac") || pathname.startsWith("/exam");
   const toolsActive = pathname.startsWith("/tools");
   const commsActive = pathname.startsWith("/messages") || pathname.startsWith("/forum");
   const closeMenu = (e: MouseEvent<HTMLAnchorElement>) =>
@@ -133,6 +142,12 @@ export function TopNav({ premium }: { premium: boolean }) {
               <Link href="/almanac" onClick={closeMenu}>
                 <Emblem name="market" sm /> Codex of Balance <span className="topnav-menu-sub">every curve & constant, charted</span>
               </Link>
+              {exam && (
+                <Link href="/exam" onClick={closeMenu}>
+                  <Emblem name="medal" sm /> The Examination{" "}
+                  <span className="topnav-menu-sub">25 questions — pass it, and the Collegium pays</span>
+                </Link>
+              )}
             </div>
           </details>
 

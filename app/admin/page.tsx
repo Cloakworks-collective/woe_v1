@@ -2,7 +2,7 @@ import { TICKS_PER_HOUR } from "@/lib/constants";
 import { rankingScore } from "@/lib/engine";
 import { storeMode } from "@/lib/server/store";
 import { getWorld } from "@/lib/server/world";
-import { forumStoreMode } from "@/lib/server/forumStore";
+import { accountStoreMode } from "@/lib/server/accounts";
 import { adminBackfillStorage, adminCloseAge, adminForceTicks, adminSeed } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -78,7 +78,7 @@ export default async function AdminOverview({
   const premium = players.filter((p) => p.premium).length;
   const worldGold = players.reduce((s, p) => s + p.gold + p.bankedGold, 0);
   const winner = world.meta.winner;
-  const forumMode = await forumStoreMode();
+  const forumMode = await accountStoreMode();
 
   return (
     <>

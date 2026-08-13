@@ -8,8 +8,8 @@ export const dynamic = "force-dynamic";
 // clock, no empire. It has to work for someone who has never played, and it has
 // to still be here when the age they played in is sealed.
 export default async function ForumLayout({ children }: { children: React.ReactNode }) {
-  const { user, ban, isAdmin } = await getForumViewer();
-  if (user) await markSeen(user.id);
+  const { account, ban, isAdmin, needsHandle } = await getForumViewer();
+  if (account) await markSeen(account.id);
 
   return (
     <div className="flat">
@@ -24,12 +24,18 @@ export default async function ForumLayout({ children }: { children: React.ReactN
             <Link href="/">The Game →</Link>
           </nav>
           <div className="flat-spacer" />
-          {user ? (
+          {account ? (
             <div className="flat-row flat-shrink" style={{ alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 14 }}>
-                <b>{user.handle}</b>
+                {/* An account with no handle is signed in but unnamed — the
+                    normal state of someone who has only ever played the game.
+                    They are told what is missing, not that they are a guest. */}
+                {account.handle ? <b>{account.handle}</b> : <i>unnamed here</i>}
                 {isAdmin && <span className="flat-pill is-admin" style={{ marginLeft: 6 }}>Admin</span>}
                 {ban && <span className="flat-pill is-banned" style={{ marginLeft: 6 }}>Silenced</span>}
+                {needsHandle && (
+                  <span className="flat-pill" style={{ marginLeft: 6 }}>Name yourself to post</span>
+                )}
               </span>
               <form action={forumLogout}>
                 <button className="flat-btn is-ghost is-small" type="submit">
@@ -39,11 +45,10 @@ export default async function ForumLayout({ children }: { children: React.ReactN
             </div>
           ) : (
             <div className="flat-row flat-shrink" style={{ gap: 8 }}>
-              <Link href="/forum/login" className="flat-btn is-ghost is-small">
+              {/* No separate forum account to register any more — the gate is
+                  the game's, and reading needs no gate at all. */}
+              <Link href="/login" className="flat-btn is-ghost is-small">
                 Sign in
-              </Link>
-              <Link href="/forum/register" className="flat-btn is-small">
-                Register
               </Link>
             </div>
           )}

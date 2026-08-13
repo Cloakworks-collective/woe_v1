@@ -1,3 +1,4 @@
+import { LearnLink } from "@/components/LearnLink";
 import { Btn } from "@/components/Btn";
 import { CmdForm } from "@/components/CmdForm";
 import { CommsTabs } from "@/components/CommsTabs";
@@ -5,6 +6,7 @@ import { ReqTip } from "@/components/CostTip";
 import { Flash } from "@/components/Flash";
 import { Panel } from "@/components/Panel";
 import { TextInput } from "@/components/TextInput";
+import { ticksAgo } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +25,7 @@ export default async function EraChatPage({
 
   return (
     <>
+      <LearnLink href="/guide#heralds">Letters, halls &amp; the forum</LearnLink>
       <Flash err={err} ok={ok} />
       <CommsTabs />
       <Panel
@@ -36,7 +39,10 @@ export default async function EraChatPage({
             messages.map((m) => (
               <div key={m.id} className="comms-line">
                 <b style={{ color: m.authorId === p.id ? "var(--warn)" : "#5a3b1c" }}>{m.authorName}</b>
-                <span className="comms-when"> · turn {m.tick}</span>
+                <span className="comms-when" title={`turn ${m.tick.toLocaleString("en-US")}`}>
+                  {" · "}
+                  {ticksAgo(m.tick, world.meta.tickNumber)}
+                </span>
                 <div>{m.body}</div>
               </div>
             ))

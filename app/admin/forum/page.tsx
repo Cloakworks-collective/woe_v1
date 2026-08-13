@@ -1,5 +1,5 @@
 import { FORUM_BAN_DURATIONS, FORUM_CHANNELS } from "@/lib/constants/forum";
-import { activeBan, listBans, listThreads, listUsers, postsByAuthor } from "@/lib/server/forumStore";
+import { activeBan, listAccounts, listBans, listThreads, postsByAuthor } from "@/lib/server/accounts";
 import { adminForumBan, adminForumPardon, adminForumSetAdmin } from "../forumActions";
 
 export const dynamic = "force-dynamic";
@@ -15,11 +15,11 @@ export default async function AdminForumPage({
   searchParams: Promise<{ err?: string; ok?: string; q?: string }>;
 }) {
   const { err, ok, q } = await searchParams;
-  const users = await listUsers();
+  const users = await listAccounts();
   const bans = await listBans();
   const needle = (q ?? "").trim().toLowerCase();
   const shown = needle
-    ? users.filter((u) => `${u.handle} ${u.empireName ?? ""}`.toLowerCase().includes(needle))
+    ? users.filter((u) => (u.handle ?? "").toLowerCase().includes(needle))
     : users;
 
   // One live-ban lookup per shown account, plus their post count — the two
@@ -99,9 +99,10 @@ export default async function AdminForumPage({
                 {rows.map(({ user, ban, posts }) => (
                   <tr key={user.id}>
                     <td>
-                      <b>{user.handle}</b>
+                      {/* An account with no handle has never posted — it plays
+                          the game and has simply never named itself here. */}
+                      {user.handle ? <b>{user.handle}</b> : <i>unnamed</i>}
                       {user.isAdmin && <span className="flat-pill is-admin" style={{ marginLeft: 6 }}>Admin</span>}
-                      {user.empireName && <div className="flat-hint">{user.empireName}</div>}
                     </td>
                     <td className="num">{posts}</td>
                     <td>{when(user.createdAt)}</td>
@@ -130,7 +131,7 @@ export default async function AdminForumPage({
                       ) : (
                         <form action={adminForumBan} className="flat-row" style={{ gap: 6 }}>
                           <input type="hidden" name="userId" value={user.id} />
-                          <select name="days" aria-label={`Silence ${user.handle} for`} style={{ minWidth: 110 }}>
+                          <select name="days" aria-label={`Silence ${user.handle ?? "this account"} for`} style={{ minWidth: 110 }}>
                             {FORUM_BAN_DURATIONS.map((d) => (
                               <option key={d.days} value={d.days}>{d.label}</option>
                             ))}
@@ -173,7 +174,7 @@ export default async function AdminForumPage({
               </thead>
               <tbody>
                 {bans.map((b) => {
-                  const u = users.find((x) => x.id === b.userId);
+                  const u = users.find((x) => x.id === b.accountId);
                   return (
                     <tr key={b.id}>
                       <td>{u?.handle ?? "—"}</td>

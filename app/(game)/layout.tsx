@@ -9,7 +9,7 @@ import { TopNav } from "@/components/TopNav";
 import { TipNudge } from "@/components/TipNudge";
 import { TourGuide } from "@/components/TourGuide";
 import { eventLine, eventTone } from "@/components/eventLine";
-import { isOnboardingActive } from "@/lib/engine";
+import { chargeStatuses, examSealed, isOnboardingActive } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +35,7 @@ export default async function GameLayout({ children }: { children: React.ReactNo
           .topnav hides and the burger takes its place inline. The holdings row
           sits underneath, closest to the page it describes. */}
       <TopBar player={player} meta={world.meta}>
-        <TopNav premium={!!player.premium} />
+        <TopNav premium={!!player.premium} exam={!examSealed(player)} />
         <MobileNav premium={!!player.premium} />
       </TopBar>
       <ResourceBar player={player} meta={world.meta} />
@@ -64,7 +64,16 @@ export default async function GameLayout({ children }: { children: React.ReactNo
         One turn every 10 minutes · settlers arrive at dawn · the ladder is the world
       </div>
       <TipNudge />
-      <TourGuide active={isOnboardingActive(player) && !player.onboarding?.toured} />
+      {/* The tour ends by handing the regent their first order, so it needs to
+          know which one is next — resolved here, where the player already is,
+          rather than fetched by the client. */}
+      <TourGuide
+        active={isOnboardingActive(player) && !player.onboarding?.toured}
+        nextCharge={(() => {
+          const next = chargeStatuses(player).find((c) => !c.complete);
+          return next ? { title: next.title, href: next.href, cta: next.cta } : undefined;
+        })()}
+      />
     </FlashProvider>
   );
 }

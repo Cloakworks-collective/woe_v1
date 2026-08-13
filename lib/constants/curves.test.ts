@@ -7,6 +7,7 @@ import {
   wallBonusAtLevel,
   wallHealthAtLevel,
   wallsScoreAtLevel,
+  researchOutputAtLevel,
   workerOutputAtLevel,
 } from "./derived";
 import { researchOrdinalCost } from "./research";
@@ -82,8 +83,11 @@ describe("the default curves reproduce the classic formulas exactly", () => {
   });
 
   it("worker output, wall bonus, walls score, storage, delivery", () => {
-    expect(workerOutputAtLevel(1)).toBe(50);
-    expect(workerOutputAtLevel(10)).toBe(500);
+    expect(workerOutputAtLevel(1)).toBe(5);
+    expect(workerOutputAtLevel(10)).toBe(50);
+    // Scholars kept the old rate — research is not a resource.
+    expect(researchOutputAtLevel(1)).toBe(50);
+    expect(researchOutputAtLevel(10)).toBe(500);
     expect(wallBonusAtLevel(10)).toBeCloseTo(0.5); // flat edge — level buys health, not bonus
     expect(wallHealthAtLevel(10)).toBe(1_000_000); // the Citadel, the 10-bombard anchor
     expect(wallHealthAtLevel(5)).toBe(250_000);

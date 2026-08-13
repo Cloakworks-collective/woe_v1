@@ -10,6 +10,7 @@ import { Panel } from "@/components/Panel";
 import { ResIcon, type ResKind } from "@/components/ResIcon";
 import {
   CIVILIAN_BUILDINGS,
+  HOUSING_PER_HEARTHSTEAD,
   MILITARY_BUILDINGS,
   WALL_NAMES,
   isCounted,
@@ -22,6 +23,8 @@ import {
   buildingIntegrity,
   buildingUpgradeBenefit,
   level,
+  popPerDay,
+  vacantHousing,
   repairCost,
   structureIntegrity,
   type Player,
@@ -54,7 +57,7 @@ const CIV = Object.fromEntries(CIVILIAN_BUILDINGS.map((b) => [b.id, b])) as Reco
 const MIL = Object.fromEntries(MILITARY_BUILDINGS.map((b) => [b.id, b])) as Record<string, BuildingMeta>;
 
 const CIVILIAN_GROUPS: { slug: string; title: string; note: string; ids: string[] }[] = [
-  { slug: "production", title: "🌾 Production — the resource engines", note: "Workers are unlimited — each building level makes every worker produce more (50 × level per turn). A bombarded producer yields proportionally less until repaired.", ids: ["grange", "masons_quarry", "deepvein_mine", "sawyers_mill"] },
+  { slug: "production", title: "🌾 Production — the resource engines", note: "Workers are unlimited — each building level makes every worker produce more (5 × level per turn). Goods are deliberately scarce in this age: coin is what your people are plentiful in, so the Bazaar is where most materials come from. A bombarded producer yields proportionally less until repaired.", ids: ["grange", "masons_quarry", "deepvein_mine", "sawyers_mill"] },
   { slug: "storage", title: "🏛 Storage — protect the wealth", note: "Protected capacity = 20,000 × level × integrity. What sits above capacity is lootable.", ids: ["granary", "timberyard", "masons_yard", "ironhold", "counting_house"] },
   { slug: "knowledge", title: "📚 Knowledge & Trade", note: "The Collegium researches slower when cracked; the Market Square speeds caravans; the Guild and Lodge sharpen every spy and scout.", ids: ["market_square", "collegium", "shadow_guild", "rangers_lodge"] },
   { slug: "housing", title: "🏘 Housing", note: "Settlers arrive at dawn and walk on if no bed is free — build ahead of growth.", ids: ["hearthstead"] },
@@ -87,6 +90,62 @@ function batchCost(id: BuildingId, fromLevel: number, n: number) {
     total.ore += c.ore;
   }
   return total;
+}
+
+/**
+ * How many Hearthsteads the next day, three days and week will need at the
+ * CURRENT intake — and how many are already spare.
+ *
+ * Arrivals that find no bed walk on and are lost, and the 24-hour average means
+ * a bed bought late barely counts, so the useful question is never "how many do
+ * I have" but "how many will I need before I next look at this page".
+ */
+function HearthsteadPlan({ player }: { player: Player }) {
+  const perDay = popPerDay(player);
+  const spare = vacantHousing(player);
+  const horizons = [1, 3, 7];
+  return (
+    <div className="stead-plan">
+      <div className="stead-plan-head">
+        Room for <b>{spare.toLocaleString("en-US")}</b> more · <b>+{perDay}</b> arriving a day
+      </div>
+      <table className="stead-plan-tbl">
+        <thead>
+          <tr>
+            <th>Ahead</th>
+            <th className="num">Settlers</th>
+            <th className="num">Steads to build</th>
+          </tr>
+        </thead>
+        <tbody>
+          {horizons.map((d) => {
+            const incoming = perDay * d;
+            const short = Math.max(0, incoming - spare);
+            const steads = Math.ceil(short / HOUSING_PER_HEARTHSTEAD);
+            return (
+              <tr key={d}>
+                <td>{d} day{d === 1 ? "" : "s"}</td>
+                <td className="num">{incoming.toLocaleString("en-US")}</td>
+                <td className="num">
+                  {steads === 0 ? (
+                    <span style={{ color: "var(--pos)" }}>covered</span>
+                  ) : (
+                    <b>{steads}</b>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {spare === 0 && (
+        <div className="stead-plan-warn">
+          Full — every arrival walks on. Beds bought late barely count: the day&apos;s intake is
+          averaged over all 144 turns.
+        </div>
+      )}
+    </div>
+  );
 }
 
 function CostList({ cost }: { cost: { gold: number; wood: number; stone: number; ore: number } }) {
@@ -268,6 +327,10 @@ function BuildingCards({ ids, player, path }: { ids: string[]; player: Player; p
                 <b>Next level brings</b>: {benefit}
               </div>
             )}
+            {/* Housing is the one building you buy AHEAD of a number you can
+                already see. "+64 settlers/day" and "10 beds per stead" is two
+                sums the player should not have to do at 2am. */}
+            {bid === "hearthstead" && <HearthsteadPlan player={player} />}
           </div>
         );
       })}

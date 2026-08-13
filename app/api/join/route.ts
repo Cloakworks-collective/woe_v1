@@ -1,11 +1,17 @@
-// POST /api/join — found an empire from the CLI: {name, race} → realm token.
+// POST /api/join — found an empire from the CLI: {name, race} → magic token.
 // The one unauthenticated endpoint; everything else needs the token.
+//
+// This mints an ACCOUNT as well as an empire, because from the CLI there is no
+// cookie to carry one. The token returned is the account's, so the same secret
+// works in the terminal, in a browser, and on the forum — and next age the same
+// token founds that age's empire instead of a second one now.
 
 import { randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { RACES } from "@/lib/constants";
 import type { Race } from "@/lib/constants/races";
-import { newRealmToken } from "@/lib/server/auth";
+import { createAccount } from "@/lib/server/accounts";
+import { newAccountToken } from "@/lib/server/auth";
 import { runCommand } from "@/lib/server/pipeline";
 import { getWorld } from "@/lib/server/world";
 
@@ -28,8 +34,9 @@ export async function POST(req: NextRequest) {
   // model is active — the single writer (§14.2) or the compare-and-swap store
   // (§14.1). The id + token are minted here; uniqueness is enforced by the writer.
   const id = randomUUID();
-  const token = newRealmToken();
-  const r = await runCommand(id, "createEmpire", { name, race, token });
+  const account = await createAccount({ token: newAccountToken() });
+  const token = account.token;
+  const r = await runCommand(id, "createEmpire", { name, race, accountId: account.id });
   if (!r.ok) {
     return NextResponse.json({ error: r.message }, { status: /taken/i.test(r.message ?? "") ? 409 : 400 });
   }

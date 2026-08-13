@@ -11,6 +11,7 @@ import {
   WALL_EDGE,
   WALL_HP_CURVE,
   WALLS_SCORE_CURVE,
+  RESEARCH_OUTPUT_CURVE,
   WORKER_OUTPUT_CURVE,
 } from "./balance";
 import { evalCurve } from "./curves";
@@ -23,6 +24,11 @@ export function buildingCostMultiplier(targetLevel: number): number {
 /** Units/turn one worker produces at 0% tax, by their building's level. */
 export function workerOutputAtLevel(level: number): number {
   return evalCurve(WORKER_OUTPUT_CURVE, level);
+}
+
+/** Research points/turn one scholar produces at 0% tax, by Collegium level. */
+export function researchOutputAtLevel(level: number): number {
+  return evalCurve(RESEARCH_OUTPUT_CURVE, level);
 }
 
 /**

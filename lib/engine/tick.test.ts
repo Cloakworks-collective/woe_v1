@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { researchOrdinalCost } from "../constants";
+import { GOLD_PER_CIVILIAN_AT_FULL_TAX, researchOrdinalCost, workerOutputAtLevel } from "../constants";
 import { newEmpire } from "./newEmpire";
 import { processTurnTick } from "./tick";
 import { mercTotal, type Player } from "./types";
@@ -9,10 +9,11 @@ function fresh(): Player {
 }
 
 describe("turn tick", () => {
-  it("collects tax from every civilian at 50% (0.2 g each)", () => {
+  it("collects tax from every civilian at 50%", () => {
     const { player } = processTurnTick(fresh());
-    // 80 civilians × 0.4 × 0.5 = 16
-    expect(player.gold).toBe(5000 + 16);
+    // 80 civilians × 400 × 0.5 = 16,000. Coin is deliberately abundant now —
+    // the scarce half of the economy is what a worker digs, below.
+    expect(player.gold).toBe(5000 + 80 * GOLD_PER_CIVILIAN_AT_FULL_TAX * 0.5);
   });
 
   it("deducts food upkeep before production (0.1 × pop)", () => {
@@ -21,15 +22,16 @@ describe("turn tick", () => {
     expect(player.resources.food).toBe(990);
   });
 
-  it("output scales with building level and is UNCAPPED by slots (50×level per worker)", () => {
+  it("output scales with building level and is UNCAPPED by slots (5×level per worker)", () => {
     const p = fresh();
     p.buildings.grange = 1;
     p.workers.farmers = 30; // no slot cap — all 30 produce
     p.idlePeasants = 50;
     const { player } = processTurnTick(p);
-    // 30 farmers × (50 × 1 level × (1−0.5) tax) × 1.25 human = 937.5 → floored
-    // to 937 (stocks are whole; see ROUNDING in tick.ts). Upkeep 10 taken first.
-    expect(player.resources.food).toBe(1000 - 10 + 937);
+    // 30 farmers × (5 × 1 level × (1−0.5) tax) × 1.25 human = 93.75 → floored
+    // to 93 (stocks are whole; see ROUNDING in tick.ts). Upkeep 10 taken first.
+    expect(workerOutputAtLevel(1)).toBe(5);
+    expect(player.resources.food).toBe(1000 - 10 + 93);
   });
 
   it("a bombarded production building yields proportionally less", () => {
@@ -39,9 +41,9 @@ describe("turn tick", () => {
     p.idlePeasants = 60;
     p.buildingIntegrity = { grange: 0.5 }; // cracked to the floor
     const { player } = processTurnTick(p);
-    // 20 × (50 × 1 × 0.5 tax) × 0.5 integrity × 1.25 human = 312.5 → floored to
-    // 312, minus upkeep 10.
-    expect(player.resources.food).toBe(1000 - 10 + 312);
+    // 20 × (5 × 1 × 0.5 tax) × 0.5 integrity × 1.25 human = 31.25 → floored to
+    // 31, minus upkeep 10.
+    expect(player.resources.food).toBe(1000 - 10 + 31);
   });
 
   it("a cracked Collegium banks research slower", () => {
@@ -52,7 +54,10 @@ describe("turn tick", () => {
     p.research.activeField = "masonry";
     p.buildingIntegrity = { collegium: 0.5 };
     const { player } = processTurnTick(p);
-    // 20 scholars × (50 × 1 level × 0.5 tax) × 0.5 integrity = 250 RP
+    // 20 scholars × (50 × 1 level × 0.5 tax) × 0.5 integrity = 250 RP.
+    // Scholars are on their own curve and did NOT take the tenfold goods cut —
+    // making goods scarce should not silently make the tech tree ten times
+    // slower against a fixed research price.
     expect(player.research.banked.masonry).toBe(250);
   });
 
@@ -86,8 +91,9 @@ describe("turn tick", () => {
     p.workers.farmers = 20;
     p.research.levels.statecraft = 5;
     const { player } = processTurnTick(p);
-    // 20 × (50 × 2 level × 0.5 tax × 2 statecraft) × 1.25 human = 2500 food, minus upkeep 12
-    expect(player.resources.food).toBe(1000 - 12 + 1250);
+    // 20 × (5 × 2 level × 0.5 tax) × 1.25 human = 125 food, minus upkeep 12 —
+    // statecraft multiplies none of it.
+    expect(player.resources.food).toBe(1000 - 12 + 125);
   });
 
   it("the granary vault feeds the people when loose food runs dry", () => {
@@ -167,7 +173,8 @@ describe("turn tick", () => {
     const p = fresh();
     p.onVacation = true;
     const { player } = processTurnTick(p);
-    expect(player.gold).toBe(5000 + 8);
+    // 80 × 400 × 0.5 tax × 0.5 vacation
+    expect(player.gold).toBe(5000 + 80 * GOLD_PER_CIVILIAN_AT_FULL_TAX * 0.5 * 0.5);
   });
 });
 

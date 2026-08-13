@@ -8,9 +8,8 @@ import { Panel } from "@/components/Panel";
 import { ReqTip } from "@/components/CostTip";
 import { TargetActions } from "@/components/TargetActions";
 import { Pager } from "@/components/Pager";
-import { ARMY_FLOORS, ATTACK_HISTORY_HOURS, ATTACK_HISTORY_TICKS, HOLD_CLOCKS, RACE_NAMES } from "@/lib/constants";
+import { ARMY_FLOORS, ATTACK_HISTORY_HOURS, HOLD_CLOCKS, RACE_NAMES } from "@/lib/constants";
 import {
-  attacksByDefender,
   rankingScore,
   researchLevel,
   settlementTitle,
@@ -30,9 +29,25 @@ const PAGE_SIZE = 30;
 export default async function RankingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string; err?: string; ok?: string; report?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    page?: string;
+    err?: string;
+    ok?: string;
+    report?: string;
+    /** Which arm the sidebar sent you here for. The ladder is one page reached
+     *  three ways — arriving for "Spy" should not put Attack and Scout under
+     *  your cursor on all forty rows. */
+    act?: string;
+  }>;
 }) {
-  const { q, page, err, ok, report: reportId } = await searchParams;
+  const { q, page, err, ok, report: reportId, act } = await searchParams;
+  const arm = act === "attack" || act === "scout" || act === "spy" ? act : undefined;
+  const ARM_HEAD = {
+    attack: "The Ladder — pick a target and march",
+    scout: "The Ladder — pick a target and send rangers",
+    spy: "The Ladder — pick a target and send shadows",
+  } as const;
   const { world, player: me } = await getGame();
   const query = (q ?? "").toLowerCase();
   const tick = world.meta.tickNumber;
@@ -52,8 +67,18 @@ export default async function RankingsPage({
       )
     : ladder;
 
-  const paged = paginate(filtered, page, PAGE_SIZE);
-  const pageHref = (n: number) => `/rankings?${q ? `q=${encodeURIComponent(q)}&` : ""}page=${n}`;
+  // Arriving to ACT opens at YOUR page — the neighbours you can actually reach.
+  //
+  // Browsing the ladder and picking a fight are different errands. From the top
+  // you read the age's standings; to pick a fight you want the empires near
+  // your own weight, and the crown at #1 is the one target the army will
+  // refuse. Only the DEFAULT moves: page= still wins, so the pager and every
+  // link keep working from wherever you land.
+  const myRow = filtered.findIndex(({ p }) => p.id === me.id);
+  const myPage = myRow >= 0 ? Math.floor(myRow / PAGE_SIZE) + 1 : 1;
+  const paged = paginate(filtered, page ?? (arm ? myPage : 1), PAGE_SIZE);
+  const pageHref = (n: number) =>
+    `/rankings?${q ? `q=${encodeURIComponent(q)}&` : ""}${arm ? `act=${arm}&` : ""}page=${n}`;
 
   // My war context: whom I may revenge (personal window, or a clan-bombardment
   // window my banner still holds), and my Tradecraft for the spy console.
@@ -73,7 +98,6 @@ export default async function RankingsPage({
   const warClanIds = new Set(myClan?.wars.map((w) => w.clanId) ?? []);
   // Public raid history — who has been fed upon lately. Same facts the World
   // News feed already publishes; the ladder just counts them per empire.
-  const raidHistory = attacksByDefender(world.battles, tick, ATTACK_HISTORY_TICKS);
 
   const leader = ladder[0];
   const oh = overlordHold(world);
@@ -89,8 +113,22 @@ export default async function RankingsPage({
         <Link href="/rankings" aria-current="page">Empire Ranks</Link>
         <Link href="/rankings/clans">Clan Ranks</Link>
       </nav>
-      <Panel title="The Ladder — the world itself, and your war console">
+      <Panel title={arm ? ARM_HEAD[arm] : "The Ladder — the world itself, and your war console"}>
+        {arm && (
+          <p style={{ fontSize: 13, marginBottom: 6 }}>
+            Showing the <b>{arm === "attack" ? "march" : arm === "scout" ? "ranger" : "shadow"}</b>{" "}
+            order only
+            {myRow >= 0 && !page && paged.pageNo === myPage && (
+              <>
+                , opened at <b>your own rank (#{myRow + 1})</b> so you can see who is near your
+                weight
+              </>
+            )}
+            . <Link href={`/rankings${q ? `?q=${encodeURIComponent(q)}` : ""}`}>The full ladder from the top →</Link>
+          </p>
+        )}
         <form style={{ marginBottom: 8, display: "flex", gap: 6 }}>
+          {arm && <input type="hidden" name="act" value={arm} />}
           <input
             name="q"
             defaultValue={q}
@@ -137,9 +175,6 @@ export default async function RankingsPage({
               const revengeOpen = personalRevenge.has(p.id) || clanRevenge.has(p.id);
               const atWar = p.clanId ? warClanIds.has(p.clanId) : false;
               const refused = rankingScore(p) / myScore >= 1.75;
-              const hits = raidHistory.get(p.id) ?? [];
-              const raided = hits.length;
-              const raiders = new Set(hits.map((h) => h.attackerId)).size;
               const hint = shielded
                 ? "🛡 Under the newcomer shield — no attacks or spying."
                 : refused
@@ -166,20 +201,18 @@ export default async function RankingsPage({
                       <span>
                         <Link href={`/empire/${p.id}`}>{p.name}</Link>
                         {isMe && <span style={{ color: "var(--pos)" }}> (you)</span>}
-                        <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>
-                          {settlementTitle(p)} · {RACE_NAMES[p.race]}
-                          {revengeOpen && <span style={{ color: "var(--warn)", fontWeight: 700 }}> · ⚔ revenge open</span>}
-                          {atWar && <span style={{ color: "var(--warn)" }}> · 🔥 at war</span>}
-                          {p.onVacation && " · 🏖"}
-                          {shielded && " · 🛡"}
-                        </div>
-                        <div style={{ fontSize: 13 }}>
-                          <Link href={`/empire/${p.id}`} style={{ color: raided > 0 ? "var(--warn)" : "var(--ink-soft)" }}>
-                            ⚔ {raided === 0
-                              ? `no attacks in ${ATTACK_HISTORY_HOURS}h`
-                              : `attacked ${raided}× by ${raiders} in ${ATTACK_HISTORY_HOURS}h`}
-                          </Link>
-                        </div>
+                        {/* Only the flags that change what you can DO to this
+                            empire. The settlement title was a restatement of
+                            the population column, and the race is the avatar
+                            sitting immediately to the left of it. */}
+                        {(revengeOpen || atWar || p.onVacation || shielded) && (
+                          <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>
+                            {revengeOpen && <span style={{ color: "var(--warn)", fontWeight: 700 }}>⚔ revenge open</span>}
+                            {atWar && <span style={{ color: "var(--warn)" }}>{revengeOpen ? " · " : ""}🔥 at war</span>}
+                            {p.onVacation && <span>{revengeOpen || atWar ? " · " : ""}🏖 on vacation</span>}
+                            {shielded && <span>{revengeOpen || atWar || p.onVacation ? " · " : ""}🛡 shielded</span>}
+                          </div>
+                        )}
                       </span>
                     </span>
                   </td>
@@ -203,6 +236,7 @@ export default async function RankingsPage({
                           spyAgents: me.lastSpyAgents,
                         }}
                         hint={hint}
+                        only={arm}
                       />
                     )}
                   </td>
@@ -215,9 +249,9 @@ export default async function RankingsPage({
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 6 }}>
           Troops read as a traveler would guess them — None · Weak · Moderate · Strong · Heavy.
           Exact counts are for spies. Use <b>⚔ Attack</b>, <b>🏹 Scout</b> or <b>🗡 Spy</b> on any
-          empire — or open their profile for the full War Council. 🏖 on vacation · 🛡 newcomer
-          shield · 🔥 your clan is at war. The ⚔ line under each empire is their public war record —
-          click it to see who has been striking them over the last {ATTACK_HISTORY_HOURS} hours.
+          empire — or open their profile for the full War Council, which also carries their public
+          war record for the last {ATTACK_HISTORY_HOURS} hours. 🏖 on vacation · 🛡 newcomer shield ·
+          🔥 your clan is at war.
         </p>
         {leader && (
           <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 6 }}>

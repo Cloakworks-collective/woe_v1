@@ -1,6 +1,6 @@
 // The cmd:* protocol endpoint (spec/architecture.md): one pipeline —
 // auth → validate → apply (pure engine) → persist → events.
-// Auth: realm token (Authorization: Bearer woe_…) for the CLI, or the
+// Auth: the account token (Authorization: Bearer woe_…) for the CLI, or the
 // browser session cookie.
 
 import { NextResponse, type NextRequest } from "next/server";

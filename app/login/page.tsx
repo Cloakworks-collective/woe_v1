@@ -5,7 +5,7 @@ import { RACES, RACE_NAMES } from "@/lib/constants";
 import type { Race, RaceModifiers } from "@/lib/constants/races";
 import { createEmpire, enterWithToken } from "@/app/actions";
 import { devOpenAdmin } from "@/lib/server/admin";
-import { currentPlayerId } from "@/lib/server/auth";
+import { currentAccount, currentPlayerId } from "@/lib/server/auth";
 import { getWorld } from "@/lib/server/world";
 
 export const dynamic = "force-dynamic";
@@ -55,11 +55,18 @@ export default async function LoginPage({
   const { err } = await searchParams;
   const world = await getWorld();
 
-  // Already on a throne? Straight back to it — /login is for newcomers.
-  const sessionId = await currentPlayerId();
+  // Already on a throne? Straight back to it — /login is for founding.
+  const sessionId = await currentPlayerId(world);
   if (sessionId && world.players[sessionId] && !world.players[sessionId].banned && !err) {
     redirect("/");
   }
+
+  // Signed in with no empire in THIS age is the normal state of a returning
+  // player on the first day of a new one. They get the same founding form, not
+  // a sign-in prompt — and founding will bind to the account they already have,
+  // so the page can say so plainly instead of pretending they are a stranger.
+  const account = await currentAccount();
+  const returning = Boolean(account) && !sessionId;
 
   // Entering an existing empire without its token is a debug power, so it lives
   // in the Crown Chamber now. Point there only while the chamber is unlocked.
@@ -198,8 +205,20 @@ export default async function LoginPage({
                 </button>
               </div>
               <p className="mst-fineprint">
-                No account, no email — the throne is yours the moment you click. You begin with
-                5,000 gold, 1,000 of each resource, 100 souls, and a 72-hour shield.
+                {returning ? (
+                  <>
+                    Welcome back — this founds <b>this age&apos;s</b> empire under the account you
+                    already hold. One empire per age; the name and the people are yours to choose
+                    again.
+                  </>
+                ) : (
+                  <>
+                    No account, no email — the throne is yours the moment you click. You begin with
+                    5,000 gold, 1,000 of each resource, 100 souls, and a 72-hour shield. Your magic
+                    link waits in the Command View: it is the only key you will ever need, here, on
+                    the forum and in the terminal.
+                  </>
+                )}
               </p>
             </div>
           </section>
@@ -207,21 +226,33 @@ export default async function LoginPage({
       </div>
 
       <section className="mst-return">
-        <h2>Already hold a throne?</h2>
-        <form action={enterWithToken} className="mst-token">
-          <input
-            name="token"
-            placeholder="woe_… realm token"
-            aria-label="Realm token"
-          />
-          <button className="mst-throne-chip" type="submit">
-            Enter
-          </button>
-        </form>
-        <p style={{ marginTop: 7, fontSize: 13, color: "#7a5a2e" }}>
-          Your realm token appears in the Command View (and via <code>woe token</code> in the
-          terminal client) — the same empire in browser and CLI.
-        </p>
+        <h2>{returning ? "Signed in" : "Played before?"}</h2>
+        {returning ? (
+          <p style={{ fontSize: 13.5, color: "#7a5a2e" }}>
+            Your account is recognised — you simply have no empire in{" "}
+            <b>{world.meta.eraName}</b> yet. Raise a banner above and the age is yours to enter.
+          </p>
+        ) : (
+          <>
+            <form action={enterWithToken} className="mst-token">
+              <input
+                name="token"
+                placeholder="Paste your magic link, or the woe_… key inside it"
+                aria-label="Magic link"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <button className="mst-throne-chip" type="submit">
+                Enter
+              </button>
+            </form>
+            <p style={{ marginTop: 7, fontSize: 13, color: "#7a5a2e" }}>
+              One key for everything: this gate, the <a href="/forum">forum</a>, and the terminal
+              client. It lives in your Command View, and it outlives every age — next age it
+              founds your next empire rather than reopening this one.
+            </p>
+          </>
+        )}
 
         {devDoor && (
           <div className="mst-devlist">

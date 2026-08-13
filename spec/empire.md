@@ -23,32 +23,41 @@ set by the player at any time (instant, `cmd:setTax`).
 **Gold and production trade off inversely:**
 
 ```
-goldPerCivilian   = 0.4 × taxRate                          // 0.4 g/turn at 100% tax
-outputPerProducer = 50 × buildingLevel × (1 − taxRate)     // per worker; 50/turn per level at 0% tax
+goldPerCivilian   = 400 × taxRate                          // 400 g/turn at 100% tax
+outputPerProducer = 5 × buildingLevel × (1 − taxRate)      // per worker; 5/turn per level at 0% tax
 ```
 
 **Production buildings are UNCAPPED and level-scaled.** The Grange, Mason's
 Quarry, Deepvein Mine, and Sawyer's Mill do **not** limit worker slots — you may
 assign as many farmers/quarrymen/miners/lumberjacks as your population allows.
 Instead each **building level lifts every worker's output**: a worker produces
-`50 × buildingLevel` units/turn at 0% tax — **50/turn at level 1 up to 500/turn
-at level 10** (`PRODUCTION_PER_WORKER_PER_LEVEL = 50`). Merchants, researchers,
+`5 × buildingLevel` units/turn at 0% tax — **5/turn at level 1 up to 50/turn
+at level 10** (`WORKER_OUTPUT_CURVE`). Merchants, researchers,
 spies, and scouts are **uncapped too** — you need only the building, and its
 level scales each unit's effect: every Collegium level lifts a scholar's RP/turn
-(50 × level, same curve); every Market Square level adds 1,000 to each caravan's
+(50 × level — research is **not** a resource and kept the pre-2026-08 rate, see
+`RESEARCH_OUTPUT_CURVE`); every Market Square level adds 1,000 to each caravan's
 capacity **and shortens its road to the Bazaar**; Shadow Guild and
 Ranger's Lodge levels deepen each spy/scout's bite (`espionage.md`).
 
 | Tax rate | Gold / civilian / turn | Gold / civilian / DAY |
 |----------|------------------------|------------------------|
 | 0%       | 0                      | 0                      |
-| 25%      | 0.1                    | 14.4                   |
-| **50% (default, recommended)** | **0.2** | **28.8**      |
-| 75%      | 0.3                    | 43.2                   |
-| 100%     | 0.4                    | 57.6                   |
+| 25%      | 100                    | 14,400                 |
+| **50% (default, recommended)** | **200** | **28,800**   |
+| 75%      | 300                    | 43,200                 |
+| 100%     | 400                    | 57,600                 |
 
-(Producer output per worker is `50 × buildingLevel × (1 − taxRate)` units/turn,
+(Producer output per worker is `5 × buildingLevel × (1 − taxRate)` units/turn,
 before race and research bonuses.)
+
+**The age is coin-rich and goods-poor** (2026-08). Gold income was multiplied by
+1,000 and per-worker output divided by 10 in the same stroke, which moves the
+binding constraint from "can I afford it" to "can I get the materials". The
+Bazaar and the Black Market are therefore the centre of the economy: gold is how
+you buy goods, and goods are what everything is actually built from. Anything
+priced in gold alone — mercenaries, repairs — is now cheap by comparison, and
+anything priced in wood/stone/ore is the real decision.
 
 > **Rebalanced (was 40 g at 100%, sim-driven, twice):** at 40 g an idle
 > 100-pop empire banked ~700k gold in three days; at 4 g the 60-day sim
@@ -256,7 +265,7 @@ accumulation.
 > **Workers/specialists are UNLIMITED** — there are no slot caps. You only need
 > the relevant building to exist (level ≥ 1); its **level scales how effective
 > each worker/unit is**, not how many you may have: farmers/quarrymen/miners/
-> lumberjacks and researchers make `50 × level`/turn (empire.md, empire.md);
+> lumberjacks make `5 × level`/turn and researchers `50 × level`/turn (empire.md);
 > each Market Square level adds 1,000 to every caravan's capacity AND shortens the
 > road to the Bazaar (100 turns to arrive at L1 → 10 at L10) (empire.md);
 > each Shadow Guild / Ranger's Lodge level makes every spy / scout more effective
@@ -301,10 +310,10 @@ scales the per-unit effect.
 | Role         | Needs (level ≥ 1)  | Building level scales…                          |
 |--------------|--------------------|-------------------------------------------------|
 | Idle peasant | Hearthsteads (10 each — the one real cap) | Awaiting assignment      |
-| Farmer       | The Grange         | Food/farmer: 50 × level/turn                     |
-| Quarryman    | Mason's Quarry     | Stone/quarryman: 50 × level/turn                 |
-| Miner        | Deepvein Mine      | Ore/miner: 50 × level/turn                        |
-| Lumberjack   | Sawyer's Mill      | Wood/lumberjack: 50 × level/turn                 |
+| Farmer       | The Grange         | Food/farmer: 5 × level/turn                      |
+| Quarryman    | Mason's Quarry     | Stone/quarryman: 5 × level/turn                  |
+| Miner        | Deepvein Mine      | Ore/miner: 5 × level/turn                         |
+| Lumberjack   | Sawyer's Mill      | Wood/lumberjack: 5 × level/turn                  |
 | Merchant     | Market Square      | Caravan capacity 1,000 × level; delivery `max(10,110−10×level)` turns |
 | Researcher   | The Collegium      | Research/scholar: 50 × level/turn                |
 | Spy          | Shadow Guild       | Spy-mission effect (`espionage.md`)              |

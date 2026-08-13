@@ -3,27 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { FORUM_LIMITS, forumChannel } from "@/lib/constants/forum";
+import { banNotice, getForumViewer, handleProblem } from "@/lib/server/forumAuth";
+import { isEmptyPost, looksLikeHtml, sanitizePostHtml } from "@/lib/server/postHtml";
+import { clearSession } from "@/lib/server/auth";
 import {
-  banNotice,
-  clearForumSession,
-  getForumViewer,
-  handleProblem,
-  hashPassword,
-  passwordProblem,
-  setForumSession,
-  verifyPassword,
-} from "@/lib/server/forumAuth";
-import {
+  claimHandle,
   createPost,
   createThread,
-  createUser,
   deletePost,
   deleteThread,
-  findUserByHandle,
+  findAccountByHandle,
   getThread,
-  listUsers,
+  isSchemaMissing,
   setThreadFlags,
-} from "@/lib/server/forumStore";
+} from "@/lib/server/accounts";
 
 // Every action returns by redirecting with ?err= / ?ok= — the same convention
 // the game's server actions use, so a failure is always visible on the page it
@@ -34,47 +27,82 @@ const back = (to: string, msg: string, ok = false): never =>
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
-export async function forumRegister(form: FormData): Promise<void> {
+/**
+ * The only place a post body enters the database.
+ *
+ * The editor is client-side, so this is not "cleaning up after Quill" — it is
+ * the boundary itself. Anyone can POST to this action directly and never load
+ * the editor at all.
+ *
+ * Markdown bodies (JavaScript off, or written before the editor existed) pass
+ * through untouched: they are rendered by react-markdown, which builds a React
+ * tree and never interprets raw HTML, so they are already safe by construction.
+ */
+const cleanBody = (raw: string): string => {
+  if (!looksLikeHtml(raw)) return raw;
+  const clean = sanitizePostHtml(raw);
+  return isEmptyPost(clean) ? "" : clean;
+};
+
+const SETUP =
+  "The accounts tables have not been created yet — run the migrations in supabase/migrations.";
+
+/**
+ * Run an action's body, turning a missing schema into a message on the page.
+ *
+ * Every forum PAGE already renders <SetupNotice /> when the tables are absent,
+ * but the ACTIONS threw straight through to a runtime error overlay — so on a
+ * deployment where the migrations have not been applied, reading the forum
+ * explained the problem politely and pressing a button showed a stack trace.
+ *
+ * `redirect()` works by throwing, so the rethrow below is not optional: swallow
+ * it and every successful action would silently do nothing.
+ */
+async function guard<T>(to: string, body: () => Promise<T>): Promise<T> {
+  try {
+    return await body();
+  } catch (e) {
+    if (isSchemaMissing(e)) back(to, SETUP);
+    throw e;
+  }
+}
+
+/**
+ * Claim the forum name — the one thing the boards ask of you, asked at the last
+ * possible moment.
+ *
+ * You already have an account by the time you get here (it was minted when you
+ * founded an empire, or by the magic link). All this adds is the name your
+ * posts will carry, which is deliberately NOT your empire's name: empires last
+ * one age and change race and title with each, and a poster who is renamed
+ * every reset has no reputation to build.
+ */
+export async function claimForumName(form: FormData): Promise<void> {
   const handle = str(form, "handle");
-  const password = String(form.get("password") ?? "");
-  const empireName = str(form, "empireName");
+  const to = str(form, "to") || "/forum";
+
+  const viewer = await getForumViewer();
+  if (!viewer.account) back(to, "Sign in first — one key opens the game and the boards.");
+  if (viewer.account!.handle) back(to, `You already post as ${viewer.account!.handle}.`);
 
   const hp = handleProblem(handle);
-  if (hp) back("/forum/register", hp);
-  const pp = passwordProblem(password);
-  if (pp) back("/forum/register", pp);
+  if (hp) back(to, hp);
 
-  if (await findUserByHandle(handle)) back("/forum/register", "That handle is taken.");
-
-  // The first account to exist becomes an admin — otherwise a fresh deployment
-  // has a forum nobody can moderate or post announcements to.
-  const first = (await listUsers()).length === 0;
-  const user = await createUser({
-    handle,
-    passwordHash: await hashPassword(password),
-    isAdmin: first,
-    empireName: empireName || undefined,
+  await guard(to, async () => {
+    if (await findAccountByHandle(handle)) back(to, "That name is taken.");
+    // claimHandle returns false when someone else took it between the check
+    // above and this write — the unique index is what actually decides.
+    if (!(await claimHandle(viewer.account!.id, handle))) back(to, "That name is taken.");
   });
-  await setForumSession(user.id);
+
   revalidatePath("/forum");
-  redirect("/forum");
+  back(to, `You post as ${handle.trim()} from now on.`, true);
 }
 
-export async function forumLogin(form: FormData): Promise<void> {
-  const handle = str(form, "handle");
-  const password = String(form.get("password") ?? "");
-  const user = await findUserByHandle(handle);
-  // One message for both cases, so this cannot be used to enumerate handles.
-  if (!user || !(await verifyPassword(password, user.passwordHash))) {
-    back("/forum/login", "That handle and password do not match.");
-  }
-  await setForumSession(user!.id);
-  revalidatePath("/forum");
-  redirect("/forum");
-}
-
+/** Signing out of the forum signs you out of everything — one account, one
+ *  session. The boards stay readable, so this is not a locked door. */
 export async function forumLogout(): Promise<void> {
-  await clearForumSession();
+  await clearSession();
   revalidatePath("/forum");
   redirect("/forum");
 }
@@ -85,21 +113,25 @@ export async function forumNewThread(form: FormData): Promise<void> {
   if (!channel) back("/forum", "No such channel.");
 
   const viewer = await getForumViewer();
-  if (!viewer.user) back(`/forum/c/${channelId}`, "Sign in to post.");
+  if (!viewer.account) back(`/forum/c/${channelId}`, "Sign in to post.");
   if (viewer.ban) back(`/forum/c/${channelId}`, banNotice(viewer.ban));
-  // Threads are admin-only everywhere FOR NOW — the intent is to open this up
-  // once the place has a culture. The announcement channel stays admin-only.
-  if (!viewer.isAdmin) {
-    back(`/forum/c/${channelId}`, "Only the crown opens new discussions for now — reply to an existing one.");
+  if (viewer.needsHandle) back(`/forum/c/${channelId}`, "Choose the name you will post under first.");
+  // Honour the CHANNEL's own rule. This used to refuse everyone who was not an
+  // admin, everywhere — which, once accounts stopped auto-crowning the first
+  // registrant, meant nobody could open a discussion anywhere at all. The
+  // per-channel `adminOnlyThreads` flag existed the whole time and was never
+  // read; announcements are the only board it should ever apply to.
+  if (channel!.adminOnlyThreads && !viewer.isAdmin) {
+    back(`/forum/c/${channelId}`, "Only the crown opens discussions in this channel — reply to an existing one.");
   }
 
   const title = str(form, "title").slice(0, FORUM_LIMITS.TITLE_MAX);
-  const body = str(form, "body").slice(0, FORUM_LIMITS.BODY_MAX);
+  const body = cleanBody(str(form, "body").slice(0, FORUM_LIMITS.BODY_MAX));
   if (title.length < 3) back(`/forum/c/${channelId}`, "Give the discussion a title.");
   if (!body) back(`/forum/c/${channelId}`, "Write an opening post.");
 
-  const thread = await createThread({ channel: channelId, title, authorId: viewer.user!.id });
-  await createPost({ threadId: thread.id, authorId: viewer.user!.id, body });
+  const thread = await createThread({ channel: channelId, title, authorId: viewer.account!.id });
+  await createPost({ threadId: thread.id, authorId: viewer.account!.id, body });
   revalidatePath(`/forum/c/${channelId}`);
   redirect(`/forum/t/${thread.id}`);
 }
@@ -108,17 +140,18 @@ export async function forumReply(form: FormData): Promise<void> {
   const threadId = str(form, "threadId");
   const to = `/forum/t/${threadId}`;
   const viewer = await getForumViewer();
-  if (!viewer.user) back(to, "Sign in to reply.");
+  if (!viewer.account) back(to, "Sign in to reply.");
   if (viewer.ban) back(to, banNotice(viewer.ban));
+  if (viewer.needsHandle) back(to, "Choose the name you will post under first.");
 
   const thread = await getThread(threadId);
   if (!thread) back("/forum", "That discussion is gone.");
   if (thread!.locked && !viewer.isAdmin) back(to, "This discussion is locked.");
 
-  const body = str(form, "body").slice(0, FORUM_LIMITS.BODY_MAX);
+  const body = cleanBody(str(form, "body").slice(0, FORUM_LIMITS.BODY_MAX));
   if (!body) back(to, "Write something first.");
 
-  await createPost({ threadId, authorId: viewer.user!.id, body });
+  await createPost({ threadId, authorId: viewer.account!.id, body });
   revalidatePath(to);
   redirect(to);
 }
@@ -142,7 +175,7 @@ export async function forumModerate(form: FormData): Promise<void> {
     revalidatePath(`/forum/c/${t?.channel ?? ""}`);
     redirect(`/forum/c/${t?.channel ?? ""}`);
   } else if (what === "deletePost") {
-    await deletePost(str(form, "postId"), viewer.user!.id);
+    await deletePost(str(form, "postId"), viewer.account!.id);
   }
   revalidatePath(`/forum/t/${threadId}`);
   redirect(`/forum/t/${threadId}`);

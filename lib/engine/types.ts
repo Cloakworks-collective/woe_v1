@@ -120,9 +120,20 @@ export interface Player {
   name: string;
   race: Race;
   isBot?: boolean;
-  /** Realm token — bearer credential for the CLI / cmd:* API. Server-managed;
-   *  never part of game rules. */
-  apiToken?: string;
+  /**
+   * The ACCOUNT that founded this empire — the person, as opposed to the empire
+   * they are running this age.
+   *
+   * An empire lasts one age and is wiped by `eraReset`; the account outlives
+   * every age and lives outside the world entirely (lib/server/accounts.ts).
+   * Keeping the link here rather than in a second table means "does this person
+   * already rule somewhere?" is a question the world can answer by itself, and
+   * that the answer resets for free when the world does.
+   *
+   * Absent on bots, which nobody signs in as. Server-managed; never part of
+   * game rules.
+   */
+  accountId?: string;
   /** Banished by the crown (admin) — all logins and commands rejected.
    *  Server-managed; never part of game rules. */
   banned?: boolean;
@@ -186,6 +197,12 @@ export interface Player {
    *  chooses otherwise. */
   nextRecruitAtTick?: number;
   lastRecruitAtTick?: number;
+  /** Epoch-ms of your recent posts in public rooms, trimmed to 24h. Kept on the
+   *  PLAYER rather than counted from world.messages, because chat history is
+   *  pruned (CHAT.CLAN_HISTORY / TOTAL_HISTORY) and a limit that quietly
+   *  loosens when a room gets busy is exactly backwards. */
+  chatStamps?: number[];
+
   /** The last covert order you gave, per arm, so the consoles can open on it.
    *  Repeating an operation was three clicks every time — pick the op, type
    *  the count, send — and repeating is the common case: you scout the same
@@ -247,6 +264,27 @@ export interface Player {
     welcomed?: boolean;
     toured?: boolean;
   };
+  /**
+   * The Collegium Examination — sat once per age.
+   *
+   * Progress lives HERE rather than in the browser for two reasons: a client
+   * that holds its own position can jump to the end and claim the endowment,
+   * and a client that holds its own answers has already been told them. The
+   * page only ever learns the answer to a question the server has recorded a
+   * reply to. `paid` is the idempotency latch — the endowment is one payment,
+   * however many times the form is resubmitted or the tab reloaded.
+   */
+  exam?: {
+    /** How many questions have been answered — also the current index. */
+    answered: number;
+    correct: number;
+    /** The reply given to each answered question, for the reveal on reload. */
+    given: number[];
+    /** Sittings so far. A missed paper may be sat again, freely. */
+    attempts?: number;
+    /** Passed AND paid — the one latch that retires it for the age. */
+    paid?: boolean;
+  };
 }
 
 // ── Clans (spec/clans.md) ───────────────────────────────────────────────────
@@ -288,6 +326,9 @@ export interface Clan {
     lastBloodTick?: number;
   }[];
   warRecord: { wins: number; losses: number };
+  /** Members silenced in the clan hall: playerId → tick the silence lifts.
+   *  They keep reading — see CLAN_MUTE_DAYS. */
+  chatMutedUntilTick?: Record<string, number>;
   truceWithUntilTick: Record<string, number>; // clanId → truce end (post-defeat)
   clockFrozenUntilTick?: number; // loser's victory clocks frozen 48h
   tribute?: { toClanId: string; endsAtTick: number; collectedGoldEq: number };

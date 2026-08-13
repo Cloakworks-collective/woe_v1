@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/server/admin";
-import { banUser, liftBans, setUserAdmin } from "@/lib/server/forumStore";
+import { banAccount, liftBans, setAccountAdmin } from "@/lib/server/accounts";
 
 // Forum moderation from the Crown Chamber. Gated by the SAME admin password as
 // the rest of the console — a forum admin flag is about who can post
@@ -23,7 +23,7 @@ export async function adminForumBan(formData: FormData): Promise<void> {
   const reason = String(formData.get("reason") ?? "").trim() || undefined;
   if (!userId) back("No such account.");
   // days <= 0 is permanent — the form offers 30 / 60 / 90 / Permanent.
-  await banUser(userId, days, reason);
+  await banAccount(userId, days, reason);
   revalidatePath("/admin/forum");
   back(days > 0 ? `Silenced for ${days} days.` : "Silenced indefinitely.", true);
 }
@@ -40,7 +40,7 @@ export async function adminForumSetAdmin(formData: FormData): Promise<void> {
   await requireAdmin();
   const userId = String(formData.get("userId") ?? "");
   const make = String(formData.get("make") ?? "") === "1";
-  await setUserAdmin(userId, make);
+  await setAccountAdmin(userId, make);
   revalidatePath("/admin/forum");
   back(make ? "Given the crown on the forum." : "Forum crown removed.", true);
 }

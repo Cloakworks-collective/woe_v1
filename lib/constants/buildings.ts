@@ -36,10 +36,10 @@ export interface BuildingMeta {
 }
 
 export const CIVILIAN_BUILDINGS: BuildingMeta[] = [
-  { id: "grange", name: "The Grange", desc: "Each level lifts every farmer's food output (50/turn at L1 → 500 at L10). Farmers are unlimited." },
-  { id: "masons_quarry", name: "Mason's Quarry", desc: "Each level lifts every quarryman's stone output (50→500/turn). Quarrymen are unlimited." },
-  { id: "deepvein_mine", name: "Deepvein Mine", desc: "Each level lifts every miner's ore output (50→500/turn). Miners are unlimited." },
-  { id: "sawyers_mill", name: "Sawyer's Mill", desc: "Each level lifts every lumberjack's wood output (50→500/turn). Lumberjacks are unlimited." },
+  { id: "grange", name: "The Grange", desc: "Each level lifts every farmer's food output (5/turn at L1 → 50 at L10). Farmers are unlimited." },
+  { id: "masons_quarry", name: "Mason's Quarry", desc: "Each level lifts every quarryman's stone output (5→50/turn). Quarrymen are unlimited." },
+  { id: "deepvein_mine", name: "Deepvein Mine", desc: "Each level lifts every miner's ore output (5→50/turn). Miners are unlimited." },
+  { id: "sawyers_mill", name: "Sawyer's Mill", desc: "Each level lifts every lumberjack's wood output (5→50/turn). Lumberjacks are unlimited." },
   { id: "granary", name: "Granary", desc: "+20,000 protected food capacity per level" },
   { id: "timberyard", name: "Timberyard", desc: "+20,000 protected wood capacity per level" },
   { id: "masons_yard", name: "Mason's Yard", desc: "+20,000 protected stone capacity per level" },

@@ -1,12 +1,14 @@
 // Read-only selectors for the UI: production rates, settlement title,
 // and the four advisors (spec/architecture.md Advisor System).
 
+import { TURN_MINUTES } from "../constants";
 import {
   EFFECT_PER_LEVEL,
   HOUSING_PER_HEARTHSTEAD,
   MAX_FIELD_LEVEL,
   RACES,
   SETTLEMENT_TITLES,
+  researchOutputAtLevel,
   workerOutputAtLevel,
   STORAGE_BUILDING,
   storageShelterAtLevel,
@@ -375,7 +377,7 @@ export function buildingUpgradeBenefit(p: Player, id: BuildingId): string | null
       return `each caravan carries ${num(cur * 1000)} → ${num(next * 1000)} goods and reaches the Bazaar in ${caravanDeliveryTurns(cur)} → ${caravanDeliveryTurns(next)} turns (merchants unlimited)`;
     }
     if (id === "collegium") {
-      return `each scholar makes ${workerOutputAtLevel(cur)} → ${workerOutputAtLevel(next)} research/turn (scholars unlimited)`;
+      return `each scholar makes ${researchOutputAtLevel(cur)} → ${researchOutputAtLevel(next)} research/turn (scholars unlimited)`;
     }
     if (id === "rangers_lodge") {
       return `rangers stand a keener watch — +${Math.round(next * LODGE_BONUS_PER_LEVEL * 100)}% to the strength that stops incoming spies`;
@@ -485,4 +487,23 @@ export function summarizeAttackers(
     }
   }
   return [...by.values()].sort((a, b) => b.times - a.times || b.lastTick - a.lastTick);
+}
+
+
+/**
+ * "3h ago" from a TURN number. One implementation for the whole app — this had
+ * grown three near-identical copies with slightly different wording, which is
+ * how "2w ago" and "14d ago" end up on the same screen.
+ */
+export function ticksAgo(tick: number, nowTick: number): string {
+  const mins = Math.max(0, nowTick - tick) * TURN_MINUTES;
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${Math.floor(mins)}m ago`;
+  const h = Math.floor(mins / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  if (d < 31) return `${Math.floor(d / 7)}w ago`;
+  if (d < 365) return `${Math.floor(d / 30)}mo ago`;
+  return `${Math.floor(d / 365)}y ago`;
 }

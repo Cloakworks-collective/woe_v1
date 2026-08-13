@@ -5,6 +5,7 @@ import {
   BUILD_COSTS,
   CHURN,
   CLAN_BEACON,
+  CLAN_GIFT_TAX,
   CLAN_REPAIR_COST_FACTOR,
   beaconGraceHours,
   FOUNDING_MEMBERS,
@@ -552,6 +553,53 @@ export function buildClanBuilding(
  * intended; this makes it true from the moment the horns sound — which the
  * Beacon grace depends on, since either side may be the one attacked.
  */
+/**
+ * Direct aid between two members of the same banner — no vault in the middle.
+ *
+ * The pool has the 3× rule precisely so a clan cannot be used as a funnel: you
+ * may only draw triple what you have given. A direct gift deliberately skips
+ * that, which is the point (a leader can prop up a member who is being farmed
+ * TODAY, without them first having deposited for a week) — so it carries its
+ * own friction instead: CLAN_GIFT_TAX of every gift is burned.
+ *
+ * Only LOOSE goods can be given. Anything vaulted has to be drawn out first,
+ * which is the same rule the pool uses and the usual reason a transfer is
+ * refused while the bar still shows a healthy total.
+ */
+export function giftToMember(
+  senderIn: Player,
+  recipientIn: Player,
+  clan: Clan,
+  what: ClanResource,
+  amount: number,
+): { sender: Player; recipient: Player; sent: number; taxed: number } {
+  const sender = structuredClone(senderIn);
+  const recipient = structuredClone(recipientIn);
+
+  if (sender.id === recipient.id) throw new EngineError("target", "You cannot gift yourself");
+  if (!clan.members.includes(sender.id) || !clan.members.includes(recipient.id)) {
+    throw new EngineError("clan", "You may only aid your own banner");
+  }
+  if (!Number.isInteger(amount) || amount <= 0) throw new EngineError("amount", "Invalid amount");
+
+  const loose = what === "gold" ? sender.gold : sender.resources[what];
+  if (loose < amount) throw new EngineError(what, `Not enough loose ${what}`);
+
+  // Rounded so the burn is never rounded in the giver's favour: what leaves the
+  // sender is exactly `amount`, and what lands is what survives the cut.
+  const taxed = Math.ceil(amount * CLAN_GIFT_TAX);
+  const sent = amount - taxed;
+
+  if (what === "gold") {
+    sender.gold -= amount;
+    recipient.gold += sent;
+  } else {
+    sender.resources[what] -= amount;
+    recipient.resources[what] += sent;
+  }
+  return { sender, recipient, sent, taxed };
+}
+
 export function declareWar(
   clanIn: Clan,
   targetIn: Clan,

@@ -130,21 +130,38 @@ export const SETTLEMENT_TITLES = [
 
 /**
  * Gold per civilian per turn at 100% tax.
- * Rebalanced 40 → 0.4 (2026-07, sim-driven): anchor is one civilian at 50% tax
- * netting ~29 g/day, so a mid-game army costs DAYS of income to rebuild and
- * treasury stays a healthy few % of ranking score.
+ *
+ * 40 → 0.4 (2026-07, sim-driven), then 0.4 → 400 (2026-08): the age now runs a
+ * COIN-RICH, GOODS-POOR economy. Gold stops being the thing you save up and
+ * becomes the thing you spend — on the Bazaar and the Black Market, which is
+ * where the goods actually come from now that a worker digs a tenth of what
+ * they used to (see WORKER_OUTPUT_CURVE).
  */
-export const GOLD_PER_CIVILIAN_AT_FULL_TAX = 0.4; // gold/turn
+export const GOLD_PER_CIVILIAN_AT_FULL_TAX = 400; // gold/turn
 
 export const DEFAULT_TAX_RATE = 0.5; // frac
 
 /**
  * The production model: workers are UNLIMITED; each building level lifts every
  * worker's output. y = units/turn per worker at 0% tax, as a CURVE of
- * x = building level. Default: linear 50 × level — 50/turn at level 1 up to
- * 500/turn at level 10. Also the per-scholar research rate (× Collegium level).
+ * x = building level. Linear 5 × level — 5/turn at level 1 up to 50/turn at
+ * level 10.
+ *
+ * Cut 50 → 5 (2026-08) as the other half of the coin-rich, goods-poor swing:
+ * what you dig is now scarce and what you tax is not, so wood and ore are worth
+ * hauling to the Bazaar and worth taking off somebody in a raid.
  */
-export const WORKER_OUTPUT_CURVE: Curve = { kind: "linear", base: 0, perX: 50 };
+export const WORKER_OUTPUT_CURVE: Curve = { kind: "linear", base: 0, perX: 5 };
+
+/**
+ * Research is NOT a resource and does not follow the cut above.
+ *
+ * The Collegium runs on the same per-worker shape, but scholars produce points
+ * against a fixed, progressive research cost — scaling them with the ore curve
+ * would have quietly made the whole tech tree ten times slower, which is a
+ * different design decision than making goods scarce.
+ */
+export const RESEARCH_OUTPUT_CURVE: Curve = { kind: "linear", base: 0, perX: 50 };
 
 /** Food consumed per person (civilians + regular troops) per turn. */
 export const FOOD_UPKEEP_PER_PERSON = 0.1; // food/turn
@@ -476,6 +493,38 @@ export const CHAT = {
   CLAN_HISTORY: 200, // messages kept per clan channel
   TOTAL_HISTORY: 2000, // hard cap across all channels combined
 };
+
+/**
+ * How often one ruler may speak in a PUBLIC room (era hall and clan hall).
+ *
+ * Three windows, all enforced together, because one limit only stops one shape
+ * of spam: the burst catches a flood, the hour catches a steady drip, and the
+ * day catches someone who paces themselves all afternoon. Letters are exempt —
+ * a private thread with one other player is not a room anyone can be shouted
+ * out of.
+ */
+export const CHAT_LIMITS = {
+  BURST: { messages: 3, minutes: 5 },
+  HOURLY: { messages: 20, minutes: 60 },
+  DAILY: { messages: 50, minutes: 60 * 24 },
+};
+
+/**
+ * Clan-hall silences a leader may hand out. They stop POSTING, never reading —
+ * a member who cannot see the hall cannot follow the war they are fighting in.
+ */
+export const CLAN_MUTE_DAYS = [1, 3] as const;
+
+/**
+ * The cut taken from a direct gift between clan members, and burned.
+ *
+ * Member-to-member aid deliberately bypasses the vault's 3× withdrawal rule, so
+ * it needs its own friction or it becomes the frictionless funnel the 3× rule
+ * exists to prevent. A flat rate rather than the sender's tax dial: a dial you
+ * can set to zero for one turn is not a cost, and taxing the giver MORE for
+ * running a high-tax economy makes no sense.
+ */
+export const CLAN_GIFT_TAX = 0.1; // frac, burned
 
 // ─── 13 · VICTORY & RANKING ─────────────────────────────────────────────────
 

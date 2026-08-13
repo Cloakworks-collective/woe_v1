@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { BattleReportPanel } from "@/components/BattleReportPanel";
 import { Info } from "@/components/Info";
 import { Panel } from "@/components/Panel";
-import { RACE_NAMES, SIEGE_COUNTERS, SIEGE_GEAR, WALL_NAMES } from "@/lib/constants";
+import { RACE_NAMES, SIEGE_COUNTERS, SIEGE_GEAR, WALL_NAMES, XP } from "@/lib/constants";
 import { RESEARCH_FIELDS } from "@/lib/constants/research";
 import type { Race } from "@/lib/constants/races";
 import type { CounterType } from "@/lib/constants/buildings";
@@ -180,11 +180,23 @@ function ArmyForm({
           <NumBox label="Stamina" value={army.stamina} onChange={(n) => set({ stamina: n })} max={100} />
         </label>
         <label>
-          Army XP
+          Army XP{" "}
+          <Info
+            title={`Veterancy — 0–${XP.MAX}`}
+            tip="A straight damage bonus, for regulars only — sellswords always fight at base."
+            bullets={[
+              "Up to +100% damage at 100, on attack AND defence.",
+              `Earned ${XP.PER_REGULAR_KILLED} a regular killed, ${XP.PER_CIVILIAN_DISPLACED} a civilian driven off, nothing for mercenaries.`,
+              `A flat ${XP.DEFENDER_GAIN} just for being attacked, win or lose — capped at ${XP.MAX_PER_BATTLE} a battle.`,
+              "It dies with the veterans: lose a third of your line, lose a third of your XP.",
+            ]}
+            guide="/guide#regulars"
+          />
           <NumBox label="Experience" value={army.experience} onChange={(n) => set({ experience: n })} max={100} />
         </label>
         <label>
-          Siege XP
+          Siege XP{" "}
+          <Info tip="The engineers' own veterancy, tallied separately from the line army's — bombarding teaches a siege train nothing about holding a wall, and vice versa. It rises with bombardment on both sides of it." />
           <NumBox label="Siege experience" value={army.siegeExperience} onChange={(n) => set({ siegeExperience: n })} max={100} />
         </label>
         <label>
@@ -384,8 +396,9 @@ export function BattleCalculator() {
             <Info tip="Fight it N times on consecutive seeds for a win rate. The report shown is the last run." />
             <NumBox label="Runs" value={runs} onChange={setRuns} width={70} min={1} max={500} />
           </label>
-          <button type="button" className="btn" onClick={fight}>
-            ⚔ Fight
+          <button type="button" className="btn calc-fight" onClick={fight}>
+            <span aria-hidden="true">⚔</span> Fight
+            {runs > 1 && <span className="calc-fight-runs">×{runs}</span>}
           </button>
         </div>
 

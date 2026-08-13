@@ -194,67 +194,125 @@ const TITLE_ICON: Record<string, string> = {
 };
 const titleIcon = (epithet: string) => TITLE_ICON[epithet] ?? "trophy";
 
-/** Title cards shown before "Show more". Three is a podium; the rest are a list. */
-const CHARTERS_SHOWN = 3;
+/** Contenders listed on a card before "Show more". Three is a podium. */
+const CHARTER_ROWS_SHOWN = 3;
 
-export function CharterCards({ table }: { table: ElderTable }) {
-  // Rows arrive as [ "Name, the Epithet", clanCell, feat, total ].
-  const moreId = `more-c-${table.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
-  const hidden = Math.max(0, table.rows.length - CHARTERS_SHOWN);
+/** One title: the epithet, the feat it is won for, and everyone chasing it. */
+interface Charter {
+  epithet: string;
+  feat: string;
+  holders: { name: string; clan: ElderCell; total: string }[];
+  /** Standings only, no names — see the `secret` flag in eraTables. */
+  sealed: boolean;
+}
+
+/**
+ * Rows arrive as [ "Name, the Epithet", clanCell, feat, total ], several per
+ * epithet — the live tables tally each title ten deep (see TITLE_CONTENDERS).
+ * Consecutive rows sharing an epithet are one card.
+ *
+ * A sealed age's lore tables carry a single row per epithet and fall through
+ * this unchanged, drawing as a one-holder card.
+ */
+function groupCharters(rows: ElderCell[][]): Charter[] {
+  const out: Charter[] = [];
+  for (const row of rows) {
+    const [holder, clan, feat, total] = row;
+    const holderText = cellText(holder);
+    const comma = holderText.indexOf(", ");
+    const name = comma >= 0 ? holderText.slice(0, comma) : holderText;
+    const epithet = comma >= 0 ? holderText.slice(comma + 2) : holderText;
+    const last = out[out.length - 1];
+    const entry = { name, clan: clan ?? "", total: cellText(total) };
+    if (last && last.epithet === epithet) last.holders.push(entry);
+    else out.push({ epithet, feat: cellText(feat), holders: [entry], sealed: false });
+  }
+  // A title arrives nameless while it would be worth scouting for. Derived
+  // rather than flagged, so a sealed age — where every name is filled in —
+  // needs no special case at all.
+  for (const c of out) c.sealed = c.holders.every((h) => h.name === "");
+  return out;
+}
+
+function HolderName({ clan, name }: { name: string; clan: ElderCell }) {
+  const isLink = typeof clan === "object" && clan !== null;
   return (
     <>
-      {hidden > 0 && <input type="checkbox" id={moreId} className="board-more-toggle" />}
-      <div className="charter-grid">
-      {table.rows.map((row, i) => {
-        const [holder, clan, feat, total] = row;
-        const holderText = cellText(holder);
-        const comma = holderText.indexOf(", ");
-        const name = comma >= 0 ? holderText.slice(0, comma) : holderText;
-        const epithet = comma >= 0 ? holderText.slice(comma + 2) : "";
-        const clanIsLink = typeof clan === "object" && clan !== null;
+      {name}
+      {isLink ? (
+        <>
+          {" · "}
+          <Link href={(clan as { href: string }).href}>{cellText(clan)}</Link>
+        </>
+      ) : cellText(clan) ? (
+        <span className="charter-clan"> · {cellText(clan)}</span>
+      ) : null}
+    </>
+  );
+}
+
+export function CharterCards({ table }: { table: ElderTable }) {
+  const charters = groupCharters(table.rows);
+  const slug = (s: string) => s.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  return (
+    <div className="charter-grid">
+      {charters.map((c, i) => {
+        // Every title is its own expander. One toggle for the whole panel would
+        // make "show more" mean two different things — more titles, or more
+        // contenders for one title.
+        const moreId = `more-c-${slug(table.title)}-${slug(c.epithet)}`;
+        const hidden = Math.max(0, c.holders.length - CHARTER_ROWS_SHOWN);
         return (
           // The stagger is an index-driven delay, so the cards deal onto the
           // table in order rather than all appearing at once.
-          <div
-            className={`charter${i >= CHARTERS_SHOWN ? " is-extra" : ""}`}
-            key={i}
-            style={{ animationDelay: `${Math.min(i, 12) * 45}ms` }}
-          >
+          <div className="charter" key={c.epithet} style={{ animationDelay: `${Math.min(i, 12) * 45}ms` }}>
             <div className="charter-epithet">
               <img
-                src={`/art/ui/icons/${titleIcon(epithet)}.png`}
+                src={`/art/ui/icons/${titleIcon(c.epithet)}.png`}
                 alt=""
                 className="charter-mark"
                 aria-hidden="true"
               />
-              {epithet || name}
+              {c.epithet}
             </div>
-            <div className="charter-holder">
-              {name}
-              {clanIsLink ? (
-                <>
-                  {" · "}
-                  <Link href={(clan as { href: string }).href}>{cellText(clan)}</Link>
-                </>
-              ) : cellText(clan) ? (
-                ` · ${cellText(clan)}`
-              ) : null}
+            <div className="charter-feat-label">
+              {c.feat}
+              {c.sealed && (
+                <span
+                  className="charter-sealed"
+                  title="Naming this one mid-age would do a rival's scouting for them. The standings are open; the names arrive when the age is sealed."
+                >
+                  {" "}
+                  🔒 names sealed until the age ends
+                </span>
+              )}
             </div>
-            <div className="charter-feat">
-              <span>{cellText(feat)}</span>
-              <b>{cellText(total)}</b>
-            </div>
+            {hidden > 0 && <input type="checkbox" id={moreId} className="board-more-toggle" />}
+            <ol className="charter-holders">
+              {c.holders.map((h, j) => (
+                <li key={`${h.name}-${j}`} className={j >= CHARTER_ROWS_SHOWN ? "is-extra" : undefined}>
+                  <span className="charter-rank">{j + 1}</span>
+                  <span className="charter-holder-name">
+                    {c.sealed ? (
+                      <span className="charter-anon">an unnamed hand</span>
+                    ) : (
+                      <HolderName name={h.name} clan={h.clan} />
+                    )}
+                  </span>
+                  <b>{h.total}</b>
+                </li>
+              ))}
+            </ol>
+            {hidden > 0 && (
+              <label htmlFor={moreId} className="board-more charter-more">
+                <span className="board-more-open">Show {hidden} more</span>
+                <span className="board-more-close">Show fewer</span>
+              </label>
+            )}
           </div>
         );
       })}
-      </div>
-      {hidden > 0 && (
-        <label htmlFor={moreId} className="board-more">
-          <span className="board-more-open">Show {hidden} more</span>
-          <span className="board-more-close">Show fewer</span>
-        </label>
-      )}
-    </>
+    </div>
   );
 }
 

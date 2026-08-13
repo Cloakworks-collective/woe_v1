@@ -2,11 +2,19 @@
 // Rank, with Online rows highlighted and ✗ marking recently-attacked members.
 // Exact troop counts are clan business: members of this clan see numbers,
 // everyone else sees the same qualitative label as the public ladder.
+//
+// Members can also AID one another here: gold or goods straight from your
+// stores to theirs, skipping the pool and its 3× rule (see giftToMember), and
+// leadership can silence a member in the hall without stopping them reading it.
 
 import Link from "next/link";
 import { Art } from "@/components/Art";
-import { RACE_NAMES } from "@/lib/constants";
+import { Btn } from "@/components/Btn";
+import { CmdForm } from "@/components/CmdForm";
+import { ReqTip } from "@/components/CostTip";
+import { CLAN_GIFT_TAX, CLAN_MUTE_DAYS, RACE_NAMES } from "@/lib/constants";
 import {
+  isLeadership,
   military,
   rankingScore,
   totalPopulation,
@@ -34,10 +42,13 @@ export function ClanMembers({
   world,
   clan,
   viewerId,
+  path = "/clan",
 }: {
   world: World;
   clan: Clan;
   viewerId: string;
+  /** Where the aid/silence forms return to. */
+  path?: string;
 }) {
   const tick = world.meta.tickNumber;
   const insider = clan.members.includes(viewerId);
@@ -62,6 +73,11 @@ export function ClanMembers({
           : "";
 
   const now = Date.now();
+  /** What one member may hand another. Food included — a starving ally is the
+   *  commonest reason to need help at all. */
+  const GIFTABLE = ["gold", "food", "wood", "stone", "ore"] as const;
+  const mutedUntil = (id: string) => clan.chatMutedUntilTick?.[id] ?? 0;
+  const canMute = isLeadership(clan, viewerId);
 
   return (
     <>
@@ -84,6 +100,7 @@ export function ClanMembers({
             <th className="num">Population</th>
             <th className="num">Rank</th>
             <th>Seen</th>
+            {insider && <th>Aid</th>}
           </tr>
         </thead>
         <tbody>
@@ -120,6 +137,74 @@ export function ClanMembers({
                     <span className="last-seen">{lastSeenLabel(m.lastSeenAtMs, now)}</span>
                   )}
                 </td>
+                {insider && (
+                  <td>
+                    {m.id === viewerId ? (
+                      <span style={{ color: "var(--ink-soft)", fontSize: 12.5 }}>—</span>
+                    ) : (
+                      <details className="aid">
+                        <summary className="btn act-ghost aid-btn">🤝 Help</summary>
+                        <div className="aid-menu">
+                          <div className="aid-title">Send aid to {m.name}</div>
+                          <CmdForm name="clanGift" path={path}>
+                            <input type="hidden" name="toId" value={m.id} />
+                            <div className="aid-row">
+                              <select name="what" aria-label="What to send" className="aid-select">
+                                {GIFTABLE.map((r) => (
+                                  <option key={r} value={r}>
+                                    {r}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                name="amount"
+                                placeholder="amount"
+                                aria-label={`Amount to send ${m.name}`}
+                                inputMode="numeric"
+                                className="aid-input"
+                              />
+                            </div>
+                            <ReqTip
+                              heading={`Send aid to ${m.name}`}
+                              body="Straight from your stores to theirs — this does not touch the clan pool, and it is not bound by the 3× withdrawal rule."
+                              note={`Only LOOSE goods can be sent, and ${Math.round(CLAN_GIFT_TAX * 100)}% is lost to the levy on the way. Prop up a member being farmed today, without waiting for them to have deposited first.`}
+                            >
+                              <Btn className="btn aid-go">Send</Btn>
+                            </ReqTip>
+                          </CmdForm>
+
+                          {canMute && !role(m.id) && (
+                            <div className="aid-mute">
+                              <div className="aid-mute-head">Hall silence</div>
+                              {mutedUntil(m.id) > tick ? (
+                                <CmdForm name="clanMute" path={path}>
+                                  <input type="hidden" name="playerId" value={m.id} />
+                                  <input type="hidden" name="days" value="0" />
+                                  <Btn className="btn act-ghost">Lift silence</Btn>
+                                </CmdForm>
+                              ) : (
+                                <div className="aid-row">
+                                  {CLAN_MUTE_DAYS.map((d) => (
+                                    <CmdForm key={d} name="clanMute" path={path}>
+                                      <input type="hidden" name="playerId" value={m.id} />
+                                      <input type="hidden" name="days" value={String(d)} />
+                                      <ReqTip
+                                        heading={`Silence ${m.name} for ${d} day${d === 1 ? "" : "s"}`}
+                                        body="They can still READ the hall — a member who cannot follow the war they are fighting in is no use to anyone. They simply cannot add to it."
+                                      >
+                                        <Btn className="btn act-ghost">{d}d</Btn>
+                                      </ReqTip>
+                                    </CmdForm>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </details>
+                    )}
+                  </td>
+                )}
               </tr>
             );
           })}

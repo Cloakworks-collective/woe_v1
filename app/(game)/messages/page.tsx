@@ -1,3 +1,5 @@
+import { LearnLink } from "@/components/LearnLink";
+import { ticksAgo } from "@/lib/engine";
 import { Btn } from "@/components/Btn";
 import { CmdForm } from "@/components/CmdForm";
 import { CommsTabs } from "@/components/CommsTabs";
@@ -31,6 +33,7 @@ export default async function LettersPage({
 
   return (
     <>
+      <LearnLink href="/guide#heralds">Letters, halls &amp; the forum</LearnLink>
       <Flash err={err} ok={ok} />
       <CommsTabs />
       <Panel
@@ -70,7 +73,10 @@ export default async function LettersPage({
                 messages.map((m) => (
                   <div key={m.id} className="comms-line">
                     <b style={{ color: m.authorId === p.id ? "var(--warn)" : "#5a3b1c" }}>{m.authorName}</b>
-                    <span className="comms-when"> · turn {m.tick}</span>
+                    <span className="comms-when" title={`turn ${m.tick.toLocaleString("en-US")}`}>
+                      {" · "}
+                      {ticksAgo(m.tick, world.meta.tickNumber)}
+                    </span>
                     <div>{m.body}</div>
                   </div>
                 ))

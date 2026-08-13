@@ -1,3 +1,4 @@
+import { LearnLink } from "@/components/LearnLink";
 import { Flash } from "@/components/Flash";
 import { Panel } from "@/components/Panel";
 import { emulatorPurchase } from "@/app/actions";
@@ -56,6 +57,7 @@ export default async function PremiumPage({
 
   return (
     <>
+      <LearnLink href="/guide#charter">What the Charter buys</LearnLink>
       <Flash err={err} ok={stripeOk ?? ok} />
       <Panel title="👑 The Royal Charter — premium">
         <p style={{ fontSize: 14.5 }}>

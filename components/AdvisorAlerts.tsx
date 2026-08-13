@@ -14,6 +14,7 @@ import {
   type Player,
 } from "@/lib/engine";
 import type { BuildingId } from "@/lib/constants/buildings";
+import { HOUSING_PER_HEARTHSTEAD } from "@/lib/constants";
 
 const STORE_NAMES: { id: BuildingId; name: string }[] = [
   { id: "counting_house", name: "Counting House" },
@@ -180,6 +181,42 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
         { href: `/buildings#b-${brokenStores[0].id}`, label: "🔧 Repair the storehouses", primary: true },
       ],
       manual: "/guide#defense",
+    });
+  }
+
+  // 6 · Idle hands (the Steward of the people). Last, because it is an
+  //     OPPORTUNITY rather than a threat — nothing is being lost this turn, it
+  //     simply isn't being gained.
+  //
+  //     This used to be a banner that only existed on /train, which is the one
+  //     page you were already on to fix it. Idle peasants are the single most
+  //     common thing a new regent overlooks, and the alert is worth nothing if
+  //     it only speaks in the room where you had already gone to listen.
+  //
+  //     The threshold keeps it from nagging: ten idle (a Hearthstead's worth)
+  //     is enough to matter, and a small empire whose whole population is idle
+  //     is told regardless of how small it is.
+  const idle = p.idlePeasants;
+  if (!p.starving && idle > 0 && (idle >= HOUSING_PER_HEARTHSTEAD || idle === civ)) {
+    alerts.push({
+      key: "idle",
+      variant: "warn",
+      advisor: "population",
+      icon: "👥",
+      headline: `${idle} idle peasant${idle === 1 ? "" : "s"} await your word`,
+      body: (
+        <>
+          Idle hands produce nothing — no gold, no goods, no research. Put them to a trade (farmers
+          feed the realm first, then split the rest across your producers), or raise them into
+          soldiers. Assignment is <b>free and reversible</b>, so there is no reason to leave a
+          single one standing about.
+        </>
+      ),
+      ctas: [
+        { href: "/train#workers", label: "👥 Assign them to a trade", primary: true },
+        { href: "/troops#train", label: "⚔ Raise them as soldiers" },
+      ],
+      manual: "/guide#grow",
     });
   }
 

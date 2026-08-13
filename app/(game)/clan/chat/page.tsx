@@ -34,7 +34,7 @@ export default async function ClanChatPage({
         title={`The Hall — ${clan.name}`}
         info={`Only your clan can read this. The hall keeps its last ${CHAT.CLAN_HISTORY} messages; older words are deleted for good.`}
       >
-        <ClanChat messages={messages} viewerId={p.id} path="/clan/chat" />
+        <ClanChat messages={messages} viewerId={p.id} nowTick={tick} path="/clan/chat" />
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 8 }}>
           {messages.length === 0
             ? "Nothing has been said yet."

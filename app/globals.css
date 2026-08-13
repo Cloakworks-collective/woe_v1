@@ -1028,6 +1028,64 @@ select:focus-visible {
   color: var(--heading);
 }
 
+/* ── Hearthstead planner ──────────────────────────────────────────────────
+   Housing is bought ahead of a number the player can already see, so the card
+   does the two sums for them. Sits inside the building card, quieter than it. */
+.stead-plan {
+  margin-top: 9px;
+  padding: 8px 9px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.035);
+}
+
+.stead-plan-head {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-bottom: 5px;
+}
+
+.stead-plan-head b {
+  color: var(--heading);
+}
+
+.stead-plan-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.stead-plan-tbl th {
+  font-weight: 600;
+  font-size: 11.5px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--border);
+  padding: 0 0 3px;
+  text-align: left;
+}
+
+.stead-plan-tbl th.num,
+.stead-plan-tbl td.num {
+  text-align: right;
+}
+
+.stead-plan-tbl td {
+  padding: 3px 0;
+  border-bottom: 1px dotted rgba(0, 0, 0, 0.09);
+}
+
+.stead-plan-tbl tr:last-child td {
+  border-bottom: 0;
+}
+
+.stead-plan-warn {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--neg);
+}
+
 .bcard-zenith {
   font: italic 14px Georgia, serif;
   color: var(--ink-soft);
@@ -2180,26 +2238,121 @@ a.repair-hint:hover {
   color: var(--heading);
   line-height: 1.15;
 }
-.charter-holder {
+
+/* What the title is won FOR. Used to sit at the bottom next to the number;
+   it belongs under the epithet now that the number is per contender. */
+.charter-feat-label {
   font-size: 12px;
   color: var(--ink-soft);
-  margin: 2px 0 7px;
+  margin: 2px 0 6px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--ink) 22%, transparent);
+  padding-bottom: 5px;
 }
-.charter-feat {
+
+/* The contenders. A title with one name answers "who holds it" but never
+   "am I close" — and being close is the only reason to chase one. */
+.charter-holders {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12.5px;
+}
+.charter-holders li {
   display: flex;
-  justify-content: space-between;
   align-items: baseline;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--ink-soft);
-  border-top: 1px dashed color-mix(in srgb, var(--ink) 22%, transparent);
-  padding-top: 5px;
+  gap: 6px;
+  padding: 2px 0;
 }
-.charter-feat b {
-  font-size: 13.5px;
+.charter-holders li + li {
+  border-top: 1px dotted color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.charter-rank {
+  flex: 0 0 14px;
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+/* The holder is the champion; the chasers are quieter. */
+.charter-holders li:first-child .charter-rank {
+  color: var(--coin);
+  font-weight: 700;
+}
+.charter-holders li:first-child .charter-holder-name {
+  font-weight: 700;
+}
+.charter-holder-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* Chronicle filter — server-side links, so it works with the pager and needs
+   no client JS. Counts are of the whole chronicle, not the current view. */
+.chron-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0 0 9px;
+}
+.chron-filter a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 11px;
+  font-size: 12.5px;
+  text-decoration: none;
+  color: var(--ink-soft);
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  background: color-mix(in srgb, var(--gold) 5%, transparent);
+}
+.chron-filter a:hover {
   color: var(--ink);
+  border-color: color-mix(in srgb, var(--gold) 55%, transparent);
+}
+.chron-filter a.is-on {
+  color: var(--heading);
+  font-weight: 700;
+  border-color: color-mix(in srgb, var(--gold) 70%, transparent);
+  background: color-mix(in srgb, var(--gold) 18%, transparent);
+}
+.chron-filter-n {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.charter-clan {
+  color: var(--ink-soft);
+}
+/* A title held anonymously until the age is sealed. */
+.charter-sealed {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--warn);
+}
+.charter-anon {
+  font-style: italic;
+  color: var(--ink-soft);
+}
+.charter-holders b {
+  flex: 0 0 auto;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  color: var(--ink);
+}
+.charter-more {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+}
+/* The per-card expander reveals list ROWS, not grid cells. Both rules need the
+   `li` in them: the global `.is-extra { display: none }` is (0,1,0) and loses to
+   `.charter-holders li` at (0,1,1) no matter which is declared last. */
+.charter-holders li.is-extra {
+  display: none;
+}
+.board-more-toggle:checked ~ .charter-holders li.is-extra {
+  display: flex;
 }
 
 @media (max-width: 560px) {
@@ -4407,6 +4560,36 @@ a.repair-hint:hover {
   align-self: center;
   white-space: nowrap;
 }
+/* "Who this is for" and "how to leave", side by side at the top. A veteran
+   should not have to read a beginner's checklist to find its exit. */
+.charges-lede {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.charges-lede .charges-intro {
+  flex: 1 1 320px;
+  margin: 0;
+}
+.charges-skip {
+  flex: 0 0 auto;
+}
+.charges-skip button {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--ink-soft);
+  font: 700 12.5px Verdana, sans-serif;
+  padding: 5px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.charges-skip button:hover {
+  background: var(--panel-alt);
+  color: var(--heading);
+}
+
 .charges-waive {
   margin-top: 11px;
   text-align: center;
@@ -4423,6 +4606,221 @@ a.repair-hint:hover {
 .charges-waive button:hover {
   background: var(--panel-alt);
   color: var(--heading);
+}
+
+/* ── Rendered Markdown in forum posts ─────────────────────────────────────
+   Scoped to .md so a post can never restyle the page around it. */
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p { margin: 0 0 10px; line-height: 1.6; overflow-wrap: anywhere; }
+.md h4 {
+  margin: 16px 0 6px;
+  font: 700 15.5px var(--font-heading, Georgia), Georgia, serif;
+  color: var(--coin);
+}
+.md ul, .md ol { margin: 0 0 10px; padding-left: 22px; }
+.md li { margin: 3px 0; line-height: 1.55; }
+.md blockquote {
+  margin: 0 0 10px;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--flat-line);
+  color: var(--ink-soft);
+}
+.md code {
+  font: 0.92em ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: rgba(0, 0, 0, 0.16);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.md pre {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.2);
+  overflow-x: auto;
+}
+.md pre code { background: none; padding: 0; }
+/* A wide table must scroll inside the post, never widen the page. */
+.md table { border-collapse: collapse; margin: 0 0 10px; display: block; overflow-x: auto; }
+.md th, .md td { border: 1px solid var(--flat-line); padding: 4px 9px; text-align: left; }
+.md th { background: rgba(0, 0, 0, 0.14); }
+.md hr { border: 0; border-top: 1px solid var(--flat-line); margin: 14px 0; }
+.md-help code {
+  font-size: 0.95em;
+  background: rgba(0, 0, 0, 0.14);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+/* The Collegium's standing offer, under the Charges on the Command View. */
+.collegium-lede {
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 0 0 10px;
+}
+.collegium-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.collegium-purse {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0;
+  font: 700 14px Verdana, sans-serif;
+}
+.collegium-purse span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.collegium-go {
+  flex: 0 0 auto;
+}
+.collegium-foot {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+/* ── The Collegium Examination ────────────────────────────────────────────
+   One question at a time. The reveal above the next question is the whole
+   feature, so it is the loudest thing on the page. */
+.exam-progress {
+  height: 7px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+  overflow: hidden;
+  margin: 10px 0 6px;
+}
+.exam-progress > i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--coin), #f0c75e);
+  transition: width 0.35s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.exam-count {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0 0 12px;
+}
+
+.exam-reveal {
+  border-left: 4px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 13px;
+  margin: 0 0 16px;
+  background: color-mix(in srgb, var(--gold) 6%, transparent);
+  animation: exam-land 0.32s ease-out both;
+}
+.exam-reveal.is-right {
+  border-left-color: var(--pos);
+}
+.exam-reveal.is-wrong {
+  border-left-color: var(--neg);
+}
+@keyframes exam-land {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: none; }
+}
+.exam-verdict {
+  font: 700 14.5px Verdana, sans-serif;
+}
+.is-right .exam-verdict { color: var(--pos); }
+.is-wrong .exam-verdict { color: var(--neg); }
+.exam-verdict-q {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.exam-answer {
+  margin: 6px 0 0;
+  font-size: 14px;
+}
+.exam-why {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.exam-chapter {
+  display: inline-block;
+  margin-top: 7px;
+  font-size: 13px;
+}
+
+.exam-topic {
+  font: 700 11.5px Verdana, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.exam-prompt {
+  margin: 4px 0 12px;
+  font: 700 18px/1.35 Georgia, serif;
+  color: var(--heading);
+}
+.exam-options {
+  display: grid;
+  gap: 8px;
+}
+/* Each option is its own submit — answering is one click, not pick-then-send. */
+.exam-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 11px 14px;
+  font: 14.5px/1.45 Verdana, sans-serif;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--gold) 5%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.06s ease;
+}
+.exam-option:hover {
+  border-color: var(--coin);
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+}
+.exam-option:active {
+  transform: translateY(1px);
+}
+.exam-letter {
+  flex: 0 0 auto;
+  font: 700 13px Verdana, sans-serif;
+  color: var(--coin);
+  min-width: 15px;
+}
+
+.exam-score {
+  font: 700 34px/1 Georgia, serif;
+  color: var(--heading);
+  margin: 4px 0 10px;
+}
+.exam-score-mark {
+  font: 400 14px Verdana, sans-serif;
+  color: var(--ink-soft);
+}
+.exam-reward {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font: 700 15px Verdana, sans-serif;
+  margin: 8px 0 12px;
+}
+.exam-reward span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exam-reveal { animation: none; }
+  .exam-progress > i { transition: none; }
 }
 
 /* ── The spotlight tour ───────────────────────────────────────────────────*/
@@ -4557,16 +4955,6 @@ a.repair-hint:hover {
    plain wood enamel rather than the green one that means "commit". */
 .btn-recall {
   border-image-source: url("/art/ui/btn-wood.png");
-}
-
-/* A prominent, impossible-to-miss prompt when idle peasants are waiting. */
-.idle-banner {
-  border: 2px solid #b3831c;
-  border-radius: 4px;
-  box-shadow: inset 0 1px 0 rgba(255, 240, 200, 0.25), 0 3px 10px rgba(20, 12, 4, 0.3);
-}
-.idle-banner .alert-title {
-  font-size: 18px;
 }
 
 /* ── The census — population breakdown on the Command View ─────────────────*/
@@ -7619,6 +8007,69 @@ body {
   gap: 6px;
   font-size: 13.5px;
 }
+/* Fight is the only button on this page that DOES anything — everything else
+   just sets up the argument. It gets the red skin and the size to match: in the
+   calculator nothing is affordability-gated, so red reads "commit", not
+   "you're short". Pushed to its own end of the row so it never sits in the
+   tab-order fog between two number boxes. */
+.calc-fight {
+  margin-left: auto;
+  /* Painted rather than skinned. btn-red.png is the pale "you cannot afford
+     this" sprite, and washing it brighter never got past pink — so this one
+     button is blood over gold, the header's own two colours, which is the only
+     combination on the page that reads as COMMIT rather than as forbidden. */
+  border-image: none;
+  border: 2px solid #e8c67a;
+  border-radius: 3px;
+  background: linear-gradient(#b8341d, #7c1c0d);
+  color: #ffeede;
+  font-size: 16px;
+  letter-spacing: 0.8px;
+  padding: 8px 22px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 2px 0 #3d0d05,
+    0 0 14px rgba(184, 52, 29, 0.5);
+  animation: calc-fight-breathe 2.6s ease-in-out infinite;
+}
+
+.calc-fight:hover {
+  background: linear-gradient(#d33e22, #93240f);
+  filter: none;
+  transform: translateY(-1px);
+  animation: none;
+}
+
+.calc-fight:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.calc-fight-runs {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.32);
+}
+
+@keyframes calc-fight-breathe {
+  0%,
+  100% {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 2px 0 #3d0d05,
+      0 0 8px rgba(184, 52, 29, 0.35);
+  }
+  50% {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 2px 0 #3d0d05,
+      0 0 22px rgba(220, 70, 40, 0.7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calc-fight {
+    animation: none;
+  }
+}
+
 .calc-hint {
   font-size: 13px;
   color: var(--ink-soft);
@@ -7772,6 +8223,42 @@ body {
   padding: 16px 18px;
   margin-bottom: 14px;
 }
+/* The magic key — a bearer credential shown to its own owner. Collapsed by
+   default because "signed in on a shared screen" is a real state; opened and
+   loud for one page load right after registration, which is the only moment the
+   user genuinely has not saved it anywhere yet. */
+.magic-key > summary {
+  cursor: pointer;
+  font: 700 15px/1.4 var(--font-heading, Georgia), Georgia, serif;
+  color: var(--coin);
+  list-style: none;
+}
+.magic-key > summary::-webkit-details-marker {
+  display: none;
+}
+.magic-key > summary::before {
+  content: "▸ ";
+  opacity: 0.6;
+}
+.magic-key[open] > summary::before {
+  content: "▾ ";
+}
+.magic-key.is-fresh {
+  border-color: var(--coin);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--coin) 35%, transparent);
+}
+.magic-key-box {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  border: 1px solid var(--flat-line);
+  border-radius: 6px;
+  background: var(--parchment);
+  color: inherit;
+  overflow-x: auto;
+}
+
 .flat-card > h2,
 .flat-card > h3 {
   margin: 0 0 4px;
@@ -8490,4 +8977,146 @@ tr:target > td {
 .wc-commit { width: 100%; }
 @media (prefers-reduced-motion: reduce) {
   .wc-review { animation: none; }
+}
+
+/* ── The forum's rich-text editor (Quill "snow", repainted) ────────────────
+   Quill's own stylesheet is imported by the editor component, because it
+   carries structure worth keeping — icon sizing, dropdown positioning, the
+   editor's scroll behaviour — and reimplementing that by hand would be a lot
+   of fragile CSS to own.
+
+   What it does NOT carry is any notion of a theme: it hard-codes #fff, #ccc
+   and #444, which reads as a Google text box pasted onto a parchment board and
+   is unreadable outright in dark mode. So everything below is COLOUR only,
+   written in the flat theme's tokens, layered on top.
+
+   Scoped under .flat so nothing here can reach the medieval game shell. */
+.flat .editor-shell {
+  border: 1px solid var(--flat-line-strong);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--parchment);
+}
+:root[data-theme="dark"] .flat .editor-shell {
+  background: #1c1409;
+  color: #ecdcb8;
+}
+/* Focus reads the same as every other field on the board. */
+.flat .editor-shell:focus-within {
+  outline: 2px solid var(--coin);
+  outline-offset: 1px;
+}
+
+/* Toolbar */
+.flat .ql-toolbar {
+  border: 0;
+  border-bottom: 1px solid var(--flat-line-strong);
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--flat-line) 22%, transparent);
+  font-family: Verdana, sans-serif;
+}
+.flat .ql-toolbar button,
+.flat .ql-toolbar .ql-picker-label {
+  border-radius: 4px;
+}
+.flat .ql-toolbar button:hover,
+.flat .ql-toolbar .ql-picker-label:hover {
+  background: color-mix(in srgb, var(--coin) 16%, transparent);
+}
+/* Quill draws its icons as inline SVG strokes; recolour them rather than
+   shipping an icon set. */
+.flat .ql-snow .ql-stroke {
+  stroke: var(--ink-soft);
+}
+.flat .ql-snow .ql-fill {
+  fill: var(--ink-soft);
+}
+.flat .ql-snow .ql-picker {
+  color: var(--ink-soft);
+}
+.flat .ql-toolbar button:hover .ql-stroke,
+.flat .ql-toolbar button.ql-active .ql-stroke {
+  stroke: var(--coin);
+}
+.flat .ql-toolbar button:hover .ql-fill,
+.flat .ql-toolbar button.ql-active .ql-fill {
+  fill: var(--coin);
+}
+.flat .ql-toolbar button.ql-active,
+.flat .ql-toolbar .ql-picker-label.ql-active {
+  color: var(--coin);
+}
+/* The header dropdown */
+.flat .ql-snow .ql-picker-options {
+  background: var(--flat-card);
+  border: 1px solid var(--flat-line);
+  border-radius: 5px;
+  padding: 4px;
+}
+.flat .ql-snow .ql-picker-item:hover {
+  color: var(--coin);
+}
+
+/* The writing surface */
+.flat .ql-container {
+  border: 0;
+  font: 14.5px/1.6 Verdana, sans-serif;
+  color: var(--ink);
+}
+.flat .ql-editor {
+  padding: 12px 14px;
+}
+.flat .ql-editor.ql-blank::before {
+  color: var(--ink-soft);
+  opacity: 0.75;
+  font-style: normal;
+  left: 14px;
+  right: 14px;
+}
+.flat .ql-editor blockquote {
+  border-left: 3px solid var(--flat-line);
+  padding-left: 12px;
+  color: var(--ink-soft);
+  margin: 0 0 10px;
+}
+.flat .ql-editor pre.ql-syntax {
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+  border-radius: 5px;
+  padding: 10px 12px;
+}
+.flat .ql-editor a {
+  color: var(--coin);
+}
+
+/* The link tooltip Quill pops when you click "link" */
+.flat .ql-snow .ql-tooltip {
+  background: var(--flat-card);
+  border: 1px solid var(--flat-line);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  color: var(--ink);
+}
+.flat .ql-snow .ql-tooltip input[type="text"] {
+  background: var(--parchment);
+  border: 1px solid var(--flat-line);
+  border-radius: 4px;
+  color: var(--ink);
+  padding: 4px 7px;
+}
+.flat .ql-snow .ql-tooltip a.ql-action,
+.flat .ql-snow .ql-tooltip a.ql-remove {
+  color: var(--coin);
+}
+
+/* The textarea Quill replaces. Kept in the DOM (it is the field that submits)
+   but taken out of the layout once the editor is driving it. */
+.editor-fallback.is-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }

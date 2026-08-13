@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// War of Empires — terminal client. Same backend as the web UI (realm-token
+// War of Empires — terminal client. Same backend as the web UI (account-token
 // auth over the cmd:* protocol + JSON read endpoints). Zero dependencies.
 //
 //   node cli/woe.mjs join            found an empire (interactive)
-//   node cli/woe.mjs link <token>    bind an existing empire
+//   node cli/woe.mjs link <token>    bind an existing account
 //   node cli/woe.mjs                 interactive court (REPL)
 //   node cli/woe.mjs status          one-shot commands work too
 
@@ -427,8 +427,8 @@ async function doJoin(rl, args) {
   saveConfig(config);
   flagArt(res.name);
   console.log(brightGreen(bold(`  ⚔ ${res.name} enters ${res.era}!`)));
-  console.log(`  Realm token saved to ${dim(CONFIG_FILE)}`);
-  console.log(dim("  The same token re-enters your empire at the website's login gate."));
+  console.log(`  Account key saved to ${dim(CONFIG_FILE)}`);
+  console.log(dim("  The same key opens the website and the forum — one account, one key."));
 }
 
 const HELP = `
@@ -642,7 +642,7 @@ async function main() {
     bigBanner();
     console.log(italic(gray("\n  the terminal court — same empire as the web, in glorious ANSI\n")));
     if (!config.token) {
-      console.log(yellow("  No realm bound. ") + `'${bold("join")}' founds an empire, '${bold("link <token>")}' binds one (token: Command View → “Rule from the terminal”).`);
+      console.log(yellow("  No account bound. ") + `'${bold("join")}' founds an empire, '${bold("link <key>")}' binds an existing account (key: Command View → “Your magic link”).`);
     } else {
       try {
         const st = await get("/api/state");

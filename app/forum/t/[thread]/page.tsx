@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { FORUM_LIMITS, forumChannel } from "@/lib/constants/forum";
+import { forumChannel } from "@/lib/constants/forum";
 import { banNotice, getForumViewer } from "@/lib/server/forumAuth";
-import { findUser, getThread, listPosts } from "@/lib/server/forumStore";
+import { findAccount, getThread, listPosts } from "@/lib/server/accounts";
 import { forumModerate, forumReply } from "../../actions";
+import { Editor } from "../../Editor";
+import { PostBody } from "../../PostBody";
+import { NamePrompt } from "../../NamePrompt";
 import { Notice } from "../../Notice";
 
 export const dynamic = "force-dynamic";
@@ -33,19 +36,15 @@ export default async function ThreadPage({
   const viewer = await getForumViewer();
   const posts = await listPosts(id);
 
-  const authors = new Map<string, { handle: string; empire?: string; admin: boolean }>();
+  const authors = new Map<string, { handle: string; admin: boolean }>();
   for (const p of posts) {
     if (p.authorId && !authors.has(p.authorId)) {
-      const a = await findUser(p.authorId);
-      authors.set(p.authorId, {
-        handle: a?.handle ?? "—",
-        empire: a?.empireName,
-        admin: a?.isAdmin ?? false,
-      });
+      const a = await findAccount(p.authorId);
+      authors.set(p.authorId, { handle: a?.handle ?? "—", admin: a?.isAdmin ?? false });
     }
   }
 
-  const canReply = viewer.user && !viewer.ban && (!thread.locked || viewer.isAdmin);
+  const canReply = viewer.canPost && (!thread.locked || viewer.isAdmin);
 
   return (
     <>
@@ -99,7 +98,6 @@ export default async function ThreadPage({
             >
               <b>{a?.handle ?? "—"}</b>
               {a?.admin && <span className="flat-pill is-admin">Admin</span>}
-              {a?.empire && <span className="flat-pill">{a.empire}</span>}
               <span className="flat-hint">{when(p.createdAt)}</span>
               <span className="flat-spacer" />
               <span className="flat-hint">#{i + 1}</span>
@@ -118,7 +116,7 @@ export default async function ThreadPage({
                 This post was removed by a moderator.
               </p>
             ) : (
-              <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{p.body}</div>
+              <PostBody body={p.body} />
             )}
           </div>
         );
@@ -129,20 +127,18 @@ export default async function ThreadPage({
         {canReply ? (
           <form action={forumReply}>
             <input type="hidden" name="threadId" value={thread.id} />
-            <label className="flat-field">
-              <span className="sr-only">Your reply</span>
-              <textarea name="body" maxLength={FORUM_LIMITS.BODY_MAX} required aria-label="Your reply" />
-            </label>
+            <Editor label="Your reply" minHeight={150} />
             <button className="flat-btn" type="submit">Post reply</button>
           </form>
+        ) : viewer.ban ? (
+          <p className="flat-hint" style={{ margin: 0 }}>{banNotice(viewer.ban)}</p>
+        ) : thread.locked ? (
+          <p className="flat-hint" style={{ margin: 0 }}>This discussion is locked.</p>
         ) : (
-          <p className="flat-hint" style={{ margin: 0 }}>
-            {viewer.ban
-              ? banNotice(viewer.ban)
-              : !viewer.user
-                ? "Sign in to reply."
-                : "This discussion is locked."}
-          </p>
+          // Not signed in, or signed in but unnamed. The prompt is HERE rather
+          // than at the door: this is the moment someone actually wants to say
+          // something, which is the only moment the name matters.
+          <NamePrompt needsHandle={viewer.needsHandle} to={`/forum/t/${thread.id}`} />
         )}
       </div>
     </>

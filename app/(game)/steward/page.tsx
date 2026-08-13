@@ -1,3 +1,4 @@
+import { LearnLink } from "@/components/LearnLink";
 import { Btn } from "@/components/Btn";
 import { CmdForm } from "@/components/CmdForm";
 import { ReqTip } from "@/components/CostTip";
@@ -75,6 +76,7 @@ export default async function StewardPage({
   if (!p.premium) {
     return (
       <>
+        <LearnLink href="/guide#charter">What the Charter buys</LearnLink>
         <Flash err={err} ok={ok} />
         <Panel title="👑 The Royal Charter — a locked chamber">
           <p style={{ fontSize: 14.5 }}>
@@ -94,6 +96,7 @@ export default async function StewardPage({
 
   return (
     <>
+      <LearnLink href="/guide#charter">What the Steward does</LearnLink>
       <Flash err={err} ok={ok} />
       <Panel title="👑 The Royal Charter — the Steward at work">
         <p style={{ fontSize: 14.5 }}>

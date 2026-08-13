@@ -5,9 +5,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { currentPlayerId } from "@/lib/server/auth";
 import { createCharterCheckout, paymentMode } from "@/lib/server/premium";
+import { getWorld } from "@/lib/server/world";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const playerId = await currentPlayerId();
+  const playerId = await currentPlayerId(await getWorld());
   if (!playerId) return NextResponse.redirect(new URL("/login", req.url), 303);
   if (paymentMode() !== "stripe") {
     return NextResponse.redirect(

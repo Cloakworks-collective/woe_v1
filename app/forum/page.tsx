@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { FORUM_CHANNELS } from "@/lib/constants/forum";
 import { getForumViewer } from "@/lib/server/forumAuth";
-import { isSchemaMissing, listThreads } from "@/lib/server/forumStore";
+import { isSchemaMissing, listThreads } from "@/lib/server/accounts";
+import { NamePrompt } from "./NamePrompt";
 import { Notice } from "./Notice";
 import { SetupNotice } from "./SetupNotice";
 
@@ -13,7 +14,7 @@ export default async function ForumIndex({
   searchParams: Promise<{ err?: string; ok?: string }>;
 }) {
   const { err, ok } = await searchParams;
-  const { user, ban } = await getForumViewer();
+  const { account, ban, needsHandle } = await getForumViewer();
 
   let channels;
   try {
@@ -38,12 +39,15 @@ export default async function ForumIndex({
           {ban.reason && <> Reason: {ban.reason}</>}
         </p>
       )}
-      {!user && (
+      {/* Reading needs nothing. The two prompts below are about POSTING, and
+          they only appear because someone might want to. */}
+      {!account && (
         <p className="flat-notice is-warn">
-          You are reading as a guest. <Link href="/forum/register">Register a handle</Link> to reply
-          — you do not need an empire, and your account outlives every era.
+          You are reading as a guest. <Link href="/login">Sign in</Link> to reply — one key opens
+          the game and the boards, and your account outlives every age.
         </p>
       )}
+      {needsHandle && <NamePrompt needsHandle to="/forum" />}
 
       <div className="flat-card">
         <h2>Channels</h2>

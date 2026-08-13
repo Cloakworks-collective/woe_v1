@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FORUM_LIMITS, forumChannel } from "@/lib/constants/forum";
 import { banNotice, getForumViewer } from "@/lib/server/forumAuth";
-import { findUser, listThreads } from "@/lib/server/forumStore";
+import { findAccount, listThreads } from "@/lib/server/accounts";
 import { forumNewThread } from "../../actions";
+import { Editor } from "../../Editor";
+import { NamePrompt } from "../../NamePrompt";
 import { Notice } from "../../Notice";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +30,7 @@ export default async function ChannelPage({
   const authors = new Map<string, string>();
   for (const t of threads) {
     if (t.authorId && !authors.has(t.authorId)) {
-      const a = await findUser(t.authorId);
+      const a = await findAccount(t.authorId);
       authors.set(t.authorId, a?.handle ?? "—");
     }
   }
@@ -77,11 +79,15 @@ export default async function ChannelPage({
         )}
       </div>
 
-      {viewer.isAdmin ? (
+      {/* Who may open a discussion here is the CHANNEL's rule, not a blanket
+          one — only the announcements board is the crown's alone. */}
+      {viewer.canPost && (!channel.adminOnlyThreads || viewer.isAdmin) ? (
         <div className="flat-card">
           <h3>Open a new discussion</h3>
           <p className="flat-sub">
-            Only the crown starts threads for now. Anyone signed in may reply.
+            {channel.adminOnlyThreads
+              ? "The crown speaks here. Anyone signed in may reply."
+              : "Anyone with a name may start one. Say something worth answering."}
           </p>
           <form action={forumNewThread}>
             <input type="hidden" name="channel" value={id} />
@@ -89,21 +95,25 @@ export default async function ChannelPage({
               <span>Title</span>
               <input name="title" type="text" maxLength={FORUM_LIMITS.TITLE_MAX} required />
             </label>
-            <label className="flat-field">
-              <span>Opening post</span>
-              <textarea name="body" maxLength={FORUM_LIMITS.BODY_MAX} required />
-            </label>
+            <Editor
+              label="Opening post"
+              placeholder={
+                id === "bugs"
+                  ? "What you did, what happened, what you expected — and the turn it happened on if you have it."
+                  : undefined
+              }
+            />
             <button className="flat-btn" type="submit">Post discussion</button>
           </form>
         </div>
-      ) : (
+      ) : viewer.ban ? (
+        <p className="flat-hint">{banNotice(viewer.ban)}</p>
+      ) : channel.adminOnlyThreads && viewer.account ? (
         <p className="flat-hint">
-          {viewer.ban
-            ? banNotice(viewer.ban)
-            : viewer.user
-              ? "Only the crown opens new discussions for now — open one of the above and reply."
-              : "Sign in to reply to a discussion."}
+          Only the crown opens discussions in this channel — open one above and reply.
         </p>
+      ) : (
+        <NamePrompt needsHandle={viewer.needsHandle} to={`/forum/c/${id}`} />
       )}
     </>
   );

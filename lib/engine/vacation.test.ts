@@ -31,14 +31,14 @@ describe("vacation — production penalty", () => {
     const onVacation = build();
     onVacation.onVacation = true;
     const flagged = processTurnTick(onVacation).player;
-    // Normal produces 20 × (50 × 1 × (1−0.5 tax)) × 1.25 human = 625 food;
-    // vacation halves the production to 312.5 (upkeep, a flat 10, is the same).
-    const normalGain = normal.resources.food - 1000; // 625 − 10 upkeep = 615
-    // Vacation halves 625 to 312.5, floored to 312 (stocks are whole), − 10 upkeep.
-    const flaggedGain = flagged.resources.food - 1000;
-    expect(normalGain).toBe(615);
-    expect(flaggedGain).toBe(302);
-    expect(normalGain - flaggedGain).toBe(313); // half the production, ±the floored unit
+    // Normal produces 20 × (5 × 1 × (1−0.5 tax)) × 1.25 human = 62.5 → 62 food;
+    // vacation halves the production to 31.25 → 31 (upkeep, a flat 10, is the
+    // same either way).
+    const normalGain = normal.resources.food - 1000; // 62 − 10 upkeep = 52
+    const flaggedGain = flagged.resources.food - 1000; // 31 − 10 upkeep = 21
+    expect(normalGain).toBe(52);
+    expect(flaggedGain).toBe(21);
+    expect(normalGain - flaggedGain).toBe(31); // half the production, ±the floored unit
   });
 });
 

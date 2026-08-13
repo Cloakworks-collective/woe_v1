@@ -7,15 +7,20 @@ import { CmdForm } from "@/components/CmdForm";
 import { ReqTip } from "@/components/CostTip";
 import { TextInput } from "@/components/TextInput";
 import { CHAT } from "@/lib/constants";
+import { ticksAgo } from "@/lib/engine";
 import type { ForumMessage } from "@/lib/server/store";
 
 export function ClanChat({
   messages,
   viewerId,
+  nowTick,
   path = "/clan",
 }: {
   messages: ForumMessage[];
   viewerId: string;
+  /** Current turn — the log stamps "3h ago", not a turn number. Nobody knows
+   *  what turn 5,039 was; everyone knows what this morning was. */
+  nowTick: number;
   path?: string;
 }) {
   return (
@@ -27,7 +32,13 @@ export function ClanChat({
           messages.map((m) => (
             <div key={m.id} className="clanchat-line">
               <b style={{ color: m.authorId === viewerId ? "var(--warn)" : "#5a3b1c" }}>{m.authorName}</b>
-              <span style={{ color: "var(--border)", fontSize: 12.5 }}> · turn {m.tick}</span>
+              <span
+                style={{ color: "var(--border)", fontSize: 12.5 }}
+                title={`turn ${m.tick.toLocaleString("en-US")}`}
+              >
+                {" · "}
+                {ticksAgo(m.tick, nowTick)}
+              </span>
               <div>{m.body}</div>
             </div>
           ))

@@ -99,6 +99,59 @@ describe("expanded War Records (spec/overview.md)", () => {
     // Snapshot ladders are always present when empires exist.
     expect(tableByTitle(w, "Greatest Rulers")).toBeDefined();
     expect(tableByTitle(w, "Lords & Ladies of the Realm")).toBeDefined();
-    expect(tableByTitle(w, "Non-Battle Titles")).toBeDefined();
+    // Non-Battle Titles is NOT — every civil title now requires a deed. It used
+    // to appear for any world at all, because "the Populous" and "the Wealthy"
+    // crowned whoever merely existed hardest; those are gone.
+    expect(tableByTitle(w, "Non-Battle Titles")).toBeUndefined();
+  });
+
+  it("ranks each title ten deep, best first", () => {
+    const w = seedWorld();
+    w.players = {
+      A: newEmpire({ id: "A", name: "Alpha", race: "orc" }),
+      B: newEmpire({ id: "B", name: "Beta", race: "elf" }),
+      C: newEmpire({ id: "C", name: "Gamma", race: "human" }),
+    };
+    w.clans = {};
+    const rec = (w.eraRecords = newEraRecords());
+    for (const [id, gold] of [["A", 100], ["B", 900], ["C", 500]] as const) {
+      recordBattle(rec, baseReport({ loot: { gold, resources: { food: 0, wood: 0, stone: 0, ore: 0 } } }), {
+        attackerId: id,
+        defenderId: "B",
+      });
+    }
+    const rows = tableByTitle(w, "Champions of the Realms")!.rows.filter((r) =>
+      String(r[2]).includes("Gold won"),
+    );
+    // A title is a small leaderboard now, not a single name — you cannot tell
+    // whether you are close to one you cannot see the shape of.
+    expect(rows.map((r) => String(r[0]))).toEqual([
+      "Beta, the Plunderer",
+      "Gamma, the Plunderer",
+      "Alpha, the Plunderer",
+    ]);
+  });
+
+  it("holds the scouting-report titles anonymous until the age is sealed", () => {
+    const build = (won: boolean) => {
+      const w = seedWorld();
+      const a = newEmpire({ id: "A", name: "Alpha", race: "orc" });
+      a.research.levels = { masonry: 3 };
+      w.players = { A: a };
+      w.clans = {};
+      w.eraRecords = newEraRecords();
+      if (won) w.meta.winner = { kind: "overlord", id: "A", name: "Alpha", atTick: 1 };
+      return tableByTitle(w, "Non-Battle Titles")!.rows.find((r) => String(r[2]).includes("research"));
+    };
+
+    // Live: the standing is public, the name is not — naming the empire with
+    // the deepest Collegium does a research thief's scouting for them.
+    const live = build(false)!;
+    expect(String(live[0])).toBe(", the Wise");
+    expect(live[1]).toBe("");
+    expect(String(live[3])).not.toBe("");
+
+    // Sealed: the war it could have influenced is over.
+    expect(String(build(true)![0])).toBe("Alpha, the Wise");
   });
 });

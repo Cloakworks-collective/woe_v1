@@ -3,7 +3,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { applyOnboardingRewards, isOnboardingActive, type Player } from "@/lib/engine";
-import { currentPlayerId, newRealmToken } from "./auth";
+import { currentAccountId, playerIdForAccount } from "./auth";
 import { runCommand } from "./pipeline";
 import { type World } from "./store";
 import { commitWithRetry, getWorld, runDueTicks } from "./world";
@@ -17,25 +17,29 @@ const PRESENCE_STALE_MS = 4 * 60 * 1000; // coarse Online granularity
 export const getGame = cache(_getGame);
 
 async function _getGame(): Promise<{ world: World; player: Player }> {
-  const id = await currentPlayerId(); // world-independent — read once, up front
+  // The account is world-independent; WHICH empire it holds is not, because an
+  // account keeps its identity across ages and founds a fresh empire in each.
+  // So this reads the cookie up front and resolves the empire per world.
+  const accountId = await currentAccountId();
 
   // §14.2: the single-writer service owns the world. Read from it; push any
-  // housekeeping (token backfill, onboarding payout, presence) as a command so
-  // it lands through the one writer — and only when something actually needs it.
+  // housekeeping (onboarding payout, presence) as a command so it lands through
+  // the one writer — and only when something actually needs it.
   if (worldServiceEnabled()) {
-    if (!id) redirect("/login");
+    if (!accountId) redirect("/login");
     const world = await getWorld();
+    const id = playerIdForAccount(world, accountId);
+    // No empire in THIS age is not an error — it is the normal state of a
+    // returning player on the first day of a new one. /login founds the next.
+    if (!id) redirect("/login");
     const player = world.players[id];
     if (player?.banned) redirect(`/login?err=${encodeURIComponent("This empire has been banished by the crown.")}`);
     if (!player) redirect("/login");
     const now = Date.now();
     const needsSync =
-      !player.apiToken ||
-      isOnboardingActive(player) ||
-      now - (player.lastSeenAtMs ?? 0) > PRESENCE_STALE_MS;
+      isOnboardingActive(player) || now - (player.lastSeenAtMs ?? 0) > PRESENCE_STALE_MS;
     if (needsSync) {
-      const token = player.apiToken ? undefined : newRealmToken();
-      await runCommand(id, "syncPlayer", token ? { token } : {});
+      await runCommand(id, "syncPlayer", {});
       const fresh = await getWorld({ forceReload: true });
       const fp = fresh.players[id];
       if (fp) return { world: fresh, player: fp };
@@ -43,15 +47,14 @@ async function _getGame(): Promise<{ world: World; player: Player }> {
     return { world, player };
   }
 
-  // Advance the clock, backfill tokens, pay out charges, stamp presence — all
-  // under optimistic concurrency (§14.1). A page load that changes nothing
-  // (dirty=false) skips the save, keeping ordinary navigation off the network.
+  // Advance the clock, pay out charges, stamp presence — all under optimistic
+  // concurrency (§14.1). A page load that changes nothing (dirty=false) skips
+  // the save, keeping ordinary navigation off the network.
   const { world, player, banned } = await commitWithRetry((world) => {
     const processed = runDueTicks(world);
+    const id = accountId ? playerIdForAccount(world, accountId) : null;
     const player = id ? world.players[id] : undefined;
     if (player?.banned) return { result: { world, player, banned: true }, dirty: false };
-    // Backfill realm tokens for empires founded before CLI access existed.
-    const minted = player && !player.apiToken ? ((player.apiToken = newRealmToken()), true) : false;
     // Pay out any completed-but-unclaimed Regent's Charges (idempotent).
     const rewarded = player ? applyOnboardingRewards(player).length > 0 : false;
     // Presence for the ladder's Online column — coarse (4-min granularity) so
@@ -61,7 +64,7 @@ async function _getGame(): Promise<{ world: World; player: Player }> {
       player && now - (player.lastSeenAtMs ?? 0) > 4 * 60 * 1000
         ? ((player.lastSeenAtMs = now), true)
         : false;
-    const dirty = processed > 0 || minted || rewarded || seen;
+    const dirty = processed > 0 || rewarded || seen;
     return { result: { world, player, banned: false }, dirty };
   });
 

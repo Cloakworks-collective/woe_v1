@@ -11,16 +11,13 @@
 // clan's page (/clan/[id]) when the banner is still known.
 
 import { researchOrdinalCost } from "../constants/research";
-import { CIVILIAN_LEVELLED_IDS } from "../constants/buildings";
 import { TURN_MINUTES } from "../constants";
 import {
   clanCode,
   eraRecordsEmpty,
-  level,
   rankingScore,
   topFeuds,
   topWars,
-  totalPopulation,
   totalResearchLevels,
   type Clan,
   type EraRecords,
@@ -166,22 +163,8 @@ function researchInvested(p: Player): number {
   return rp;
 }
 
-/** Sum of all levelled civilian + military building levels — the great builders. */
-function buildingLevels(p: Player): number {
-  return CIVILIAN_LEVELLED_IDS.reduce((s, id) => s + level(p, id), 0) + level(p, "walls");
-}
-
 function clanSnapshotScore(world: World, memberIds: string[]): number {
   return memberIds.reduce((s, id) => (world.players[id] ? s + rankingScore(world.players[id]) : s), 0);
-}
-
-/** A ruler's total wealth — coin on hand + vaulted + loose goods. */
-function wealth(p: Player): number {
-  const r = p.resources;
-  const banked = p.bankedResources ?? { food: 0, wood: 0, stone: 0, ore: 0 };
-  return (
-    p.gold + p.bankedGold + r.food + r.wood + r.stone + r.ore + banked.food + banked.wood + banked.stone + banked.ore
-  );
 }
 
 // ── Champion picking ─────────────────────────────────────────────────────────
@@ -190,28 +173,56 @@ interface Champ {
   label: string; // the feat
   epithet: string; // "the Plunderer"
   value: (p: Player, f?: PlayerFeats) => number;
+  /**
+   * Tallied in the open but held ANONYMOUS until the age is sealed.
+   *
+   * Some titles are a scouting report with a ribbon on it. "Most siege damage
+   * caused" names the empire with the engines; "most research" names the one
+   * worth stealing from; the spy titles name the empires running covert
+   * programmes — all things the game otherwise charges spy turns to learn. The
+   * standings still show (so you can see whether you are near the top of one),
+   * but the names arrive only when the age can no longer be fought.
+   */
+  secret?: boolean;
 }
 
+/**
+ * How deep each title is tallied. A title used to be one name and a number,
+ * which answered "who holds it" but never "am I close" — and being close is the
+ * whole reason to chase one. The card shows the top three and opens to all ten.
+ */
+export const TITLE_CONTENDERS = 10;
+
+/**
+ * Every title as a small leaderboard: `TITLE_CONTENDERS` rows per feat, best
+ * first, all carrying the same epithet so the card renderer can group them.
+ *
+ * A sealed age's lore tables carry ONE row per epithet and go through the same
+ * renderer — grouping by epithet means those still draw correctly as
+ * single-holder cards, with no second code path.
+ */
 function crownRows(
   players: Player[],
   records: EraRecords | undefined,
   clanCell: (id?: string) => ElderCell,
   specs: Champ[],
+  /** True once the age is won — a sealed age reveals every name. */
+  reveal = true,
 ): ElderCell[][] {
   const feats = records?.feats ?? {};
   const rows: ElderCell[][] = [];
   for (const spec of specs) {
-    let best: Player | null = null;
-    let bestVal = 0;
-    for (const p of players) {
-      const v = spec.value(p, feats[p.id]);
-      if (v > bestVal) {
-        bestVal = v;
-        best = p;
-      }
-    }
-    if (best && bestVal > 0) {
-      rows.push([`${best.name}, ${spec.epithet}`, clanCell(best.clanId), spec.label, fmt(bestVal)]);
+    const ranked = players
+      .map((p) => ({ p, v: spec.value(p, feats[p.id]) }))
+      .filter((x) => x.v > 0)
+      .sort((a, b) => b.v - a.v)
+      .slice(0, TITLE_CONTENDERS);
+    const hide = spec.secret && !reveal;
+    for (const { p, v } of ranked) {
+      // An empty name is the "sealed" signal the card renderer reads. The id is
+      // never emitted either — a blank row that still linked to a clan page
+      // would give the whole thing away.
+      rows.push([hide ? `, ${spec.epithet}` : `${p.name}, ${spec.epithet}`, hide ? "" : clanCell(p.clanId), spec.label, fmt(v)]);
     }
   }
   return rows;
@@ -291,6 +302,8 @@ export function buildEraTables(world: World, opts: { link?: boolean } = {}): Eld
   }
 
   // Champions of the Realms — the champion of each battle feat.
+  // A won age hides nothing: the war it could have influenced is over.
+  const reveal = Boolean(world.meta.winner);
   const champions = crownRows(players, records, r.byId, [
     { label: "Defenders killed", epithet: "the Slayer", value: (_p, f) => f?.defendersKilled ?? 0 },
     { label: "Attackers killed", epithet: "the Defender", value: (_p, f) => f?.attackersKilled ?? 0 },
@@ -301,14 +314,19 @@ export function buildEraTables(world: World, opts: { link?: boolean } = {}): Eld
       epithet: "the Empire Destroyer",
       value: (_p, f) => (f ? f.defendersKilled + f.attackersKilled : 0),
     },
-    { label: "Most siege damage caused", epithet: "the Siege Master", value: (_p, f) => f?.siegeDamage ?? 0 },
+    { label: "Most siege damage caused", epithet: "the Siege Master", value: (_p, f) => f?.siegeDamage ?? 0, secret: true },
     { label: "Most experienced army", epithet: "the Undefeatable", value: (p) => Math.round(p.army.experience) },
     { label: "Strongest empire-less ruler", epithet: "the Black Knight", value: (p) => (p.clanId ? 0 : rankingScore(p)) },
-  ]);
+    // Sabotage and arson are war — fought without a banner and paid for in spy
+    // turns, but war. They sat under "civil feats" beside market sales and
+    // gifts, which is not what burning a rival's granary is.
+    { label: "Most spy damage caused", epithet: "the Saboteur", value: (_p, f) => f?.spyDamage ?? 0, secret: true },
+    { label: "Most resources destroyed", epithet: "the Vandal", value: (_p, f) => f?.resourcesDestroyed ?? 0, secret: true },
+  ], reveal);
   if (champions.length) {
     tables.push({
       title: "Champions of the Realms",
-      note: "the champion of each feat of arms",
+      note: "the champion of each feat of arms, open and covert",
       headers: ["Name", "Clan", "Feat", "Total"],
       numeric: [3],
       rows: champions,
@@ -317,16 +335,16 @@ export function buildEraTables(world: World, opts: { link?: boolean } = {}): Eld
 
   // Non-Battle Titles — the leader of each civil feat.
   const civil = crownRows(players, records, r.byId, [
-    { label: "Most research", epithet: "the Wise", value: (p) => researchInvested(p) },
-    { label: "Most market sales", epithet: "the Marketeer", value: (_p, f) => f?.marketSales ?? 0 },
+    { label: "Most research", epithet: "the Wise", value: (p) => researchInvested(p), secret: true },
+    { label: "Most market sales", epithet: "the Marketeer", value: (_p, f) => f?.marketSales ?? 0, secret: true },
     { label: "Most gold given away", epithet: "the Generous", value: (_p, f) => f?.goldGiven ?? 0 },
     { label: "Most resources given away", epithet: "the Bountiful", value: (_p, f) => f?.resourcesGiven ?? 0 },
-    { label: "Most spy damage caused", epithet: "the Saboteur", value: (_p, f) => f?.spyDamage ?? 0 },
-    { label: "Most resources destroyed", epithet: "the Vandal", value: (_p, f) => f?.resourcesDestroyed ?? 0 },
-    { label: "Largest population", epithet: "the Populous", value: (p) => totalPopulation(p) },
-    { label: "Grandest works", epithet: "the Architect", value: (p) => buildingLevels(p) },
-    { label: "Greatest wealth", epithet: "the Wealthy", value: (p) => wealth(p) },
-  ]);
+    // the Wealthy, the Architect and the Populous are GONE (2026-08). The first
+    // published a raiding list — "here is the fattest purse in the age" — and
+    // the other two restated the ladder in a slower way: works and population
+    // are already most of a ranking score. A title should be a deed, not a
+    // standing invitation.
+  ], reveal);
   if (civil.length) {
     tables.push({
       title: "Non-Battle Titles",

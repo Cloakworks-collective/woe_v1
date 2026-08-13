@@ -34,6 +34,12 @@ export const FORUM_CHANNELS: ForumChannel[] = [
     blurb: "Alliances, betrayals, war declarations and the arguments that follow them.",
   },
   {
+    id: "bugs",
+    name: "Bugs & Broken Things",
+    blurb:
+      "Something not working, or working in a way it plainly shouldn't? Post it here. Say what you did, what happened, and what you expected — and the turn it happened on if you have it.",
+  },
+  {
     id: "anything",
     name: "Anything Goes",
     blurb: "Everything else. Still a public room — the ban list applies here like anywhere.",
@@ -54,7 +60,8 @@ export const FORUM_BAN_DURATIONS = [
 export const FORUM_LIMITS = {
   HANDLE_MIN: 3,
   HANDLE_MAX: 20,
-  PASSWORD_MIN: 8,
+  // No PASSWORD_MIN — the forum has no passwords. It signs you in with a magic
+  // link, the same gate the game uses (see lib/server/forumAuth.ts).
   TITLE_MAX: 120,
   BODY_MAX: 8000,
   PAGE_SIZE: 30,

@@ -21,6 +21,7 @@ import {
   FOOD_UPKEEP_PER_PERSON,
   GOLD_PER_CIVILIAN_AT_FULL_TAX,
   MERC_UPKEEP_GOLD_PER_TURN,
+  researchOutputAtLevel,
   workerOutputAtLevel,
   RACES,
   STAMINA,
@@ -90,7 +91,7 @@ export function foodUpkeepPerTurn(p: Player): number {
 
 /**
  * Output PER resource-producer per turn, before race/research/integrity: the
- * production building's level lifts every worker (50 × level at 0% tax), and the
+ * production building's level lifts every worker (5 × level at 0% tax), and the
  * tax/statecraft dial applies as usual. Level 0 (no building) → 0. See economy.md.
  */
 export function productionPerWorker(p: Player, building: BuildingId, hallPenaltyFactor = 1): number {
@@ -99,7 +100,11 @@ export function productionPerWorker(p: Player, building: BuildingId, hallPenalty
   // Statecraft no longer touches output — it governs the TREASURY (see the tax
   // take in the tick below). Four production fields already exist; a fifth that
   // stacked on all of them was a duplicate.
-  return workerOutputAtLevel(lvl) * (1 - p.taxRate * hallPenaltyFactor);
+  //
+  // The Collegium is on its own curve: scholars make research points, not
+  // goods, and the goods curve was cut tenfold when the age went coin-rich.
+  const per = building === "collegium" ? researchOutputAtLevel(lvl) : workerOutputAtLevel(lvl);
+  return per * (1 - p.taxRate * hallPenaltyFactor);
 }
 
 export interface TickOptions {
@@ -168,7 +173,7 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
     }
 
     // 3. Production. Workers are UNCAPPED — the building level lifts each
-    //    worker's output (50/turn at L1 → 500 at L10; economy.md).
+    //    worker's output (5/turn at L1 → 50 at L10; economy.md).
     const race = RACES[p.race];
     for (const { role, building, resource, field } of PRODUCTION) {
       const n = p.workers[role];
@@ -184,8 +189,9 @@ export function processTurnTick(input: Player, opts: TickOptions = {}): EngineRe
     }
 
     // Research points → active field. Researchers are UNCAPPED too — the
-    // Collegium level lifts how much each scholar produces (same 50×level model),
-    // and a cracked Collegium slows them (research.md). Levels complete when the
+    // Collegium level lifts how much each scholar produces (50 × level — the
+    // goods curve's tenfold cut does not apply to scholars), and a cracked
+    // Collegium slows them (research.md). Levels complete when the
     // (global, progressive) cost is paid.
     const researchers = p.workers.researchers;
     const field = p.research.activeField;

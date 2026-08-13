@@ -39,7 +39,7 @@ export const RESEARCH_FIELDS: ResearchFieldMeta[] = [
   { id: "siegecraft", name: "Siegecraft", desc: "Siege engine power, up to +100% — every engine, every target", ranked: true },
   { id: "siege_accuracy", name: "Siege Accuracy", desc: "Trebuchets stop missing: 30%→60% against walls, 20%→50% against buildings, and sharper counter-battery fire", ranked: true },
   { id: "free_companies", name: "Free Companies", desc: "Sellsword contracts, up to −50% on the price of hiring", ranked: false },
-  { id: "statecraft", name: "Statecraft", desc: "Multiplies post-tax producer output, ×2 at level 5", ranked: true },
+  { id: "statecraft", name: "Statecraft", desc: "Multiplies your tax income, ×2 at level 5 — the treasury, not the workshops", ranked: true },
 ];
 
 export {
