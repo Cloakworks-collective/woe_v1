@@ -586,7 +586,7 @@ export const SCHOLARSHIP = {
 export const TRAINING_COSTS = {
   footman: { gold: 100, wood: 20, stone: 0, ore: 90 }, // muster + sword, shield, mail
   archer: { gold: 150, wood: 50, stone: 0, ore: 55 }, // muster + arrowheads + bow
-  cavalry: { gold: 250, wood: 20, stone: 0, ore: 100 }, // muster + barding, lance, blade
+  cavalry: { gold: 250, wood: 30, stone: 0, ore: 100 }, // muster + barding, lance, blade
   siegeEngineer: { gold: 200, wood: 0, stone: 0, ore: 0 },
   spy: { gold: 300, wood: 0, stone: 0, ore: 0 },
   scout: { gold: 200, wood: 0, stone: 0, ore: 0 },
@@ -615,12 +615,14 @@ export const TRAINING_COST_BY_TIER: Partial<
     medium: { wood: 110 },
     heavy: { wood: 250 },
   },
-  /** Gold scales cleanly (250 → 500 → 1,000), so only ORE breaks out: 100 →
-   *  200 → 350 rather than to 400. The war-metal is already contested by the
-   *  Forge, the Armoury and the siege train, and heavy horse should cost a
-   *  treasury rather than a mine. */
+  /** Gold scales cleanly (250 → 500 → 1,000); timber and ore both climb SLOWER
+   *  than ×4 — 30 → 50 → 100 and 100 → 200 → 350. A barded warhorse is mostly
+   *  gold: the smith's bill and the beast itself, not four ponies' worth of
+   *  lumber and iron. The war-metal is contested enough already by the Forge,
+   *  the Armoury and the siege train. */
   cavalry: {
-    heavy: { ore: 350 },
+    medium: { wood: 50 },
+    heavy: { wood: 100, ore: 350 },
   },
 };
 

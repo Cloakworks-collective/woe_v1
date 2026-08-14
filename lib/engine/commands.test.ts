@@ -442,12 +442,14 @@ describe("training costs", () => {
       expect(c.wood).toBe(l.wood * m);
       expect(c.ore).toBe(l.ore * m);
     }
-    // An override cannot leak into a resource it did not name. Cavalry name only
-    // ore, so their GOLD and TIMBER both still scale cleanly ×4…
-    expect(trainingCost(p, "cavalry", "heavy").wood).toBe(trainingCost(p, "cavalry", "light").wood * 4);
+    // An override cannot leak into a resource it did not name: cavalry name
+    // timber and ore, so their GOLD still scales cleanly ×4…
     expect(trainingCost(p, "cavalry", "heavy").gold).toBe(trainingCost(p, "cavalry", "light").gold * 4);
-    // …while the archer, which names timber, is the one that breaks the pattern.
-    expect(trainingCost(p, "archer", "heavy").wood).not.toBe(trainingCost(p, "archer", "light").wood * 4);
+    // …and the archer, which names only timber, keeps a clean ×4 on its ore.
+    expect(trainingCost(p, "archer", "heavy").ore).toBe(trainingCost(p, "archer", "light").ore * 4);
+    // Both named timber lines do break the pattern, in opposite directions.
+    expect(trainingCost(p, "archer", "heavy").wood).toBeGreaterThan(trainingCost(p, "archer", "light").wood * 4);
+    expect(trainingCost(p, "cavalry", "heavy").wood).toBeLessThan(trainingCost(p, "cavalry", "light").wood * 4);
   });
 
   it("gives the named lines their per-tier figures outright", () => {
@@ -465,6 +467,8 @@ describe("training costs", () => {
       .toEqual([250, 500, 1000]);
     expect((["light", "medium", "heavy"] as const).map((t) => trainingCost(p, "cavalry", t).ore))
       .toEqual([100, 200, 350]);
+    expect((["light", "medium", "heavy"] as const).map((t) => trainingCost(p, "cavalry", t).wood))
+      .toEqual([30, 50, 100]);
     expect(trainingCost(p, "cavalry", "heavy").ore).toBeLessThan(100 * 4);
   });
 
