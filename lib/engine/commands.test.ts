@@ -442,10 +442,8 @@ describe("training costs", () => {
       expect(c.wood).toBe(l.wood * m);
       expect(c.ore).toBe(l.ore * m);
     }
-    // An override cannot leak into a resource it did not name. Cavalry name all
-    // three at heavy, but only TIMBER at medium — so their gold and ore still
-    // scale cleanly there…
-    expect(trainingCost(p, "cavalry", "medium").gold).toBe(trainingCost(p, "cavalry", "light").gold * 2);
+    // An override cannot leak into a resource it did not name. Cavalry name gold
+    // and timber at medium but NOT ore, so ore still scales cleanly there…
     expect(trainingCost(p, "cavalry", "medium").ore).toBe(trainingCost(p, "cavalry", "light").ore * 2);
     // …and the archer, which names only timber, keeps a clean ×4 on its ore.
     expect(trainingCost(p, "archer", "heavy").ore).toBe(trainingCost(p, "archer", "light").ore * 4);
@@ -467,7 +465,7 @@ describe("training costs", () => {
     // top tier costs less than ×4 on all three, which is what keeps them a
     // premium rather than a luxury.
     expect((["light", "medium", "heavy"] as const).map((t) => trainingCost(p, "cavalry", t).gold))
-      .toEqual([250, 500, 900]);
+      .toEqual([240, 440, 840]);
     expect((["light", "medium", "heavy"] as const).map((t) => trainingCost(p, "cavalry", t).ore))
       .toEqual([100, 200, 350]);
     expect((["light", "medium", "heavy"] as const).map((t) => trainingCost(p, "cavalry", t).wood))

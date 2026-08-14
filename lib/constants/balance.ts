@@ -586,7 +586,7 @@ export const SCHOLARSHIP = {
 export const TRAINING_COSTS = {
   footman: { gold: 100, wood: 20, stone: 0, ore: 90 }, // muster + sword, shield, mail
   archer: { gold: 150, wood: 50, stone: 0, ore: 55 }, // muster + arrowheads + bow
-  cavalry: { gold: 250, wood: 30, stone: 0, ore: 100 }, // muster + barding, lance, blade
+  cavalry: { gold: 240, wood: 30, stone: 0, ore: 100 }, // muster + barding, lance, blade
   siegeEngineer: { gold: 200, wood: 0, stone: 0, ore: 0 },
   spy: { gold: 300, wood: 0, stone: 0, ore: 0 },
   scout: { gold: 200, wood: 0, stone: 0, ore: 0 },
@@ -615,15 +615,16 @@ export const TRAINING_COST_BY_TIER: Partial<
     medium: { wood: 110 },
     heavy: { wood: 250 },
   },
-  /** EVERY line climbs slower than ×4 at the top: gold 250 → 500 → 900,
-   *  timber 30 → 50 → 100, ore 100 → 200 → 350. A barded warhorse is mostly
-   *  gold — the smith's bill and the beast itself, not four ponies' worth of
-   *  lumber and iron — and the heavy tier is where that stops compounding.
-   *  Cavalry are the only arm whose top tier is discounted on every resource,
-   *  which is what keeps them a premium rather than a luxury. */
+  /** EVERY line climbs slower than ×4: gold 240 → 440 → 840, timber
+   *  30 → 50 → 100, ore 100 → 200 → 350. A barded warhorse is mostly gold — the
+   *  smith's bill and the beast itself, not four ponies' worth of lumber and
+   *  iron — and cavalry are the one arm whose higher tiers are discounted on
+   *  every resource. That is what keeps them a premium rather than a luxury:
+   *  dearest per point of power in the game, but not by so much that fielding
+   *  them is a statement instead of a choice. */
   cavalry: {
-    medium: { wood: 50 },
-    heavy: { gold: 900, wood: 100, ore: 350 },
+    medium: { gold: 440, wood: 50 },
+    heavy: { gold: 840, wood: 100, ore: 350 },
   },
 };
 
