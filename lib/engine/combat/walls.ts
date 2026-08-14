@@ -1,14 +1,21 @@
 // Walls, escalade, and what a wall is actually worth (spec/combat.md).
 //
-// A standing wall is a standing wall: the defence edge is FLAT, and wall LEVEL
-// buys durability instead. A Citadel is not harder to fight over than a
-// palisade — it is harder to knock down, and that is a far more interesting
-// thing for a level to mean.
+// The defence edge per defender is FLAT — a standing wall is a standing wall.
+// What wall LEVEL buys is durability (it is harder to knock down) and REACH:
+// how much of an attacking host the wall can meet at once.
 //
-// Escalade no longer bypasses the wall outright. Grapple parties, ladder
-// parties and siege towers each deliver troops onto a LESSER wall, and the
-// host fights at the blended average. Bring enough tackle and the wall stops
-// mattering; bring none and you are climbing sheer stone.
+// Two things thin that edge, and they multiply:
+//
+//   TACKLE   grapple parties, ladder parties and siege towers each deliver
+//            troops onto a LESSER wall, and the host fights at the blended
+//            average. Bring enough tackle and the wall stops mattering; bring
+//            none and you are climbing sheer stone.
+//   NUMBERS  a wall is only so long. Attackers beyond what it can hold off
+//            spill round and fight as if it were not there.
+//
+// The second was added in 2026-08 because without it wall level decided nothing
+// about who won — only how long the masonry lasted. A 500-strong garrison fell
+// to 500 attackers behind no wall and behind a Citadel alike.
 
 import { evalCurve } from "../../constants/curves";
 import {
@@ -37,8 +44,12 @@ export function damageToIntegrity(p: Player, damage: number): number {
 }
 
 export interface EscaladeResult {
-  /** The wall edge every defender actually enjoys, blended across the host. */
+  /** The wall edge every defender actually enjoys, blended across the host —
+   *  tackle first, then thinned by how much of the host the wall can meet. */
   blendedEdge: number;
+  /** What share of the attacking host the wall could hold off at all, 0–1.
+   *  1 means the wall was long enough for everyone who came. */
+  coverage: number;
   grappled: number;
   laddered: number;
   towered: number;
@@ -62,7 +73,7 @@ export function blendWallEdge(
   const wallLvl = level(defender, "walls");
   const base = wallLvl > 0 ? WALL_EDGE.BASE : 0;
   if (wallLvl <= 0 || troops <= 0) {
-    return { blendedEdge: 0, grappled: 0, laddered: 0, towered: 0, unaided: troops };
+    return { blendedEdge: 0, coverage: 0, grappled: 0, laddered: 0, towered: 0, unaided: troops };
   }
 
   let left = troops;
@@ -80,8 +91,20 @@ export function blendWallEdge(
     grappled * WALL_EDGE.VS_GRAPPLE +
     unaided * base;
 
+  // A wall has a LENGTH. Only so many attackers can be met at the parapet at
+  // once; anyone beyond that spills round and fights as if there were no wall.
+  // Applied as a fraction of the whole host rather than a cliff, so the edge
+  // decays smoothly as numbers mount instead of snapping at a threshold.
+  //
+  // This is what gives wall LEVEL a say in who wins rather than merely how long
+  // the masonry lasts — and it is why a horde beats a wall where an elite does
+  // not: nine thousand light foot are covered a third, three thousand heavy are
+  // covered whole.
+  const covered = Math.min(1, (wallLvl * WALL_EDGE.COVER_PER_LEVEL) / troops);
+
   return {
-    blendedEdge: weighted / troops,
+    blendedEdge: (weighted / troops) * covered,
+    coverage: covered,
     grappled,
     laddered,
     towered,

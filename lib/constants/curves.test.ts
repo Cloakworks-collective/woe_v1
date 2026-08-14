@@ -91,8 +91,10 @@ describe("the default curves reproduce the classic formulas exactly", () => {
     expect(researchOutputAtLevel(1)).toBe(10);
     expect(researchOutputAtLevel(10)).toBe(100);
     expect(wallBonusAtLevel(10)).toBeCloseTo(0.5); // flat edge — level buys health, not bonus
-    expect(wallHealthAtLevel(10)).toBe(1_000_000); // the Citadel, the 10-bombard anchor
-    expect(wallHealthAtLevel(5)).toBe(250_000);
+    expect(wallHealthAtLevel(10)).toBe(3_000_000); // the Citadel
+    expect(wallHealthAtLevel(5)).toBe(750_000);
+    // Quadratic: level² × 30,000, so a Citadel soaks 100× a Palisade.
+    expect(wallHealthAtLevel(10) / wallHealthAtLevel(1)).toBe(100);
     expect(wallsScoreAtLevel(8)).toBe(6400);
     // Shelter grows 1.9× per level, and the vault starts higher than the barns.
     expect(storageShelterAtLevel(1)).toBe(20_000);

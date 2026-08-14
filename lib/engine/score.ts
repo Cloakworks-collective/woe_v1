@@ -34,7 +34,7 @@ import {
 import { COUNTER_TYPES, type CounterType } from "../constants/buildings";
 import type { RaceModifiers } from "../constants/races";
 import { crewCounters } from "./combat/duel";
-import { level, type Player, type TroopCounts } from "./types";
+import { level, military, type Player, type TroopCounts } from "./types";
 
 type Arm = "footman" | "archer" | "cavalry";
 
@@ -123,7 +123,19 @@ export function rankingScore(p: Player): number {
 
   // Walls — quadratic in level, because that is how their health scales, and
   // scaled by the race's fortification quality for the same reason.
-  score += wallsScoreAtLevel(level(p, "walls")) * n(p.wallIntegrity) * race.walls;
+  //
+  // MANNED, though. A wall scores only what there is a garrison to hold: it
+  // needs SCORE.WALL_TROOPS_PER_LEVEL regulars per level for its full worth,
+  // and counts pro rata below that. Same principle as SIEGE_REQUIRES_CREW —
+  // forty uncrewed trebuchets are lumber, and an empty Citadel is masonry.
+  // Without it, walls were the cheapest rank in the game to fake: build stone,
+  // raise nobody, and the ladder called you strong.
+  const wallLvl = level(p, "walls");
+  const manned =
+    wallLvl > 0 && SCORE.WALL_TROOPS_PER_LEVEL > 0
+      ? Math.min(1, military(p) / (wallLvl * SCORE.WALL_TROOPS_PER_LEVEL))
+      : 1;
+  score += wallsScoreAtLevel(wallLvl) * n(p.wallIntegrity) * race.walls * manned;
 
   // Veterancy is prestige, and it is the one multiplier the ladder does show.
   score += n(a.experience) * SCORE.PER_XP_POINT;

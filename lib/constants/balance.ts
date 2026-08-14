@@ -1094,6 +1094,18 @@ export const SCORE = {
   PER_ENGINEER: 12, // pts — priced against a footman per gold spent
   PER_XP_POINT: 100, // pts, army experience 0–100
   PER_RESEARCH_LEVEL: 1000, // pts, ranked fields only
+  /**
+   * Regulars needed PER WALL LEVEL for the wall to score its full worth; below
+   * that it counts pro rata.
+   *
+   * A Citadel wants 2,000 — near the solo victory floor of 2,400, so the empire
+   * claiming the tallest wall on the ladder must have an army to match. The
+   * same principle as SIEGE_REQUIRES_CREW: an unmanned wall is masonry, not
+   * strength, and without this walls were the cheapest rank in the game to
+   * fake. It also closes the gap the coverage rule opened — a wall that can
+   * hold off level × 300 attackers is worth nothing with nobody on it.
+   */
+  WALL_TROOPS_PER_LEVEL: 200, // regulars per wall level
 };
 
 /** Walls ranking score (pts) as a curve of x = wall level (× integrity applied

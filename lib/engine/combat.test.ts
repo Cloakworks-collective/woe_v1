@@ -12,7 +12,9 @@ import { seededRng } from "./rng";
 import { STAMINA, storageShelterAtLevel } from "../constants";
 import { buildingIntegrity, type Player } from "./types";
 import { bonusPool } from "./combat/model";
-import { WAR } from "../constants";
+import { WAR, WALL_EDGE, SCORE } from "../constants";
+import { blendWallEdge } from "./combat/walls";
+import { rankingScore } from "./score";
 
 function empire(name: string, mods: (p: Player) => void): Player {
   const p = newEmpire({ id: name, name, race: "human" });
@@ -520,5 +522,79 @@ describe("the war-works", () => {
       }).length;
     // Same dice, same numbers on both sides — the only difference is the steel.
     expect(wins(10)).toBeGreaterThan(wins(0));
+  });
+});
+
+describe("a wall has a length", () => {
+  const noTackle = { ropes: 0, ladders: 0, siege_towers: 0, rams: 0, ballistae: 0, trebuchets: 0 };
+  const walled = (lvl: number) => empire("D", (p) => { p.buildings.walls = lvl; p.wallIntegrity = 1; });
+
+  it("gives its full edge only to as many attackers as it can meet", () => {
+    // A Citadel covers 3,000. Against that many or fewer, the full +50%.
+    expect(blendWallEdge(walled(10), 3000, noTackle).blendedEdge).toBeCloseTo(WALL_EDGE.BASE, 6);
+    expect(blendWallEdge(walled(10), 1000, noTackle).blendedEdge).toBeCloseTo(WALL_EDGE.BASE, 6);
+    // Twice that many, and half of them are fighting no wall at all.
+    expect(blendWallEdge(walled(10), 6000, noTackle).blendedEdge).toBeCloseTo(WALL_EDGE.BASE / 2, 6);
+  });
+
+  it("makes wall LEVEL decide the edge, which is the whole point", () => {
+    // The failure this rule exists to fix: against a host of 3,000 a Palisade
+    // and a Citadel used to give an identical +50%.
+    const at = (lvl: number) => blendWallEdge(walled(lvl), 3000, noTackle).blendedEdge;
+    expect(at(10)).toBeGreaterThan(at(5));
+    expect(at(5)).toBeGreaterThan(at(1));
+    expect(at(10) / at(1)).toBeCloseTo(10, 6); // linear in level, until it caps
+  });
+
+  it("is beaten by NUMBERS, not by quality", () => {
+    // 3,000 heavies are covered whole; 9,000 lights are covered a third. A horde
+    // beats a wall where an elite does not — which is the right way round, and
+    // gives cheap troops a job.
+    const elite = blendWallEdge(walled(10), 3000, noTackle).blendedEdge;
+    const horde = blendWallEdge(walled(10), 9000, noTackle).blendedEdge;
+    expect(horde).toBeCloseTo(elite / 3, 6);
+  });
+
+  it("still stacks with the tackle blend, multiplicatively", () => {
+    // Siege towers already deliver troops onto a lesser wall. Coverage thins
+    // whatever the tackle left, rather than replacing it.
+    const towers = { ...noTackle, siege_towers: 30 }; // 3,000 men carried
+    const bare = blendWallEdge(walled(10), 3000, noTackle).blendedEdge;
+    const withTowers = blendWallEdge(walled(10), 3000, towers).blendedEdge;
+    expect(withTowers).toBeLessThan(bare);
+    expect(withTowers).toBeCloseTo(WALL_EDGE.VS_TOWER, 6);
+  });
+
+  it("no wall means no edge, however few come", () => {
+    expect(blendWallEdge(walled(0), 10, noTackle).blendedEdge).toBe(0);
+    expect(blendWallEdge(walled(0), 10, noTackle).coverage).toBe(0);
+  });
+});
+
+describe("an unmanned wall is masonry, not strength", () => {
+  const manned = (wallLvl: number, troops: number) =>
+    empire("D", (p) => {
+      p.buildings.walls = wallLvl;
+      p.wallIntegrity = 1;
+      p.army.footmen.light = troops;
+      p.buildings.muster_hall = Math.ceil(troops / 10) + 2;
+    });
+
+  it("scores pro rata below the garrison a wall needs", () => {
+    const need = 10 * SCORE.WALL_TROOPS_PER_LEVEL; // a Citadel wants 2,000
+    const full = rankingScore(manned(10, need));
+    const half = rankingScore(manned(10, need / 2));
+    const none = rankingScore(manned(10, 0));
+    // The wall's own contribution halves; the troops themselves still score, so
+    // compare the DIFFERENCES rather than the totals.
+    expect(full - half).toBeGreaterThan(0);
+    expect(rankingScore(manned(0, need))).toBeLessThan(full);
+    expect(none).toBeLessThan(half);
+  });
+
+  it("a bare Citadel scores no more wall than a bare Palisade", () => {
+    // Both unmanned: neither gets any wall points, so the only difference left
+    // between them is nothing at all.
+    expect(rankingScore(manned(10, 0))).toBe(rankingScore(manned(1, 0)));
   });
 });

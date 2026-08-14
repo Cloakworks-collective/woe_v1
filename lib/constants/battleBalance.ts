@@ -152,11 +152,45 @@ export const SIEGE_ACCURACY = {
 
 // ─── 4 · WALLS ──────────────────────────────────────────────────────────────
 
-/** The wall's defence edge is FLAT — a standing wall is a standing wall. Wall
- *  LEVEL buys durability (see WALL_HP_CURVE), not a bigger bonus. */
+/**
+ * The wall's defence edge, and the two things that dilute it.
+ *
+ * BASE is what a defender enjoys behind whole masonry, and it does NOT grow
+ * with wall level — a standing wall is a standing wall. What level buys is
+ * durability (WALL_HP_CURVE) and, since 2026-08, HOW MUCH ARMY the wall can
+ * hold off at once (COVER_PER_LEVEL).
+ *
+ * Two dilutions, applied together:
+ *
+ *   TACKLE   troops who came over on a siege tower fight a far lesser wall
+ *            than troops climbing bare stone. Blended by how many of the host
+ *            each surviving engine carried (blendWallEdge).
+ *   NUMBERS  a wall has a LENGTH. Only so many attackers can be met at the
+ *            parapet; the rest spill round and fight as if there were no wall
+ *            at all.
+ *
+ * The second is the one that gives wall level a say in who WINS. Before it, a
+ * 500-strong garrison fell to 500 attackers behind no wall and behind a Citadel
+ * alike: the edge was the same +50% however many came, so level decided nothing
+ * but how long the masonry lasted. It also makes NUMBERS the counter to walls
+ * and quality not — three thousand heavy foot are covered where nine thousand
+ * light are covered a third — which is exactly the right way round, and gives
+ * cheap troops a job.
+ */
 export const WALL_EDGE = {
   /** Additive bonus to every defending unit behind an intact wall. */
   BASE: 0.5, // frac
+  /**
+   * Attackers a wall can meet at the parapet, per level. A Palisade holds off
+   * 300; a Citadel 3,000 — which covers a serious field army, against a solo
+   * victory floor of 2,400 regulars.
+   *
+   * Applied as a fraction, not a cliff: a wall covering 3,000 against 6,000
+   * attackers gives half its edge, rather than full protection to some troops
+   * and none to others. Continuous, and it composes with the tackle blend by
+   * multiplication.
+   */
+  COVER_PER_LEVEL: 300, // attackers
   /** Troops who came over on grapples fight a lesser wall. */
   VS_GRAPPLE: 0.3, // frac
   /** Ladder parties do better still; siege towers best of all. */
@@ -168,11 +202,18 @@ export const WALL_EDGE = {
   TROOPS_PER_TOWER: 100,
 };
 
-/** Wall HEALTH as a curve of x = wall level. Quadratic 10,000 × level²:
- *  a Timber Palisade (1) is 10,000 and falls to a single volley; the Citadel
- *  (10) is 1,000,000 and is the 10-bombard anchor. Damage persists between
- *  battles until repaired. */
-export const WALL_HP_CURVE: Curve = { kind: "polynomial", coefficients: [0, 0, 10000] };
+/** Wall HEALTH as a curve of x = wall level. Quadratic 30,000 × level²:
+ *  a Timber Palisade (1) is 30,000 and falls to a few volleys; the Citadel (10)
+ *  is 3,000,000. Damage persists between battles until repaired.
+ *
+ *  10,000 → 30,000 (2026-08), alongside the coverage rule above. The old figure
+ *  was fitted to a "ten bombards to level a Citadel" anchor; at 40 crewed
+ *  trebuchets and no Siege Accuracy that is now nearer 625 volleys, so a siege
+ *  is a campaign rather than an afternoon — and a defender who mends between
+ *  volleys (repair costs half the damage) can genuinely outlast a besieger who
+ *  cannot keep engines in the field. Re-derive with `SIM_ONLY=bombard pnpm sim`
+ *  before moving it again. */
+export const WALL_HP_CURVE: Curve = { kind: "polynomial", coefficients: [0, 0, 30000] };
 
 /** Bombard fire pounds the walls until integrity falls to this, THEN spills
  *  onto the town. Ram crews join the assault at the same threshold. */
