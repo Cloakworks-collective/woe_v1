@@ -467,7 +467,7 @@ export function bankResource(input: Player, r: Resource, amount: number): Engine
  * footmen/archers/cavalry at light/medium/heavy, no peasants spent. Sellswords
  * still need the matching buildings (heavy cavalry needs Knights' Stables 3 +
  * Forge 3) — they skip the training, not the tech. Gold only, scaled by tier:
- * MERC_PRICE_GOLD × race factor × tier multiplier × (1 − Clan Wonder discount).
+ * MERC_PRICE_BY_ARM × race factor × tier multiplier × (1 − Clan Wonder discount).
  * Capped at 25% of the regular army headcount.
  */
 /**
@@ -484,8 +484,8 @@ export function bankResource(input: Player, r: Resource, amount: number): Engine
  * What ONE hired blade of this arm and tier actually costs this empire.
  *
  * Exported because the troops page was computing its own and getting it wrong
- * twice over: it used the flat MERC_PRICE_GOLD for every arm (so a cavalry
- * sellsword displayed 900 when the engine charged 1,400) and it ignored Free
+ * twice over: it used one flat price for every arm (so a cavalry sellsword
+ * displayed a footman's price) and it ignored Free
  * Companies entirely, so a ruler who had researched it was quoted a price they
  * would not be charged. A screen that lies about a price is worse than a screen
  * that shows none.

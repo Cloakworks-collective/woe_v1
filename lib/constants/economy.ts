@@ -16,7 +16,7 @@ export {
   VACATION_TICKS_PER_ERA,
   VACATION_REATTACK_COOLDOWN_TICKS,
   MERC_UPKEEP_GOLD_PER_TURN,
-  MERC_PRICE_GOLD,
+  MERC_PRICE_MULTIPLE,
 } from "./balance";
 
 /** The sellsword cap now lives with the rest of the battle model — it is a

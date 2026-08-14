@@ -219,16 +219,37 @@ export const VACATION_REATTACK_COOLDOWN_TICKS = 18 * TICKS_PER_HOUR;
 // commanded them die (see MERCENARIES.CAP_RATIO in battleBalance), and their
 // upkeep re-pays their purchase price every few days.
 export const MERC_UPKEEP_GOLD_PER_TURN = 1; // gold/turn; unpaid mercs all defect
-export const MERC_PRICE_GOLD = 900; // gold, light tier; × race mercCost × wonder discount
-/** Merc price for the specialist arms, priced off their regular training cost
- *  at the same multiple the line troops carry. */
+
+/**
+ * Up-front gold for ONE sellsword of each arm, at light tier — the mercenary
+ * counterpart to TRAINING_COSTS. Gold only: no timber, no ore, no peasant, no
+ * training time. That is their whole appeal, and the price is where it is paid.
+ *
+ * EVERY ARM IS EXACTLY MERC_PRICE_MULTIPLE × its raised gold cost, and
+ * `mercenaryPricing.test.ts` fails if that stops being true. It had already
+ * stopped: the line troops were repriced in the 2026-08 pass and these were
+ * not, leaving a footman at 9× and a horseman at 5.8× — so hiring foot was the
+ * worst deal on the board and hiring horse the best, the exact inverse of the
+ * raised ordering, and a player doing the arithmetic would never hire foot.
+ *
+ * Written out as literal numbers rather than computed from TRAINING_COSTS,
+ * because this file is pure data a per-era layer can diff and merge (see the
+ * header) — and because an era may well want to make one arm's sellswords dear
+ * without touching the rest. The test is what keeps the default honest.
+ *
+ * Then multiplied by race mercCost, the tier multiplier (battle line only), the
+ * Clan Wonder discount and Free Companies — see mercPrice() in commands.ts,
+ * which is the ONE place that arithmetic lives.
+ */
+export const MERC_PRICE_MULTIPLE = 6; // × the arm's raised gold cost
+
 export const MERC_PRICE_BY_ARM = {
-  footman: 900,
-  archer: 900,
-  cavalry: 1400,
-  engineer: 800,
-  spy: 1100,
-  scout: 800,
+  footman: 600, // 100 raised
+  archer: 900, // 150
+  cavalry: 1440, // 240
+  engineer: 1200, // 200
+  spy: 1800, // 300
+  scout: 1200, // 200
 };
 
 /**

@@ -16,7 +16,7 @@ import { buildingCost } from "./costs";
 import { newEmpire } from "./newEmpire";
 import { level, mercTotal, normalizePlayer, shelterCapacity, type Player, type TroopType } from "./types";
 import { trainingCost } from "./commands";
-import { UNIT_STATS } from "../constants";
+import { MERC_PRICE_BY_ARM, UNIT_STATS } from "../constants";
 import { researchSwitchLoss } from "./commands";
 import { processTurnTick } from "./tick";
 import { RESEARCH_SWITCH_LOSS } from "../constants";
@@ -282,7 +282,9 @@ describe("training & army", () => {
     expect(() => hireMercenaries(p, "footman", "light", 7)).toThrowError(/capped|third/i);
     const { player } = hireMercenaries(p, "footman", "light", 6);
     expect(player.army.mercenaries.footmen.light).toBe(6);
-    expect(player.gold).toBe(100000 - 6 * 900); // sellswords are dear now
+    // Read from the constant, not written by hand — this figure moved once
+    // already when the line troops were repriced and the mercs were not.
+    expect(player.gold).toBe(100000 - 6 * MERC_PRICE_BY_ARM.footman);
   });
 
   it("hiring a merc tier needs the matching trainer + Forge", () => {

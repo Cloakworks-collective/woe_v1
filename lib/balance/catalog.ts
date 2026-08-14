@@ -368,8 +368,10 @@ export const SCALARS: ScalarMeta[] = [
   { key: "FOOD_UPKEEP_PER_PERSON", label: "Food upkeep", unit: "food / person / turn", group: "Economy", value: C.FOOD_UPKEEP_PER_PERSON, min: 0, step: 0.05, desc: "Food eaten per head each turn — civilians and troops alike. Run out and starvation begins, so farms must keep pace with population." },
   { key: "GOLD_COST_SHARE", label: "Building gold share", unit: "×", group: "Economy", value: C.GOLD_COST_SHARE, min: 0, max: 2, step: 0.05, pct: true, desc: "How much gold a building costs relative to its material cost. At 0.5, gold is half the stone/wood bill — a second currency check on top of raw resources." },
   // Mercenaries
-  // Priced per ARM. MERC_PRICE_GOLD is no longer read by anything — the engine
-  // uses MERC_PRICE_BY_ARM — so a slider for it would tune nothing.
+  // Priced per ARM, each exactly MERC_PRICE_MULTIPLE × the arm's raised gold
+  // cost (mercenaryPricing.test.ts pins that). A single flat price used to sit
+  // here and quoted a footman's fee for a horseman.
+  { key: "MERC_PRICE_MULTIPLE", label: "Sellsword price multiple", unit: "× raised cost", group: "Mercenaries", value: C.MERC_PRICE_MULTIPLE, min: 1, step: 0.5, desc: "What hiring costs against raising, in gold. Every arm's sellsword price is this multiple of what the same soldier costs to train — so repricing a troop should reprice its mercenary too. Sellswords bring no population and no training time; this is where that convenience is paid for." },
   { key: "MERC_PRICE_FOOTMAN", label: "Sellsword price — footman (light)", unit: "gold", group: "Mercenaries", value: C.MERC_PRICE_BY_ARM.footman, min: 0, step: 50, desc: "Up-front gold for one light hired footman. Sellswords need no training time and no population — instant strength you rent, at a premium, and paid every turn thereafter." },
   { key: "MERC_PRICE_ARCHER", label: "Sellsword price — archer (light)", unit: "gold", group: "Mercenaries", value: C.MERC_PRICE_BY_ARM.archer, min: 0, step: 50, desc: "Up-front gold for one light hired archer." },
   { key: "MERC_PRICE_CAVALRY", label: "Sellsword price — cavalry (light)", unit: "gold", group: "Mercenaries", value: C.MERC_PRICE_BY_ARM.cavalry, min: 0, step: 50, desc: "Up-front gold for one light hired horseman — dearer than the foot arms, as raised cavalry is." },
