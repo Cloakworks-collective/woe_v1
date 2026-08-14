@@ -28,8 +28,7 @@ import {
   RESEARCH_FIELDS,
   SCORE,
   SIEGE_COUNTERS,
-  TIER_SCALE,
-  UNIT_POWER,
+  UNIT_STATS,
   wallsScoreAtLevel,
 } from "../constants";
 import { COUNTER_TYPES, type CounterType } from "../constants/buildings";
@@ -54,12 +53,8 @@ const raceUnitFactor = (race: RaceModifiers, arm: Arm): number =>
 
 const armPower = (c: TroopCounts | undefined, arm: Arm, factor = 1): number => {
   if (!c) return 0;
-  const base = UNIT_POWER[arm].power * factor;
-  return (
-    n(c.light) * base * TIER_SCALE.light +
-    n(c.medium) * base * TIER_SCALE.medium +
-    n(c.heavy) * base * TIER_SCALE.heavy
-  );
+  const at = (tier: "light" | "medium" | "heavy") => UNIT_STATS[arm][tier].power * factor;
+  return n(c.light) * at("light") + n(c.medium) * at("medium") + n(c.heavy) * at("heavy");
 };
 
 /**

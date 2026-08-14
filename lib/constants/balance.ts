@@ -569,12 +569,24 @@ export const SCHOLARSHIP = {
 // shared scale as walls, buildings and siege engines (see UNIT_POWER,
 // TIER_SCALE). Re-exported at the foot of this file.
 
-/** Per-light training costs; medium ×2, heavy ×4 (TIER_COST_MULT). Ore is the
- *  war-metal — buildings need none, troops eat it. */
+/**
+ * Per-LIGHT training costs; medium ×2, heavy ×4 (TIER_COST_MULT), except where
+ * TRAINING_COST_BY_TIER overrides a line.
+ *
+ * Ore is the war-metal — no building needed any until the 2026-08 pass, and
+ * troops have always eaten it. Note NO troop costs stone: quarries feed
+ * masonry, forges feed war.
+ *
+ * The footman is the cheapest power in the game by design (10 gold a point at
+ * light) — the line every realm can afford. The archer is dearer per point and
+ * hungrier for timber, and pays for it with the lowest health of the three and
+ * a wall that halves their fire; the horseman is dearest of all and buys the
+ * health and the sortie.
+ */
 export const TRAINING_COSTS = {
-  footman: { gold: 150, wood: 20, stone: 0, ore: 90 }, // muster + sword, shield, mail
-  archer: { gold: 150, wood: 40, stone: 0, ore: 55 }, // muster + arrowheads + bow
-  cavalry: { gold: 350, wood: 20, stone: 0, ore: 130 }, // muster + barding, lance, blade
+  footman: { gold: 100, wood: 20, stone: 0, ore: 90 }, // muster + sword, shield, mail
+  archer: { gold: 150, wood: 50, stone: 0, ore: 55 }, // muster + arrowheads + bow
+  cavalry: { gold: 250, wood: 20, stone: 0, ore: 100 }, // muster + barding, lance, blade
   siegeEngineer: { gold: 200, wood: 0, stone: 0, ore: 0 },
   spy: { gold: 300, wood: 0, stone: 0, ore: 0 },
   scout: { gold: 200, wood: 0, stone: 0, ore: 0 },
@@ -582,6 +594,37 @@ export const TRAINING_COSTS = {
 
 /** Equipment cost multiplier per tier. */
 export const TIER_COST_MULT = { light: 1, medium: 2, heavy: 4 } as const;
+
+/**
+ * Lines that do NOT follow the flat tier multiplier, given per tier outright.
+ *
+ * The archer's timber climbs 50 → 110 → 250 rather than 50 → 100 → 200: a
+ * heavier bow is not simply four bows' worth of stave, and the top tier wants
+ * seasoned yew rather than more of the same. Everything unlisted still scales
+ * ×1 / ×2 / ×4, so this stays the exception it reads as.
+ *
+ * Anything named here replaces the scaled figure entirely — it is not a
+ * surcharge on top.
+ */
+export const TRAINING_COST_BY_TIER: Partial<
+  Record<keyof typeof TRAINING_COSTS, Partial<Record<"light" | "medium" | "heavy", Partial<Record<"gold" | "wood" | "stone" | "ore", number>>>>>
+> = {
+  /** Timber climbs 50 → 110 → 250, not 50 → 100 → 200: a heavier bow is not
+   *  four bows' worth of stave, and the top tier wants seasoned yew. */
+  archer: {
+    medium: { wood: 110 },
+    heavy: { wood: 250 },
+  },
+  /** Gold climbs 250 → 600 → 1,300 rather than 250 → 500 → 1,000 — a barded
+   *  warhorse is dearer than four ponies — while ORE climbs only 100 → 200 →
+   *  350 instead of to 400. The two pull opposite ways on purpose: heavy horse
+   *  should cost a treasury rather than a mine, and the war-metal is already
+   *  contested by the Forge, the Armoury and the siege train. */
+  cavalry: {
+    medium: { gold: 600 },
+    heavy: { gold: 1300, ore: 350 },
+  },
+};
 
 // ─── 8 · BATTLE ─────────────────────────────────────────────────────────────
 

@@ -488,19 +488,28 @@ export const REF_TABLES: RefTable[] = [
   },
   {
     key: "tierpower",
-    title: "Tier power & cost",
+    title: "What a tier costs",
     group: "Units",
-    desc: "Each unit comes in three tiers. A higher tier hits harder AND costs proportionally more to train — a light-vs-heavy trade of quantity against quality.",
-    headers: ["Tier", "Combat power", "Cost ×"],
-    rows: (["light", "medium", "heavy"] as const).map((t) => [t, C.TIER_SCALE[t], C.TIER_COST_MULT[t]]),
+    desc: "Cost scales flat by tier — a medium soldier costs twice a light one and a heavy four times. What that buys is NOT flat: each arm gains power and health on its own schedule, so read the stat table below to see whether a tier is worth its price for the arm you have in mind.",
+    headers: ["Tier", "Cost ×"],
+    rows: (["light", "medium", "heavy"] as const).map((t) => [t, C.TIER_COST_MULT[t]]),
   },
   {
     key: "unitstats",
-    title: "Unit base stats (light)",
+    title: "Unit power & health, by tier",
     group: "Units",
-    desc: "Attack and defence of each light unit before race, research, tier and wall modifiers. Footmen anchor the line, archers hit hardest, cavalry balance both, siege engineers exist to crew engines.",
+    desc: "Every arm at every tier, before race, research, the war-works and the wall. Given outright rather than scaled from a light unit, because the arms do not share a shape: an archer's power climbs steeply while its health barely moves, and a footman's does the reverse. Footmen are the line — least power, most health. Archers hit hardest at every tier and die soonest, and a standing wall halves their fire. Cavalry carry a footman's health with most of an archer's power, and cost accordingly.",
     headers: ["Unit", "Power", "Health"],
-    rows: (["footman", "archer", "cavalry", "engineer"] as const).map((u) => [u, C.UNIT_POWER[u].power, C.UNIT_POWER[u].health]),
+    rows: [
+      ...(["footman", "archer", "cavalry"] as const).flatMap((u) =>
+        (["light", "medium", "heavy"] as const).map((t) => [
+          `${u} — ${t}`,
+          C.UNIT_STATS[u][t].power,
+          C.UNIT_STATS[u][t].health,
+        ]),
+      ),
+      ["engineer (untiered)", C.UNIT_POWER.engineer.power, C.UNIT_POWER.engineer.health],
+    ],
   },
   {
     key: "siege",

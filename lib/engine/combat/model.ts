@@ -20,8 +20,7 @@ import {
   SIEGE_ACCURACY,
   MAX_FIELD_LEVEL,
   STAMINA,
-  TIER_SCALE,
-  UNIT_POWER,
+  UNIT_STATS,
   WALL_ROLE_BONUS,
   WAR,
   WARWORKS_BONUS_PER_LEVEL,
@@ -241,8 +240,7 @@ export function buildSide(p: Player, opts: SideOptions): Side {
 
   const push = (arm: Arm, tier: Tier, count: number, isMerc: boolean) => {
     if (count <= 0) return;
-    const base = UNIT_POWER[arm];
-    const scale = TIER_SCALE[tier];
+    const stats = UNIT_STATS[arm][tier];
     const atkCtx: BonusContext = { kind: "attack", arm, war: opts.war, isMerc };
     // Everything EXCEPT the wall, which moves during the battle.
     const defCtx: BonusContext = {
@@ -252,7 +250,7 @@ export function buildSide(p: Player, opts: SideOptions): Side {
       isMerc,
       onWall: opts.home && opts.wallEdge > 0,
     };
-    const healthBase = base.health * scale;
+    const healthBase = stats.health;
     const healthMult = bonusPool(p, defCtx);
     groups.push({
       arm,
@@ -261,7 +259,7 @@ export function buildSide(p: Player, opts: SideOptions): Side {
       isMerc,
       // Stamina is folded in here (it applies to everything this side does);
       // luck and effectiveness are applied per-phase, per-target.
-      power: base.power * scale * bonusPool(p, atkCtx) * stam,
+      power: stats.power * bonusPool(p, atkCtx) * stam,
       healthBase,
       healthMult,
       health: healthBase * (healthMult + opts.wallEdge),

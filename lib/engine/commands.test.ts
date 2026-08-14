@@ -14,7 +14,9 @@ import {
 import { CIVILIAN_LEVELLED_IDS, COLLEGIUM_COST, GUILD_COST, LODGE_COST, MARKET_COST, PRODUCER_COST, WARWORKS_COST, RESEARCH_FIELDS, STORAGE_COST, TURNS_PER_DAY, WALLS_COST, goldShelterAtLevel, maxLevel, shelterAtLevel, workerOutputAtLevel } from "../constants";
 import { buildingCost } from "./costs";
 import { newEmpire } from "./newEmpire";
-import { level, mercTotal, normalizePlayer, shelterCapacity, type Player } from "./types";
+import { level, mercTotal, normalizePlayer, shelterCapacity, type Player, type TroopType } from "./types";
+import { trainingCost } from "./commands";
+import { UNIT_STATS } from "../constants";
 import { researchSwitchLoss } from "./commands";
 import { processTurnTick } from "./tick";
 import { RESEARCH_SWITCH_LOSS } from "../constants";
@@ -245,12 +247,12 @@ describe("training & army", () => {
     expect(player.idlePeasants).toBe(75); // peasants spent directly
   });
 
-  it("light footman folds the muster levy into its gold cost (150g)", () => {
+  it("light footman folds the muster levy into its gold cost (100g)", () => {
     const p = fresh();
     p.buildings = { ...p.buildings, muster_hall: 5, drill_yard: 1, forge: 1 };
     const before = p.gold;
     const { player } = trainTroops(p, "footman", "light", 1);
-    expect(before - player.gold).toBe(150); // 50 levy + 100 kit
+    expect(before - player.gold).toBe(100); // the cheapest power in the game
   });
 
   it("medium tier costs ×2 and needs level 2", () => {
@@ -258,7 +260,7 @@ describe("training & army", () => {
     p.buildings = { ...p.buildings, muster_hall: 5, drill_yard: 2, forge: 2 };
     const before = p.gold;
     const { player } = trainTroops(p, "footman", "medium", 1);
-    expect(before - player.gold).toBe(300); // 150 × 2
+    expect(before - player.gold).toBe(200); // 100 × 2
   });
 
   it("discharge sends troops home directly (gear lost)", () => {
@@ -426,5 +428,73 @@ describe("Scholarship", () => {
     p.research.activeField = "masonry";
     p.research.banked.masonry = 1000;
     expect(setResearch(p, "masonry").player.research.banked.masonry).toBe(1000);
+  });
+});
+
+describe("training costs", () => {
+  it("scales ×1 / ×2 / ×4 by tier where nothing overrides it", () => {
+    const p = fresh();
+    // The footman is the plain case — every line scales.
+    const l = trainingCost(p, "footman", "light");
+    for (const [tier, m] of [["medium", 2], ["heavy", 4]] as const) {
+      const c = trainingCost(p, "footman", tier);
+      expect(c.gold).toBe(l.gold * m);
+      expect(c.wood).toBe(l.wood * m);
+      expect(c.ore).toBe(l.ore * m);
+    }
+    // An override cannot leak into a resource it did not name. Cavalry name gold
+    // and ore, so their TIMBER still scales cleanly ×4 (20 → 80)…
+    expect(trainingCost(p, "cavalry", "heavy").wood).toBe(trainingCost(p, "cavalry", "light").wood * 4);
+    // …while the archer, which names timber, is the one that breaks the pattern.
+    expect(trainingCost(p, "archer", "heavy").wood).not.toBe(trainingCost(p, "archer", "light").wood * 4);
+  });
+
+  it("gives the named lines their per-tier figures outright", () => {
+    const p = fresh();
+    // Archer timber: 50 / 110 / 250, not 50 / 100 / 200 — a heavier bow is not
+    // four bows' worth of stave.
+    expect([1, 2, 3].map((_, i) => trainingCost(p, "archer", (["light", "medium", "heavy"] as const)[i]).wood))
+      .toEqual([50, 110, 250]);
+    // …while its gold still scales cleanly, so only the named line escapes.
+    expect(trainingCost(p, "archer", "heavy").gold).toBe(trainingCost(p, "archer", "light").gold * 4);
+
+    // Cavalry: gold climbs FASTER than ×4 while ore climbs slower — heavy horse
+    // should cost a treasury rather than a mine.
+    expect((["light", "medium", "heavy"] as const).map((t) => trainingCost(p, "cavalry", t).gold))
+      .toEqual([250, 600, 1300]);
+    expect((["light", "medium", "heavy"] as const).map((t) => trainingCost(p, "cavalry", t).ore))
+      .toEqual([100, 200, 350]);
+    expect(trainingCost(p, "cavalry", "heavy").gold).toBeGreaterThan(250 * 4);
+    expect(trainingCost(p, "cavalry", "heavy").ore).toBeLessThan(100 * 4);
+  });
+
+  it("keeps the footman the cheapest to raise, and cavalry the dearest", () => {
+    const p = fresh();
+    const gold = (arm: TroopType) => trainingCost(p, arm, "light").gold;
+    expect(gold("footman")).toBeLessThan(gold("archer"));
+    expect(gold("archer")).toBeLessThan(gold("cavalry"));
+  });
+
+  it("prices the foot and the bow within a whisker per point of power", () => {
+    // NOT an accident, and worth pinning: the footman and archer are meant to be
+    // a real choice rather than one being the efficient pick. They sit ~3% apart
+    // per point of power, so what separates them is SHAPE — the archer's
+    // fragility and its wall penalty against the footman's health.
+    const p = fresh();
+    const perPower = (arm: TroopType) =>
+      trainingCost(p, arm, "light").gold / UNIT_STATS[arm].light.power;
+    const foot = perPower("footman");
+    expect(Math.abs(foot - perPower("archer")) / foot).toBeLessThan(0.1);
+    // Cavalry stay the dearest power in the game, but the margin is now ~1.8×
+    // rather than the ~2.5× it was before the price cut — deliberately closer.
+    expect(perPower("cavalry")).toBeGreaterThan(foot * 1.5);
+    expect(perPower("cavalry")).toBeLessThan(foot * 2.2);
+  });
+
+  it("no troop costs stone — quarries feed masonry, forges feed war", () => {
+    const p = fresh();
+    for (const arm of ["footman", "archer", "cavalry"] as const)
+      for (const t of ["light", "medium", "heavy"] as const)
+        expect(trainingCost(p, arm, t).stone, `${arm} ${t}`).toBe(0);
   });
 });

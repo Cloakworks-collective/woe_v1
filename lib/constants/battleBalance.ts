@@ -52,20 +52,54 @@ export interface Band {
 }
 
 // ─── 2 · UNIT POWER & HEALTH ────────────────────────────────────────────────
-// Light tier. Medium and heavy scale by TIER_SCALE on BOTH power and health.
 
-/** Attack power and health of one light unit. Health is what damage eats
- *  through; a unit dies when its share of the pool is gone. */
+/**
+ * Every arm at every tier, POWER and HEALTH given outright.
+ *
+ * This replaced a single TIER_SCALE multiplier (×1 / ×1.8 / ×3) applied to a
+ * light unit's stats. One multiplier could not say what the arms needed to say:
+ * an archer's power climbs steeply while its health barely moves, and a
+ * footman's does the reverse. Under one scale every arm had the same SHAPE and
+ * differed only in starting numbers, which made the three arms interchangeable
+ * once you had done the arithmetic.
+ *
+ * Read down a column to see what a tier buys; read across a row to see what an
+ * arm IS:
+ *
+ *   footman   13/25 → 20/40 → 30/65    the line. Least power, most health.
+ *   archer    20/16 → 30/30 → 55/40    the damage. Most power at every tier,
+ *                                      least health — and a wall halves their
+ *                                      fire (ARCHER_VS_WALL_CURVE), which is
+ *                                      the check on it.
+ *   cavalry   18/25 → 28/40 → 50/65    the hammer. A footman's health with
+ *                                      most of an archer's power, dearest by
+ *                                      far, and murderous in a sortie.
+ *
+ * Costs still scale flat by tier (TIER_COST_MULT ×1 / ×2 / ×4), so these
+ * numbers alone decide whether a tier is worth its price.
+ */
+export const UNIT_STATS = {
+  footman: {
+    light: { power: 13, health: 25 },
+    medium: { power: 20, health: 40 },
+    heavy: { power: 30, health: 65 },
+  },
+  archer: {
+    light: { power: 20, health: 16 },
+    medium: { power: 30, health: 30 },
+    heavy: { power: 55, health: 40 },
+  },
+  cavalry: {
+    light: { power: 18, health: 25 },
+    medium: { power: 28, health: 40 },
+    heavy: { power: 50, health: 65 },
+  },
+} as const;
+
+/** Engineers are untiered — they never attack, they crew engines and they die. */
 export const UNIT_POWER = {
-  footman: { power: 10, health: 20 },
-  archer: { power: 12, health: 12 },
-  cavalry: { power: 15, health: 16 },
-  /** Engineers never attack — they crew engines and they die. */
   engineer: { power: 0, health: 10 },
 };
-
-/** Tier multiplier on power AND health (costs scale ×1 / ×2 / ×4 separately). */
-export const TIER_SCALE = { light: 1, medium: 1.8, heavy: 3 } as const;
 
 // ─── 3 · THE EFFECTIVENESS MATRIX ───────────────────────────────────────────
 // The single most important table in the game. Read a row to learn what a

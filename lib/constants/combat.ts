@@ -15,4 +15,5 @@ export {
   MERC_PRICE_BY_ARM,
   TIER_COST_MULT,
   TRAINING_COSTS,
+  TRAINING_COST_BY_TIER,
 } from "./balance";

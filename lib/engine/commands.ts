@@ -24,6 +24,7 @@ import {
   STAMINA,
   TIER_COST_MULT,
   TRAINING_COSTS,
+  TRAINING_COST_BY_TIER,
   TURNS_PER_DAY,
   TROOPS_PER_MUSTER_HALL,
   WAR_FOUNDRY_LADDER,
@@ -521,7 +522,19 @@ export function mercPrice(
  * they could.
  */
 export function trainingCost(p: Player, type: TroopType, tier: Tier, count = 1): Cost {
-  return scale(TRAINING_COSTS[type], count * TIER_COST_MULT[tier] * troopCostFactor(p));
+  const base = TRAINING_COSTS[type];
+  const mult = TIER_COST_MULT[tier];
+  // Most lines scale flat with the tier; a few are given per tier outright
+  // (see TRAINING_COST_BY_TIER) and REPLACE the scaled figure rather than
+  // adding to it. The King's Roads discount and the count apply either way.
+  const over = TRAINING_COST_BY_TIER[type]?.[tier];
+  const perUnit: Cost = {
+    gold: over?.gold ?? base.gold * mult,
+    wood: over?.wood ?? base.wood * mult,
+    stone: over?.stone ?? base.stone * mult,
+    ore: over?.ore ?? base.ore * mult,
+  };
+  return scale(perUnit, count * troopCostFactor(p));
 }
 
 export function hireMercenaries(
