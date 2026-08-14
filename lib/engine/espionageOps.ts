@@ -188,7 +188,7 @@ export function runCovertOp(
         .map(([t, n]) => `${n} ${SIEGE_COUNTERS[t as CounterType].name}`);
       detail =
         `${defender.name}: walls level ${level(defender, "walls")} at ${Math.round(defender.wallIntegrity * 100)}% ` +
-        `(${fmt(wallHealth(defender) * defender.wallIntegrity)} of health standing), War Foundry ${level(defender, "war_foundry")}. ` +
+        `(${fmt(wallHealth(defender) * defender.wallIntegrity)} of health standing), Engine Yard ${level(defender, "war_foundry")}. ` +
         (crewed.length ? `Defensive works: ${crewed.join(", ")}.` : "No defensive works at all.");
       break;
     }

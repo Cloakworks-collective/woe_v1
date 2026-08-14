@@ -222,8 +222,31 @@ export const WALL_BREACH_PIVOT = 0.5; // frac
 // ─── 5 · BUILDINGS ──────────────────────────────────────────────────────────
 
 /** Building HEALTH as a curve of x = building level. Buildings are softer than
- *  walls — they were never built to be shot at. */
+ *  walls — they were never built to be shot at. Exactly a tenth of a wall at
+ *  every level: same quadratic shape, a tenth the coefficient. */
 export const BUILDING_HP_CURVE: Curve = { kind: "polynomial", coefficients: [0, 0, 3000] };
+
+/**
+ * Health per INSTANCE for the counted structures, which have no level to square.
+ *
+ * A quadratic read of a count is nonsense: `level()` on a counted building
+ * returns how MANY you own, so BUILDING_HP_CURVE would price a 240-hall
+ * barracks at 172,800,000 health — fifty-seven Citadels. Linear is the only
+ * shape that means anything here. Twenty cottages are twenty cottages; they are
+ * not one enormous cottage.
+ *
+ * A Muster Hall is twice a Hearthstead because it is built to house soldiers
+ * and their kit rather than a family, and because losing beds costs an empire
+ * more than losing housing does — the army cannot be replaced in a day.
+ *
+ * For scale: 100 Hearthsteads is 200,000, a level-8 building. A 240-hall
+ * barracks is 960,000, a shade over three level-10 buildings — heavy, but they
+ * are 240 separate structures and only reachable after the wall has fallen.
+ */
+export const COUNTED_HP_PER_UNIT: Record<string, number> = {
+  hearthstead: 2000,
+  muster_hall: 4000,
+};
 
 /** Artillery cracks a structure open but never levels it. */
 export const BUILDING_INTEGRITY_FLOOR = 0.5; // frac
@@ -560,16 +583,18 @@ export const ATTACK_HISTORY_HOURS = 72;
  * - **The Walls** — damaged, but on their own `wallIntegrity` field, and they
  *   have to come down BEFORE any of this is reachable. Never list them here.
  * - **The war yards** (Drill Yard, Fletcher's Range, Knight's Stables, Forge,
- *   Armoury, War Foundry) — an enemy may not disarm you by shelling; you break
+ *   Armoury, Engine Yard) — an enemy may not disarm you by shelling; you break
  *   an army by killing it, not by cracking the sheds that made it. This matters
  *   more since the Forge and Armoury started granting combat bonuses outright:
  *   shelling them would let a besieger weaken the garrison they are about to
  *   fight, which is precisely the lever this rule exists to deny.
  * - **Shadow Guild and Ranger's Lodge** — spies and scouts are the intel game,
  *   and blinding someone from outside the walls would gut it.
- * - **Hearthstead and Muster Hall** — the peasants' housing and the barracks.
- *   Terror already displaces civilians (see CIVILIAN_LOSS); their roofs are not
- *   a second lever on the same thing.
+ * (Hearthsteads and Muster Halls WERE immune, on the grounds that terror already
+ * displaces civilians and their roofs should not be a second lever on the same
+ * thing. They are targetable as of 2026-08 because the lever turned out to be a
+ * different one: shelling them does not evict anybody, it closes the gates. See
+ * COUNTED_HP_PER_UNIT and vacantHousing.)
  *
  * Everything listed here needs an integrity EFFECT wired somewhere, or damage
  * to it is inert and the sprite lies to the player.
@@ -586,4 +611,17 @@ export const BOMBARDABLE: { id: string; weight: number }[] = [
   { id: "sawyers_mill", weight: 2 },
   { id: "collegium", weight: 1 },
   { id: "market_square", weight: 1 },
+  /**
+   * Housing and barracks. Weight 2 — worth more of a besieger's attention than
+   * the Collegium, less than a storehouse full of loot.
+   *
+   * What shelling them does is NOT eviction. Nobody already under a roof is
+   * turned out: the peasants stay, the garrison stays. What falls is CAPACITY,
+   * so tomorrow's settlers find no bed and are turned away, and no fresh troops
+   * can be mustered until the roofs are mended. A slow strangling rather than a
+   * massacre — which is a different lever from the terror that displaces
+   * civilians outright, and why they are fair game after all.
+   */
+  { id: "hearthstead", weight: 2 },
+  { id: "muster_hall", weight: 2 },
 ];

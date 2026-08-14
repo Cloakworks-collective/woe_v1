@@ -41,6 +41,7 @@ import {
   mercTotal,
   mercMilitary,
   mercsOfArm,
+  buildingIntegrity,
   regularsOfArm,
   researchLevel,
   military,
@@ -125,12 +126,20 @@ export function troopCostFactor(p: Player): number {
  *  discovering the ceiling by catching an error — the balance harnesses need
  *  exactly that, and the alternative is them recomputing this by hand and
  *  drifting the moment quartering rules change. */
+/**
+ * Free bunks — the cap on how many troops can be raised or hired right now.
+ *
+ * As with housing, a bombarded barracks turns nobody out: the garrison stays
+ * whole. What burns is the room to muster MORE, so an empire shelled between
+ * battles fights the next one with the army it already has. Repair the halls
+ * and the bunks come back; until then this can sit at zero — or below it, if
+ * the standing army now exceeds what the ruined halls could shelter.
+ */
 export function musterVacancy(p: Player): number {
-  return (
-    level(p, "muster_hall") * TROOPS_PER_MUSTER_HALL -
-    military(p) -
-    mercMilitary(p.army.mercenaries)
+  const bunks = Math.floor(
+    level(p, "muster_hall") * TROOPS_PER_MUSTER_HALL * buildingIntegrity(p, "muster_hall"),
   );
+  return bunks - military(p) - mercMilitary(p.army.mercenaries);
 }
 
 // ── Commands ────────────────────────────────────────────────────────────────
@@ -285,7 +294,7 @@ export function trainSiegeEngineers(input: Player, count: number): EngineResult 
   const p = structuredClone(input);
   if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
   if (p.idlePeasants < count) throw new EngineError("peasants", "Not enough idle peasants");
-  if (level(p, "war_foundry") < 1) throw new EngineError("foundry", "War Foundry required");
+  if (level(p, "war_foundry") < 1) throw new EngineError("foundry", "Engine Yard required");
   if (musterVacancy(p) < count) throw new EngineError("muster", "No free Muster Hall slots");
   pay(p, scale(TRAINING_COSTS.siegeEngineer, count));
   p.idlePeasants -= count;
@@ -581,7 +590,7 @@ export function hireMercenaries(
   return { player: p, events: [] };
 }
 
-/** Buy siege gear — needs the War Foundry level that unlocks the weapon. */
+/** Buy siege gear — needs the Engine Yard level that unlocks the weapon. */
 export function buySiegeGear(
   input: Player,
   type: keyof typeof SIEGE_GEAR,
@@ -592,7 +601,7 @@ export function buySiegeGear(
   if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
   const step = WAR_FOUNDRY_LADDER.find((s) => s.gearKey === type);
   if (!step || level(p, "war_foundry") < step.level) {
-    throw new EngineError("foundry", `${type} requires War Foundry ${step?.level ?? "?"}`);
+    throw new EngineError("foundry", `${type} requires Engine Yard ${step?.level ?? "?"}`);
   }
   const g = SIEGE_GEAR[type];
   const m = count * (1 - wonderDiscount);
@@ -606,7 +615,7 @@ export function buySiegeGear(
   return { player: p, events: [] };
 }
 
-/** Buy a defensive siege engine — needs the War Foundry level that unlocks it.
+/** Buy a defensive siege engine — needs the Engine Yard level that unlocks it.
  *  Crewed by engineers when you defend (spec/combat.md). */
 export function buySiegeCounter(
   input: Player,
@@ -619,7 +628,7 @@ export function buySiegeCounter(
   const c = SIEGE_COUNTERS[type];
   if (!c) throw new EngineError("counter", "Unknown defensive engine");
   if (level(p, "war_foundry") < c.foundryLevel) {
-    throw new EngineError("foundry", `${c.name} requires War Foundry ${c.foundryLevel}`);
+    throw new EngineError("foundry", `${c.name} requires Engine Yard ${c.foundryLevel}`);
   }
   const m = count * (1 - wonderDiscount);
   pay(p, {

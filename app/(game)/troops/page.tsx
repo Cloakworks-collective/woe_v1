@@ -263,7 +263,7 @@ export default async function TroopsPage({
               </li>
             </ul>
             <p className="bcard-sub" style={{ margin: "4px 0 0" }}>
-              Needs the War Foundry &amp; a free Muster Hall bed.
+              Needs the Engine Yard &amp; a free Muster Hall bed.
             </p>
 
             <div className="troop-form">
@@ -287,12 +287,12 @@ export default async function TroopsPage({
                             BED_ROW(1, Math.max(0, musterFree)),
                             ...resReqs(TRAINING_COSTS.siegeEngineer, have),
                           ]}
-                          note="Per engineer — × the number you enter. Also needs the War Foundry."
+                          note="Per engineer — × the number you enter. Also needs the Engine Yard."
                           disabledReason={
                             canEng
                               ? undefined
                               : foundry < 1
-                                ? "Found the War Foundry first (Buildings → Military)."
+                                ? "Found the Engine Yard first (Buildings → Military)."
                                 : p.idlePeasants < 1
                                   ? "No idle peasants to recruit."
                                   : musterFree < 1
@@ -310,7 +310,7 @@ export default async function TroopsPage({
                 </CmdForm>
                 {foundry < 1 && (
                   <p style={{ fontSize: 13, color: "var(--warn)", margin: 0 }}>
-                    Found the <a href="/buildings?tab=military">War Foundry</a> first.
+                    Found the <a href="/buildings?tab=military">Engine Yard</a> first.
                   </p>
                 )}
               </div>

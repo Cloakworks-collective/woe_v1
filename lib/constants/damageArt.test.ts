@@ -24,20 +24,23 @@ const COMPLETE: BuildingId[] = [
   "grange", "masons_quarry", "deepvein_mine", "sawyers_mill",
   // knowledge
   "collegium",
+  // roofs
+  "hearthstead", "muster_hall",
+  // trade
+  "market_square",
 ];
 
 /**
  * Known, deliberate gaps — sprites not yet drawn.
  *
- * The Market Square was added to BOMBARDABLE last and its stage-3 wreck ran
- * past the art budget. DamagedArt steps DOWN a band, so a level 8+ Market
- * Square below 70% shows its `3-hurt` sprite instead: damaged, just not as
- * ruined as it should look. Draw `market_square/3-wreck.png` and delete this
- * entry.
+ * Empty as of 2026-08-13: every bombard target has both damage bands at every
+ * stage. Keep the map (and this comment) rather than deleting it — the next
+ * structure added to BOMBARDABLE will arrive undrawn, and a named gap here is
+ * a decision somebody wrote down instead of a sprite that quietly never got
+ * drawn. DamagedArt steps DOWN a band when one is missing, so a listed gap
+ * degrades to the band below rather than snapping back to a pristine picture.
  */
-const MISSING: Record<string, string[]> = {
-  market_square: ["3-wreck"],
-};
+const MISSING: Record<string, string[]> = {};
 
 describe("damaged building art", () => {
   it("covers every stage and band for the structures declared complete", () => {

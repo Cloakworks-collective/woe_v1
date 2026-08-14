@@ -185,7 +185,7 @@ export function advisorReport(p: Player): AdvisorReport {
       `${theWallName(p)} took some knocks (${Math.round(p.wallIntegrity * 100)}%). Repair it when gold allows to restore the full +${wallBonus}% and stop settlers shying from the rubble. Otherwise it still stands proud.`;
   } else {
     defensive =
-      `${theWallName(p)} holds firm — +${wallBonus}% to our defenders. ${wallLvl < 10 ? "Another course of stone (and the War Foundry counters that pair with it) would make an enemy's engines break upon us." : "The Citadel is complete; keep the War Foundry counters current so their siege gear shatters against it."}`;
+      `${theWallName(p)} holds firm — +${wallBonus}% to our defenders. ${wallLvl < 10 ? "Another course of stone (and the Engine Yard counters that pair with it) would make an enemy's engines break upon us." : "The Citadel is complete; keep the Engine Yard counters current so their siege gear shatters against it."}`;
   }
 
   // ── Military ───────────────────────────────────────────────────────────

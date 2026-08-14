@@ -373,8 +373,8 @@ export const BASE_COSTS = {
    */
   civilian: 800, // levelled civilian buildings — see above, no longer read
   military: 1200, // levelled/tiered military buildings
-  hearthstead: 300, // flat per instance
-  muster_hall: 500, // flat per instance
+  hearthstead: 300, // UNUSED — see HOUSING_COSTS
+  muster_hall: 500, // UNUSED — see HOUSING_COSTS
 };
 
 /**
@@ -462,10 +462,12 @@ export const WALLS_COST = {
 
 /** Cost MULTIPLIER for walls as a curve of x = target level: RATE per level,
  *  the same at every rung. */
+/** Written as an `expr` like every other cost ladder, not a `geometric` with
+ *  base 1/RATE — that division put 0.35714285714285715 in the constant, which
+ *  is float dust a reader of the Codex should never see. */
 export const WALLS_COST_CURVE: Curve = {
-  kind: "geometric",
-  base: 1 / WALLS_COST.RATE, // so that x = 1 yields exactly 1
-  ratio: WALLS_COST.RATE,
+  kind: "expr",
+  formula: `${WALLS_COST.RATE} ^ (x - 1)`,
 };
 
 /**
@@ -484,6 +486,21 @@ export const WALLS_BANDS: RatioBand[] = [
   [0.25, 0.625, 0.125], // levels 7–8  — stone 2.5× wood, ore 0.5× wood
   [0.25, 0.625, 0.125], // levels 9–10 — the same mix, at the Citadel's scale
 ];
+
+/**
+ * The two COUNTED structures, priced per instance and flat forever — a tenth
+ * Hearthstead is another cottage, not a grander one, so there is no curve.
+ *
+ * Both dearer than they were (300 and 500 goods on the old shared split): they
+ * are the two things an empire builds hundreds of, and at the old price the
+ * hundredth cost the same as the first while housing exactly as many people.
+ * A Muster Hall is dearer than a Hearthstead and stone-heavier — a barracks is
+ * built to be defended, a cottage is not.
+ */
+export const HOUSING_COSTS = {
+  hearthstead: { gold: 2000, wood: 500, stone: 500, ore: 0 },
+  muster_hall: { gold: 3000, wood: 500, stone: 700, ore: 0 },
+} as const;
 
 export const TROOPS_PER_MUSTER_HALL = 10; // beds per hall
 
@@ -797,7 +814,7 @@ export const WARWORKS_COST = {
  * gate on an empire's offensive capability was nearly free. A Trebuchet, the
  * engine that breaches a Citadel, was unlocked by a 30,754-goods building.
  *
- * Weight at the entry rather than the tail, because what the Foundry sells is
+ * Weight at the entry rather than the tail, because what the Engine Yard sells is
  * PERMISSION, and permission at the bottom of the ladder is what decides
  * whether an empire fights sieges at all. The levels above it alternate offence
  * and defence, so a soft rate keeps both sides of that exchange reachable — an

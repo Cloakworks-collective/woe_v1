@@ -107,7 +107,8 @@ export const CURVES: CurveMeta[] = [
     xMax: 12,
     xStep: 1,
     group: "Siege",
-    desc: "How much bombardment a town building absorbs before its integrity drops, by level. A taller building is a tougher one, so shelling a developed realm costs more volleys than shelling a young one.",
+    desc: "How much bombardment a town building absorbs before its integrity drops, by level. A taller building is a tougher one, so shelling a developed realm costs more volleys than shelling a young one. Exactly a tenth of a wall at the same level.",
+    note: "Levelled buildings only. The Hearthstead and Muster Hall are COUNTED rather than levelled, so they are priced per instance instead — see their own health scalars.",
   },
   {
     key: "ARCHER_VS_WALL_CURVE",
@@ -199,14 +200,14 @@ export const CURVES: CurveMeta[] = [
   },
   {
     key: "FOUNDRY_COST_CURVE",
-    label: "War Foundry cost multiplier",
+    label: "Engine Yard cost multiplier",
     yUnit: "× base cost",
     xLabel: "target level",
     xMin: 1,
     xMax: 10,
     xStep: 1,
     group: "Siege",
-    desc: "The softest ladder in the game, off the dearest entry. What the Foundry sells is PERMISSION — each level unlocks an engine or the answer to one — and permission belongs at the bottom, where it decides whether an empire fights sieges at all. A gentle rate keeps offence and defence both reachable; an empire that can afford Trebuchets but not Counter-Engines is a bad trade for everyone.",
+    desc: "The softest ladder in the game, off the dearest entry. What the Engine Yard sells is PERMISSION — each level unlocks an engine or the answer to one — and permission belongs at the bottom, where it decides whether an empire fights sieges at all. A gentle rate keeps offence and defence both reachable; an empire that can afford Trebuchets but not Counter-Engines is a bad trade for everyone.",
   },
   {
     key: "WARWORKS_COST_CURVE",
@@ -449,6 +450,11 @@ export const SCALARS: ScalarMeta[] = [
   { key: "WALL_EDGE_BASE", label: "Wall defence edge", unit: "%", group: "Siege", value: C.WALL_EDGE.BASE, min: 0, max: 2, step: 0.05, pct: true, desc: "What ANY standing wall gives its defenders. Flat by design — a wall is a wall. Wall LEVEL buys health, not a bigger bonus." },
   { key: "TROOPS_PER_TOWER", label: "Troops per siege tower", unit: "troops", group: "Siege", value: C.WALL_EDGE.TROOPS_PER_TOWER, min: 1, step: 10, desc: "A siege tower puts this many men on the parapet in formation, against a ladder's thirty and a grapple's ten — and they arrive fighting a far lesser wall." },
   { key: "SORTIE_SCREEN_ABSORB", label: "Screen absorbs", unit: "× its own strength", group: "Siege", value: C.SORTIE.SCREEN_ABSORB, min: 1, step: 0.5, desc: "How much of a sortie the attacker's footmen and cavalry hold off before anything reaches the engineers and the engines behind them." },
+  // The two COUNTED structures are priced per instance, since level() on them
+  // returns HOW MANY you own — squaring a count would read a 240-hall barracks
+  // as fifty-seven Citadels. See COUNTED_HP_PER_UNIT.
+  { key: "HEARTHSTEAD_HP_PER_UNIT", label: "Hearthstead health (each)", unit: "health / cottage", group: "Siege", value: C.COUNTED_HP_PER_UNIT.hearthstead, min: 0, step: 250, desc: "Punishment one peasant cottage absorbs, multiplied by how many you own. Shelling housing evicts nobody — it destroys CAPACITY, so a battered town keeps every peasant it has but takes no new settlers until the roofs are mended." },
+  { key: "MUSTER_HALL_HP_PER_UNIT", label: "Muster Hall health (each)", unit: "health / hall", group: "Siege", value: C.COUNTED_HP_PER_UNIT.muster_hall, min: 0, step: 250, desc: "Punishment one barracks absorbs, multiplied by how many you own — twice a cottage, being built to house soldiers and their kit. Damage costs bunks, not troops: the garrison stands, but no fresh muster is possible until repairs are done." },
   { key: "RAM_CREW_SIZE", label: "Ram crew", unit: "troops per ram", group: "Siege", value: C.RAM_CREW.TROOPS_PER_RAM, min: 1, step: 5, desc: "Hands needed to push one ram. They are NOT in the battle line until the wall is breached, and boiling oil can scald them where they stand." },
   // ── The mercenary cascade ───────────────────────────────────────────
   { key: "MERC_CAP_RATIO", label: "Sellsword cap", unit: "% of an arm's regulars", group: "Mercenaries", value: C.MERCENARIES.CAP_RATIO, min: 0, max: 1, step: 0.01, pct: true, desc: "Hired blades may not exceed this share of the REGULARS of their own arm — footmen gate merc footmen, scouts gate merc scouts. Enforced continuously, not just at hire: when regulars die the sellswords who can no longer be commanded are paid off and ride away. This is the cascade that makes killing regulars cost an enemy more than the bodies themselves." },
@@ -539,8 +545,8 @@ export const REF_TABLES: RefTable[] = [
     key: "counters",
     title: "Defensive counters",
     group: "War",
-    desc: "Each counter duels the engine it answers — it does not cancel it, it shoots at it until one of them is wreckage. Needs a Foundry of the listed level, gold, and engineers to crew when you defend.",
-    headers: ["Counter", "Answers", "Power", "Health", "Gold", "Crew", "Foundry"],
+    desc: "Each counter duels the engine it answers — it does not cancel it, it shoots at it until one of them is wreckage. Needs an Engine Yard of the listed level, gold, and engineers to crew when you defend.",
+    headers: ["Counter", "Answers", "Power", "Health", "Gold", "Crew", "Yard level"],
     rows: (Object.keys(C.SIEGE_COUNTERS) as (keyof typeof C.SIEGE_COUNTERS)[]).map((k) => {
       const c = C.SIEGE_COUNTERS[k];
       return [c.name, c.counters, c.power, c.health, c.gold, c.crew, c.foundryLevel];

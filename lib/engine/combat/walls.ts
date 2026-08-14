@@ -20,10 +20,13 @@
 import { evalCurve } from "../../constants/curves";
 import {
   ARCHER_VS_WALL_CURVE,
+  BUILDING_HP_CURVE,
+  COUNTED_HP_PER_UNIT,
   RACES,
   WALL_EDGE,
   WALL_HP_CURVE,
 } from "../../constants";
+import { isCounted, type BuildingId } from "../../constants/buildings";
 import { level, type Player, type SiegeGearType } from "../types";
 
 /** How much punishment this wall absorbs before it is rubble. Level is the
@@ -32,6 +35,24 @@ export function wallHealth(p: Player): number {
   const lvl = level(p, "walls");
   if (lvl <= 0) return 0;
   return evalCurve(WALL_HP_CURVE, lvl) * RACES[p.race].walls;
+}
+
+/**
+ * How much punishment a BUILDING absorbs before it hits its floor.
+ *
+ * Two shapes, because the game has two kinds of building:
+ *
+ *   LEVELLED   one structure that grows — quadratic in level, exactly a tenth
+ *              of a wall at the same level.
+ *   COUNTED    many structures side by side — LINEAR in how many you own,
+ *              because twenty cottages are twenty cottages. Squaring a count
+ *              would read a 240-hall barracks as fifty-seven Citadels.
+ */
+export function buildingHealth(p: Player, id: BuildingId): number {
+  const n = level(p, id);
+  if (n <= 0) return 0;
+  if (isCounted(id)) return (COUNTED_HP_PER_UNIT[id] ?? 0) * n;
+  return evalCurve(BUILDING_HP_CURVE, n);
 }
 
 /** Convert raw damage into the 0–1 integrity the rest of the game speaks in.

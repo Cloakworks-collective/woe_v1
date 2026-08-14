@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOMBARDABLE } from "./battleBalance";
+import { BOMBARDABLE, COUNTED_HP_PER_UNIT } from "./battleBalance";
 import {
   CIVILIAN_LEVELLED_IDS,
   COUNTED_BUILDING_IDS,
@@ -38,6 +38,8 @@ describe("bombard targets", () => {
         "grange", "masons_quarry", "deepvein_mine", "sawyers_mill",
         // knowledge & trade
         "collegium", "market_square",
+        // roofs — capacity, not eviction
+        "hearthstead", "muster_hall",
       ].sort(),
     );
   });
@@ -50,9 +52,23 @@ describe("bombard targets", () => {
     expect(INTEL.filter((id) => ids.includes(id))).toEqual([]);
   });
 
-  it("never touches peasant housing or the barracks", () => {
-    // Terror already displaces civilians; their roofs are not a second lever.
-    expect(COUNTED_BUILDING_IDS.filter((id) => ids.includes(id))).toEqual([]);
+  it("shells housing and the barracks for CAPACITY, never for eviction", () => {
+    // These were immune on the grounds that terror already displaces civilians.
+    // They are fair game because the lever turned out to be a different one:
+    // shelling a roof turns nobody out, it closes the door to the next arrival.
+    // The rule they must keep is enforced in dailyReset/commands, not here —
+    // this only pins that the decision was made on purpose.
+    expect([...COUNTED_BUILDING_IDS].sort()).toEqual([...ids].filter(
+      (id) => COUNTED_BUILDING_IDS.includes(id as BuildingId),
+    ).sort());
+  });
+
+  it("gives every counted structure a per-instance health, since level² is nonsense on a count", () => {
+    // level() on a counted building returns HOW MANY, so the quadratic would
+    // price a 240-hall barracks at fifty-seven Citadels. Linear or bust.
+    for (const id of COUNTED_BUILDING_IDS) {
+      expect(COUNTED_HP_PER_UNIT[id], `${id} has no per-unit health`).toBeGreaterThan(0);
+    }
   });
 
   it("never lists the Walls — they live on wallIntegrity and gate the rest", () => {
@@ -69,7 +85,7 @@ describe("bombard targets", () => {
       ...MILITARY_BUILDINGS.map((b) => b.id),
       ...COUNTED_BUILDING_IDS,
     ]);
-    const immune = new Set<BuildingId>([...WAR_YARDS, ...INTEL, ...COUNTED_BUILDING_IDS, "walls"]);
+    const immune = new Set<BuildingId>([...WAR_YARDS, ...INTEL, "walls"]);
     const unaccounted = [...all].filter((id) => !ids.includes(id) && !immune.has(id));
     expect(unaccounted, `not on either list: ${unaccounted.join(", ")}`).toEqual([]);
     // …and nothing is on both.
@@ -81,5 +97,10 @@ describe("bombard targets", () => {
     expect(weight("granary")).toBeGreaterThan(weight("grange"));
     expect(weight("grange")).toBeGreaterThan(weight("collegium"));
     expect(weight("market_square")).toBe(weight("collegium"));
+    // Roofs sit between: worth more of a besieger's attention than the
+    // Collegium, less than a storehouse with the loot behind its doors.
+    expect(weight("hearthstead")).toBeLessThan(weight("granary"));
+    expect(weight("hearthstead")).toBeGreaterThan(weight("collegium"));
+    expect(weight("muster_hall")).toBe(weight("hearthstead"));
   });
 });

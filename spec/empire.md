@@ -419,7 +419,7 @@ pay the repair, so a raid costs the defender tempo as well as goods.
 Troops come in three tiers — **light, medium, heavy** — and each troop trainer
 has exactly **3 levels that map 1:1 to those tiers**. Building level N = you
 can train tier-N units of that type. (Siege is different — see the War
-Foundry's own 10-level ladder below.)
+Engine Yard's own 10-level ladder below.)
 
 | Building             | Type     | Levels | Function                                                       |
 |----------------------|----------|--------|----------------------------------------------------------------|
@@ -428,7 +428,7 @@ Foundry's own 10-level ladder below.)
 | **Fletcher's Range** | tiered   | 1–3    | **Archers**: light → medium → heavy                            |
 | **Knights' Stables** | tiered   | 1–3    | **Cavalry**: light → medium → heavy                            |
 | **The Forge**        | tiered   | 1–3    | Weapons & armour stock: light → medium → heavy                 |
-| **War Foundry**      | 1–10     | —      | Siege engineering: alternating offense/defense unlocks (below) |
+| **Engine Yard**      | 1–10     | —      | Siege engineering: alternating offense/defense unlocks (below) |
 | **The Walls**        | 1–10     | —      | Defence, named per level (below). No pop bonus intact; damaged → up to −50% pop/day until repaired |
 
 **Tier gating:** trainer level 2 requires Forge 2; trainer level 3 requires
@@ -460,7 +460,7 @@ class *and* tier up front; each tier draws matching **Forge** stock (tier N
 needs trainer N **and** Forge N) and consumes a free **Muster Hall** bed. There
 is **no intermediate "warrior" step** — peasants are armed directly.
 Sellswords are hired the same way (same buildings), and siege engineers are
-trained at the War Foundry.
+trained at the Engine Yard.
 
 ---
 
@@ -482,7 +482,7 @@ Idle Peasant ──(free, reversible)──────────► Worker (f
      ├──(gold + ore; trainer lvl = tier, ──► Footman / Archer / Cavalry
      │   Forge lvl = tier; Muster Hall slot)  at light / medium / heavy
      │
-     └──(gold; needs War Foundry) ─────────► Siege Engineer
+     └──(gold; needs Engine Yard) ─────────► Siege Engineer
 ```
 
 - **Troop cap = Muster Halls × 10.** That IS the population-to-military
@@ -508,7 +508,7 @@ below are the **per-light** figure; medium ×2, heavy ×4 (equipment multiplier)
 | Footman        | Drill Yard        | 150  | 20   | —     | 90  | Muster levy + sword, shield, mail |
 | Archer         | Fletcher's Range  | 150  | 40   | —     | 55  | Muster levy + bow, ore arrowheads |
 | Cavalry        | Knights' Stables  | 350  | 20   | —     | 130 | Muster levy + barding, lance, blade — hungriest for ore |
-| Siege Engineer | War Foundry       | 200  | —    | —     | —   | Crews weapons (below)        |
+| Siege Engineer | Engine Yard       | 200  | —    | —     | —   | Crews weapons (below)        |
 | Spy            | Shadow Guild      | 300  | —    | —     | —   | Gold buys silence            |
 | Scout          | Ranger's Lodge    | 200  | —    | —     | —   | —                            |
 
@@ -527,9 +527,9 @@ Heavy costs slightly more per point of power, but each troop occupies one
 Muster Hall slot regardless of tier — heavy armies are slot-efficient, which
 is what you're really paying for.
 
-#### Siege — the War Foundry ladder (levels 1–10)
+#### Siege — the Engine Yard ladder (levels 1–10)
 
-The War Foundry alternates **offensive weapon → its defensive counter**, five
+The Engine Yard alternates **offensive weapon → its defensive counter**, five
 pairs across ten levels. Only a level-10 foundry owns the complete kit; every
 empire below that has holes in its siege game — attacks it can't mount, or
 counters it doesn't have.
@@ -549,7 +549,7 @@ counters it doesn't have.
 
 **How counters work:** defensive counters are **purchased, crewed equipment**,
 not permanent installations — bought like offensive gear (each gated by its War
-Foundry level) and **manned by engineers when you defend**. Each crewed counter
+Engine Yard level) and **manned by engineers when you defend**. Each crewed counter
 **cancels one incoming enemy engine of its paired weapon, one-for-one** — there
 is no flat percentage. Field enough of a counter and the whole matching salvo is
 stopped; field fewer and only that many are cancelled, the surplus still fires.
@@ -558,7 +558,7 @@ spare engineers crew your own offensive engines to fire back (see `combat.md`).
 
 **Offensive gear** — purchased equipment, crewed by siege engineers:
 
-| Weapon           | Gold | Wood | Stone | Ore | Crew | Foundry |
+| Weapon           | Gold | Wood | Stone | Ore | Crew | Engine Yard |
 |------------------|------|------|-------|-----|------|---------|
 | Ropes & Grapples | 50   | 10   | —     | 5   | 1    | 1       |
 | Ladders          | 100  | 50   | —     | 10  | 1    | 3       |
@@ -569,7 +569,7 @@ spare engineers crew your own offensive engines to fire back (see `combat.md`).
 **Defensive counters** — bought & crewed the same way; each cancels its paired
 offensive weapon one-for-one:
 
-| Counter        | Cancels        | Gold | Wood | Stone | Ore | Crew | Foundry |
+| Counter        | Cancels        | Gold | Wood | Stone | Ore | Crew | Engine Yard |
 |----------------|----------------|------|------|-------|-----|------|---------|
 | Bill-hooks     | Ropes & Grapples | 50   | 10   | 5     | 5   | 1    | 2       |
 | Fork Poles     | Ladders        | 100  | 50   | 10    | 10  | 1    | 4       |

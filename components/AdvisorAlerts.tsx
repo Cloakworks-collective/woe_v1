@@ -184,6 +184,44 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
     });
   }
 
+  // 5b · Roofs bombarded. Distinct from the storehouse alert because the loss
+  //      is INVISIBLE: no goods spill, no population drops, no number on the
+  //      dashboard moves. A shelled Hearthstead simply stops accepting settlers
+  //      and a shelled Muster Hall stops accepting recruits, and a regent can
+  //      go days wondering why growth has stalled. This is the only place the
+  //      game says so out loud.
+  const brokenRoofs = ([
+    { id: "hearthstead" as BuildingId, name: "Hearthsteads", loses: "beds for new settlers" },
+    { id: "muster_hall" as BuildingId, name: "Muster Halls", loses: "bunks for new troops" },
+  ]).filter(({ id }) => level(p, id) > 0 && buildingIntegrity(p, id) < 0.999);
+  if (!p.starving && brokenRoofs.length > 0) {
+    alerts.push({
+      key: "roofs",
+      variant: "warn",
+      advisor: "population",
+      icon: "🏚️",
+      headline: "your roofs are burning",
+      body: (
+        <>
+          {brokenRoofs.map((r, i) => (
+            <span key={r.id}>
+              {i > 0 ? ", " : ""}
+              <b>{r.name}</b> ({Math.round(buildingIntegrity(p, r.id) * 100)}%)
+            </span>
+          ))}{" "}
+          {brokenRoofs.length === 1 ? "stands" : "stand"} in ruins. <b>Nobody has been driven out</b>
+          {" "}— every peasant and every soldier you had is still here. What you have lost is{" "}
+          {brokenRoofs.map((r) => r.loses).join(" and ")}, so your empire cannot grow by a single
+          head until the roofs are mended. Repair them before you spend another coin.
+        </>
+      ),
+      ctas: [
+        { href: `/buildings#b-${brokenRoofs[0].id}`, label: "🔧 Mend the roofs", primary: true },
+      ],
+      manual: "/guide#grow",
+    });
+  }
+
   // 6 · Idle hands (the Steward of the people). Last, because it is an
   //     OPPORTUNITY rather than a threat — nothing is being lost this turn, it
   //     simply isn't being gained.

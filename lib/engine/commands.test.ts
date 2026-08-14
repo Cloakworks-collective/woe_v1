@@ -95,7 +95,7 @@ describe("building costs (spec/empire.md examples)", () => {
 
   it("military level 1: 600g + 660 wood / 540 stone", () => {
     // The Drill Yard. The shared military ladder has been whittled down to the
-    // three tiered trainers — walls, the war-works and the War Foundry all took
+    // three tiered trainers — walls, the war-works and the Engine Yard all took
     // their own cost blocks in the 2026-08 pass. This case pins the SHARED path,
     // so it needs a building actually still on it.
     expect(buildingCost("drill_yard", 1)).toEqual({ gold: 600, wood: 660, stone: 540, ore: 0 });
@@ -104,7 +104,7 @@ describe("building costs (spec/empire.md examples)", () => {
     }
   });
 
-  it("the War Foundry is priced apart: dearest entry, softest rate", () => {
+  it("the Engine Yard is priced apart: dearest entry, softest rate", () => {
     expect(buildingCost("war_foundry", 1)).toEqual({ gold: 15000, wood: 3000, stone: 2000, ore: 3000 });
     // Softest ladder in the game — a tenth gentler than the war-works, which
     // are themselves on the Ranger's Lodge rate.
@@ -183,8 +183,10 @@ describe("building costs (spec/empire.md examples)", () => {
     expect(RESEARCH_FIELDS.find((f) => f.id === "granarycraft")!.ranked).toBe(false);
   });
 
-  it("hearthstead: flat 150g + 210 wood / 90 stone", () => {
-    expect(buildingCost("hearthstead", 99)).toEqual({ gold: 150, wood: 210, stone: 90, ore: 0 });
+  it("hearthstead: flat per instance, however many you already own", () => {
+    // A tenth cottage is another cottage, not a grander one — no curve.
+    expect(buildingCost("hearthstead", 99)).toEqual({ gold: 2000, wood: 500, stone: 500, ore: 0 });
+    expect(buildingCost("hearthstead", 1)).toEqual(buildingCost("hearthstead", 240));
   });
 
   it("tiered level 3 uses the top band — stone-heavy, and ore enters the bill", () => {

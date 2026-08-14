@@ -13,7 +13,7 @@
 import {
   ARTILLERY_DUEL,
   BOMBARDABLE,
-  BUILDING_HP_CURVE,
+  BUILDING_HP_CURVE, // clan works are levelled, not counted
   BUILDING_INTEGRITY_FLOOR,
   LUCK_SWING,
   MAX_ROUNDS,
@@ -22,7 +22,7 @@ import {
   WALL_BREACH_PIVOT,
   XP,
 } from "../../constants";
-import type { BuildingId, CounterType } from "../../constants/buildings";
+import { isCounted, type BuildingId, type CounterType } from "../../constants/buildings";
 import { evalCurve } from "../../constants/curves";
 import { luck, rollCount, type Rng } from "../rng";
 import {
@@ -48,7 +48,7 @@ import {
   rollDefenderEdge,
   runDuelRound,
 } from "./duel";
-import { damageToIntegrity, wallHealth } from "./walls";
+import { buildingHealth, damageToIntegrity, wallHealth } from "./walls";
 import { displaceCivilians } from "./loot";
 import type { BattleOptions, BattleOutcome } from "./battle";
 
@@ -61,6 +61,7 @@ const BUILDING_LABEL: Partial<Record<BuildingId, string>> = {
   ironhold: "Ironhold", counting_house: "Counting House", grange: "Grange",
   masons_quarry: "Mason's Quarry", deepvein_mine: "Deepvein Mine",
   sawyers_mill: "Sawyer's Mill", collegium: "Collegium",
+  market_square: "Market Square", hearthstead: "Hearthstead", muster_hall: "Muster Hall",
 };
 
 function pickTarget(defender: Player, rng: Rng): BuildingId | null {
@@ -191,15 +192,16 @@ export function resolveBombard(
       if (!target) {
         say(round, "Nothing left standing to break — the barrage falls on rubble.", { tone: "neutral" });
       } else {
-        const hp = evalCurve(BUILDING_HP_CURVE, level(defender, target));
+        const hp = buildingHealth(defender, target);
         const dmg = power * siegeDelivery(attacker, "buildings");
         const cur = buildingIntegrity(defender, target);
         const lost = Math.min(Math.max(0, cur - BUILDING_INTEGRITY_FLOOR), hp > 0 ? dmg / hp : 0);
         defender.buildingIntegrity[target] = cur - lost;
         buildingHits[target] = (buildingHits[target] ?? 0) + lost;
-        say(round, `A volley cracks the ${BUILDING_LABEL[target] ?? target} open (−${Math.round(lost * 100)}%).`, {
-          tone: "good",
-        });
+        say(round, isCounted(target)
+          ? `A volley walks through the ${BUILDING_LABEL[target] ?? target}s — roofs come down (−${Math.round(lost * 100)}%).`
+          : `A volley cracks the ${BUILDING_LABEL[target] ?? target} open (−${Math.round(lost * 100)}%).`,
+          { tone: "good" });
       }
     }
   }
@@ -284,7 +286,7 @@ export interface ClanBombardOutcome {
 }
 
 /** War-only strike on an enemy clan's works. No Counter-Engines guard them —
- *  clan buildings carry no Foundry — so nothing shoots back and no engine is
+ *  clan buildings carry no Engine Yard — so nothing shoots back and no engine is
  *  lost. The price is paid elsewhere: the whole attacked clan gets one revenge. */
 export function resolveClanBombard(
   attackerIn: Player,

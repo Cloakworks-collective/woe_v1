@@ -167,7 +167,7 @@ a real choice rather than free value.
 Costs are gold, wood and ore. **Stone went into the walls it will break** —
 quarries feed buildings now, forges feed war.
 
-| Engine | Power | Health | Crew | Foundry |
+| Engine | Power | Health | Crew | Engine Yard |
 |---|---|---|---|---|
 | Ropes & Grapples | — | 100 | 1 | 1 |
 | Ladders | — | 200 | 1 | 3 |
@@ -176,7 +176,7 @@ quarries feed buildings now, forges feed war.
 | **Siege tower** | — | 1,500 | 4 | 7 |
 | Trebuchet | 400 | 1,000 | 5 | 9 |
 
-| Counter | Answers | Power | Health | Crew | Foundry |
+| Counter | Answers | Power | Health | Crew | Engine Yard |
 |---|---|---|---|---|---|
 | Bill-hooks | ropes | 100 | 200 | 1 | 2 |
 | Fork Poles | ladders | 150 | 300 | 1 | 4 |
@@ -409,22 +409,51 @@ Past the breach, a bombard burns the **town**, never the **army**:
 | --- | --- | --- |
 | The five stores | 3 | Protected capacity — the vault spills, and the spill is lootable |
 | The four producers | 2 | That resource line's output |
+| The Hearthsteads | 2 | Beds for tomorrow's settlers — see below |
+| The Muster Halls | 2 | Bunks for tomorrow's recruits — see below |
 | The Collegium | 1 | Research per scholar |
 | The Market Square | 1 | Caravan capacity — a cracked market loads smaller |
 
 Immune, by design and not by oversight:
 
 - **The war yards** (Drill Yard, Fletcher's Range, Knight's Stables, Forge, War
-  Foundry). An enemy may not disarm you by shelling. You break an army by
+  Engine Yard). An enemy may not disarm you by shelling. You break an army by
   killing it, not by cracking the sheds that built it.
 - **Shadow Guild and Ranger's Lodge.** Spies and scouts are the intel game;
   blinding a rival from outside their walls would gut it.
-- **Hearthstead and Muster Hall** — the peasants' housing and the barracks.
-  Terror already displaces civilians on every bombard; their roofs are not a
-  second lever on the same thing.
-
 Anything added to this table needs an integrity **effect** wired somewhere, or
 the damage is inert and the battered sprite lies to the player.
+
+#### Roofs cost capacity, not occupants
+
+The Hearthstead and the Muster Hall were immune until 2026-08, on the grounds
+that terror already displaces civilians and their roofs should not be a second
+lever on the same thing. They are targetable now because the lever turned out to
+be a different one.
+
+**Shelling a roof evicts nobody.** Every peasant already under one stays; the
+garrison stays to the last man. What falls is **capacity** — housing and bunks
+scale by integrity — so a town shelled to 60% keeps everything it has and gains
+nothing further: the next dawn's settlers find no bed and walk on, and no fresh
+troops can be raised until the halls are mended. A besieger who wants your army
+smaller must still kill it. What they can do is make sure you never replace it.
+
+That makes bombardment a **slow strangling** rather than a massacre, and it is
+the only damage in the game whose cost is entirely invisible on the dashboard —
+no number moves, growth simply stops. The population advisor calls it out
+explicitly for that reason.
+
+#### Two health models
+
+| | Shape | Why |
+| --- | --- | --- |
+| **Levelled** buildings | `level² × 3,000` | Exactly a tenth of a wall at the same level. One curve for all of them; they differ in *weight*, not toughness |
+| **Counted** structures | `2,000` / cottage, `4,000` / hall | Linear, because `level()` on a counted building returns **how many you own**. Squaring a count would read a 240-hall barracks as 172,800,000 health — fifty-seven Citadels |
+
+Repair follows the same split: `buildingCost` quotes one cottage, so
+`repairCost` multiplies by the count. Mending a quarter of two hundred
+Hearthsteads is fifty cottages' worth of carpentry, not a quarter of one — the
+bigger the army, the dearer its roof is to keep over its head.
 
 ### The anchor
 

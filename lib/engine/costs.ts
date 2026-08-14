@@ -11,11 +11,12 @@ import {
   STORAGE_BUILDING_IDS,
   WARWORKS_BUILDING_IDS,
   bandIndex,
+  isCounted,
   type BuildingId,
   type RatioBand,
 } from "../constants/buildings";
 import { buildingCostMultiplier } from "../constants/derived";
-import { COLLEGIUM_COST, COLLEGIUM_COST_CURVE, FOUNDRY_COST, FOUNDRY_COST_CURVE, GUILD_COST, GUILD_COST_CURVE, LODGE_COST, LODGE_COST_CURVE, WARWORKS_COST, WARWORKS_COST_CURVE, MARKET_COST, MARKET_COST_CURVE, PRODUCER_COST, PRODUCER_COST_CURVE, STORAGE_COST, STORAGE_COST_CURVE, WALLS_BANDS, WALLS_COST, WALLS_COST_CURVE } from "../constants/balance";
+import { HOUSING_COSTS, COLLEGIUM_COST, COLLEGIUM_COST_CURVE, FOUNDRY_COST, FOUNDRY_COST_CURVE, GUILD_COST, GUILD_COST_CURVE, LODGE_COST, LODGE_COST_CURVE, WARWORKS_COST, WARWORKS_COST_CURVE, MARKET_COST, MARKET_COST_CURVE, PRODUCER_COST, PRODUCER_COST_CURVE, STORAGE_COST, STORAGE_COST_CURVE, WALLS_BANDS, WALLS_COST, WALLS_COST_CURVE } from "../constants/balance";
 import { evalCurve } from "../constants/curves";
 import { WALL_REPAIR_COST_FACTOR } from "../constants/combat";
 
@@ -37,11 +38,10 @@ function split(resourceCost: number, band: RatioBand): Cost {
 
 /** Cost to reach `targetLevel` (or to add one instance of a counted building). */
 export function buildingCost(id: BuildingId, targetLevel: number): Cost {
-  if (id === "hearthstead") {
-    return split(BASE_COSTS.hearthstead, CIVILIAN_BANDS[0]);
-  }
-  if (id === "muster_hall") {
-    return split(BASE_COSTS.muster_hall, MILITARY_BANDS[0]);
+  // The two counted structures: flat per instance, given outright rather than
+  // split from a base — see HOUSING_COSTS.
+  if (id === "hearthstead" || id === "muster_hall") {
+    return { ...HOUSING_COSTS[id] };
   }
   // The four producers are priced apart — like the stores, a flat multiple of a
   // four-resource base rather than a band split. A deeper mine is the same mine.
@@ -55,7 +55,7 @@ export function buildingCost(id: BuildingId, targetLevel: number): Cost {
       ore: Math.round(b.ore * m),
     };
   }
-  // The War Foundry — dearest entry in the game on the softest rate. What it
+  // The Engine Yard — dearest entry in the game on the softest rate. What it
   // sells is permission, and permission belongs at the bottom. See FOUNDRY_COST.
   if (id === "war_foundry") {
     const m = evalCurve(FOUNDRY_COST_CURVE, targetLevel);
@@ -161,14 +161,22 @@ export function buildingCost(id: BuildingId, targetLevel: number): Cost {
  * damage there is to mend (spec/empire.md, combat.md). A store at 60%
  * integrity costs `buildingCost × 0.4 × WALL_REPAIR_COST_FACTOR` to make whole.
  * `id === "walls"` prices a wall repair.
+ *
+ * For the COUNTED structures `buildingCost` quotes ONE cottage, so the bill is
+ * multiplied by how many you own: mending a quarter of two hundred Hearthsteads
+ * is fifty cottages' worth of carpentry, not a quarter of one. Damage and its
+ * repair both follow the count, which is the whole point of shelling a barracks
+ * — the bigger the army, the dearer its roof is to keep over its head.
  */
 export function repairCost(id: BuildingId, currentLevel: number, integrity: number): Cost {
   const damaged = Math.max(0, Math.min(1, 1 - integrity));
   const base = buildingCost(id, currentLevel);
+  const each = isCounted(id) ? currentLevel : 1;
+  const share = damaged * WALL_REPAIR_COST_FACTOR * each;
   return {
-    gold: Math.round(base.gold * damaged * WALL_REPAIR_COST_FACTOR),
-    wood: Math.round(base.wood * damaged * WALL_REPAIR_COST_FACTOR),
-    stone: Math.round(base.stone * damaged * WALL_REPAIR_COST_FACTOR),
-    ore: Math.round(base.ore * damaged * WALL_REPAIR_COST_FACTOR),
+    gold: Math.ceil(base.gold * share),
+    wood: Math.ceil(base.wood * share),
+    stone: Math.ceil(base.stone * share),
+    ore: Math.ceil(base.ore * share),
   };
 }

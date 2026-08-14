@@ -66,7 +66,7 @@ const CIVILIAN_GROUPS: { slug: string; title: string; note: string; ids: string[
 const MILITARY_GROUPS: { slug: string; title: string; note: string; ids: string[] }[] = [
   { slug: "barracks", title: "⚔ Barracks & Tiers", note: "Muster Halls house 10 troops each; each trainer gates its own arm from light → medium → heavy.", ids: ["muster_hall", "drill_yard", "fletchers_range", "knights_stables"] },
   { slug: "warworks", title: "🔨 The War-Works", note: "The Forge sharpens and the Armoury hardens — +5% attack and defence per level, to every regular you field. Sellswords bring their own steel and draw nothing from either.", ids: ["forge", "armoury"] },
-  { slug: "defence", title: "🏰 Siege & Defence", note: "The Walls blunt sieges (and bombard hits them first); the War Foundry's ladder lives in the Siege Works.", ids: ["war_foundry", "walls"] },
+  { slug: "defence", title: "🏰 Siege & Defence", note: "The Walls blunt sieges (and bombard hits them first); the Engine Yard's ladder lives in the Siege Works.", ids: ["war_foundry", "walls"] },
 ];
 
 // Which tab a building's card lives on, so the repair list can point to it.
@@ -430,7 +430,7 @@ export default async function BuildingsPage({
 
       {military && (
         <p style={{ fontSize: 13.5, color: "var(--ink-soft)" }}>
-          The War Foundry&apos;s weapons and counters live in the <a href="/siege">Siege Works</a>.
+          The Engine Yard&apos;s weapons and counters live in the <a href="/siege">Siege Works</a>.
         </p>
       )}
     </>

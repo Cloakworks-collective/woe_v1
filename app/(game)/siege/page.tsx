@@ -183,7 +183,7 @@ export default async function SiegePage({
     p.resources.stone >= (engCost.stone ?? 0) &&
     p.resources.ore >= (engCost.ore ?? 0);
   const engineerBlockReason = !(foundry >= 1)
-    ? "Found the War Foundry first"
+    ? "Found the Engine Yard first"
     : p.idlePeasants < 1
       ? "No idle peasants to recruit"
       : musterFree < 1
@@ -194,7 +194,7 @@ export default async function SiegePage({
     <>
       <Flash err={err} ok={ok} />
       <LearnLink href="/guide#battle">Siege engines, counters &amp; defence</LearnLink>
-      <Panel title={`The Siege Works — War Foundry level ${foundry}/10`}>
+      <Panel title={`The Siege Works — Engine Yard level ${foundry}/10`}>
         <p style={{ marginBottom: 10 }}>
           Five offensive weapons and five defensive counters climb the foundry ladder in pairs —
           only a level-10 foundry owns the complete kit. Both are equipment crewed by engineers:
@@ -262,7 +262,7 @@ export default async function SiegePage({
                     { icon: <span className="costtip-ico">🛏</span>, label: "Muster Hall bed", need: 1, have: Math.max(0, musterFree) },
                     ...resReqs(engCost, have),
                   ]}
-                  note="Per engineer — × the number you enter. Also needs the War Foundry."
+                  note="Per engineer — × the number you enter. Also needs the Engine Yard."
                   disabledReason={canTrainEngineer ? undefined : engineerBlockReason}
                 >
                   <Btn
@@ -316,9 +316,9 @@ export default async function SiegePage({
                       </Info>
                       <div className="bcard-sub">
                         {unlocked ? (
-                          <span className="siege-chip on">✓ Foundry {step.level}</span>
+                          <span className="siege-chip on">✓ Yard {step.level}</span>
                         ) : (
-                          <span className="siege-chip off">🔒 Needs Foundry {step.level}</span>
+                          <span className="siege-chip off">🔒 Needs Yard {step.level}</span>
                         )}
                       </div>
                     </div>
@@ -331,7 +331,7 @@ export default async function SiegePage({
                           body={ENGINE_TIP[t]}
                           rows={resReqs(g, have)}
                           note={`Per engine — × the number you enter. Each needs ${g.crew} engineer${g.crew > 1 ? "s" : ""} to crew.`}
-                          disabledReason={!unlocked ? `Needs War Foundry level ${step.level} — raise it in Buildings → Military.` : undefined}
+                          disabledReason={!unlocked ? `Needs Engine Yard level ${step.level} — raise it in Buildings → Military.` : undefined}
                         >
                           <Btn className="btn" disabled={!unlocked}>
                             Forge
@@ -416,7 +416,7 @@ export default async function SiegePage({
                           body={`Cancels one incoming ${WEAPON_NAME[c.counters]} per crewed engine when you defend — the surplus still fires, so field enough to blunt an assault.`}
                           rows={resReqs(c, have)}
                           note={`Per engine — × the number you enter. Each needs ${c.crew} engineer${c.crew > 1 ? "s" : ""} to crew on defence.`}
-                          disabledReason={!unlocked ? `Needs War Foundry level ${c.foundryLevel} — raise it in Buildings → Military.` : undefined}
+                          disabledReason={!unlocked ? `Needs Engine Yard level ${c.foundryLevel} — raise it in Buildings → Military.` : undefined}
                         >
                           <Btn className="btn" disabled={!unlocked}>
                             Forge

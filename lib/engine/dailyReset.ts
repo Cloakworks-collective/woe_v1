@@ -9,6 +9,7 @@ import {
   SCATTERING,
 } from "../constants";
 import {
+  buildingIntegrity,
   civilians,
   level,
   guardStrength,
@@ -75,8 +76,20 @@ export function growthBreakdown(p: Player): {
   return { base, safety, prosperity, walls, total };
 }
 
+/**
+ * Beds with nobody in them — the cap on tomorrow's settlers.
+ *
+ * Bombardment does NOT evict anyone. Peasants already under a roof stay put
+ * even when half the roofs are gone; what falls is CAPACITY. A town shelled to
+ * 60% and already full simply takes no new arrivals until the roofs are mended,
+ * and the empire's growth stalls without a single peasant lost. That makes the
+ * Hearthstead a slow strangling rather than a massacre — see BOMBARDABLE.
+ */
 export function vacantHousing(p: Player): number {
-  return Math.max(0, level(p, "hearthstead") * HOUSING_PER_HEARTHSTEAD - civilians(p));
+  const roofs = Math.floor(
+    level(p, "hearthstead") * HOUSING_PER_HEARTHSTEAD * buildingIntegrity(p, "hearthstead"),
+  );
+  return Math.max(0, roofs - civilians(p));
 }
 
 /** Peasants that would arrive today, before the housing cap. */

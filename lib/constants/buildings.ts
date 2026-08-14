@@ -73,7 +73,7 @@ export const MILITARY_BUILDINGS: BuildingMeta[] = [
   { id: "knights_stables", name: "Knights' Stables", desc: "Cavalry: light → medium → heavy (levels 1–3)" },
   { id: "forge", name: "The Forge", desc: "Better weapons: +5% attack per level for every regular you field (levels 1–10)" },
   { id: "armoury", name: "The Armoury", desc: "Better mail: +5% defence per level for every regular you field (levels 1–10)" },
-  { id: "war_foundry", name: "War Foundry", desc: "Siege engineering ladder (levels 1–10)" },
+  { id: "war_foundry", name: "The Engine Yard", desc: "Siege engineering ladder (levels 1–10)" },
   { id: "walls", name: "The Walls", desc: "Defence (levels 1–10); damaged walls cut pop growth up to 50%" },
 ];
 
@@ -142,7 +142,7 @@ export function bandIndex(level: number): number {
   return 3;
 }
 
-// ── War Foundry ladder (levels 1–10, offense/counter pairs) ────────────────
+// ── Engine Yard ladder (levels 1–10, offense/counter pairs) ────────────────
 
 export type GearKey = "ropes" | "ladders" | "siege_towers" | "rams" | "ballistae" | "trebuchets";
 
@@ -154,7 +154,7 @@ export interface FoundryStep {
   counters?: GearKey;
 }
 
-/** The Foundry ladder still runs 1–10 and still alternates offense/defense.
+/** The Engine Yard ladder still runs 1–10 and still alternates offense/defense.
  *  Levels 7 and 8 now unlock TWO things each: the missile engine and the
  *  assault tower, and their two answers. */
 export const WAR_FOUNDRY_LADDER: FoundryStep[] = [

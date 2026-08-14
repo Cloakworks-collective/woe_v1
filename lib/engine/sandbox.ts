@@ -122,8 +122,8 @@ export function buildSandboxPlayer(a: SandboxArmy, id: string): Player {
   // Housing and barracks sized to fit, so nothing the engine reads looks absurd.
   p.buildings.hearthstead = Math.ceil((p.idlePeasants + 1) / 10);
   p.buildings.muster_hall = 9999;
-  // The trainers/Foundry a real empire would need to own this army — they gate
-  // BUYING, not fighting, but the siege duel reads the Foundry for gear tiers.
+  // The trainers and Engine Yard a real empire would need to own this army — they gate
+  // BUYING, not fighting, but the siege duel reads the Engine Yard for gear tiers.
   p.buildings.war_foundry = 10;
   p.buildings.forge = 3;
   for (const b of ["drill_yard", "fletchers_range", "knights_stables"] as BuildingId[]) {

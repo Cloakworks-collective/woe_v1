@@ -570,8 +570,8 @@ export default async function CommandView({
               tone={enginesUnmanned > 0 ? "warn" : undefined}
             />
             <StatTile
-              icon={<BuildingArt id="war_foundry" level={level(p, "war_foundry")} size={46} title="War Foundry" integrity={structureIntegrity(p, "war_foundry")} />}
-              label="War Foundry"
+              icon={<BuildingArt id="war_foundry" level={level(p, "war_foundry")} size={46} title="Engine Yard" integrity={structureIntegrity(p, "war_foundry")} />}
+              label="Engine Yard"
               value={`level ${level(p, "war_foundry")} / 10`}
               sub={nextFoundryStep ? `next: ${nextFoundryStep.name}` : "the full ladder is forged"}
             />
