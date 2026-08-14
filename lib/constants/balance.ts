@@ -615,14 +615,15 @@ export const TRAINING_COST_BY_TIER: Partial<
     medium: { wood: 110 },
     heavy: { wood: 250 },
   },
-  /** Gold scales cleanly (250 → 500 → 1,000); timber and ore both climb SLOWER
-   *  than ×4 — 30 → 50 → 100 and 100 → 200 → 350. A barded warhorse is mostly
-   *  gold: the smith's bill and the beast itself, not four ponies' worth of
-   *  lumber and iron. The war-metal is contested enough already by the Forge,
-   *  the Armoury and the siege train. */
+  /** EVERY line climbs slower than ×4 at the top: gold 250 → 500 → 900,
+   *  timber 30 → 50 → 100, ore 100 → 200 → 350. A barded warhorse is mostly
+   *  gold — the smith's bill and the beast itself, not four ponies' worth of
+   *  lumber and iron — and the heavy tier is where that stops compounding.
+   *  Cavalry are the only arm whose top tier is discounted on every resource,
+   *  which is what keeps them a premium rather than a luxury. */
   cavalry: {
     medium: { wood: 50 },
-    heavy: { wood: 100, ore: 350 },
+    heavy: { gold: 900, wood: 100, ore: 350 },
   },
 };
 
