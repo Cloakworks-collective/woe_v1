@@ -198,6 +198,17 @@ export const CURVES: CurveMeta[] = [
     desc: "The gentlest ladder in the game, on purpose. Scouts are the ONLY defence against spies as well as the whole intelligence arm, so these are levels a ruler cannot opt out of — and defence a newcomer cannot afford is defence that does not exist.",
   },
   {
+    key: "FOUNDRY_COST_CURVE",
+    label: "War Foundry cost multiplier",
+    yUnit: "× base cost",
+    xLabel: "target level",
+    xMin: 1,
+    xMax: 10,
+    xStep: 1,
+    group: "Siege",
+    desc: "The softest ladder in the game, off the dearest entry. What the Foundry sells is PERMISSION — each level unlocks an engine or the answer to one — and permission belongs at the bottom, where it decides whether an empire fights sieges at all. A gentle rate keeps offence and defence both reachable; an empire that can afford Trebuchets but not Counter-Engines is a bad trade for everyone.",
+  },
+  {
     key: "WARWORKS_COST_CURVE",
     label: "Forge & Armoury cost multiplier",
     yUnit: "× base cost",

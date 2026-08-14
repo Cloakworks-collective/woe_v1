@@ -15,7 +15,7 @@ import {
   type RatioBand,
 } from "../constants/buildings";
 import { buildingCostMultiplier } from "../constants/derived";
-import { COLLEGIUM_COST, COLLEGIUM_COST_CURVE, GUILD_COST, GUILD_COST_CURVE, LODGE_COST, LODGE_COST_CURVE, WARWORKS_COST, WARWORKS_COST_CURVE, MARKET_COST, MARKET_COST_CURVE, PRODUCER_COST, PRODUCER_COST_CURVE, STORAGE_COST, STORAGE_COST_CURVE, WALLS_BANDS, WALLS_COST, WALLS_COST_CURVE } from "../constants/balance";
+import { COLLEGIUM_COST, COLLEGIUM_COST_CURVE, FOUNDRY_COST, FOUNDRY_COST_CURVE, GUILD_COST, GUILD_COST_CURVE, LODGE_COST, LODGE_COST_CURVE, WARWORKS_COST, WARWORKS_COST_CURVE, MARKET_COST, MARKET_COST_CURVE, PRODUCER_COST, PRODUCER_COST_CURVE, STORAGE_COST, STORAGE_COST_CURVE, WALLS_BANDS, WALLS_COST, WALLS_COST_CURVE } from "../constants/balance";
 import { evalCurve } from "../constants/curves";
 import { WALL_REPAIR_COST_FACTOR } from "../constants/combat";
 
@@ -48,6 +48,18 @@ export function buildingCost(id: BuildingId, targetLevel: number): Cost {
   if (RESOURCE_BUILDING_IDS.includes(id as (typeof RESOURCE_BUILDING_IDS)[number])) {
     const m = evalCurve(PRODUCER_COST_CURVE, targetLevel);
     const b = PRODUCER_COST.BASE;
+    return {
+      gold: Math.round(b.gold * m),
+      wood: Math.round(b.wood * m),
+      stone: Math.round(b.stone * m),
+      ore: Math.round(b.ore * m),
+    };
+  }
+  // The War Foundry — dearest entry in the game on the softest rate. What it
+  // sells is permission, and permission belongs at the bottom. See FOUNDRY_COST.
+  if (id === "war_foundry") {
+    const m = evalCurve(FOUNDRY_COST_CURVE, targetLevel);
+    const b = FOUNDRY_COST.BASE;
     return {
       gold: Math.round(b.gold * m),
       wood: Math.round(b.wood * m),

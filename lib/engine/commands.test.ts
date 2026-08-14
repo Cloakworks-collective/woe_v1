@@ -11,7 +11,7 @@ import {
   setTax,
   trainTroops,
 } from "./commands";
-import { CIVILIAN_LEVELLED_IDS, COLLEGIUM_COST, GUILD_COST, LODGE_COST, MARKET_COST, PRODUCER_COST, WARWORKS_COST, RESEARCH_FIELDS, STORAGE_COST, TURNS_PER_DAY, WALLS_COST, goldShelterAtLevel, maxLevel, shelterAtLevel, workerOutputAtLevel } from "../constants";
+import { CIVILIAN_LEVELLED_IDS, COLLEGIUM_COST, GUILD_COST, LODGE_COST, FOUNDRY_COST, MARKET_COST, PRODUCER_COST, WARWORKS_COST, RESEARCH_FIELDS, STORAGE_COST, TURNS_PER_DAY, WALLS_COST, goldShelterAtLevel, maxLevel, shelterAtLevel, workerOutputAtLevel } from "../constants";
 import { buildingCost } from "./costs";
 import { newEmpire } from "./newEmpire";
 import { level, mercTotal, normalizePlayer, shelterCapacity, type Player, type TroopType } from "./types";
@@ -94,11 +94,30 @@ describe("building costs (spec/empire.md examples)", () => {
   });
 
   it("military level 1: 600g + 660 wood / 540 stone", () => {
-    // The War Foundry, not the Walls — walls left the shared military ladder
-    // when they got their own base, bands and curve (WALLS_COST). This case
-    // exists to pin the SHARED military path, so it needs a building that is
-    // actually still on it.
-    expect(buildingCost("war_foundry", 1)).toEqual({ gold: 600, wood: 660, stone: 540, ore: 0 });
+    // The Drill Yard. The shared military ladder has been whittled down to the
+    // three tiered trainers — walls, the war-works and the War Foundry all took
+    // their own cost blocks in the 2026-08 pass. This case pins the SHARED path,
+    // so it needs a building actually still on it.
+    expect(buildingCost("drill_yard", 1)).toEqual({ gold: 600, wood: 660, stone: 540, ore: 0 });
+    for (const id of ["fletchers_range", "knights_stables"] as const) {
+      expect(buildingCost(id, 1)).toEqual(buildingCost("drill_yard", 1));
+    }
+  });
+
+  it("the War Foundry is priced apart: dearest entry, softest rate", () => {
+    expect(buildingCost("war_foundry", 1)).toEqual({ gold: 15000, wood: 3000, stone: 2000, ore: 3000 });
+    // Softest ladder in the game — a tenth gentler than the war-works, which
+    // are themselves on the Ranger's Lodge rate.
+    expect(FOUNDRY_COST.RATE).toBeLessThan(WARWORKS_COST.RATE);
+    for (let l = 2; l <= 10; l++) {
+      expect(buildingCost("war_foundry", l).gold / buildingCost("war_foundry", l - 1).gold)
+        .toBeCloseTo(FOUNDRY_COST.RATE, 4);
+    }
+    // Dearest ENTRY of any building — what it sells is permission, and
+    // permission belongs at the bottom of the ladder.
+    for (const id of CIVILIAN_LEVELLED_IDS) {
+      expect(buildingCost("war_foundry", 1).gold).toBeGreaterThanOrEqual(buildingCost(id, 1).gold);
+    }
   });
 
   it("walls are priced apart, and climb at one flat rate with no cliff", () => {

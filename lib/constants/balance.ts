@@ -788,6 +788,41 @@ export const WARWORKS_COST = {
   RATE: LODGE_COST.RATE,
 } as const;
 
+/**
+ * THE WAR FOUNDRY — the siege ladder, off the shared military path.
+ *
+ * The dearest ENTRY of any building in the game (15,000 gold, 8,000 goods) on
+ * the gentlest rate. That shape is the point: on the shared ladder the whole
+ * ten-level ladder came to 135,998 goods — less than a level-6 wall — so every
+ * gate on an empire's offensive capability was nearly free. A Trebuchet, the
+ * engine that breaches a Citadel, was unlocked by a 30,754-goods building.
+ *
+ * Weight at the entry rather than the tail, because what the Foundry sells is
+ * PERMISSION, and permission at the bottom of the ladder is what decides
+ * whether an empire fights sieges at all. The levels above it alternate offence
+ * and defence, so a soft rate keeps both sides of that exchange reachable — an
+ * empire that can afford Trebuchets but not Counter-Engines is a bad trade for
+ * everyone.
+ *
+ * ORE-heavy like the war-works, and for the same reason: engines are iron.
+ *
+ * Note the building is still the small half of a siege. Forty crewed trebuchets
+ * cost 80,000 gold and 44,000 goods on their own, plus 200 engineers.
+ */
+export const FOUNDRY_COST = {
+  BASE: { gold: 15000, wood: 3000, stone: 2000, ore: 3000 },
+  /** A tenth gentler than the war-works' 1.7 — the softest ladder in the game.
+   *  Written as a literal rather than `WARWORKS_COST.RATE - 0.1`, because that
+   *  subtraction yields 1.5999999999999999 and the float noise reaches the
+   *  Codex and the Workbench slider. */
+  RATE: 1.6,
+} as const;
+
+export const FOUNDRY_COST_CURVE: Curve = {
+  kind: "expr",
+  formula: `${FOUNDRY_COST.RATE} ^ (x - 1)`,
+};
+
 export const WARWORKS_COST_CURVE: Curve = {
   kind: "expr",
   formula: `${WARWORKS_COST.RATE} ^ (x - 1)`,
