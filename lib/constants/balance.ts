@@ -615,14 +615,12 @@ export const TRAINING_COST_BY_TIER: Partial<
     medium: { wood: 110 },
     heavy: { wood: 250 },
   },
-  /** Gold climbs 250 → 600 → 1,300 rather than 250 → 500 → 1,000 — a barded
-   *  warhorse is dearer than four ponies — while ORE climbs only 100 → 200 →
-   *  350 instead of to 400. The two pull opposite ways on purpose: heavy horse
-   *  should cost a treasury rather than a mine, and the war-metal is already
-   *  contested by the Forge, the Armoury and the siege train. */
+  /** Gold scales cleanly (250 → 500 → 1,000), so only ORE breaks out: 100 →
+   *  200 → 350 rather than to 400. The war-metal is already contested by the
+   *  Forge, the Armoury and the siege train, and heavy horse should cost a
+   *  treasury rather than a mine. */
   cavalry: {
-    medium: { gold: 600 },
-    heavy: { gold: 1300, ore: 350 },
+    heavy: { ore: 350 },
   },
 };
 
