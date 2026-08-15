@@ -7,6 +7,7 @@ import { Info } from "@/components/Info";
 import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { ResearchStatus } from "@/components/ResearchStatus";
+import { WorkQueue } from "@/components/WorkQueue";
 import {
   MAX_FIELD_LEVEL,
   SCHOLARSHIP,
@@ -14,6 +15,7 @@ import {
   RESEARCH_DISCIPLINES,
   RESEARCH_GUIDE,
   RESEARCH_INFO,
+  WORK_QUEUE_CAP,
   researchOrdinalCost,
 } from "@/lib/constants";
 import type { ResearchField, ResearchFieldMeta } from "@/lib/constants/research";
@@ -133,6 +135,36 @@ export default async function ResearchPage({
       <Flash err={err} ok={ok} />
       <LearnLink href="/guide#grow">Research, specialisation &amp; score</LearnLink>
       <ResearchStatus {...status} />
+
+      {/* The course of study, where the study is chosen. The 🪶 buttons on every
+          field below push onto this list; until now the list itself could only
+          be read on the Steward page, which meant queueing was an action with
+          no visible result. */}
+      <WorkQueue
+        title="🪶 The course of study"
+        rows={(p.researchQueue ?? []).map((e) => ({
+          label: `${META[e.field].name} → level ${e.toLevel}`,
+          detail: RESEARCH_INFO[e.field].title,
+          done: researchLevel(p, e.field) >= e.toLevel,
+        }))}
+        cancelCmd="queueResearchCancel"
+        path="/research"
+        premium={Boolean(p.premium)}
+        empty={
+          <>
+            No course charted. Press <b>🪶</b> on any field below to have the Steward set your
+            scholars on it once the field before it is done — the switch costs you nothing, because
+            you declared it in advance.
+          </>
+        }
+        upsell={
+          <>
+            Charting a course of study is a <a href="/premium">Royal Charter</a> perk: line up the
+            next {WORK_QUEUE_CAP} levels and the Steward keeps the scholars moving through them
+            while you sleep. You can still set one field at a time by hand, free, below.
+          </>
+        }
+      />
 
       {/* ── The trunk: the Collegium (sets the SPEED, never the ceiling) ──── */}
       <Panel

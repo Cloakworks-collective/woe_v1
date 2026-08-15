@@ -39,8 +39,8 @@ const MODES: { id: "raid" | "siege" | "revenge" | "bombard"; icon: string; name:
 export function WarCouncil({
   target,
   revengeOpen,
-  tradecraft,
-  pathfinding,
+  guild,
+  lodge,
   turns,
   spyTurns,
   yours,
@@ -49,8 +49,8 @@ export function WarCouncil({
 }: {
   target: { id: string; name: string };
   revengeOpen: boolean;
-  tradecraft: number;
-  pathfinding: number;
+  guild: number;
+  lodge: number;
   /** The viewer's purses, so the cost of an order is never a surprise. */
   turns: number;
   spyTurns: number;
@@ -68,13 +68,13 @@ export function WarCouncil({
   const covertStop = covertBlocked(state);
   const opening = defaultMode(state);
   const canMarch = turns >= ACTION_TURNS.ATTACK_COST && !blocked;
-  const scoutsLocked = pathfinding < 1;
-  const spiesLocked = tradecraft < 1;
-  // Only re-open on a remembered op if it is still within your research —
-  // levels can be stolen, and a preselected locked option submits nothing.
+  const scoutsLocked = lodge < 1;
+  const spiesLocked = guild < 1;
+  // Only re-open on a remembered op if the house that unlocks it still stands
+  // at that level — a preselected locked option submits nothing.
   const rememberedScout =
-    SCOUT_OPS.find((o) => o.id === last?.scoutOp && pathfinding >= o.level)?.id ?? "";
-  const rememberedSpy = SPY_OPS.find((o) => o.id === last?.spyOp && tradecraft >= o.level)?.id ?? "";
+    SCOUT_OPS.find((o) => o.id === last?.scoutOp && lodge >= o.level)?.id ?? "";
+  const rememberedSpy = SPY_OPS.find((o) => o.id === last?.spyOp && guild >= o.level)?.id ?? "";
 
   return (
     <section className="wc" aria-label={`Act against ${target.name}`}>
@@ -159,7 +159,7 @@ export function WarCouncil({
                       {yours.cavalry.toLocaleString("en-US")} cavalry
                     </li>
                     <li>
-                      Stamina {yours.stamina}% · veterancy {Math.round(yours.experience)}
+                      Stamina {yours.stamina}% · veterancy +{yours.experience.toFixed(1)}%
                     </li>
                     <li>
                       Costs {ACTION_TURNS.ATTACK_COST} of your {turns} action turns.
@@ -206,9 +206,9 @@ export function WarCouncil({
                 {scoutsLocked ? "Study Pathfinding first" : "What to look for…"}
               </option>
               {SCOUT_OPS.map((op) => (
-                <option key={op.id} value={op.id} disabled={pathfinding < op.level}>
+                <option key={op.id} value={op.id} disabled={lodge < op.level}>
                   L{op.level} · {op.name}
-                  {pathfinding < op.level ? " (locked)" : ""}
+                  {lodge < op.level ? " (locked)" : ""}
                 </option>
               ))}
             </select>
@@ -257,9 +257,9 @@ export function WarCouncil({
                 {spiesLocked ? "Study Tradecraft first" : "Choose an operation…"}
               </option>
               {SPY_OPS.map((op) => (
-                <option key={op.id} value={op.id} disabled={tradecraft < op.level}>
+                <option key={op.id} value={op.id} disabled={guild < op.level}>
                   L{op.level} · {op.name}
-                  {tradecraft < op.level ? " (locked)" : ""}
+                  {guild < op.level ? " (locked)" : ""}
                 </option>
               ))}
             </select>

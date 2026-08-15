@@ -8,11 +8,13 @@ import { LearnLink } from "@/components/LearnLink";
 import { Info } from "@/components/Info";
 import { Panel } from "@/components/Panel";
 import { ResIcon, type ResKind } from "@/components/ResIcon";
+import { WorkQueue } from "@/components/WorkQueue";
 import {
   CIVILIAN_BUILDINGS,
   HOUSING_PER_HEARTHSTEAD,
   MILITARY_BUILDINGS,
   WALL_NAMES,
+  WORK_QUEUE_CAP,
   isCounted,
   maxLevel,
 } from "@/lib/constants";
@@ -390,10 +392,56 @@ export default async function BuildingsPage({
         </a>
       </div>
 
+      {/* The real list, in order, where the building is chosen. This used to be
+          a one-line count pointing at /steward — which told you the queue
+          existed but not what was in it, so the 🪶 button on every card below
+          was an action with no visible result. */}
+      <WorkQueue
+        title="🪶 The build queue"
+        rows={(p.buildQueue ?? []).map((id, i) => {
+          // Each repeat of the same building is one level higher than the last,
+          // so a queue of three Hearthsteads prices levels N+1, N+2, N+3.
+          const target = level(p, id) + 1 + (p.buildQueue ?? []).slice(0, i).filter((b) => b === id).length;
+          const cost = buildingCost(id, target);
+          return {
+            label: `${buildingName(id)} → level ${target}`,
+            detail: (
+              <span className="cost-row">
+                {(["gold", "wood", "stone", "ore"] as ResKind[])
+                  .filter((k) => (cost[k as keyof typeof cost] ?? 0) > 0)
+                  .map((k) => (
+                    <span className="cost-bit" key={k}>
+                      <ResIcon kind={k} size={15} />{" "}
+                      {Math.round(cost[k as keyof typeof cost]).toLocaleString("en-US")}
+                    </span>
+                  ))}
+              </span>
+            ),
+            done: level(p, id) >= maxLevel(id),
+          };
+        })}
+        cancelCmd="queueBuildCancel"
+        path={path}
+        premium={Boolean(p.premium)}
+        empty={
+          <>
+            Nothing queued. Press <b>🪶</b> on any building below and the Steward will raise it the
+            moment the treasury can afford it — including overnight.
+          </>
+        }
+        upsell={
+          <>
+            The build queue is a <a href="/premium">Royal Charter</a> perk: line up{" "}
+            {WORK_QUEUE_CAP} constructions and the Steward raises each one the moment you can
+            afford it, even while you sleep. Building by hand is free and always will be.
+          </>
+        }
+      />
+
       {p.premium && (p.buildQueue?.length ?? 0) > 0 && (
-        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", margin: "4px 0" }}>
-          🪶 The Steward holds {p.buildQueue!.length} queued build
-          {p.buildQueue!.length > 1 ? "s" : ""} — <a href="/steward">review the queue</a>.
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", margin: "2px 0 6px" }}>
+          Standing orders — <i>&ldquo;once the Drill Yard is up, train 1,000 footmen&rdquo;</i> —
+          live with the <a href="/steward">Steward</a>.
         </p>
       )}
 

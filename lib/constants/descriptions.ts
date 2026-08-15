@@ -38,7 +38,7 @@ export const UNIT_INFO: Record<string, { title: string; tip: string }> = {
   },
   scout: {
     title: "Scout",
-    tip: "The eyes of the realm. Abroad they gather rough intel on rivals from beyond the walls; at home they hunt infiltrators — scouts kept in the Ranger's Lodge catch enemy spies, up to the operation level your Lodge can even detect.",
+    tip: "The eyes of the realm. Abroad they gather rough intel on rivals from beyond the walls; at home they hunt infiltrators. Interception is decided purely by weight of numbers — your rangers' power against the spies sent — so there is no operation too deep for them to catch, and a realm with NO rangers is robbed at will. Your Ranger's Lodge level is what unlocks the scout operations you can run abroad.",
   },
   engineer: {
     title: "Siege Engineer",
@@ -46,7 +46,7 @@ export const UNIT_INFO: Record<string, { title: string; tip: string }> = {
   },
   mercenary: {
     title: "Mercenary",
-    tip: "Rented sellswords — hired in the same arms and tiers as your own troops (a heavy-cavalry sellsword needs Knights' Stables 3 + Forge 3, just like the real thing). They cost only gold and no peasants, and take the first 70% of any blow aimed at their arm — a bought shield. They draw NO wage — hiring is a one-time price and the contract is bought outright — but they need barracks beds like anyone else, and can never outnumber a third of your OWN troops of that same arm. Lose those regulars and the sellswords who can no longer be commanded are paid off and ride away, so killing your regulars costs an enemy more than the bodies.",
+    tip: "Rented sellswords — hired in the same arms and tiers as your own troops (a heavy-cavalry sellsword needs Knights' Stables 3 + Forge 3, just like the real thing). They cost only gold and no peasants, and take the first 70% of any blow that lands on their own arm AND their own rank — a bought shield, but one that covers only the tier it stands in. Damage walks light → medium → heavy, so hired light footmen do nothing whatever for your heavy ones: match the tier, not just the arm. They draw NO wage — hiring is a one-time price and the contract is bought outright — but they need barracks beds like anyone else, and can never outnumber a third of your OWN troops of that same arm. Lose those regulars and the sellswords who can no longer be commanded are paid off and ride away, so killing your regulars costs an enemy more than the bodies.",
   },
 };
 
@@ -63,7 +63,7 @@ export const ATTACK_MODE_INFO: Record<string, { title: string; tip: string }> = 
   },
   siege: {
     title: "Castle Attack (Siege)",
-    tip: "The full assault: your engines batter the walls, then a four-phase battle decides it. Win and you plunder their unbanked gold plus everything spilling out of their stores — including goods a bombardment cracked loose. This is how you take real wealth.",
+    tip: "The full assault: the engine duel, then the walls, then one exchange down the line — archers, cavalry, footmen, and the ram crews joining once the gate gives. Whoever lost the smaller share of the health they marched in with carries the field. Win and you plunder their unbanked gold plus everything spilling out of their stores, including goods a bombardment cracked loose. This is how you take real wealth.",
   },
   revenge: {
     title: "Revenge",
@@ -71,7 +71,7 @@ export const ATTACK_MODE_INFO: Record<string, { title: string; tip: string }> = 
   },
   bombard: {
     title: "Bombard",
-    tip: "A pure artillery duel — your trebuchets against their Counter-Engine, no soldiers involved. You can't aim it: it pounds the walls until they crack, then the fire spills onto random buildings — storehouses (their goods tumble outside), workshops (production slows), even the Collegium (research crawls). The softening blow before a Castle Attack.",
+    tip: "A pure artillery duel — your trebuchets against their Counter-Engine, no soldiers involved, so nobody is stripped afterwards. One exchange like any attack, but it lands with five times the weight. It pounds the walls until they crack and then the fire spills onto random buildings — storehouses (their goods tumble outside), workshops (production slows), even the Collegium (research crawls); you can choose whether to answer their battery first, but you cannot pick which building burns. The softening blow before a Castle Attack.",
   },
 };
 
@@ -80,7 +80,7 @@ export const ACTION_INFO: Record<string, string> = {
   vacation:
     "Step away from the age entirely and become untouchable — no attack, no revenge, no ranger, no spy reaches you — a shelter for when you're outmatched, not a habit. This is not the same as yielding a battle: a yield is decided for you on the field when you're outmatched, and costs you your stores. Vacation is a standing choice, and the cost is steep: you cannot attack, your tax halves, and your production falls to a fifth. Research is the softer cut — scholars keep working at 30%, and they'll keep at it the whole time you're away so long as there's food on the table (a starving empire studies nothing). Recruitment doesn't drop at all: settlers arrive at the full rate, but only into beds standing empty, so raise extra Hearthsteads before you go or your town fills up and the intake stops. You may spend at most 20 days on vacation per era, total. You cannot depart while a revenge hangs over you — it queues instead, taking effect once every revenge window against you has closed. Come home whenever you like: an absence of 6 hours or more earns a 1-hour shield on your return (a shorter hop earns nothing), and either way your army musters slowly — no fresh attacks for 18 hours, revenge excepted, so you can't duck a siege and immediately swing back.",
   bank: "Shelter gold and goods in the Counting House and storehouses. Each “Store all” button vaults the most it can hold — safe from raiders and spies. Loose stock left in the open is theirs to take. A bombarded store shelters less (capacity × its integrity) and its overflow spills back out.",
-  rest: "Stand the army down to recover: 5 action turns and a little food buy back 20 stamina for every soldier. Tired troops swing weaker and guard worse, so rest before a hard fight — you can't rest while starving.",
+  rest: "Stand the army down to recover. It costs NO action turns — only food, and you buy it by the point: 10 food per point for every regular and engineer you feed, so a hungry realm rests a small army and a rich one rests a large. Take a single point to cross a threshold, five to shake off a raid, or fill to 100 in one order. Tired troops swing weaker and guard worse, so rest before a hard fight — but a starving empire cannot rest at all.",
   trainTroops: "Raise idle peasants straight into footmen, archers, or cavalry at the tier you choose — no warrior middle step. Tier needs the matching trainer AND a Forge at that same level, plus a free Muster Hall bed. Instant.",
   discharge: "Send a soldier back to peaceful civilian life — their gear is lost, and it only works if a Hearthstead bed stands empty and you'd stay above the 30% guard line. No spare housing, no discharge.",
   hireMercs: "Hire sellswords from the Black Market in the arms and tiers you can already field (they need the same trainer + Forge as your regulars). Gold only, no peasants, and no ongoing wage — one price and they are yours. They shield the matching regulars by dying first, and can't outnumber a third of your regular army of that arm.",
@@ -252,8 +252,8 @@ export const RESEARCH_INFO: Record<ResearchField, { title: string; tip: string; 
     title: "Tradecraft",
     tip: "The spymaster's art — despite the name, this is espionage, not commerce.",
     bullets: [
-      "Each level UNLOCKS a new spy operation, from torching stores up to stealing a research level outright",
-      `+${pct(EFFECT_PER_LEVEL)} to every mission's effect per level`,
+      "Unlocks nothing — the SHADOW GUILD's level does that, one operation per rung",
+      `+${pct(EFFECT_PER_LEVEL)} to every mission's effect per level: this is what makes a knife bite`,
       "Unranked — shadow work earns power, not prestige",
     ],
   },
@@ -261,8 +261,9 @@ export const RESEARCH_INFO: Record<ResearchField, { title: string; tip: string; 
     title: "Pathfinding",
     tip: "Rangers who read ground, and see who else has been walking on it.",
     bullets: [
-      "Each level unlocks a sharper scout operation, up to reading a rival's whole Collegium",
+      "Unlocks nothing — the RANGER'S LODGE's level does that, one operation per rung",
       `+${pct(EFFECT_PER_LEVEL)} to recon accuracy and to your chance of intercepting incoming spies, per level`,
+      "Your rangers stand watch whatever this reads — a realm at Pathfinding 0 is still defended, only less well",
       "Scouts are the ONLY defence against spies — this is your counter-espionage",
       "Unranked",
     ],

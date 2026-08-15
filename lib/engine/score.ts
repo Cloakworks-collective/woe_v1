@@ -17,9 +17,10 @@
 // are not the same wall, and the same is true of a Troll counter-engine and a
 // Dwarf rampart.
 //
-// What stays out is what you genuinely cannot see from outside the gate:
-// veterancy and research are scored SEPARATELY and explicitly, never folded
-// into unit power, so the ladder never quantifies how sharp a given army is.
+// Research is scored SEPARATELY and explicitly, never folded into unit power.
+// Veterancy is the exception and it is folded in deliberately — it has no line
+// of its own, it just multiplies the regulars, because what veterancy IS on a
+// ladder is stronger troops. See the note on the Battle line below.
 // Mercenaries score at base — hired blades bring their arms and nothing else,
 // exactly as the battle engine treats them.
 

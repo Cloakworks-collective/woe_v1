@@ -3,6 +3,7 @@ import { Art } from "@/components/Art";
 import { Glyph, glyphs } from "@/components/Glyph";
 import { advisorFor, advisorHref, type AdvisorKey } from "@/lib/constants/advisors";
 import {
+  bareTiers,
   buildingIntegrity,
   civilians,
   level,
@@ -15,7 +16,7 @@ import {
   type Player,
 } from "@/lib/engine";
 import type { BuildingId } from "@/lib/constants/buildings";
-import { HOUSING_PER_HEARTHSTEAD, MERCENARIES } from "@/lib/constants";
+import { CASUALTY_SPLIT, HOUSING_PER_HEARTHSTEAD, MERCENARIES } from "@/lib/constants";
 
 const STORE_NAMES: { id: BuildingId; name: string }[] = [
   { id: "counting_house", name: "Counting House" },
@@ -342,17 +343,20 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
     });
   }
 
-  // · A BARE arm — regulars with no hired blades in front of them. Sellswords
-  //   take the first CASUALTY_SPLIT.MERC_SHARE of every blow aimed at their own
-  //   arm, so an arm without them puts real population in the front rank. Dead
-  //   regulars cost veterancy, ranking and people; a dead sellsword costs gold.
+  // · A BARE RANK — regulars with no hired blades standing at their own tier.
+  //   Damage walks light → medium → heavy and splits at each rank onto the
+  //   sellswords standing THERE, so the screen cannot fall through from one
+  //   tier to another: heavy footmen behind light mercenaries are unscreened
+  //   however many hirelings the arm musters. `bareTiers` is that rule, shared
+  //   with the advisor prose and the census badges. Dead regulars cost
+  //   veterancy, ranking and people; a dead sellsword costs gold.
   const BARE_ARMS = [
     { key: "footmen", label: "footmen", arm: "footman" },
     { key: "archers", label: "archers", arm: "archer" },
     { key: "cavalry", label: "cavalry", arm: "cavalry" },
   ] as const;
-  const bare = BARE_ARMS.filter(
-    (a) => troopTotal(p.army[a.key]) > 0 && troopTotal(p.army.mercenaries[a.key]) === 0,
+  const bare = BARE_ARMS.flatMap((a) =>
+    bareTiers(p, a.key).map((t) => ({ ...a, label: `${t} ${a.label}` })),
   );
   const thin = BARE_ARMS.filter((a) => {
     const regs = troopTotal(p.army[a.key]);
@@ -370,16 +374,25 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
       advisor: "military",
       icon: "🛡",
       headline: naked
-        ? `your ${arms} stand bare — no hired blades in front of them`
+        ? `your ${arms} stand bare — no hired blades at that rank`
         : `your ${arms} are thinly screened`,
       body: (
         <>
-          Sellswords take the <b>first 70%</b> of every blow aimed at their own arm, and{" "}
-          {naked ? <>your {arms} have none</> : <>you have barely any of that arm</>} — so those
-          blows land on your <b>own people</b>. Regular dead are the one loss you never get back:
-          they cost population, they drag your ranking down for days, and your veterancy dies with
-          them. A hired blade costs only gold, and they may not outnumber a third of the regulars of
-          their own arm, so hire to that line before the next raid.
+          Sellswords take the <b>first {Math.round(CASUALTY_SPLIT.MERC_SHARE * 100)}%</b> of every
+          blow that lands on their own arm <b>and their own rank</b> — the screen does not fall
+          through from one tier to another, so hired light footmen do nothing for your heavy ones.{" "}
+          {naked ? (
+            <>
+              Your <b>{arms}</b> have none beside them
+            </>
+          ) : (
+            <>You have barely any of that arm</>
+          )}
+          , so those blows land on your <b>own people</b>. Regular dead are the one loss you never
+          get back: they cost population, they drag your ranking down for days, and your veterancy
+          dies with them. A hired blade costs only gold, and they may not outnumber a third of the
+          regulars of their own arm, so hire to that line — at the rank where the gap is — before
+          the next raid.
         </>
       ),
       ctas: [

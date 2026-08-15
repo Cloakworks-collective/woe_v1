@@ -9,6 +9,7 @@ import {
   MILITARY_BUILDINGS,
   RESEARCH_FIELDS,
   STEWARD_QUEUE_CAP,
+  WORK_QUEUE_CAP,
 } from "@/lib/constants";
 import type { BuildingMeta } from "@/lib/constants/buildings";
 import {
@@ -108,8 +109,14 @@ export default async function StewardPage({
         </p>
       </Panel>
 
+      {/* Both queues are now shown and managed where the work is CHOSEN too —
+          Buildings and the Collegium each carry the same list beside the thing
+          you would queue. These stay because this page answers a different
+          question ("what is the Steward doing", both queues plus the standing
+          orders, in one place); they are the same underlying list, so a removal
+          here and a removal there are the same command. */}
       <div className="panel-row">
-        <Panel title={`Build queue — ${bq.length}/${STEWARD_QUEUE_CAP}`}>
+        <Panel title={`Build queue — ${bq.length}/${WORK_QUEUE_CAP}`}>
           {bq.length === 0 ? (
             <p style={{ fontSize: 14.5, fontStyle: "italic" }}>Nothing queued.</p>
           ) : (
@@ -134,7 +141,7 @@ export default async function StewardPage({
           )}
         </Panel>
 
-        <Panel title={`Research queue — ${rq.length}/${STEWARD_QUEUE_CAP}`}>
+        <Panel title={`Research queue — ${rq.length}/${WORK_QUEUE_CAP}`}>
           {rq.length === 0 ? (
             <p style={{ fontSize: 14.5, fontStyle: "italic" }}>No course of study charted.</p>
           ) : (

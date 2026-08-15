@@ -231,6 +231,10 @@ export function resolveBattle(
   const yielded = mode !== "revenge" && (outmatched || beatenDown);
 
   let victor: "attacker" | "defender" = "defender";
+  /** Share of the health each side marched in with that it gave up. The whole
+   *  verdict is a comparison of these two numbers — see the note where they are
+   *  computed. Zero on a yield: nobody fought. */
+  let lostShare = { attacker: 0, defender: 0 };
   let rounds = 0;
   let aDealt = 0;
   let dDealt = 0;
@@ -381,22 +385,73 @@ export function resolveBattle(
       }
     }
 
+    /**
+     * Tell what a phase just did.
+     *
+     * The three melee phases used to resolve in SILENCE: archers, cavalry and
+     * the footman clash between them account for most of the dead in any
+     * battle, and the log jumped from the wall straight to the aftermath. The
+     * losses table gave you totals with no account of where they came from —
+     * which arm broke, whether the charge landed, whether your archers were
+     * shooting at a parapet. The whole point of a report is the telling.
+     *
+     * Reads the loss ledgers before and after, so it reports what ACTUALLY
+     * happened rather than restating the damage numbers that went in.
+     */
+    const phaseReport = (
+      phase: BattleLogEntry["phase"],
+      openA: Side["losses"],
+      openD: Side["losses"],
+      say_: (aFell: number, dFell: number) => string | null,
+    ) => {
+      const aFell = totalCasualties(atk.losses) - totalCasualties(openA);
+      const dFell = totalCasualties(def.losses) - totalCasualties(openD);
+      const text = say_(aFell, dFell);
+      if (!text) return;
+      say(round, phase, text, {
+        attackerRegulars: lineLosses(atk.losses) - lineLosses(openA),
+        defenderRegulars: lineLosses(def.losses) - lineLosses(openD),
+        tone: dFell > aFell ? "good" : aFell > dFell ? "bad" : "neutral",
+      });
+    };
+
     // Phase 2 — archers. Attackers shoot badly at an intact parapet.
     const archerGate = archerWallDelivery(wallIntegrity, hasWall);
     const aArrow = armPower(atk, "archer") * aLuck * archerGate;
     const dArrow = armPower(def, "archer") * dLuck;
     aDealt += aArrow;
     dDealt += dArrow;
+    const preArrowA = { ...atk.losses };
+    const preArrowD = { ...def.losses };
     spreadDamage(def, aArrow);
     spreadDamage(atk, dArrow);
+    phaseReport("archers", preArrowA, preArrowD, (aFell, dFell) => {
+      if (aFell + dFell === 0) return null;
+      // Keyed on whether there IS a wall, not on the archer gate: that gate
+      // reads 1 in every case now (the wall's edge does the work instead of a
+      // separate accuracy tax), so testing it would have made this branch dead
+      // and every siege would have read "across the open".
+      const shooting = hasWall
+        ? "Our bowmen loose at the parapet, and theirs shoot down from behind stone"
+        : "The volleys go out across the open";
+      return `${shooting} — ${dFell} of theirs fall to arrows, ${aFell} of ours.`;
+    });
 
     // Phase 3 — cavalry. Engineers are never a target for a charge.
     const aCav = armPower(atk, "cavalry") * aLuck;
     const dCav = armPower(def, "cavalry") * dLuck;
     aDealt += aCav;
     dDealt += dCav;
+    const preCavA = { ...atk.losses };
+    const preCavD = { ...def.losses };
     aimDamage(def, aCav, ["cavalry", "footman", "archer"]);
     aimDamage(atk, dCav, ["cavalry", "footman", "archer"]);
+    phaseReport("cavalry", preCavA, preCavD, (aFell, dFell) => {
+      if (aFell + dFell === 0) return null;
+      if (aCav <= 0 && dCav > 0) return `We field no horse — their riders come through us and ${aFell} fall.`;
+      if (dCav <= 0 && aCav > 0) return `Our horse charge an enemy with none of their own — ${dFell} ridden down.`;
+      return `The horse meet in the centre — ${dFell} of theirs go down, ${aFell} of ours.`;
+    });
 
     // Phase 4 — the lines meet. Ram crews drop the beams at a breach.
     if (walls && !ramCrewJoined && ramCrew.total > 0 && wallIntegrity <= WALL_BREACH_PIVOT) {
@@ -410,8 +465,15 @@ export function resolveBattle(
     const dFoot = armPower(def, "footman") * dLuck;
     aDealt += aFoot;
     dDealt += dFoot;
+    const preFootA = { ...atk.losses };
+    const preFootD = { ...def.losses };
     aimDamage(def, aFoot, ["footman", "archer", "cavalry"]);
     aimDamage(atk, dFoot, ["footman", "archer", "cavalry"]);
+    phaseReport("footmen", preFootA, preFootD, (aFell, dFell) => {
+      if (aFell + dFell === 0) return null;
+      const where = hasWall && wallIntegrity > WALL_BREACH_PIVOT ? "at the foot of the wall" : "in the breach";
+      return `${walls ? `The lines meet ${where}` : "The lines meet"} — ${dFell} of theirs cut down, ${aFell} of ours.`;
+    });
 
     // Phase 5 — the sortie.
     if (walls && defender.army.sortieEnabled && !sortied) {
@@ -454,6 +516,7 @@ export function resolveBattle(
     // A tie goes to the DEFENDER, who is already standing on the ground.
     const aLostShare = healthLostShare(atk, atkMuster);
     const dLostShare = healthLostShare(def, defMuster);
+    lostShare = { attacker: aLostShare, defender: dLostShare };
     const wiped = headcount(def) === 0;
     victor = wiped || dLostShare > aLostShare ? "attacker" : "defender";
 
@@ -664,6 +727,11 @@ export function resolveBattle(
     regularsKilled: { attacker: aRegKilled, defender: dRegKilled },
     civiliansDisplaced: displaced,
     wallIntegrityDamage: wallHp > 0 ? wallDamage / wallHp : 0,
+    // The figure the whole battle turns on, surfaced instead of left buried in
+    // a sentence. The report used to state the verdict and give the reader no
+    // way to check it — you were told who won but not by how much, and the rule
+    // ("whoever gave up the smaller SHARE of what they brought") was invisible.
+    healthLostShare: lostShare,
     siegeGearLost: gearLost,
     siegeCountersLost: defPark.destroyed,
     siegeGearWorn: atkPark.worn,

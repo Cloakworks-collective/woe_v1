@@ -456,18 +456,43 @@ export function setResearch(input: Player, field: ResearchField): EngineResult {
   return { player: p, events: [] };
 }
 
-/** Rest: 5 action turns + 0.2 food/troop → +20 stamina, whole army. */
-export function restTroops(input: Player): EngineResult {
+/** Food to lift the whole army by `points` of stamina. Exported because the
+ *  Army page prices every rest button with it, and a UI that recomputes the
+ *  bill itself is a UI that will one day quote a different one. */
+export function restFoodCost(p: Player, points: number): number {
+  return STAMINA.REST_FOOD_PER_POINT_PER_TROOP * military(p) * Math.max(0, points);
+}
+
+/** How many points this army could actually buy back, given its food. Never
+ *  more than the gap to full — you cannot bank stamina. */
+export function restAffordablePoints(p: Player): number {
+  const gap = STAMINA.MAX - p.army.stamina;
+  if (gap <= 0) return 0;
+  const perPoint = restFoodCost(p, 1);
+  if (perPoint <= 0) return gap; // no army to feed: resting is free and instant
+  return Math.min(gap, Math.floor(p.resources.food / perPoint));
+}
+
+/**
+ * Rest: food only, no action turns, priced per point of stamina.
+ *
+ * `points` is what you asked for; you get what the gap to full allows, and you
+ * pay for exactly what you got. Asking for 5 with 2 missing costs two points,
+ * not five — the button offering "max" would otherwise be a trap.
+ */
+export function restTroops(input: Player, points: number): EngineResult {
   const p = structuredClone(input);
   if (p.starving) throw new EngineError("starving", "Starving armies cannot rest");
-  if (p.turnsAvailable < ACTION_TURNS.REST_COST) {
-    throw new EngineError("turns", "Not enough action turns");
+  const want = Math.floor(points);
+  if (!Number.isFinite(want) || want <= 0) {
+    throw new EngineError("points", "Rest by at least one point");
   }
-  const foodCost = STAMINA.REST_FOOD_PER_TROOP * military(p);
+  const gain = Math.min(want, STAMINA.MAX - p.army.stamina);
+  if (gain <= 0) throw new EngineError("stamina", "The army is already fully rested");
+  const foodCost = restFoodCost(p, gain);
   if (p.resources.food < foodCost) throw new EngineError("food", "Not enough food");
-  p.turnsAvailable -= ACTION_TURNS.REST_COST;
   p.resources.food -= foodCost;
-  p.army.stamina = Math.min(STAMINA.MAX, p.army.stamina + STAMINA.REST_GAIN);
+  p.army.stamina += gain;
   return { player: p, events: [] };
 }
 
@@ -587,6 +612,42 @@ export function trainingCost(p: Player, type: TroopType, tier: Tier, count = 1):
     ore: over?.ore ?? base.ore * mult,
   };
   return scale(perUnit, count * troopCostFactor(p));
+}
+
+/**
+ * Tear up a sellsword's contract.
+ *
+ * NO REFUND. Hiring is a one-time price paid outright, and this is the other
+ * half of that bargain: over-hiring is a real mistake, not a reshuffle. What it
+ * buys is the one thing sellswords actually cost you to keep — a Muster Hall
+ * bed. Until this existed, a bed-capped ruler who wanted more regulars had no
+ * way to make room except discharging their own soldiers, which is backwards.
+ *
+ * No veterancy moves: hired blades never earned any and never cost any when
+ * they die (see EXPERIENCE and `bonusPool`), so sending them away is not a loss
+ * to the ledger either. They are not population, so nothing returns to the
+ * idle-peasant pool — unlike `dischargeTroops`, this simply deletes them.
+ */
+export function dismissMercenaries(
+  input: Player,
+  arm: MercArm,
+  tier: Tier,
+  count: number,
+): EngineResult {
+  const p = structuredClone(input);
+  if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
+  const m = p.army.mercenaries;
+  const held =
+    arm === "engineer" ? m.engineers
+    : arm === "spy" ? m.spies
+    : arm === "scout" ? m.scouts
+    : m[ARMY_KEY[arm as TroopType]][tier];
+  if (held < count) throw new EngineError("mercs", "Not that many sellswords of that rank");
+  if (arm === "engineer") m.engineers -= count;
+  else if (arm === "spy") m.spies -= count;
+  else if (arm === "scout") m.scouts -= count;
+  else m[ARMY_KEY[arm as TroopType]][tier] -= count;
+  return { player: p, events: [] };
 }
 
 export function hireMercenaries(

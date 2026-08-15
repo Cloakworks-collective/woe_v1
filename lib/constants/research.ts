@@ -37,8 +37,11 @@ export const RESEARCH_FIELDS: ResearchFieldMeta[] = [
   { id: "forestry", name: "Forestry", desc: "Lumberjack output, up to +100%", ranked: true },
   { id: "masonry", name: "Masonry", desc: "Quarryman output, up to +100%", ranked: true },
   { id: "deep_smelting", name: "Deep Smelting", desc: "Miner output, up to +100%", ranked: true },
-  { id: "tradecraft", name: "Tradecraft", desc: "Unlocks spy ops; +20%/lvl mission effect", ranked: false },
-  { id: "pathfinding", name: "Pathfinding", desc: "Scout recon & catch chance, +20%/lvl", ranked: false },
+  { id: "tradecraft", name: "Tradecraft", desc: "+20%/lvl to every spy mission. The Shadow Guild unlocks the ops; this makes them bite", ranked: false },
+  // Neither covert field unlocks anything any more — the Shadow Guild and the
+  // Ranger's Lodge do, level for level. These two are pure multipliers, and the
+  // description says so rather than implying a gate that no longer exists.
+  { id: "pathfinding", name: "Pathfinding", desc: "+20%/lvl to recon and to your catch chance. The Ranger's Lodge unlocks the ops; this sharpens them", ranked: false },
   { id: "art_of_war", name: "The Art of War", desc: "Attack multiplier, all troops, up to +100%", ranked: true },
   { id: "shieldcraft", name: "Shieldcraft", desc: "Defence multiplier, all troops, up to +100%", ranked: true },
   // ONE siege field, not two. Siegecraft and Siege Accuracy were split because

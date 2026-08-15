@@ -284,7 +284,13 @@ export default async function CommandView({
                 tone={p.starving ? "bad" : away || revengeOpen.length ? "warn" : "good"}
               />
             </div>
-            <div className="stat-grid">
+            {/* Its own class, not `stat-grid`. The two grids were both
+                auto-fit/minmax, so at most widths the three tiles above and the
+                two meters below resolved to DIFFERENT column widths and nothing
+                lined up — and the veterancy meter's two-part readout wrapped
+                its head to a second line, dropping its bar below stamina's.
+                Fixed columns here, and the tracks bottom-align. */}
+            <div className="throne-meters">
               <Meter
                 icon="🔥"
                 label="Stamina"
@@ -352,13 +358,19 @@ export default async function CommandView({
       </Panel>
 
       <div className="panel-row">
-        <Panel title="Growth — the realm's pulse">
+        <Panel title="Tax &amp; Production — the realm's pulse">
           {/* The dial and every figure it governs share one piece of state, so
               the trade-off moves as you drag rather than after a reload. */}
           <TaxAndRates player={p} />
+        </Panel>
 
-          {/* Why settlers come — the four terms, so the number is never a mystery
-              and every one of them is something the ruler can go and change. */}
+        {/* Settlers, on their own. This used to sit under the tax dial inside a
+            single "Growth" panel, which read as though production and
+            population were one system — they are not, and a ruler looking for
+            why their town had stopped filling had to scroll past the tax slider
+            to find out. The four terms, when the next lot arrive, and where
+            they will sleep: one panel, one question. */}
+        <Panel title="Settlers — how your people multiply" guide="/guide#grow">
           <div className="growth-breakdown">
             {(() => {
               const g = growthBreakdown(p);
@@ -452,8 +464,11 @@ export default async function CommandView({
             More civilian building levels bring settlers faster; raise <Link href="/buildings">Hearthsteads</Link> to house them.
           </p>
         </Panel>
+      </div>
 
-        <Panel title="The Counting House — the realm's bank">
+      {/* Its own row. It is a four-column ledger and it was being squeezed into
+          half the page beside the growth panel. */}
+      <Panel title="The Counting House — the realm's bank">
           {/* FOUR columns, not five. "Loose" and "Exposed" were the same number
               in every ordinary game: exposed is loose PLUS whatever a bombarded
               vault has spilled, and nothing spills while your stores stand. So
@@ -574,8 +589,7 @@ export default async function CommandView({
             A bombarded store shelters less and spills its overflow — repair it on the{" "}
             <Link href="/buildings">Buildings</Link> page. Raise storage buildings for deeper vaults.
           </p>
-        </Panel>
-      </div>
+      </Panel>
 
       <Panel title="Your Settlement — hall by hall">
         <SettlementView player={p} />

@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { BattleReportPanel } from "@/components/BattleReportPanel";
 import { Flash } from "@/components/Flash";
 import { Ladder, type LadderRow } from "@/components/Ladder";
 import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
-import { ARMY_FLOORS, ATTACK_HISTORY_HOURS, HOLD_CLOCKS, RACE_NAMES } from "@/lib/constants";
+import { ARMY_FLOORS, ATTACK_HISTORY_HOURS, ATTACK_REFUSAL_RATIO, HOLD_CLOCKS, RACE_NAMES } from "@/lib/constants";
 import {
+  level,
   rankingScore,
   researchLevel,
   settlementTitle,
@@ -28,14 +28,13 @@ export default async function RankingsPage({
     page?: string;
     err?: string;
     ok?: string;
-    report?: string;
     /** Which arm the sidebar sent you here for. The ladder is one page reached
      *  three ways — arriving for "Spy" should not put Attack and Scout under
      *  your cursor on all forty rows. */
     act?: string;
   }>;
 }) {
-  const { q, page, err, ok, report: reportId, act } = await searchParams;
+  const { q, page, err, ok, act } = await searchParams;
   const arm = act === "attack" || act === "scout" || act === "spy" ? act : undefined;
   const ARM_HEAD = {
     attack: "The Ladder — pick a target and march",
@@ -44,16 +43,15 @@ export default async function RankingsPage({
   } as const;
   const { world, player: me } = await getGame();
   const tick = world.meta.tickNumber;
-  const report = reportId ? world.battles.find((b) => b.id === reportId) : undefined;
 
   const ladder = Object.values(world.players)
     .map((p) => ({ p, score: rankingScore(p) }))
     .sort((a, b) => b.score - a.score);
 
   // My war context: whom I may revenge (personal window, or a clan-bombardment
-  // window my banner still holds), and my Tradecraft for the spy console.
+  // window my banner still holds). The covert consoles gate on the Shadow Guild
+  // and the Ranger's Lodge now, not on research — see COVERT_OPS.
   const myScore = Math.max(1, rankingScore(me));
-  const tradecraft = researchLevel(me, "tradecraft");
   const myClan = me.clanId ? world.clans[me.clanId] : undefined;
   const personalRevenge = new Set(
     me.recentAttackers
@@ -86,7 +84,8 @@ export default async function RankingsPage({
     // would bounce.
     const sameClan = Boolean(me.clanId && p.clanId === me.clanId) && !isMe;
     const allied = Boolean(p.clanId && alliedClanIds.has(p.clanId));
-    const refused = rankingScore(p) / myScore >= 1.75;
+    // The engine's own refusal line, not a copy of it — see ATTACK_REFUSAL_RATIO.
+    const refused = rankingScore(p) / myScore >= ATTACK_REFUSAL_RATIO;
     const title = settlementTitle(p);
     const hint = allied
       ? `🤝 Allied with your banner — striking them breaks the alliance and is recorded as treachery.`
@@ -143,7 +142,6 @@ export default async function RankingsPage({
     <>
       <Flash err={err} ok={ok} />
       <LearnLink href="/guide#winning">How the ladder wins you the era</LearnLink>
-      {report && <BattleReportPanel report={report} />}
       <nav className="rank-tabs" aria-label="Rankings">
         <Link href="/rankings" aria-current="page">Empire Ranks</Link>
         <Link href="/rankings/clans">Clan Ranks</Link>
@@ -168,8 +166,8 @@ export default async function RankingsPage({
           initialPage={openAt}
           pageSize={PAGE_SIZE}
           arm={arm}
-          tradecraft={tradecraft}
-          pathfinding={researchLevel(me, "pathfinding")}
+          guild={level(me, "shadow_guild")}
+          lodge={level(me, "rangers_lodge")}
           last={{
             scoutOp: me.lastScoutOp,
             scoutAgents: me.lastScoutAgents,

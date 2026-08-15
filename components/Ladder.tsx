@@ -6,6 +6,10 @@ import { Art } from "@/components/Art";
 import { ReqTip } from "@/components/CostTip";
 import { TargetActions } from "@/components/TargetActions";
 import type { TargetState } from "@/lib/constants/attackGating";
+import { RESEARCH_FIELDS } from "@/lib/constants/research";
+
+// Counted, not typed — fields get added and the tooltip used to say "7 of 10".
+const RANKED_FIELD_COUNT = RESEARCH_FIELDS.filter((f) => f.ranked).length;
 
 /**
  * The ladder table, filtered as you type.
@@ -61,8 +65,8 @@ export function Ladder({
   initialPage = 1,
   pageSize = 30,
   arm,
-  tradecraft,
-  pathfinding,
+  guild,
+  lodge,
   last,
 }: {
   rows: LadderRow[];
@@ -70,8 +74,8 @@ export function Ladder({
   initialPage?: number;
   pageSize?: number;
   arm?: "attack" | "scout" | "spy";
-  tradecraft: number;
-  pathfinding: number;
+  guild: number;
+  lodge: number;
   last?: { scoutOp?: string; scoutAgents?: number; spyOp?: string; spyAgents?: number };
 }) {
   const [q, setQ] = useState(initialQuery);
@@ -168,7 +172,7 @@ export function Ladder({
               <ReqTip
                 down
                 heading="Population — the victory fuel"
-                body="Civilians + regular troops (mercenaries never count). Ranking score also weighs walls, buildings, treasury, experience, and 7 of the 10 research fields — and the victory clocks only tick with enough REGULARS in the field (mercenaries and engineers do not count)."
+                body={`Civilians + regular troops (mercenaries never count). Ranking score also weighs walls, buildings, treasury and ${RANKED_FIELD_COUNT} of the ${RESEARCH_FIELDS.length} research fields — veterancy has no line of its own, it just makes the troop line worth more. The victory clocks only tick with enough REGULARS in the field (mercenaries and engineers do not count).`}
               >
                 <span className="tip-under">Population</span>
               </ReqTip>
@@ -248,8 +252,8 @@ export function Ladder({
                     <TargetActions
                       target={{ id: r.id, name: r.name }}
                       revengeOpen={r.revengeOpen}
-                      tradecraft={tradecraft}
-                      pathfinding={pathfinding}
+                      guild={guild}
+                      lodge={lodge}
                       state={r.state}
                       allyClanName={r.allyClanName}
                       last={last}

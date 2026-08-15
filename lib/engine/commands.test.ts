@@ -5,7 +5,9 @@ import {
   bankResource,
   build,
   dischargeTroops,
+  dismissMercenaries,
   hireMercenaries,
+  restAffordablePoints,
   restTroops,
   setResearch,
   setTax,
@@ -15,8 +17,9 @@ import { CIVILIAN_LEVELLED_IDS, COLLEGIUM_COST, GUILD_COST, LODGE_COST, FOUNDRY_
 import { buildingCost } from "./costs";
 import { newEmpire } from "./newEmpire";
 import { level, mercTotal, normalizePlayer, shelterCapacity, type Player, type TroopType } from "./types";
+import { musterVacancy } from "./commands";
 import { trainingCost } from "./commands";
-import { MERC_PRICE_BY_ARM, UNIT_STATS } from "../constants";
+import { MERC_PRICE_BY_ARM, STAMINA, UNIT_STATS } from "../constants";
 import { researchSwitchLoss } from "./commands";
 import { processTurnTick } from "./tick";
 import { RESEARCH_SWITCH_LOSS } from "../constants";
@@ -314,6 +317,35 @@ describe("training & army", () => {
     expect(() => hireMercenaries(p, "cavalry", "heavy", 1)).toThrowError(/knights_stables/i);
   });
 
+  it("dismissing sellswords frees the bed and refunds nothing", () => {
+    let p = fresh();
+    p.gold = 100_000;
+    p.buildings.muster_hall = 5;
+    p.buildings.drill_yard = 1; // light footmen need their trainer, hired or not
+    p = hireMercenaries(p, "footman", "light", 6).player;
+    const goldAfterHiring = p.gold;
+    const bedsBefore = musterVacancy(p);
+
+    p = dismissMercenaries(p, "footman", "light", 4).player;
+    expect(p.army.mercenaries.footmen.light).toBe(2);
+    expect(p.gold).toBe(goldAfterHiring); // NO REFUND — the whole point
+    expect(musterVacancy(p)).toBe(bedsBefore + 4); // the beds are what you get
+    // They never earned veterancy, so sending them off never spends any.
+    expect(p.army.experiencePoints).toBe(0);
+  });
+
+  it("dismissing rejects more sellswords than are serving at that rank", () => {
+    let p = fresh();
+    p.gold = 100_000;
+    p.buildings.muster_hall = 5;
+    p.buildings.drill_yard = 1; // light footmen need their trainer, hired or not
+    p = hireMercenaries(p, "footman", "light", 6).player;
+    // Right arm, wrong RANK — the six hired are light, not heavy.
+    expect(() => dismissMercenaries(p, "footman", "heavy", 1)).toThrowError(/not that many/i);
+    expect(() => dismissMercenaries(p, "footman", "light", 7)).toThrowError(/not that many/i);
+    expect(() => dismissMercenaries(p, "footman", "light", 0)).toThrowError(/count/i);
+  });
+
   it("normalizePlayer fills in every field the engine assumes", () => {
     // The combat rework shipped with a world wipe, so this no longer migrates
     // legacy shapes — it exists so bots, fixtures and hand-built test players
@@ -333,13 +365,47 @@ describe("training & army", () => {
     expect(p.army.siegeGearIntegrity.trebuchets).toBe(1);
   });
 
-  it("rest costs 5 turns + 0.2 food per troop, +20 stamina", () => {
+  // Was "rest costs 5 turns + 0.2 food per troop, +20 stamina". Rest is now
+  // bought by the point with food alone — no action turns at all.
+  it("rest costs food per point per troop and no action turns", () => {
     const p = fresh();
     p.army.stamina = 60;
-    const { player } = restTroops(p);
-    expect(player.turnsAvailable).toBe(195);
-    expect(player.resources.food).toBe(1000 - 0.2 * 20);
-    expect(player.army.stamina).toBe(80);
+    p.resources.food = 100_000;
+    const before = p.turnsAvailable;
+    const { player } = restTroops(p, 5);
+    expect(player.turnsAvailable).toBe(before);
+    expect(player.army.stamina).toBe(65);
+    expect(player.resources.food).toBe(100_000 - STAMINA.REST_FOOD_PER_POINT_PER_TROOP * 20 * 5);
+  });
+
+  it("rest bills only the points it could actually give", () => {
+    const p = fresh();
+    p.army.stamina = STAMINA.MAX - 2;
+    p.resources.food = 100_000;
+    // Asked for 50, only 2 were missing: pay for 2.
+    const { player } = restTroops(p, 50);
+    expect(player.army.stamina).toBe(STAMINA.MAX);
+    expect(player.resources.food).toBe(100_000 - STAMINA.REST_FOOD_PER_POINT_PER_TROOP * 20 * 2);
+  });
+
+  it("rest refuses a full army and a starving one", () => {
+    const full = fresh();
+    full.army.stamina = STAMINA.MAX;
+    expect(() => restTroops(full, 1)).toThrow();
+    const hungry = fresh();
+    hungry.army.stamina = 10;
+    hungry.starving = true;
+    expect(() => restTroops(hungry, 1)).toThrow();
+  });
+
+  it("restAffordablePoints is capped by food and by the gap to full", () => {
+    const p = fresh();
+    p.army.stamina = 90;
+    // Food for exactly 3 points of a 20-strong army.
+    p.resources.food = STAMINA.REST_FOOD_PER_POINT_PER_TROOP * 20 * 3;
+    expect(restAffordablePoints(p)).toBe(3);
+    p.resources.food = 10_000_000;
+    expect(restAffordablePoints(p)).toBe(10); // the gap, not the purse
   });
 });
 

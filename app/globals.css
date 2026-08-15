@@ -2420,18 +2420,255 @@ a.repair-hint:hover {
   background: color-mix(in srgb, var(--gold) 10%, transparent);
 }
 
-/* Stamina / experience / muster meters in one row. */
-.army-meters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+/* ── The work queues (Buildings / Collegium) ──────────────────────────────
+   An ordered short list of intents. Numbered, because the order is the whole
+   point: the Steward works the head entry and nothing else. */
+.wq-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.wq-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 9px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border-light);
+}
+/* Reached by hand in the meantime — the Steward will drop it on its next pass,
+   so it is shown struck rather than silently vanishing under the reader. */
+.wq-row.is-done {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+.wq-pos {
+  flex: none;
+  width: 21px;
+  height: 21px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 12px Verdana, sans-serif;
+  color: var(--panel);
+  background: var(--gold, #b08b2e);
+}
+.wq-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
   gap: 10px;
-  margin-top: 12px;
+  flex-wrap: wrap;
 }
-.army-meters .tip {
-  display: block;
+.wq-label {
+  font-size: 13.5px;
+  color: var(--heading);
 }
-.army-meters .meter {
-  cursor: help;
+.wq-detail {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.wq-x {
+  padding: 1px 8px;
+  line-height: 1.4;
+}
+.wq-empty,
+.wq-upsell {
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+.wq-empty {
+  font-style: italic;
+}
+
+/* ── The muster roll (Army page) ──────────────────────────────────────────
+   The whole host on one table: every rank of every arm, your own against the
+   hired, because that pairing is the decision. The sellsword art sits beside
+   it and stays big — it is the legend for the second number in every cell. */
+.host-roll {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+.host-roll .tbl-scroll {
+  flex: 1;
+  min-width: 0;
+}
+.host-art {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  line-height: 0;
+}
+.host-art-cap {
+  font: 700 12px Verdana, sans-serif;
+  color: var(--ink-soft);
+  line-height: 1.3;
+}
+.host-tbl td,
+.host-tbl th {
+  white-space: nowrap;
+}
+.host-cell {
+  font-variant-numeric: tabular-nums;
+}
+.host-reg {
+  font-weight: 700;
+  color: var(--heading);
+}
+.host-merc {
+  color: var(--ink-soft);
+}
+.host-slash {
+  color: var(--border);
+  margin: 0 2px;
+}
+/* Regulars at a rank with no blade in front of them — the one thing on this
+   table worth spotting from across the room. */
+.host-cell.is-bare {
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 45%, transparent);
+}
+.host-cell.is-bare .host-merc {
+  color: var(--warn);
+  font-weight: 700;
+}
+.host-note {
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  margin: 10px 0 0;
+}
+
+@media (max-width: 900px) {
+  .host-roll {
+    flex-direction: column;
+  }
+  .host-art {
+    align-self: center;
+  }
+}
+
+/* Both prices on one row: what a soldier costs to raise, and what the blade
+   that screens him costs to rent. */
+.muster-prices .cost-have {
+  display: inline-block;
+  min-width: 62px;
+}
+.muster-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+/* The sellsword price. No "hire" label — it is gold-only where the training
+   cost is materials, and the 🗡 matches the button that spends it. */
+.muster-price-merc {
+  padding-left: 9px;
+  border-left: 1px solid var(--border-light);
+  color: var(--ink-soft);
+}
+
+/* Only the picked tier's Train/Hire pair is shown. Same :has() switch that
+   lights the cost row, so the button, its price and its hover always agree. */
+.muster-form .tier-only {
+  display: none;
+}
+.muster-form:has(.pill input[value="light"]:checked) .tier-only-light,
+.muster-form:has(.pill input[value="medium"]:checked) .tier-only-medium,
+.muster-form:has(.pill input[value="heavy"]:checked) .tier-only-heavy {
+  display: inline-flex;
+}
+/* No :has() (older engines): show the light pair rather than no buttons at all. */
+@supports not selector(:has(*)) {
+  .muster-form .tier-only-light {
+    display: inline-flex;
+  }
+}
+.btn-hire {
+  background: linear-gradient(#6b5a86, #4a3c60);
+}
+
+/* ── The host's condition ─────────────────────────────────────────────────
+   Stamina, veterancy and quarters. These were three bare meters in a row with
+   everything that explained them hidden in a hover — so the rules that decide
+   whether you should attack today were the least visible thing on the page. */
+.condition-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+.condition-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px 13px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border-light);
+}
+/* Bullets, not a paragraph. Each of these cards states four or five separate
+   rules; run together as prose the one you needed was the one you skimmed. */
+.condition-why {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  margin: 0;
+  padding-left: 17px;
+  list-style: disc;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.condition-why > li::marker {
+  color: var(--red);
+}
+.condition-why b {
+  color: var(--heading);
+}
+.condition-fig {
+  font-size: 13px;
+  margin: 0;
+  padding-top: 7px;
+  border-top: 1px dashed var(--border-light);
+}
+.rest-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-light);
+  margin-top: auto; /* buttons sit on the floor of the card, so all three align */
+}
+.rest-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 700 13px Verdana, sans-serif;
+  color: var(--heading);
+}
+.rest-none {
+  font-size: 13px;
+  color: var(--pos, #6a8f3c);
+  font-weight: 700;
+}
+.rest-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding-left: 6px;
+  border-left: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  font-weight: 400;
+  font-size: 11.5px;
+  opacity: 0.9;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3123,8 +3360,36 @@ a.repair-hint:hover {
   gap: 10px;
 }
 
+/* Three tiles, three columns — fixed, not auto-fit. Score, population and
+   status are one reading and they belong on one line; auto-fit reflowed them
+   to 2+1 at the widths people actually play at. */
 .throne .stat-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* The two meters under the tiles. Separate from `.stat-grid` on purpose: they
+   need EQUAL-HEIGHT cells with the tracks bottom-aligned, because veterancy's
+   readout ("+0.0% · 100,000 to next") wraps to a second line where stamina's
+   never does — and a wrapped head used to shove one bar below the other. */
+.throne-meters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: stretch;
+}
+
+.throne-meters .meter {
+  height: 100%;
+  justify-content: flex-end; /* head grows upward; tracks stay on one line */
+}
+
+@media (max-width: 760px) {
+  .throne .stat-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+  .throne-meters {
+    grid-template-columns: 1fr;
+  }
 }
 
 .throne .stat-tile {
@@ -10114,3 +10379,380 @@ tr:target > td {
 @media (prefers-reduced-motion: reduce) {
   .rstat-emblem.rstat-warn { animation: none; }
 }
+
+/* ── The intelligence desk ────────────────────────────────────────────────
+   Scout and spy reports, in one table because they share one budget of spy
+   turns. Every row carries what it cost, so the trade between watching and
+   sabotaging is visible in the same place you read the results. */
+/* A run where you were caught. The whole point of the shadow war is going
+   unseen, so the rows where you did not are the ones worth spotting. */
+.rep-named {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+/* The report body proper: figures in columns. A survey of the coffers is nine
+   numbers, and as a sentence it is a 200-character run of parenthesised asides
+   that nobody reads twice. */
+.rep-fact-note {
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  padding-left: 8px !important;
+}
+/* The row a chronicle link named. Marks it without moving anything. */
+/* A chronicle link to a report that has since aged out of the window. */
+.rep-gone {
+  font-size: 13px;
+  margin: 0 0 8px;
+  padding: 7px 10px;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  border-left: 3px solid var(--warn);
+}
+
+/* ── A single report, on its own page ─────────────────────────────────────
+   There is no index of these: the chronicle is the list, and this is the
+   document. So it can afford to be laid out as a document rather than as a
+   row that has to fit a table cell. */
+.rep-head {
+  margin-bottom: 10px;
+}
+.rep-h {
+  margin: 14px 0 6px;
+  font-size: 14px;
+  color: var(--heading);
+}
+.rep-prose {
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 0;
+}
+/* The finding, in columns — a survey of the coffers is nine numbers, and as a
+   sentence it is a run of parenthesised asides nobody reads twice. */
+.rep-full-facts {
+  max-width: 520px;
+}
+.rep-full-facts th {
+  text-align: left;
+  font-weight: 400;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.rep-full-facts td.num {
+  text-align: right;
+  font-weight: 700;
+  color: var(--heading);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.rep-fact-note {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.rep-exposed-note {
+  font-size: 13.5px;
+  margin: 0 0 4px;
+  padding: 8px 11px;
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  border-left: 3px solid var(--warn);
+}
+/* Whose fight this was, when the report is not told from your side. */
+.rep-side {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0 0 8px;
+}
+.rep-back {
+  font-size: 13.5px;
+  margin: 12px 0 0;
+  padding-top: 9px;
+  border-top: 1px dashed var(--border-light);
+}
+
+/* ── The battle report ────────────────────────────────────────────────────
+   A document with an argument, not a dump of figures: the verdict and its
+   working, then what it cost, then what was taken, then the telling. */
+.br-verdict {
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: var(--panel-alt);
+  border-left: 4px solid var(--border);
+}
+.br-verdict.tone-win { border-left-color: var(--pos, #6a8f3c); }
+.br-verdict.tone-loss { border-left-color: var(--warn); }
+.br-bars {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.br-side-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+.br-side-pct {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+/* The bar is drawn against 50%, not 100% — see the note in the component. */
+.br-track {
+  display: block;
+  height: 9px;
+  margin-top: 3px;
+  background: var(--panel-inset, rgba(0, 0, 0, 0.18));
+}
+.br-track > i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(#d66a3c, #a33320);
+}
+.br-side.is-victor .br-track > i {
+  background: linear-gradient(#8fae3c, #5c7a1e);
+}
+.br-crown {
+  display: inline-block;
+  margin-top: 3px;
+  font: 700 11px Verdana, sans-serif;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--pos, #6a8f3c);
+}
+
+.br-none { color: var(--ink-soft); font-style: italic; }
+/* Sellswords are not population — the row is muted so the eye lands on the
+   regulars, which are the loss that actually costs an era. */
+.br-merc-row td { color: var(--ink-soft); }
+.br-reg { color: var(--warn); font-weight: 700; }
+
+/* The telling, grouped by phase, each phase saying what it IS — the log used
+   to be a flat run of italics with no structure and no explanation. */
+.br-log {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.br-phase {
+  border-left: 3px solid var(--border-light);
+  padding-left: 11px;
+}
+.br-phase-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+  color: var(--heading);
+}
+.br-phase-icon { line-height: 1; }
+.br-beat.tone-good { color: var(--green-dark, #4a7c2f); }
+.br-beat.tone-bad { color: var(--bad, #9c3b2e); }
+.br-beat-reg {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--warn);
+}
+
+/* ── The report, in the game's own hand ───────────────────────────────────
+   Pixel plates from /art/ui/icons instead of emoji, parchment under the
+   verdict and the telling, and a carved rule between the two. Everything here
+   is the kit already in the repo — no new art. */
+.br-ico {
+  image-rendering: pixelated;
+  vertical-align: -4px;
+  margin-right: 6px;
+  flex: none;
+}
+.br-h .br-ico { vertical-align: -5px; }
+.br-crown .br-ico { vertical-align: -2px; margin-right: 3px; }
+
+/* Parchment under the verdict, so the finding reads as something written down
+   rather than a status box. The 4px tone edge stays — it is the fastest read
+   on the page. */
+.br-verdict {
+  background:
+    linear-gradient(rgba(255, 246, 224, 0.5), rgba(255, 246, 224, 0.5)),
+    url("/art/ui/parchment-tile.png");
+  background-size: auto, 64px 64px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
+}
+:root[data-theme="dark"] .br-verdict,
+html.dark .br-verdict {
+  background:
+    linear-gradient(rgba(28, 22, 18, 0.55), rgba(28, 22, 18, 0.55)),
+    url("/art/ui/parchment-tile-dark.png");
+  background-size: auto, 64px 64px;
+}
+.br-headline {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Each phase hangs off a carved rail rather than a flat 3px border. */
+.br-phase {
+  border-left: 0;
+  padding-left: 13px;
+  background: url("/art/ui/wood-rail.png") left top / 5px 100% repeat-y;
+}
+.br-phase-head {
+  align-items: center;
+}
+/* The beat list sits on parchment so the telling reads as a scribe's account. */
+.br-log {
+  padding: 9px 11px;
+  background:
+    linear-gradient(rgba(255, 246, 224, 0.34), rgba(255, 246, 224, 0.34)),
+    url("/art/ui/parchment-tile.png");
+  background-size: auto, 64px 64px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+:root[data-theme="dark"] .br-log,
+html.dark .br-log {
+  background:
+    linear-gradient(rgba(28, 22, 18, 0.5), rgba(28, 22, 18, 0.5)),
+    url("/art/ui/parchment-tile-dark.png");
+  background-size: auto, 64px 64px;
+}
+.br-sub {
+  font-weight: 400;
+  color: var(--ink-soft);
+  font-size: 11.5px;
+}
+
+/* ── Battle report: ONE column, and big enough to read ────────────────────
+   The two-column version squeezed 13px type into half a page and turned every
+   section into a grey slab. Full width, larger type, and a plate on every
+   heading and every fact so the eye has something to catch on. */
+.br-headline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font: 700 20px Verdana, sans-serif;
+  color: var(--heading);
+  margin-bottom: 7px;
+  line-height: 1.3;
+}
+.br-why {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin: 0 0 11px;
+}
+.br-why b { color: var(--heading); }
+
+.br-h {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin: 22px 0 7px;
+  font: 700 18px Verdana, sans-serif;
+  color: var(--heading);
+  padding-bottom: 6px;
+  /* A carved divider under every heading — the sections used to run together. */
+  border-bottom: 0;
+  background: url("/art/ui/rule.png") left bottom / auto 9px repeat-x;
+  background-clip: padding-box;
+}
+.br-note {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin: 0 0 10px;
+}
+.br-note b { color: var(--heading); }
+
+/* The figures at a glance — four numbers before any prose. */
+.br-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin: 14px 0 4px;
+}
+.br-tile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--panel-alt);
+  border-style: solid;
+  border-width: 10px;
+  border-image: url("/art/ui/card-frame.png") 10 / 10px round;
+}
+.br-tile.is-good { box-shadow: inset 3px 0 0 var(--pos, #6a8f3c); }
+.br-tile.is-bad { box-shadow: inset 3px 0 0 var(--warn); }
+.br-tile-body { min-width: 0; }
+.br-tile-label {
+  font: 700 11.5px Verdana, sans-serif;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.br-tile-value {
+  font: 700 23px Verdana, sans-serif;
+  color: var(--heading);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.br-tile-sub {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+
+/* Every statement gets a plate. No bullets — the plate IS the bullet. */
+.br-facts {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.br-fact {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  padding: 7px 10px;
+  background: var(--panel-alt);
+  border-left: 3px solid var(--border-light);
+}
+.br-fact b { color: var(--heading); }
+.br-fact .br-ico { margin-top: 2px; margin-right: 0; vertical-align: 0; }
+
+.br-losses { font-size: 14.5px; }
+.br-losses td .br-ico { vertical-align: -4px; }
+
+/* The telling — bigger beats, and the phase blurb on its own line so a long
+   one stops shoving the phase name around. */
+.br-phase-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 15.5px;
+  color: var(--heading);
+}
+.br-phase-blurb {
+  flex-basis: 100%;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.br-beats {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  list-style: square;
+  font-size: 14.5px;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.br-beat-reg { font-size: 12.5px; }
+.br-phase + .br-phase { margin-top: 11px; }

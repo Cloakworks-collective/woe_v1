@@ -2,7 +2,7 @@ import { LearnLink } from "@/components/LearnLink";
 import { Flash } from "@/components/Flash";
 import { Panel } from "@/components/Panel";
 import { emulatorPurchase } from "@/app/actions";
-import { CHARTER_PRICE_CENTS, STEWARD_QUEUE_CAP } from "@/lib/constants";
+import { CHARTER_PRICE_CENTS, STEWARD_QUEUE_CAP, WORK_QUEUE_CAP } from "@/lib/constants";
 import { paymentMode, verifyCharterSession } from "@/lib/server/premium";
 import { getGame } from "@/lib/server/session";
 
@@ -67,12 +67,13 @@ export default async function PremiumPage({
         </p>
         <ul style={{ fontSize: 14.5, margin: "6px 0 6px 18px" }}>
           <li>
-            <b>Build queue</b> — line up to {STEWARD_QUEUE_CAP} constructions; each is raised the
-            moment the treasury can pay for it.
+            <b>Build queue</b> — line up to {WORK_QUEUE_CAP} constructions on the Buildings page;
+            each is raised the moment the treasury can pay for it.
           </li>
           <li>
-            <b>Research queue</b> — chart a course of study; the scholars move to the next field
-            the instant a level completes.
+            <b>Research queue</b> — chart a course of up to {WORK_QUEUE_CAP} levels in the
+            Collegium; the scholars move to the next field the instant a level completes, and the
+            switch costs you nothing because you declared it in advance.
           </li>
           <li>
             <b>Standing orders</b> — intelligent commands: <i>“once the Drill Yard is built, train

@@ -32,6 +32,7 @@ import {
   queueResearch,
   removeStandingOrder,
   buildClanBuilding,
+  dismissMercenaries,
   hireMercenaries,
   buySiegeGear,
   buySiegeCounter,
@@ -89,6 +90,7 @@ import {
   resolveBombard,
   resolveClanBombard,
   restTroops,
+  recordCovert,
   runCovertOp,
   setResearch,
   setTax,
@@ -402,7 +404,9 @@ function dispatch(
     case "setResearch":
       return put(setResearch(player, args.field as never).player), undefined;
     case "rest":
-      return put(restTroops(player).player), undefined;
+      // `points` is new; the bare "rest" of the old flat +20 button still
+      // arrives from saved links and scripts, and means "one point".
+      return put(restTroops(player, num(args.points ?? 1)).player), undefined;
     // "surrender" is the pre-rename wire name — kept so existing CLI scripts
     // and realm-token clients don't break. `flag` likewise aliases `away`.
     case "vacation":
@@ -426,6 +430,15 @@ function dispatch(
             num(args.count),
             wonderDiscount(clan),
           ).player,
+        ),
+        undefined
+      );
+    // No refund — see dismissMercenaries. Frees the Muster Hall bed, nothing else.
+    case "dismissMercs":
+      return (
+        put(
+          dismissMercenaries(player, args.type as never, args.tier as never, num(args.count))
+            .player,
         ),
         undefined
       );
@@ -514,6 +527,31 @@ function dispatch(
         r.attacker.lastSpyOp = r.op.id;
         r.attacker.lastSpyAgents = num(args.agents);
       }
+      // File the report BEFORE `put`, so what is persisted carries it. The
+      // detail is stored verbatim: a scout report is a snapshot of what was
+      // true when the rangers looked, and it must never silently refresh.
+      const reportId = randomUUID();
+      recordCovert(
+        r.attacker,
+        {
+          id: reportId,
+          tick,
+          arm: r.op.arm,
+          opId: r.op.id,
+          opName: r.op.name,
+          targetId: target.id,
+          targetName: target.name,
+          sent: r.sent,
+          intercepted: r.intercepted,
+          exposed: r.exposed,
+          detail: r.detail,
+          facts: r.facts,
+          turnsSpent: r.turnsSpent,
+          resourcesDestroyed: r.resourcesDestroyed,
+          gearDestroyed: r.gearDestroyed,
+        },
+        tick,
+      );
       put(r.attacker);
       // Counter-ops act on your OWN realm, so the "defender" is you.
       if (r.defender.id !== player.id) world.players[target.id] = r.defender;
@@ -525,13 +563,25 @@ function dispatch(
           gearDestroyed: r.gearDestroyed,
         });
       }
-      pushInbox(world, player.id, {
-        type: "spyReport",
-        op: r.op.name,
-        targetName: target.name,
-        caught: r.exposed,
-        detail: r.detail,
-      });
+      // The right EVENT for the arm. Both used to arrive as "spyReport", which
+      // is why the scoutReport line in eventLine never fired — and why a scout
+      // report was coloured and worded as though shadows had gone over a wall.
+      // Both carry the report id, so the tiding is a one-line summary with a
+      // link rather than a wall of figures nobody reads in a feed.
+      pushInbox(
+        world,
+        player.id,
+        r.op.arm === "scout"
+          ? { type: "scoutReport", targetName: target.name, detail: r.detail, reportId }
+          : {
+              type: "spyReport",
+              op: r.op.name,
+              targetName: target.name,
+              caught: r.exposed,
+              detail: r.detail,
+              reportId,
+            },
+      );
       if (r.exposed) {
         // Being caught names you — that is the whole risk of going over a wall.
         pushInbox(world, target.id, {

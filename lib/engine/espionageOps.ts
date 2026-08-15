@@ -29,6 +29,7 @@ import {
   MAX_FIELD_LEVEL,
   RACES,
   RESEARCH_FIELDS,
+  COVERT_LOG_DAYS,
   SIEGE_COUNTERS,
   TURNS_PER_DAY,
   covertOp,
@@ -47,6 +48,8 @@ import {
   totalPopulation,
   troopTotal,
   veterancyBonus,
+  type CovertFact,
+  type CovertRecord,
   type Player,
   type Resource,
   type SiegeGearType,
@@ -62,7 +65,10 @@ export interface CovertResult {
   /** Any interception at all names you and opens the revenge window. A clean
    *  run stays anonymous — that is the whole prize. */
   exposed: boolean;
-  detail: string; // what the attacker learns or did
+  detail: string; // what the attacker learns or did — the one-line summary
+  /** The same intelligence in columns, for the ops that return FIGURES. The
+   *  desk renders this as a table; `detail` stays the tiding and the fallback. */
+  facts?: CovertFact[];
   victimDetail?: string; // what the victim sees (anonymous unless exposed)
   resourcesDestroyed?: number;
   gearDestroyed?: number;
@@ -109,8 +115,12 @@ export function runCovertOp(
   const defender = structuredClone(defenderIn);
   const arm = op.arm;
 
-  if (researchLevel(attacker, op.field) < op.level) {
-    throw new EngineError(op.field, `${op.name} requires ${op.field === "tradecraft" ? "Tradecraft" : "Pathfinding"} ${op.level}`);
+  // The BUILDING is the gate. Research only ever multiplies (see agentPower,
+  // and the note over COVERT_OPS for why it is no longer the other way round).
+  const house = arm === "spy" ? "shadow_guild" : "rangers_lodge";
+  const houseName = arm === "spy" ? "Shadow Guild" : "Ranger's Lodge";
+  if (level(attacker, house) < op.level) {
+    throw new EngineError(house, `${op.name} needs a ${houseName} at level ${op.level}`);
   }
   if (!Number.isInteger(agentsSent) || agentsSent <= 0) {
     throw new EngineError("count", "Send at least one agent");
@@ -160,6 +170,7 @@ export function runCovertOp(
   const warX = atWar ? COVERT_WAR_MULTIPLIER : 1;
   const exposed = intercepted > 0;
   let detail = "";
+  let facts: CovertFact[] | undefined;
   let victimDetail: string | undefined;
   let resourcesDestroyed = 0;
   let gearDestroyed = 0;
@@ -168,7 +179,7 @@ export function runCovertOp(
     detail = `Disaster — all ${agentsSent} were taken at the wall. ${defender.name} knows the hand behind it.`;
     victimDetail = `Rangers took ${intercepted} of ${attacker.name}'s agents attempting "${op.name}". The revenge window is open.`;
     settleMercenaries(attacker);
-    return { attacker, defender, op, sent: agentsSent, intercepted, exposed, detail, victimDetail, turnsSpent: cost };
+    return { attacker, defender, op, sent: agentsSent, intercepted, exposed, detail, facts, victimDetail, turnsSpent: cost };
   }
 
   // ── The work ──────────────────────────────────────────────────────────────
@@ -176,44 +187,77 @@ export function runCovertOp(
     // ── SCOUT: intelligence ───────────────────────────────────────────────
     case "survey_coffers": {
       const r = defender.resources;
-      detail =
-        `${defender.name}: ${fmt(defender.gold)} gold (${fmt(unbankedGold(defender))} unvaulted), ` +
-        (["food", "wood", "stone", "ore"] as Resource[])
-          .map((k) => `${k} ${fmt(r[k])} (${fmt(unstored(defender, k))} exposed)`)
-          .join(", ") + ".";
+      facts = [
+        { label: "Gold", value: fmt(defender.gold), note: `${fmt(unbankedGold(defender))} unvaulted` },
+        ...(["food", "wood", "stone", "ore"] as Resource[]).map((k) => ({
+          label: k.charAt(0).toUpperCase() + k.slice(1),
+          value: fmt(r[k]),
+          note: `${fmt(unstored(defender, k))} exposed`,
+        })),
+      ];
+      detail = `Their coffers counted — ${fmt(unbankedGold(defender))} gold lies unvaulted.`;
       break;
     }
     case "map_walls": {
       const crewed = Object.entries(defender.army.siegeCounters)
         .filter(([, n]) => (n as number) > 0)
         .map(([t, n]) => `${n} ${SIEGE_COUNTERS[t as CounterType].name}`);
-      detail =
-        `${defender.name}: walls level ${level(defender, "walls")} at ${Math.round(defender.wallIntegrity * 100)}% ` +
-        `(${fmt(wallHealth(defender) * defender.wallIntegrity)} of health standing), Engine Yard ${level(defender, "war_foundry")}. ` +
-        (crewed.length ? `Defensive works: ${crewed.join(", ")}.` : "No defensive works at all.");
+      facts = [
+        { label: "Walls", value: `Level ${level(defender, "walls")}`, note: `${Math.round(defender.wallIntegrity * 100)}% sound` },
+        { label: "Masonry standing", value: fmt(wallHealth(defender) * defender.wallIntegrity), note: "health" },
+        { label: "Engine Yard", value: `Level ${level(defender, "war_foundry")}` },
+        { label: "Defensive works", value: crewed.length ? crewed.join(", ") : "none at all" },
+      ];
+      detail = crewed.length
+        ? `Walls level ${level(defender, "walls")} at ${Math.round(defender.wallIntegrity * 100)}%, and a battery behind them.`
+        : `Walls level ${level(defender, "walls")} at ${Math.round(defender.wallIntegrity * 100)}%, and not one defensive engine.`;
       break;
     }
     case "map_army": {
       const a = defender.army;
-      detail =
-        `${defender.name}: ${troopTotal(a.footmen)} footmen, ${troopTotal(a.archers)} archers, ` +
-        `${troopTotal(a.cavalry)} cavalry, ${a.siegeEngineers} engineers, ` +
-        `${mercTroops(a.mercenaries)} sellswords. Stamina ${a.stamina}, veterancy +${(veterancyBonus(a.experiencePoints) * 100).toFixed(1)}%. ` +
-        `Sortie orders: ${a.sortieEnabled ? "they will ride out" : "they will hold the wall"}.`;
+      const tiers = (t: typeof a.footmen) => `${t.light} light · ${t.medium} medium · ${t.heavy} heavy`;
+      facts = [
+        { label: "Footmen", value: fmt(troopTotal(a.footmen)), note: tiers(a.footmen) },
+        { label: "Archers", value: fmt(troopTotal(a.archers)), note: tiers(a.archers) },
+        { label: "Cavalry", value: fmt(troopTotal(a.cavalry)), note: tiers(a.cavalry) },
+        { label: "Engineers", value: fmt(a.siegeEngineers) },
+        { label: "Sellswords", value: fmt(mercTroops(a.mercenaries)), note: "screen the regulars of their own rank" },
+        { label: "Stamina", value: `${a.stamina} / 100` },
+        { label: "Veterancy", value: `+${(veterancyBonus(a.experiencePoints) * 100).toFixed(1)}%` },
+        { label: "Sortie orders", value: a.sortieEnabled ? "they will ride out" : "they will hold the wall" },
+      ];
+      detail = `Their muster counted — ${fmt(troopTotal(a.footmen) + troopTotal(a.archers) + troopTotal(a.cavalry))} under arms at ${a.stamina}% stamina.`;
       break;
     }
     case "map_siege": {
       const train = (Object.keys(defender.army.siegeGear) as SiegeGearType[])
         .filter((t) => defender.army.siegeGear[t] > 0)
         .map((t) => `${defender.army.siegeGear[t]} ${t.replace("_", " ")}`);
+      facts = train.length
+        ? [
+            ...(Object.keys(defender.army.siegeGear) as SiegeGearType[])
+              .filter((t) => defender.army.siegeGear[t] > 0)
+              .map((t) => ({
+                label: t.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()),
+                value: fmt(defender.army.siegeGear[t]),
+                note: `${Math.round((defender.army.siegeGearIntegrity[t] ?? 1) * 100)}% sound`,
+              })),
+            { label: "Engineers to crew it", value: fmt(defender.army.siegeEngineers) },
+          ]
+        : [{ label: "Siege train", value: "none at all", note: "no bombardment is coming from that quarter" }];
       detail = train.length
-        ? `${defender.name}'s siege train: ${train.join(", ")}. Engineers to crew it: ${defender.army.siegeEngineers}.`
-        : `${defender.name} keeps no siege train at all — no bombardment is coming from that quarter.`;
+        ? `Their siege train is ${train.length} kind${train.length === 1 ? "" : "s"} of engine, crewed by ${fmt(defender.army.siegeEngineers)}.`
+        : "They keep no siege train at all — no bombardment is coming from that quarter.";
       break;
     }
     case "map_research": {
-      const known = RESEARCH_FIELDS.map((f) => `${f.name} ${defender.research.levels[f.id] ?? 0}`).join(", ");
-      detail = `${defender.name}'s Collegium: ${known}.`;
+      facts = RESEARCH_FIELDS.map((f) => ({
+        label: f.name,
+        value: `${defender.research.levels[f.id] ?? 0} / ${MAX_FIELD_LEVEL}`,
+        note: f.ranked ? undefined : "shadow field — no ranking score",
+      }));
+      const total = RESEARCH_FIELDS.reduce((n, f) => n + (defender.research.levels[f.id] ?? 0), 0);
+      detail = `Their Collegium read end to end — ${total} levels across ${RESEARCH_FIELDS.length} fields.`;
       break;
     }
     case "quell_unrest": {
@@ -369,7 +413,7 @@ export function runCovertOp(
   return {
     attacker, defender, op,
     sent: agentsSent, intercepted, exposed,
-    detail, victimDetail, resourcesDestroyed, gearDestroyed, turnsSpent: cost,
+    detail, facts, victimDetail, resourcesDestroyed, gearDestroyed, turnsSpent: cost,
   };
 }
 
@@ -400,3 +444,32 @@ export function covertCap(p: Player, arm: "spy" | "scout"): number {
 import { COVERT_CAPS } from "../constants";
 const COVERT_CAPS_PER_ARM = COVERT_CAPS.PER_ARM;
 const COVERT_CAPS_COMBINED = COVERT_CAPS.COMBINED;
+
+// ── The intelligence log ────────────────────────────────────────────────────
+
+/**
+ * File a covert report on the attacker, newest first, and drop anything older
+ * than COVERT_LOG_DAYS.
+ *
+ * Pruned on WRITE rather than on read, so the stored player never carries an
+ * unbounded list and a page that renders the log does not have to know the
+ * retention rule. Called from the pipeline, which is where the tick and the
+ * target's name are both in hand.
+ */
+export function recordCovert(
+  p: Player,
+  rec: CovertRecord,
+  currentTick: number,
+): void {
+  const log = (p.covertLog ??= []);
+  log.unshift(rec);
+  const oldest = currentTick - COVERT_LOG_DAYS * TURNS_PER_DAY;
+  p.covertLog = log.filter((r) => r.tick >= oldest);
+}
+
+/** The reports still inside the window, newest first. Reading is a filter too:
+ *  ticks pass between writes, so a log written yesterday ages on its own. */
+export function covertHistory(p: Player, currentTick: number): CovertRecord[] {
+  const oldest = currentTick - COVERT_LOG_DAYS * TURNS_PER_DAY;
+  return (p.covertLog ?? []).filter((r) => r.tick >= oldest);
+}

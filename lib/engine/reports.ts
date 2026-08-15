@@ -41,6 +41,7 @@ import {
   veterancyBonus,
   type Player,
   type Resource,
+  type Tier,
   type WorkerRole,
 } from "./types";
 
@@ -181,19 +182,38 @@ export interface AdvisorReport {
   population: string;
 }
 
-/** Arms that field regulars with NO sellswords of the same arm in front of
- *  them. Hired blades take the first CASUALTY_SPLIT.MERC_SHARE of every blow
- *  aimed at their arm, so a bare arm puts real population in the front rank —
- *  and regular dead cost population, veterancy and ranking all at once. */
-export function bareArms(p: Player): string[] {
-  const arms = [
-    ["footmen", "footmen"],
-    ["archers", "archers"],
-    ["cavalry", "cavalry"],
-  ] as const;
-  return arms
-    .filter(([k]) => troopTotal(p.army[k]) > 0 && troopTotal(p.army.mercenaries[k]) === 0)
-    .map(([, label]) => label);
+export type LineArm = "footmen" | "archers" | "cavalry";
+export const LINE_ARMS: readonly LineArm[] = ["footmen", "archers", "cavalry"];
+
+/**
+ * The RANKS of one arm that field regulars with no sellswords standing at that
+ * same rank.
+ *
+ * Screening is per rank, not per arm. Damage walks light → medium → heavy and
+ * splits at each rank onto the hired blades standing THERE — so a hundred heavy
+ * footmen behind mercenaries who are all light are not screened, and every
+ * blow that falls through to their rank lands on real population. This used to
+ * be measured per ARM, which called that army covered.
+ *
+ * See CASUALTY_SPLIT.MERC_SHARE and CASUALTY_TIER_ORDER, and `applyToArm` in
+ * combat/model.ts, which is the code this describes.
+ */
+export function bareTiers(p: Player, arm: LineArm): Tier[] {
+  return (["light", "medium", "heavy"] as const).filter(
+    (t) => p.army[arm][t] > 0 && p.army.mercenaries[arm][t] === 0,
+  );
+}
+
+/** Arms with at least one bare rank — the arm-level roll-up of `bareTiers`,
+ *  for the places that show one row per arm. */
+export function bareArms(p: Player): LineArm[] {
+  return LINE_ARMS.filter((a) => bareTiers(p, a).length > 0);
+}
+
+/** Every bare rank in the whole army, named for prose: "light footmen,
+ *  heavy cavalry". One string per gap, so the reader knows where to spend. */
+export function bareRankNames(p: Player): string[] {
+  return LINE_ARMS.flatMap((a) => bareTiers(p, a).map((t) => `${t} ${a}`));
 }
 
 export function advisorReport(p: Player): AdvisorReport {
@@ -233,9 +253,9 @@ export function advisorReport(p: Player): AdvisorReport {
   } else if (mil < scatterLine && p.idlePeasants + civ >= 500) {
     military_ =
       `Danger: only ${mil} soldiers guard ${civ} civilians — below the ${scatterLine} needed to hold the 30% line. At the next dawn our unprotected peasants will scatter and walk away. Raise troops NOW to climb back above the line.`;
-  } else if (bareArms(p).length > 0) {
+  } else if (bareRankNames(p).length > 0) {
     military_ =
-      `Our ${bareArms(p).join(", ")} stand BARE — not one hired blade in front of them, so every blow aimed at that arm lands on our own people. Sellswords soak the first 70%, and dead regulars are the one loss we never get back. Hire a screen at the Black Market before the next raid.`;
+      `Our ${bareRankNames(p).join(", ")} stand BARE — no hired blade at that RANK, and the screen is per rank: damage walks light → medium → heavy and splits where it lands, so sellswords of another tier cannot cover them. Every blow that reaches those ranks lands on our own people, and dead regulars are the one loss we never get back. Hire the screen where the gap is, before the next raid.`;
   } else {
     military_ =
       `${mil} under arms, stamina ${p.army.stamina}/100, and ${xpNote}. A sound force — pick fights within ±20% of your ranking score for the best experience; punching far below you costs XP and loot.`;
@@ -333,22 +353,9 @@ export function advisorCounsel(p: Player): AdvisorCounsel {
       `Experience ${Math.round(p.army.experiencePoints).toLocaleString("en-US")} points — +${(veterancyBonus(p.army.experiencePoints) * 100).toFixed(1)}% to power AND health. Killing regulars earns it; losing your own spends it.`,
     );
   }
-  // Screening is per RANK, not per arm. Damage walks light → medium → heavy and
-  // splits at each rank onto the sellswords standing THERE; a rank holding
-  // regulars and no sellswords takes the whole blow on your own people, because
-  // the screen's share cannot fall through to hired blades of another rank.
-  // A hundred heavy footmen behind mercenaries who are all medium are not
-  // screened at all, and the old per-ARM check called that covered.
-  const TIER_NAME = { light: "light", medium: "medium", heavy: "heavy" } as const;
-  const ARM_NAME = { footmen: "footmen", archers: "archers", cavalry: "cavalry" } as const;
-  const bare: string[] = [];
-  for (const k of ["footmen", "archers", "cavalry"] as const) {
-    for (const tier of ["light", "medium", "heavy"] as const) {
-      if (p.army[k][tier] > 0 && p.army.mercenaries[k][tier] === 0) {
-        bare.push(`${TIER_NAME[tier]} ${ARM_NAME[k]}`);
-      }
-    }
-  }
+  // Screening is per RANK, not per arm — see `bareTiers`, which is the one
+  // definition of that and is shared with the advisor prose and the UI badges.
+  const bare = bareRankNames(p);
   if (bare.length > 0) {
     militaryB.push(
       `Your ${bare.join(", ")} stand bare — no hired blades at that rank. Damage splits per RANK, so these take the whole blow on your own people; sellswords of another tier cannot cover them. Buy the shield where the gap is.`,

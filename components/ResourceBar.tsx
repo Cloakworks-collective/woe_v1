@@ -166,7 +166,10 @@ export function ResourceBar({ player, meta }: { player: Player; meta: WorldMeta 
           rows={[
             { label: "Regain / game turn", value: `+${ACTION_TURNS.PER_GAME_TURN}`, tone: "good" },
             { label: "Attack", value: `−${ACTION_TURNS.ATTACK_COST}` },
-            { label: "Rest the army", value: `−${ACTION_TURNS.REST_COST}` },
+            // Rest used to be listed here at −5. It costs no turns at all now,
+            // only food, which is the whole point: you should never be choosing
+            // between resting and marching.
+            { label: "Rest the army", value: "free — food only", tone: "good" },
           ]}
           note={`Capped at ${ACTION_TURNS.CAP}. Spend them — capped turns are wasted turns. Spies and scouts run on their own, scarcer clock.`}
         >

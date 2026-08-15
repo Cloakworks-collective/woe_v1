@@ -1428,8 +1428,20 @@ export const RACES: Record<Race, RaceModifiers> = {
 
 // ─── 15 · PREMIUM (gameplay side only — pricing lives in premium.ts) ────────
 
-/** Cap on each Steward queue and on standing orders. */
+/** Cap on standing orders — the "once X, do Y" instructions. */
 export const STEWARD_QUEUE_CAP = 10;
+
+/**
+ * Cap on the BUILD and RESEARCH queues.
+ *
+ * Deliberately short, and shorter than the standing-order cap. These two
+ * queues are now managed where the work is chosen — on the Buildings and
+ * Collegium pages — rather than on a separate Steward page, so they are read
+ * at a glance beside a tree of forty other things you might do instead. Three
+ * is the most that stays glanceable, and it is about as far ahead as a price
+ * that rises with every level can honestly be planned anyway.
+ */
+export const WORK_QUEUE_CAP = 3;
 
 // ─── 16 · THE SPECIALIST TUNING FILES ───────────────────────────────────────
 // Battle and espionage grew their own files once they grew their own models.

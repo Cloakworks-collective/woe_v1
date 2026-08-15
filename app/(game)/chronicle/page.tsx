@@ -3,7 +3,7 @@ import { LearnLink } from "@/components/LearnLink";
 import { Pager } from "@/components/Pager";
 import { Panel } from "@/components/Panel";
 import { ToneGlyph } from "@/components/ToneGlyph";
-import { eventLine, eventTone } from "@/components/eventLine";
+import { eventHref, eventLine, eventLinkLabel, eventTone } from "@/components/eventLine";
 import { timeAgo } from "@/components/timeAgo";
 import { paginate } from "@/lib/paginate";
 import { getGame } from "@/lib/server/session";
@@ -46,19 +46,20 @@ export default async function ChroniclePage({
           <>
             <ul className="chron">
               {tidings.shown.map((item, i) => {
-                const battleId =
-                  item.event.type === "attacked" || item.event.type === "battleResult"
-                    ? item.event.battleId
-                    : null;
+                // Where the full account lives — a battle report, or the
+                // intelligence desk. One rule for every kind of tiding, so a
+                // covert finding is linked exactly the way a battle already was
+                // rather than being pasted into the feed.
+                const href = eventHref(item.event);
                 return (
                   <li key={tidings.start + i} className={`chron-row tone-${eventTone(item.event)}`}>
                     <ToneGlyph tone={eventTone(item.event)} />
                     <span className="chron-line">
                       {glyphs(eventLine(item.event))}
-                      {battleId && (
+                      {href && (
                         <>
                           {" "}
-                          <Link href={`/rankings?report=${battleId}`}>[the full account]</Link>
+                          <Link href={href}>[{eventLinkLabel(item.event)}]</Link>
                         </>
                       )}
                     </span>
@@ -113,7 +114,7 @@ export default async function ChroniclePage({
                       <td className="num" style={{ color: "var(--pos)" }}>{sum(theirs)}</td>
                       <td className="num" style={{ color: "var(--neg)" }}>{sum(mine)}</td>
                       <td>
-                        <Link href={`/rankings?report=${b.id}`}>report</Link>
+                        <Link href={`/battle/${b.id}`}>report</Link>
                       </td>
                     </tr>
                   );

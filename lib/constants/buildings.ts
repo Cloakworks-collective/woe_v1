@@ -50,8 +50,8 @@ export const CIVILIAN_BUILDINGS: BuildingMeta[] = [
   { id: "counting_house", name: "Counting House", desc: "Bank — shelters gold from a castle assault; capacity grows 1.9× per level, to level 12" },
   { id: "market_square", name: "Market Square", desc: "Merchants are unlimited; each level adds 10,000 to what every caravan carries AND shortens the road to the Bazaar (L1: 60 turns → L10: 6)" },
   { id: "collegium", name: "The Collegium", desc: "Researchers are unlimited; each level lifts every scholar's research (10→100/turn)" },
-  { id: "shadow_guild", name: "Shadow Guild", desc: "Spies are unlimited; each level makes every spy mission bite deeper" },
-  { id: "rangers_lodge", name: "Ranger's Lodge", desc: "Scouts are unlimited; each level sharpens recon & catches higher-level enemy spies" },
+  { id: "shadow_guild", name: "Shadow Guild", desc: "Spies are unlimited. Its LEVEL unlocks the spy operations, one rung at a time — L1 Torch the Stores up to L5 Steal the Learning" },
+  { id: "rangers_lodge", name: "Ranger's Lodge", desc: "Scouts are unlimited. Its LEVEL unlocks the scout operations — L1 Survey the Coffers up to L5 Quell the Doubt. Rangers stand watch against spies whatever its level" },
 ];
 
 export const CIVILIAN_LEVELLED_IDS = CIVILIAN_BUILDINGS.map((b) => b.id);

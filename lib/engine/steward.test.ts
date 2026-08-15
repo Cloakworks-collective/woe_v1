@@ -1,7 +1,7 @@
 // The Steward (spec/clans.md): queues + standing orders, premium-gated.
 
 import { describe, expect, it } from "vitest";
-import { researchOrdinalCost } from "../constants";
+import { WORK_QUEUE_CAP, researchOrdinalCost } from "../constants";
 import {
   addStandingOrder,
   dequeueBuild,
@@ -77,10 +77,13 @@ describe("build queue", () => {
     let p = charterHolder();
     p.buildings.drill_yard = 3; // maxed tiered building
     expect(() => queueBuild(p, "drill_yard")).toThrow(/max/i);
-    for (let i = 0; i < 10; i++) p = queueBuild(p, "hearthstead").player;
+    // Fill it to WORK_QUEUE_CAP exactly, then one more. Was hardcoded to 10,
+    // which was the old shared STEWARD_QUEUE_CAP; the build and research
+    // queues are capped separately now that they are read on a busy page.
+    for (let i = 0; i < WORK_QUEUE_CAP; i++) p = queueBuild(p, "hearthstead").player;
     expect(() => queueBuild(p, "hearthstead")).toThrow(/full/i);
     p = dequeueBuild(p, 0).player;
-    expect(p.buildQueue!.length).toBe(9);
+    expect(p.buildQueue!.length).toBe(WORK_QUEUE_CAP - 1);
   });
 });
 

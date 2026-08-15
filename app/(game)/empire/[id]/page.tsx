@@ -6,7 +6,7 @@ import { Panel } from "@/components/Panel";
 import { PublicBattleTable } from "@/components/PublicBattleTable";
 import { WarCouncil } from "@/components/WarCouncil";
 import { RACE_NAMES } from "@/lib/constants";
-import { publicBattle, rankingScore, regularTroops, researchLevel, settlementTitle, troopTotal, veterancyBonus } from "@/lib/engine";
+import { level, publicBattle, rankingScore, regularTroops, settlementTitle, troopTotal, veterancyBonus } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 import { REVENGE_WINDOW_TICKS } from "@/lib/server/world";
 
@@ -77,8 +77,8 @@ export default async function EmpireProfilePage({
           <WarCouncil
             target={{ id: p.id, name: p.name }}
             revengeOpen={revengeOpen}
-            tradecraft={researchLevel(me, "tradecraft")}
-            pathfinding={researchLevel(me, "pathfinding")}
+            guild={level(me, "shadow_guild")}
+            lodge={level(me, "rangers_lodge")}
             turns={me.turnsAvailable}
             spyTurns={me.spyTurnsAvailable ?? 0}
             yours={{

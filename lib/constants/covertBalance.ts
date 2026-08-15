@@ -33,6 +33,16 @@ import type { Band } from "./battleBalance";
 // A second, scarcer clock. Twice as hard to come by as action turns and capped
 // far lower, so a covert campaign is something you plan rather than spam.
 
+/**
+ * How long a filed covert report is kept, in days.
+ *
+ * Long enough that a campaign's worth of intelligence is still readable when
+ * you come to act on it, short enough that the log is a working desk rather
+ * than an archive — and short enough that it cannot grow without bound on a
+ * player who scouts every rival every day for a whole era.
+ */
+export const COVERT_LOG_DAYS = 5;
+
 export const SPY_TURNS = {
   /** Half the action-turn rate: 144/day against the army's 288. */
   PER_GAME_TURN: 1,
@@ -50,6 +60,23 @@ export const SPY_TURNS = {
  *  agents you are sending or you send fewer. The interesting decision is how
  *  many to commit against the scouts you believe are waiting, not how much to
  *  gamble on shorting the budget. */
+/**
+ * `level` is the BUILDING level that unlocks the operation — Shadow Guild for
+ * spies, Ranger's Lodge for scouts. `field` names the research that MULTIPLIES
+ * it, and multiplies it only.
+ *
+ * It used to be the other way round: the research level was the gate, so a
+ * realm that had paid for a Shadow Guild and filled it with knives could not
+ * send one anywhere until it had also sunk levels into Tradecraft — an
+ * UNRANKED field, bought at the progressive research price, purely to switch
+ * on a building it already owned. Two currencies for one permission, and the
+ * second of them invisible from the Guild's own page.
+ *
+ * Buildings gate. Research multiplies. That is the rule everywhere else in the
+ * game — the Drill Yard decides whether you may raise a heavy footman and The
+ * Art of War decides how hard he hits — and the shadow war is no longer the
+ * exception to it.
+ */
 export const COVERT_OPS = {
   // ── SCOUT operations — overt, never intercepted, no risk of loss ──────────
   survey_coffers: { arm: "scout", turnsPerAgent: 0.1, detection: 0, field: "pathfinding", level: 1, name: "Survey the Coffers", desc: "Exact gold and resources, and what sits outside the storehouses" },

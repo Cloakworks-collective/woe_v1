@@ -49,7 +49,10 @@ export async function cmdAction(_prev: CmdResult, formData: FormData): Promise<C
   const result = await runCommand(playerId, name, args);
   revalidatePath("/", "layout");
 
-  if (result.battleId) redirect(`/rankings?report=${result.battleId}`);
+  // Straight to the report's own page. This used to land on the LADDER with the
+  // report bolted to the top of it, which meant every strike ended by loading
+  // every empire in the age to read one document.
+  if (result.battleId) redirect(`/battle/${result.battleId}`);
   return {
     ok: result.ok,
     message: result.ok ? result.message : (result.message ?? "That did not work."),

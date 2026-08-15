@@ -3,7 +3,13 @@
 // the Steward issues the same instant commands a player would, when they
 // become possible. Nothing here adds timers or overflow buffers.
 
-import { MAX_FIELD_LEVEL, RESEARCH_FIELDS, STEWARD_QUEUE_CAP as QUEUE_CAP, maxLevel } from "../constants";
+import {
+  MAX_FIELD_LEVEL,
+  RESEARCH_FIELDS,
+  STEWARD_QUEUE_CAP,
+  WORK_QUEUE_CAP as QUEUE_CAP,
+  maxLevel,
+} from "../constants";
 import type { BuildingId } from "../constants/buildings";
 import type { ResearchField } from "../constants/research";
 import {
@@ -95,8 +101,8 @@ export function addStandingOrder(
   requireCharter(input);
   const p = structuredClone(input);
   const orders = (p.standingOrders ??= []);
-  if (orders.length >= QUEUE_CAP) {
-    throw new EngineError("orders", `The Steward can hold ${QUEUE_CAP} standing orders`);
+  if (orders.length >= STEWARD_QUEUE_CAP) {
+    throw new EngineError("orders", `The Steward can hold ${STEWARD_QUEUE_CAP} standing orders`);
   }
   validateCondition(when);
   validateAction(then);

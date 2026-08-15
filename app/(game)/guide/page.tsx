@@ -16,12 +16,26 @@ import {
   SIEGE_SALVAGE_VALUE,
   STEWARD_QUEUE_CAP,
   TURNS_PER_DAY,
+  WORK_QUEUE_CAP,
   workerOutputAtLevel,
+  ATTACK_REFUSAL_RATIO,
+  BOMBARD_INTENSITY,
+  EXPERIENCE,
+  MERCENARIES,
+  SALVAGE,
 } from "@/lib/constants";
+import { RESEARCH_FIELDS } from "@/lib/constants/research";
 
 export const dynamic = "force-dynamic";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
+
+// Counted, never typed. Fields have been added to the Collegium several times
+// and the manual quoted "10 fields", "7 ranked" and "9 of 12" in four different
+// places, none of which had been true for a while.
+const FIELD_COUNT = RESEARCH_FIELDS.length;
+const RANKED_FIELDS = RESEARCH_FIELDS.filter((f) => f.ranked);
+const SHADOW_FIELDS = RESEARCH_FIELDS.filter((f) => !f.ranked);
 
 // A section of the field manual: anchored so pages can deep-link to it.
 function Guide({
@@ -160,13 +174,13 @@ export default function GuidePage() {
           Your score is what a besieger outside your gate could see. <b>It counts:</b> civilian
           population, regular troops (by tier, and scaled by your race), <b>sellswords</b> at a
           discount, scouts at a discount, engineers, your <b>crewed defensive works</b>, wall level
-          scaled by integrity, army experience, and the <b>{fmt(9)} ranked research fields</b> of{" "}
-          {fmt(12)}.
+          scaled by integrity, army veterancy, and the{" "}
+          <b>{RANKED_FIELDS.length} ranked research fields</b> of {FIELD_COUNT}.
         </p>
         <p>
           <b>It counts for nothing:</b> your offensive siege train, spies, gold and resources,
-          civilian buildings and housing, and the three unranked research fields (Tradecraft,
-          Pathfinding, Free Companies). Wealth buys no prestige and{" "}
+          civilian buildings and housing, and the {SHADOW_FIELDS.length} unranked research fields
+          ({SHADOW_FIELDS.map((f) => f.name).join(", ")}). Wealth buys no prestige and{" "}
           <b>power in the shadows brings none either</b> — the ladder tells a rival{" "}
           <i>whether</i> you are worth their turns, and only a scout tells them <i>how</i> to attack
           you. That is why your engines never appear. See the live race on your{" "}
@@ -233,16 +247,17 @@ export default function GuidePage() {
         </p>
         <h4>Research — the Collegium</h4>
         <p>
-          <Link href="/research">The Collegium</Link> has <b>16 fields × 5 levels</b>. Any field is
+          <Link href="/research">The Collegium</Link> has <b>{FIELD_COUNT} fields × 5 levels</b>. Any field is
           researchable at any time — the Collegium only sets the <b>speed</b> (its level lifts how
           much research each of your scholars banks per turn). But every level you earn, in{" "}
           <i>any</i> field, makes the <b>next one costlier</b> — a single global, escalating price —
-          so the <b>order you research is the strategy</b>, and you can never master all ten.
+          so the <b>order you research is the strategy</b>, and you can never master all {FIELD_COUNT}.
           Assign researchers on the <Link href="/train">Workers</Link> page; switching fields
-          forfeits <b>half</b> the progress banked toward the current one. Nine fields also raise
-          your ranking score; the three that do not are <b>Tradecraft</b>, <b>Pathfinding</b> and{" "}
-          <b>Free Companies</b> — it would be a strange ladder that advertised how deep your spy
-          service runs. <b>Statecraft</b> multiplies your <i>tax income</i>, not your workshops.
+          forfeits <b>half</b> the progress banked toward the current one. {RANKED_FIELDS.length}{" "}
+          fields also raise your ranking score; the {SHADOW_FIELDS.length} that do not are{" "}
+          <b>{SHADOW_FIELDS.map((f) => f.name).join(", ")}</b> — it would be a strange ladder that
+          advertised how deep your spy service runs. <b>Statecraft</b> multiplies your{" "}
+          <i>tax income</i>, not your workshops.
         </p>
         <p className="guide-tip">
           💡 Early game: raise housing + production, keep food positive, pick <b>one</b> research
@@ -276,21 +291,31 @@ export default function GuidePage() {
         <p>
           Hire mercs on <Link href="/troops">The Army</Link> in the same arms and tiers as your own
           troops — a heavy-cavalry sellsword needs Knights&rsquo; Stables 3 + Forge 3, just like the
-          real thing. They cost <b>only gold</b> (no peasants) and{" "}
-          <b>die before your matching regulars</b> (a shield for your veterans), but cost{" "}
-          <b>gold every turn</b> or they defect, and are capped at <b>25% of your regular army</b>.
-          They never count toward your score or the population floors.
+          real thing. They cost <b>only gold</b> (no peasants) and <b>die before your matching
+          regulars</b> — a shield for your veterans, but one that only covers{" "}
+          <b>its own arm and its own rank</b>. Damage walks light → medium → heavy and splits where
+          it lands, so hired <i>light</i> footmen do nothing whatever for your <i>heavy</i> ones:
+          match the tier, not just the arm. Hiring is a <b>one-time price</b> — they draw no wage and
+          cannot desert — but they are capped at{" "}
+          <b>{Math.round(MERCENARIES.CAP_RATIO * 100)}% of the regulars of their own arm</b>, they
+          take a Muster Hall bed like anyone else, and they are{" "}
+          <b>paid off the moment too few of your own remain to command them</b>. They never count
+          toward your score or the population floors.
         </p>
-        <h4>Experience &amp; stamina</h4>
+        <h4>Veterancy &amp; stamina</h4>
         <ul>
           <li>
-            Troops gain <b>experience</b> from battle (up to +100% power at max). But{" "}
-            <b>losing regulars loses experience</b> — veterancy dies with the veterans. Merc deaths
-            cost nothing.
+            Veterancy is an <b>uncapped ledger of experience points</b>, not a bar that fills. Every{" "}
+            <b>{fmt(EXPERIENCE.POINTS_PER_STEP)} points</b> is another <b>+2%</b> to the{" "}
+            <i>power and the health</i> of your regulars, so{" "}
+            <b>{fmt(EXPERIENCE.POINTS_FOR_DOUBLE)}</b> is +100% and nothing stops it there. You earn
+            it by killing and <b>spend it by dying</b> — veterancy lives in the veterans. Sellswords
+            earn none and cost none.
           </li>
           <li>
-            Fighting drains <b>stamina</b>; low stamina weakens attack &amp; defence. Rest costs turns
-            + food, or it recovers passively at 1/turn.
+            Fighting drains <b>stamina</b>, and the drain scales with the damage you{" "}
+            <i>dealt</i> — swinging hard tires an army, holding a line does not. Low stamina weakens
+            attack and defence alike. Rest costs turns + food, or it recovers passively at 1/turn.
           </li>
         </ul>
       </Guide>
@@ -320,18 +345,70 @@ export default function GuidePage() {
             on vacation — but nobody may depart while owing you one, so the door was never open.
           </li>
           <li>
-            <b>Bombard</b> — an artillery duel that wrecks <b>walls first</b>, then cracks random
-            town buildings once breached. No troops, no loot — it&apos;s pure sabotage of a rival&apos;s
-            score.
+            <b>Bombard</b> — a pure artillery duel that wrecks <b>walls first</b>, then cracks
+            random town buildings once breached. No troops, no loot, no salvage: nobody closes to
+            sword length. One exchange like any other attack, but it lands with{" "}
+            <b>{BOMBARD_INTENSITY}× the weight</b> — a sustained barrage rather than a single throw.
+            Pure sabotage of a rival&apos;s score, and the softening blow before a castle attack.
           </li>
         </ul>
-        <h4>How a battle resolves (per round)</h4>
+        <h4>Standing orders</h4>
         <p>
-          Four phases in order: <b>1. siege weapons</b> (grind walls; each crewed defensive counter
-          the defender fields <b>cancels one incoming enemy engine</b> of its paired weapon) →{" "}
-          <b>2. archers</b> → <b>3. cavalry charge</b> → <b>4. footmen</b>. A side breaks when it
-          drops <b>below 30% strength</b>. Every battle has ±10% luck. Raids skip the siege phase
-          and give no wall bonus.
+          Two decisions are made <i>before</i> the march, on{" "}
+          <Link href="/troops#strategy">The Army</Link>, and they hold until you change them.
+        </p>
+        <ul>
+          <li>
+            <b>Where your trebuchets aim</b> — a stone can only be thrown once. A{" "}
+            <b>general barrage</b> puts a share on whatever battery answers and drops the rest on the
+            wall (or on the town once it is breached). <b>Counter-siege first</b> lays everything on
+            their Counter-Engines: your accuracy against them rises by half, and{" "}
+            <b>everything left over is wasted</b> — not a stone reaches the masonry. It is the right
+            call against a battery you cannot out-shoot and a thrown-away barrage against a token
+            one. The same order governs a bombard, a castle attack and a revenge.
+          </li>
+          <li>
+            <b>The sortie</b> — whether your defenders ride out to meet an attacker or hold the
+            wall. Cavalry gain nothing behind stone and everything in the open, so a cavalry-heavy
+            defence wants it and a footman-heavy one almost certainly does not.
+          </li>
+        </ul>
+        <h4>How a battle resolves — one exchange, not a war</h4>
+        <p>
+          An attack is <b>a single exchange</b>. There are no rounds and nobody &ldquo;breaks&rdquo;:
+          the two hosts trade blows once, down a fixed order of battle, and then you both go home
+          and count the dead. That is deliberate. You draw <b>{TURNS_PER_DAY * 2} action turns a
+          day</b> and an attack costs <b>10</b>, so a serious aggressor throws twenty-odd strikes at
+          the same target — <b>the campaign is the unit of war</b>, and one attack is a blow inside
+          it. What used to be settled by grinding through rounds is now settled by coming back
+          tomorrow.
+        </p>
+        <p>
+          The order: <b>1. the engine duel</b> (their counters shoot at your engines and yours shoot
+          back) → <b>2. the walls</b> (rams and trebuchets on the masonry) → <b>3. archers</b> →{" "}
+          <b>4. the cavalry charge</b> → <b>5. the lines meet</b> — ram crews drop the beams and join
+          in once the gate gives → <b>6. the sortie</b>, if the defender has ordered one. A{" "}
+          <b>raid skips everything before the archers</b>: it is open field, no walls, no engines.
+        </p>
+        <p>
+          <b>Who wins:</b> whoever lost the <i>smaller share</i> of the health they marched in with.
+          Not who is left standing, not who did more damage in absolute terms — the proportion. A
+          tie goes to the defender, and a defender wiped out loses whatever the arithmetic says.
+          Every battle carries <b>±10% luck</b> on each side.
+        </p>
+        <p className="guide-tip">
+          💡 Winning is binary and it is not the point. You win to take the loot; you attack{" "}
+          <i>again and again</i> to grind their sellswords away and get at the regulars underneath.
+        </p>
+        <h4>Stripping the fallen</h4>
+        <p>
+          Whoever carries the field <b>strips the dead of both sides</b> — {" "}
+          <b>{Math.round(SALVAGE.GOLD_SHARE * 100)}% of the gold</b> that hired the fallen
+          sellswords and <b>{Math.round(SALVAGE.ORE_SHARE * 100)}% of the ore</b> that armed the
+          fallen regulars. It comes off bodies, not out of storehouses, so it is{" "}
+          <b>on top of the haul</b>, it is never halved by a surrender, and{" "}
+          <b>a revenge that loots nothing still comes home with it</b>. Engineers are not stripped,
+          and a bombard has no salvage at all — the two sides never meet.
         </p>
         <h4>Killing population — the real weapon</h4>
         <p>
@@ -341,12 +418,38 @@ export default function GuidePage() {
           line. Bombard + revenge to scatter a leader&apos;s people is the classic{" "}
           <b>anti-Overlord</b> play — it cuts their score and can freeze their victory clock.
         </p>
-        <h4>Experience rewards (attacker)</h4>
+        <h4>What a battle pays in experience</h4>
+        <p>
+          Points are a <b>ledger</b>, tallied from what actually happened rather than awarded in
+          flat lumps for showing up:
+        </p>
         <ul>
-          <li>Within ±20% of your strength: <b>+5</b> (a fair fight).</li>
-          <li>20–75% stronger than you: <b>+8</b> (bold).</li>
-          <li>20–50% weaker: <b>+1</b>; more than 50% weaker: <b>−5</b> (bullying).</li>
-          <li>75%+ stronger: your troops <b>refuse</b> and call you an idiot. Defenders always +5.</li>
+          <li>
+            <b>+{EXPERIENCE.PER_CASUALTY}</b> for every enemy you kill, and{" "}
+            <b>+{EXPERIENCE.ATTACKER_PER_REGULAR} more</b> per <i>regular</i> if you were the
+            attacker — going and taking it teaches more than being visited.
+          </li>
+          <li>
+            <b>−{EXPERIENCE.PER_REGULAR_LOST}</b> for every regular of your own who falls. A bloody
+            win can pay less than a clean one.
+          </li>
+          <li>
+            Then the whole thing is multiplied by <b>the matchup</b> — their ranking score against
+            yours. An even fight (within roughly ±25%) pays <b>×1</b>. Punching up pays{" "}
+            <b>×2 rising to ×3</b> as you approach the refusal line. Attacking somebody{" "}
+            <b>half your size or less the multiplier goes NEGATIVE</b>: massacring a minnow does not
+            merely teach your army nothing, it costs you points, and it costs more the more
+            thoroughly you do it.
+          </li>
+          <li>
+            <b>Revenge never counts as bullying</b> — answering a blow you did not choose is floored
+            at ×1 however small they are.
+          </li>
+          <li>
+            At most <b>{fmt(EXPERIENCE.MAX_PER_BATTLE)} points</b> from any one battle, ±10% luck.
+            Anyone <b>{Math.round((ATTACK_REFUSAL_RATIO - 1) * 100)}%+ stronger</b> than you, your
+            troops simply refuse to march.
+          </li>
         </ul>
         <p className="guide-tip">
           💡 Combo play: raid to drain stamina → bombard to breach walls → siege for the gold. And
@@ -356,14 +459,23 @@ export default function GuidePage() {
 
       <Guide id="shadows" title="🗡️ Spies & Scouts — the shadow war" illo="units/spy">
         <p>
-          <b>Spies</b> run five Tradecraft operations — intel, sabotage, arson, sowing unrest —
-          from any empire&apos;s row on the <Link href="/rankings">ladder</Link>, or from the full
-          War Council on their profile.
-          Send more spies for more damage,
-          but higher catch risk; <b>caught spies are executed</b> (you lose the population).{" "}
-          <b>Scouts</b> gather recon on rivals and, at home, catch enemy spies — your Ranger&apos;s
-          Lodge level sets how skilled a spy they can catch. Spies, scouts, and their research are{" "}
-          <b>invisible to the ladder</b>, so this is power without prestige.
+          <b>Spies</b> run eight operations — intel, theft, sabotage, arson, sowing unrest — from
+          any empire&apos;s row on the <Link href="/rankings">ladder</Link>, or from the full War
+          Council on their profile. Send more spies for more damage, but higher catch risk;{" "}
+          <b>caught spies are executed</b> (you lose the population). <b>Scouts</b> gather recon on
+          rivals and, at home, catch enemy spies.
+        </p>
+        <p>
+          <b>The buildings are the gate; the research is the multiplier.</b> Your{" "}
+          <b>Shadow Guild</b> level unlocks the spy operations one rung at a time — L1 Torch the
+          Stores up to L5 Steal the Learning — and your <b>Ranger&apos;s Lodge</b> does the same for
+          the scouts. <b>Tradecraft</b> and <b>Pathfinding</b> unlock nothing at all; they make
+          every mission bite harder and every watch sharper. Rangers defend you whatever your
+          Pathfinding reads.
+        </p>
+        <p>
+          Spies, scouts, and their research are <b>invisible to the ladder</b>, so this is power
+          without prestige.
         </p>
       </Guide>
 
@@ -410,8 +522,12 @@ export default function GuidePage() {
           </li>
           <li>
             <b>Buy &amp; crew defensive counters</b> at the <Link href="/siege">Siege Works</Link> —
-            bought and manned by engineers just like your offensive gear; on defence each crewed
-            counter <b>cancels one incoming enemy engine</b> of its paired weapon.
+            bought and manned by engineers just like your offensive gear. On defence each crewed
+            counter <b>duels its paired enemy engine</b>: it does not cancel one, it shoots at them
+            until one side is wreckage, so a battery grinds a siege train down <i>over a
+            campaign</i>. Counters fire more accurately than the trebuchets they answer and shoot
+            from a fixed emplacement, but they can be broken — ground below a quarter of their
+            health the crews stand down <b>for good</b> until you pay to mend them.
           </li>
           <li>
             <b>Store your resources &amp; bank your gold</b> — only what&apos;s sheltered survives a
@@ -451,19 +567,22 @@ export default function GuidePage() {
             can&apos;t just walk in. Too many of any one and something starves.
           </li>
           <li>
-            <b>Pick a research lane</b> and commit — you can never master all ten fields, so become
-            the economist, the warlord, or the spymaster.
+            <b>Pick a research lane</b> and commit — you can never master all {FIELD_COUNT} fields,
+            so become the economist, the warlord, or the spymaster.
           </li>
         </ul>
         <h4>Fighting smart</h4>
         <ul>
           <li>
             <b>Punch slightly down.</b> The surest wins come against empires <b>10–20% weaker</b>{" "}
-            than you. Even fights are coin-flips; anyone <b>75%+ stronger, your troops refuse</b>.
+            than you. Even fights are coin-flips; anyone{" "}
+            <b>{Math.round((ATTACK_REFUSAL_RATIO - 1) * 100)}%+ stronger, your troops refuse</b>.
           </li>
           <li>
-            <b>Chase quality experience.</b> Fights within ±20% (or a bold target up to 75% stronger)
-            season your army; <b>bullying much weaker empires costs you experience and loot</b>.
+            <b>Chase quality experience.</b> An even fight pays full points and a bold one — up to
+            the {Math.round((ATTACK_REFUSAL_RATIO - 1) * 100)}% refusal line — pays double or
+            treble. <b>Attacking somebody half your size or less costs you points outright</b>, and
+            pays less loot too. Bullying is priced, not just discouraged.
           </li>
           <li>
             <b>Soften, then strike.</b> Raid to drain a target&apos;s stamina, bombard to crack the
@@ -556,7 +675,10 @@ export default function GuidePage() {
         </p>
         <p>
           It unlocks the <Link href="/steward">Steward</Link>: build and research{" "}
-          <b>queues</b> of up to {STEWARD_QUEUE_CAP} entries each, <b>standing orders</b>, and{" "}
+          <b>queues</b> of up to {WORK_QUEUE_CAP} entries each — managed on the{" "}
+          <Link href="/buildings">Buildings</Link> and <Link href="/research">Collegium</Link> pages
+          themselves, beside the thing you are queueing — plus {STEWARD_QUEUE_CAP}{" "}
+          <b>standing orders</b> and{" "}
           <b>auto-banking</b> so your coin is sheltered while you sleep instead of sitting loose for
           the first raider who rides past.
         </p>
@@ -577,14 +699,18 @@ export default function GuidePage() {
         <h4>Saving your own regulars</h4>
         <ul>
           <li>
-            <b>Put a merc shield in front.</b> Hire mercenaries in the same arm and a tier{" "}
-            <i>below</i> your regulars — they <b>die first</b>, soaking the losses. Dead mercs you
-            re-buy with gold; dead regulars take your veterancy to the grave.
+            <b>Put a merc shield in front — at the right rank.</b> Hire mercenaries in the{" "}
+            <i>same arm and the same tier</i> as the regulars you mean to protect. They{" "}
+            <b>die first</b>, soaking the losses, but only where they actually stand: a rank holding
+            regulars and no sellswords takes the whole blow on your own people, and hirelings of
+            another tier cannot fall through to cover it. Dead mercs you re-buy with gold; dead
+            regulars take your veterancy to the grave. The Army page and the census flag every bare
+            rank in red.
           </li>
           <li>
-            <b>Fight rested, and don&apos;t bleed even wins.</b> Every round still kills some of the
-            winning side — pick fights you win <i>decisively</i> (punch 10–20% down), rest to full
-            stamina first, and never grind an even fight that trades your veterans away.
+            <b>Fight rested, and don&apos;t bleed even wins.</b> An exchange kills some of the
+            winning side too — pick fights you win <i>decisively</i> (punch 10–20% down), rest to
+            full stamina first, and never grind an even fight that trades your veterans away.
           </li>
           <li>
             <b>Discharge only with a bed free.</b> Sending a soldier home needs an empty Hearthstead
@@ -619,9 +745,9 @@ export default function GuidePage() {
         <p>
           Ranking score is the empire a passing traveller would see: <b>civilian population, regular
           troops, walls</b> (level² × integrity), <b>levelled buildings, banked treasury</b> (gold +
-          resources), <b>army experience</b>, and the <b>7 ranked research fields</b>. Siege gear,
-          spies, scouts, mercenaries and the 3 shadow research fields add <b>nothing</b> — power in
-          the shadows brings no prestige.
+          resources), <b>army veterancy</b>, and the <b>{RANKED_FIELDS.length} ranked research
+          fields</b>. Siege gear, spies, scouts, mercenaries and the {SHADOW_FIELDS.length} shadow
+          research fields add <b>nothing</b> — power in the shadows brings no prestige.
         </p>
         <h4>2 · Cross the population floor</h4>
         <p>
@@ -671,8 +797,10 @@ export default function GuidePage() {
             die.
           </li>
           <li>
-            It takes <b>no loot</b>. Its only purpose is to <b>kill regulars</b> — the deepest wound
-            in the game (permanent population, score, and experience loss for them).
+            It takes <b>no loot</b> — but it does <b>strip the fallen</b> like any other battle, so
+            a revenge you win still pays for the armour of the men it killed. Its purpose is to{" "}
+            <b>kill regulars</b>: the deepest wound in the game (permanent population, score, and
+            veterancy loss for them).
           </li>
           <li>
             It <b>chains</b>: striking re-arms <i>their</i> revenge window back at you, so a revenge

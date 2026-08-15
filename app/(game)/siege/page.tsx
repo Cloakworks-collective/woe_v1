@@ -55,14 +55,25 @@ const COUNTER_ART: Record<CounterType, string> = {
 // Display order lightest → heaviest (COUNTER_TYPES is heaviest-first for crewing).
 const DEFENSE_ORDER = [...COUNTER_TYPES].reverse();
 
+// What each counter does BEYOND the plain duel. Two of these six are not just
+// "shoots at its pair": oil is poured on men as well as beams, and the three
+// escalade answers pay off by thinning the assault rather than by killing wood.
+const COUNTER_QUIRK: Partial<Record<CounterType, string>> = {
+  boiling_oil:
+    "Poured, not shot: double power against a ram, and it scalds the footmen on the beams as well.",
+  billhooks: "Cut ropes carry fewer men — every point of damage is troops who never reach the top.",
+  forkpoles: "A shoved ladder carries fewer men — damage here is troops who never reach the top.",
+  fire_pots: "A burning tower carries fewer men — damage here is troops who never reach the top.",
+};
+
 const WEAPON_NAME: Record<string, string> = Object.fromEntries(
   WAR_FOUNDRY_LADDER.filter((s) => s.gearKey).map((s) => [s.gearKey!, s.name]),
 );
 
 const ENGINE_TIP: Record<string, string> = {
-  ropes: "Escalade: each crewed team puts 10 attackers onto a lesser wall (+30% instead of +50%). Deals no damage. Bill-hooks answer it.",
-  ladders: "Escalade: each team carries 30 attackers over at +20%. Fork Poles answer it.",
-  siege_towers: "Escalade at its best: 100 troops arrive in formation against a wall worth only +10%. Slow, dear, and made of timber — Fire Pots answer it.",
+  ropes: "Escalade: each crewed team puts 10 attackers onto a lesser wall (+30% instead of +50%). Deals no damage. Bill-hooks answer it — and a cut rope carries proportionally fewer, so damage costs you the lift long before the team is destroyed.",
+  ladders: "Escalade: each team carries 30 attackers over at +20%. Fork Poles answer it — and a shoved ladder carries proportionally fewer, so damage costs you the lift long before the team is destroyed.",
+  siege_towers: "Escalade at its best: 100 troops arrive in formation against a wall worth only +10%. Slow, dear, and made of timber — Fire Pots answer it, and a burning tower carries proportionally fewer, so damage costs you the lift long before it falls.",
   rams: "THE wall-breaker. All of its power lands on masonry and none of it anywhere else. Needs 20 hands to push, who take no part in the assault until the gate gives — and Boiling Oil is poured on them where they stand.",
   ballistae: "Anti-personnel bolt fire, spread across the enemy line. Touches neither wall nor building. Hoardings answer it.",
   trebuchets: "The only engine that reaches walls, buildings AND other engines — but an inaccurate one: just 30% of its power finds masonry (60% at Siegecraft mastery). The bombard engine. The Counter-Engine answers it, and shoots back.",
@@ -392,7 +403,7 @@ export default async function SiegePage({
       {defensive && (
         <Panel
           title="🛡 The Ramparts — defensive engines"
-          info="Defensive engines are bought and crewed just like offensive gear — but your engineers man them when you DEFEND (counters first, then spares fire your own engines back). Each crewed engine cancels one incoming enemy engine of its paired weapon; the surplus still fires, so field enough to blunt an assault."
+          info="Defensive engines are bought and crewed just like offensive gear — but your engineers man them when you DEFEND. Each one DUELS its paired enemy engine: it shoots at it, battle after battle, until one of them is wreckage. Nothing is cancelled outright. Your counters land 30% of their power (60% at Siegecraft mastery — half again a trebuchet's rate) plus an emplacement edge for shooting from a fixed wall at engines crawling toward you. Ground below a quarter of its health, a counter's crew stands down for good until you mend it at the Engine Yard."
           guide="/guide#defense"
         >
           <div className="card-grid">
@@ -410,7 +421,7 @@ export default async function SiegePage({
                   <div className="bcard-head">
                     <div>
                       <Info
-                        tip={`Cancels one incoming ${WEAPON_NAME[c.counters]} per crewed engine when you defend. Crew of ${c.crew} engineers each.`}
+                        tip={`Duels ${WEAPON_NAME[c.counters]} when you defend — ${c.power} power against ${c.health} health of its own, firing until one side is wreckage. Crew of ${c.crew} engineers each.`}
                         title={c.name}
                         guide="/guide#defense"
                       >
@@ -430,7 +441,7 @@ export default async function SiegePage({
                         <CountInput ariaLabel={`${c.name} to forge`} size={3} max={maxAffordable(c, have)} />
                         <ReqTip
                           heading={`Forge ${c.name}`}
-                          body={`Cancels one incoming ${WEAPON_NAME[c.counters]} per crewed engine when you defend — the surplus still fires, so field enough to blunt an assault.`}
+                          body={`Duels ${WEAPON_NAME[c.counters]} when you defend. It does not cancel one: it shoots at them until one side is wreckage, so a battery that outnumbers the train grinds it down over a siege rather than stopping it in a single battle.`}
                           rows={resReqs(c, have)}
                           note={`Per engine — × the number you enter. Each needs ${c.crew} engineer${c.crew > 1 ? "s" : ""} to crew on defence.`}
                           disabledReason={!unlocked ? `Needs Engine Yard level ${c.foundryLevel} — raise it in Buildings → Military.` : undefined}
@@ -443,7 +454,9 @@ export default async function SiegePage({
                     </div>
                   </div>
                   <p className="bcard-desc">
-                    Cancels <b>{WEAPON_NAME[c.counters]}</b> — one enemy engine per crewed {c.name}, when you defend.
+                    Duels <b>{WEAPON_NAME[c.counters]}</b> when you defend — {c.power} power, {c.health} health,
+                    firing until one side is wreckage.
+                    {COUNTER_QUIRK[ct] && <> {COUNTER_QUIRK[ct]}</>}
                   </p>
                   <div className="bcard-main">
                     <span className="bcard-art">

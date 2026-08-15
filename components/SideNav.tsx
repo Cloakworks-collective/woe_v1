@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { RESEARCH_FIELDS } from "@/lib/constants/research";
 
 type Item = { href: string; label: string; icon: string; desc: string; exact?: boolean; /** Never lights up — several rows share one href (the three verbs → the ladder). */ noHighlight?: boolean };
 
@@ -53,7 +54,7 @@ const SECTIONS: { head: string; sub: string; items: Item[] }[] = [
     items: [
       { href: "/buildings", label: "Buildings", icon: "build", desc: "Construct & upgrade; repair bombard damage" },
       { href: "/train", label: "Workers & Levy", icon: "workers", desc: "Assign peasants to jobs; raise and hire spies & rangers" },
-      { href: "/research", label: "Research", icon: "research", desc: "The Collegium — 10 fields of technology" },
+      { href: "/research", label: "Research", icon: "research", desc: `The Collegium — ${RESEARCH_FIELDS.length} fields of technology` },
       { href: "/market", label: "Market", icon: "market", desc: "The Grand Bazaar — buy & sell resources" },
       { href: "/blackmarket", label: "Black Market", icon: "market", desc: "The fence — instant resource trades & siege salvage, at the worst price" },
     ],

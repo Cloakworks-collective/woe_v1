@@ -347,7 +347,8 @@ export function RankingCalculator() {
               tip="Scores nothing directly. It multiplies the power of your regulars, and the ladder prices the battle line on power — so a veteran army ranks higher because it IS stronger, not because seasoning earns a medal. Earned by killing and spent by dying."
               guide="/guide#regulars"
             />
-            <Num label="Experience" value={a.experience} onChange={(n) => set({ experience: n })} max={100} />
+            {/* No max — the ledger is uncapped, and 100 is only where +100% is. */}
+            <Num label="Veterancy %" value={a.experience} onChange={(n) => set({ experience: n })} />
           </label>
           <label>
             Wall level

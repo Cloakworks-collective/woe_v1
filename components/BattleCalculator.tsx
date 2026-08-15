@@ -149,7 +149,7 @@ function ArmyForm({
           <tr>
             <th>
               Sellswords{" "}
-              <Info tip="Hired blades take the first 70% of damage aimed at their arm and earn no veterancy. They are paid off automatically when the regulars commanding them die." />
+              <Info tip="Hired blades take the first 70% of the damage that lands on their own arm AND their own rank — the screen never falls through from one tier to another, so light sellswords do nothing for heavy regulars. Damage walks light → medium → heavy. They earn no veterancy, and are paid off automatically when the regulars commanding them die." />
             </th>
             <th>Light</th>
             <th>Medium</th>
@@ -180,7 +180,7 @@ function ArmyForm({
           <NumBox label="Stamina" value={army.stamina} onChange={(n) => set({ stamina: n })} max={100} />
         </label>
         <label>
-          Veterancy{" "}
+          Veterancy %{" "}
           <Info
             title="Veterancy — the bonus %, not the point tally"
             tip="Lifts power AND health together, for regulars only — sellswords always fight at base."
@@ -192,12 +192,14 @@ function ArmyForm({
             ]}
             guide="/guide#regulars"
           />
-          <NumBox label="Experience" value={army.experience} onChange={(n) => set({ experience: n })} max={100} />
+          {/* No max. The ledger is uncapped — 100 is +100%, and a long war runs
+              past it — so a ceiling here would contradict the tip beside it. */}
+          <NumBox label="Veterancy %" value={army.experience} onChange={(n) => set({ experience: n })} />
         </label>
         <label>
-          Siege XP{" "}
+          Siege veterancy %{" "}
           <Info tip="The engineers' own veterancy, tallied separately from the line army's — bombarding teaches a siege train nothing about holding a wall, and vice versa. It rises with bombardment on both sides of it." />
-          <NumBox label="Siege experience" value={army.siegeExperience} onChange={(n) => set({ siegeExperience: n })} max={100} />
+          <NumBox label="Siege veterancy %" value={army.siegeExperience} onChange={(n) => set({ siegeExperience: n })} />
         </label>
         <label>
           Peasants{" "}

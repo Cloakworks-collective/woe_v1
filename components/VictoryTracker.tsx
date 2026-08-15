@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Info } from "./Info";
 import { ARMY_FLOORS, HOLD_CLOCKS, WONDER_MAX_LEVEL } from "@/lib/constants";
+import { RESEARCH_FIELDS } from "@/lib/constants/research";
 import { rankingScore, regularTroops, type Player } from "@/lib/engine";
 import type { World } from "@/lib/server/store";
 import { MS_PER_HOUR, clanHold, clanScore, overlordHold } from "@/lib/server/world";
@@ -156,7 +157,7 @@ export function VictoryTracker({ world, me }: { world: World; me: Player }) {
             <>
               You stand <b>#{myRank || "—"}</b> · <b>{fmt(myScore)}</b> pts · <b>{fmt(gap)}</b>{" "}
               behind the crown{" "}
-              <Info tip="Your score is your visible empire: population, troops, walls, buildings, treasury, and 7 of the 10 research fields. Grow them to climb." />{" "}
+              <Info tip={`Your score is your visible empire: population, troops, walls, buildings, treasury, and ${RESEARCH_FIELDS.filter((f) => f.ranked).length} of the ${RESEARCH_FIELDS.length} research fields. Grow them to climb.`} />{" "}
               <Link href="/rankings">Full ladder →</Link>
             </>
           )}

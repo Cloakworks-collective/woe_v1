@@ -135,6 +135,56 @@ export interface StandingOrder {
   then: OrderAction;
 }
 
+/**
+ * One row of a report, kept STRUCTURED rather than glued into a sentence.
+ *
+ * A survey of the coffers is nine numbers, and as prose it arrives as a
+ * 200-character run of parenthesised asides that nobody reads twice. The same
+ * nine numbers in a table are read at a glance and compared between two
+ * rivals — which is the entire reason you paid the turns.
+ *
+ * `detail` survives alongside this as the one-line summary (the tiding in your
+ * chronicle, and the fallback for the ops whose result genuinely IS a
+ * sentence: "Fires set — burned 4,000 wood").
+ */
+export interface CovertFact {
+  label: string;
+  value: string;
+  /** The qualifier that matters — "13,870,450 unvaulted", "150,845 exposed". */
+  note?: string;
+}
+
+/**
+ * One covert operation, as it happened — the filed report.
+ *
+ * `detail` is the same sentence the attacker was shown at the time, kept
+ * verbatim rather than recomputed: a scout report is a snapshot of what was
+ * true when the rangers looked, and re-deriving it later would quietly replace
+ * three-day-old intelligence with today's truth, which is the one thing an
+ * intelligence log must never do. `facts` is the same snapshot, in columns.
+ */
+export interface CovertRecord {
+  id: string;
+  /** The tick it ran on — ages the entry and drives the 5-day window. */
+  tick: number;
+  arm: "spy" | "scout";
+  opId: string;
+  opName: string;
+  targetId: string;
+  targetName: string;
+  sent: number;
+  intercepted: number;
+  /** Were you named? Only ever true for spies; scouts work in the open. */
+  exposed: boolean;
+  detail: string;
+  /** The report proper, when the operation returned figures rather than a
+   *  sentence. Rendered as a table on the intelligence desk. */
+  facts?: CovertFact[];
+  turnsSpent: number;
+  resourcesDestroyed?: number;
+  gearDestroyed?: number;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -250,6 +300,24 @@ export interface Player {
   lastScoutAgents?: number;
   lastSpyOp?: string;
   lastSpyAgents?: number;
+
+  /**
+   * Every covert operation you have run, newest first, kept for
+   * COVERT_LOG_DAYS.
+   *
+   * Intelligence was WRITE-ONLY before this: a scout report arrived as a toast
+   * on the page that launched it and was gone the moment you navigated away.
+   * You could pay the spy turns to learn a rival's exact muster and then have
+   * no way to look at it again — the arm whose entire product is information
+   * was the one arm that recorded none. Spy work had the same hole: whether an
+   * op landed, what it destroyed, and whether you were named are all things
+   * you need days later, when deciding whether to go back.
+   *
+   * On the PLAYER rather than the world: these are your reports, nobody else
+   * may read them, and they die with the empire at the era reset like
+   * everything else here.
+   */
+  covertLog?: CovertRecord[];
 
   /** The dawn hour may be moved ONCE an era, so a player in Delhi and one in
    *  New York can both be awake for it. Cleared by eraReset with everything
@@ -449,6 +517,13 @@ export interface BattleReport {
    *  reset. Every mode causes it, bombard included: terror needs no swordsman. */
   civiliansDisplaced: number;
   wallIntegrityDamage: number; // fraction of defender's wall destroyed
+  /**
+   * The share of the health each side BROUGHT that it gave up — and the entire
+   * basis of the verdict: whoever lost the smaller share carried the field, a
+   * tie going to the defender. Surfaced so a report can show its working rather
+   * than announcing a winner and leaving the reader to take it on faith.
+   */
+  healthLostShare?: { attacker: number; defender: number };
   /** Buildings cracked open beyond the walls (integrity lost each). */
   buildingDamage?: { building: BuildingId; integrityLost: number }[];
   /** Engines wrecked outright, both ways — the counter duel bites both sides. */
@@ -519,10 +594,10 @@ export type GameEvent =
   | { type: "buildComplete"; building: BuildingId; level: number }
   | { type: "attacked"; byId: string; byName: string; mode: AttackMode; battleId: string }
   | { type: "battleResult"; battleId: string; victor: string; mode: AttackMode }
-  | { type: "spyReport"; op: string; targetName: string; caught: boolean; detail: string }
+  | { type: "spyReport"; op: string; targetName: string; caught: boolean; detail: string; reportId?: string }
   | { type: "spiesCaught"; attackerName: string; executed: number; op: string }
   | { type: "sabotaged"; detail: string } // anonymous — victim sees damage, not the hand
-  | { type: "scoutReport"; targetName: string; detail: string }
+  | { type: "scoutReport"; targetName: string; detail: string; reportId?: string }
   | { type: "marketSale"; resource: Resource; amount: number; goldNet: number }
   | { type: "clanEvent"; detail: string }
   /** A victory hold-clock started or stopped for you (Grand Overlord) or your

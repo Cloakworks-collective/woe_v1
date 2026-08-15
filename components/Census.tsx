@@ -1,4 +1,4 @@
-import { civilians, mercTotal, military, totalPopulation, troopTotal, type Player } from "@/lib/engine";
+import { bareTiers, civilians, mercTotal, military, totalPopulation, troopTotal, type Player } from "@/lib/engine";
 import { Art } from "./Art";
 import { TiredArt, tiredLabel } from "./TiredArt";
 import { BareBadge } from "./BareBadge";
@@ -12,7 +12,8 @@ type Row = {
   label: string;
   count: number;
   muted?: boolean;
-  bare?: boolean;
+  /** The RANKS of this arm with no sellswords beside them, if any. */
+  bare?: string[];
   /** Fighting men wear the army's stamina on their backs; civilians don't. */
   tires?: boolean;
 };
@@ -37,13 +38,12 @@ export function Census({ player: p }: { player: Player }) {
 
   // An arm whose regulars have no hired blades of the same arm in front of them
   // is BARE — in battle those blows land on real population.
-  const bareArm = (key: "footmen" | "archers" | "cavalry") =>
-    troopTotal(p.army[key]) > 0 && troopTotal(p.army.mercenaries[key]) === 0;
-
+  // Per RANK, not per arm: heavy footmen behind light sellswords are unscreened
+  // however many hirelings the arm musters in total. See `bareTiers`.
   const armyRows: Row[] = [
-    { key: "footmen", art: "units/footman", label: "Footmen", count: troopTotal(p.army.footmen), bare: bareArm("footmen"), tires: true },
-    { key: "archers", art: "units/archer", label: "Archers", count: troopTotal(p.army.archers), bare: bareArm("archers"), tires: true },
-    { key: "cavalry", art: "units/cavalry", label: "Cavalry", count: troopTotal(p.army.cavalry), bare: bareArm("cavalry"), tires: true },
+    { key: "footmen", art: "units/footman", label: "Footmen", count: troopTotal(p.army.footmen), bare: bareTiers(p, "footmen"), tires: true },
+    { key: "archers", art: "units/archer", label: "Archers", count: troopTotal(p.army.archers), bare: bareTiers(p, "archers"), tires: true },
+    { key: "cavalry", art: "units/cavalry", label: "Cavalry", count: troopTotal(p.army.cavalry), bare: bareTiers(p, "cavalry"), tires: true },
     { key: "engineers", art: "units/engineer", label: "Siege engineers", count: p.army.siegeEngineers, tires: true },
   ];
 
@@ -51,7 +51,8 @@ export function Census({ player: p }: { player: Player }) {
   const mercs = mercTotal(m);
   const mercRows: Row[] = [
     // Sellswords march under the same standard and tire with it — stamina is one
-    // army-wide stat, and they are in the same battle line taking the first 70%.
+    // army-wide stat, and they are in the same battle line taking the larger
+    // share of whatever damage lands at their own arm AND rank.
     { key: "merc-foot", art: "units/footman", label: "Hired footmen", count: troopTotal(m.footmen), muted: troopTotal(m.footmen) === 0, tires: true },
     { key: "merc-arch", art: "units/archer", label: "Hired archers", count: troopTotal(m.archers), muted: troopTotal(m.archers) === 0, tires: true },
     { key: "merc-cav", art: "units/cavalry", label: "Hired cavalry", count: troopTotal(m.cavalry), muted: troopTotal(m.cavalry) === 0, tires: true },
@@ -74,7 +75,7 @@ export function Census({ player: p }: { player: Player }) {
           </span>
           <span className="census-label">
             {r.label}
-            {r.bare && <BareBadge arm={r.label.toLowerCase()} count={r.count} />}
+            {r.bare && <BareBadge arm={r.label.toLowerCase()} tiers={r.bare} />}
           </span>
           <span className="census-count">{fmt(r.count)}</span>
         </li>
@@ -112,7 +113,8 @@ export function Census({ player: p }: { player: Player }) {
         {col(mercRows)}
         <div className="census-merc-note">
           Sellswords, not subjects: they <b>die first</b> in battle, shielding your regulars — but
-          they draw gold upkeep every turn and <b>count as neither population nor ranking</b>.
+          hiring is a one-time price with no wage to pay, they take a Muster Hall bed like anyone
+          else, and they <b>count as neither population nor ranking</b>.
         </div>
       </div>
 

@@ -9,4 +9,4 @@ export const CHARTER_PRODUCT_NAME = "War of Empires — The Royal Charter (one a
 export const CHARTER_PRODUCT_DESC =
   "Unlocks the Steward for the current age: build & research queues, standing orders, and auto-banking.";
 
-export { STEWARD_QUEUE_CAP } from "./balance";
+export { STEWARD_QUEUE_CAP, WORK_QUEUE_CAP } from "./balance";

@@ -36,8 +36,8 @@ import {
 export function TargetActions({
   target,
   revengeOpen,
-  tradecraft,
-  pathfinding,
+  guild,
+  lodge,
   state,
   last,
   hint,
@@ -51,8 +51,8 @@ export function TargetActions({
   allyClanName?: string;
   path?: string;
   revengeOpen: boolean;
-  tradecraft: number;
-  pathfinding: number;
+  guild: number;
+  lodge: number;
   /** Show a single arm. The ladder is reached three ways — "Attack", "Spy" and
    *  "Scout" in the sidebar — and arriving by one of them should not put the
    *  other two orders under your cursor forty times over. Unset shows all. */
@@ -67,8 +67,8 @@ export function TargetActions({
   const t: TargetState = state ?? { revengeOpen };
   const covertStop = covertBlocked(t);
   // Re-open on the last order, but only while it is still unlocked.
-  const lastScout = SCOUT_OPS.find((o) => o.id === last?.scoutOp && pathfinding >= o.level)?.id ?? "";
-  const lastSpy = SPY_OPS.find((o) => o.id === last?.spyOp && tradecraft >= o.level)?.id ?? "";
+  const lastScout = SCOUT_OPS.find((o) => o.id === last?.scoutOp && lodge >= o.level)?.id ?? "";
+  const lastSpy = SPY_OPS.find((o) => o.id === last?.spyOp && guild >= o.level)?.id ?? "";
   const marchStop = allModesBlocked(t);
 
   return (
@@ -178,12 +178,12 @@ export function TargetActions({
                 <input type="hidden" name="targetId" value={target.id} />
                 <select name="op" aria-label={`Scout operation against ${target.name}`} className="act-select" defaultValue={lastScout}>
                   <option value="" disabled>
-                    {pathfinding < 1 ? "No operations — study Pathfinding" : "Choose what to look for…"}
+                    {lodge < 1 ? "No operations — build a Ranger's Lodge" : "Choose what to look for…"}
                   </option>
                   {SCOUT_OPS.map((op) => (
-                    <option key={op.id} value={op.id} disabled={pathfinding < op.level}>
+                    <option key={op.id} value={op.id} disabled={lodge < op.level}>
                       L{op.level} · {op.name}
-                      {pathfinding < op.level ? " (locked)" : ""}
+                      {lodge < op.level ? " (locked)" : ""}
                     </option>
                   ))}
                 </select>
@@ -237,12 +237,12 @@ export function TargetActions({
                 <input type="hidden" name="targetId" value={target.id} />
                 <select name="op" aria-label={`Spy operation against ${target.name}`} className="act-select" defaultValue={lastSpy}>
                   <option value="" disabled>
-                    {tradecraft < 1 ? "No operations — study Tradecraft" : "Choose an operation…"}
+                    {guild < 1 ? "No operations — build a Shadow Guild" : "Choose an operation…"}
                   </option>
                   {SPY_OPS.map((op) => (
-                    <option key={op.id} value={op.id} disabled={tradecraft < op.level}>
+                    <option key={op.id} value={op.id} disabled={guild < op.level}>
                       L{op.level} · {op.name}
-                      {tradecraft < op.level ? " (locked)" : ""}
+                      {guild < op.level ? " (locked)" : ""}
                     </option>
                   ))}
                 </select>

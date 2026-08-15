@@ -548,8 +548,22 @@ export const STAMINA = {
    *  the enemy out. Swinging hard tires an army; holding a line does not. */
   MAX_DRAIN_ATTACKER: 80,
   MAX_DRAIN_DEFENDER: 50,
-  REST_GAIN: 20,
-  REST_FOOD_PER_TROOP: 0.2,
+  /**
+   * Resting is bought by the POINT, and it is bought with food alone.
+   *
+   * It used to be a single button: 5 action turns and 0.2 food a head for a
+   * flat +20. Two things were wrong with that. The turns were the larger cost
+   * by far — half an attack, spent on nothing that happens to anybody else —
+   * which made the sensible play "attack tired" rather than "rest first", the
+   * exact opposite of what stamina is for. And a flat +20 gave the ruler no
+   * way to buy the 3 points that would carry them over a threshold, nor to top
+   * a nearly-full army up without overpaying.
+   *
+   * So: no turns at all, and a price per point of the army you are actually
+   * feeding. Regulars and engineers — the standing army in the Muster Hall.
+   * Sellswords eat at their employer's expense.
+   */
+  REST_FOOD_PER_POINT_PER_TROOP: 10,
   /** Delivery gate: staminaMod = MOD_BASE + MOD_PER_POINT × stamina, so a
    *  spent army brings half its power no matter how well researched. */
   MOD_BASE: 0.5,
