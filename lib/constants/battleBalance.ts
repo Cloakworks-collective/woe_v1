@@ -303,10 +303,21 @@ export const SIEGE_COUNTERS = {
   hoardings: { power: 1200, health: 1200, crew: 3, gold: 800, wood: 300, stone: 0, ore: 100, foundryLevel: 8, counters: "ballistae", name: "Hoardings" },
   /** NEW — fire against timber. The siege tower's answer. */
   fire_pots: { power: 400, health: 900, crew: 2, gold: 900, wood: 200, stone: 0, ore: 150, foundryLevel: 8, counters: "siege_towers", name: "Fire Pots" },
-  /** The artillery duel's other half. Emplaced and sturdy: 2,000 health against
-   *  the trebuchet's 1,000, which is what makes a bombard a war of attrition
-   *  rather than a single decisive volley. */
-  counter_engine: { power: 400, health: 2000, crew: 5, gold: 2000, wood: 800, stone: 0, ore: 300, foundryLevel: 10, counters: "trebuchets", name: "Counter-Engine" },
+  /**
+   * The artillery duel's other half — and now the FRAGILE half: 800 health
+   * against the trebuchet's 1,000.
+   *
+   * It was 2,000, on the reasoning that an emplaced engine is sturdier than one
+   * dragged across a field. Stacked with 100% accuracy that made a battery of
+   * thirty simply unbeatable — a siege against one ran past 120 bombards, which
+   * is four days of an empire's entire turn budget spent on one wall. Accuracy
+   * came down to 0.30 first; this is the rest of it.
+   *
+   * The counter still wins the duel on rate of fire (0.30 against a trebuchet's
+   * 0.20 at the same job) and on the emplacement edge. What it no longer does is
+   * win it on being twice as hard to break as well.
+   */
+  counter_engine: { power: 400, health: 800, crew: 5, gold: 2000, wood: 800, stone: 0, ore: 300, foundryLevel: 10, counters: "trebuchets", name: "Counter-Engine" },
 } as const;
 
 export type CounterKey = keyof typeof SIEGE_COUNTERS;
