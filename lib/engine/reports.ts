@@ -20,6 +20,8 @@ import {
   WAR_FOUNDRY_LADDER,
   GUILD_BONUS_PER_LEVEL,
   LODGE_BONUS_PER_LEVEL,
+  VACATION_PRODUCTION_FACTOR,
+  VACATION_RESEARCH_FACTOR,
   maxLevel,
 } from "../constants";
 import type { BuildingId } from "../constants/buildings";
@@ -36,6 +38,7 @@ import {
   shelterCapacity,
   totalPopulation,
   troopTotal,
+  veterancyBonus,
   type Player,
   type Resource,
   type WorkerRole,
@@ -51,9 +54,15 @@ const LINES: { role: WorkerRole; building: BuildingId; resource: Resource; field
 export function productionRates(p: Player): Record<Resource, number> {
   const race = RACES[p.race];
   const out = { food: 0, wood: 0, stone: 0, ore: 0 };
+  // Vacation is folded into `per`, in the same place the tick folds it, so a
+  // dormant town's projection is the number that actually lands. Leaving it out
+  // used to overstate an absent ruler's harvest by half; at the current −80% it
+  // would overstate it fivefold, which is not a rounding difference — it is the
+  // difference between "my granary holds" and starving in your sleep.
+  const vacationMult = p.onVacation ? VACATION_PRODUCTION_FACTOR : 1;
   for (const { role, building, resource, field } of LINES) {
     const n = p.workers[role]; // uncapped
-    const per = productionPerWorker(p, building); // level-scaled per-worker output
+    const per = productionPerWorker(p, building) * vacationMult; // level-scaled per-worker output
     const fieldMult = 1 + researchLevel(p, field) * EFFECT_PER_LEVEL;
     // Floored to match the tick exactly (see ROUNDING in tick.ts) — a projected
     // rate that doesn't equal what lands is worse than no projection.
@@ -66,8 +75,14 @@ export function productionRates(p: Player): Record<Resource, number> {
 
 export function researchRate(p: Player): number {
   // Researchers are uncapped; the Collegium level scales each scholar's output.
+  // Vacation slows the Collegium by its own factor (a softer cut than the yards
+  // take) — study is what an absent ruler leaves running.
+  const vacationMult = p.onVacation ? VACATION_RESEARCH_FACTOR : 1;
   return Math.floor(
-    p.workers.researchers * productionPerWorker(p, "collegium") * buildingIntegrity(p, "collegium"),
+    p.workers.researchers *
+      productionPerWorker(p, "collegium") *
+      vacationMult *
+      buildingIntegrity(p, "collegium"),
   );
 }
 
@@ -166,6 +181,21 @@ export interface AdvisorReport {
   population: string;
 }
 
+/** Arms that field regulars with NO sellswords of the same arm in front of
+ *  them. Hired blades take the first CASUALTY_SPLIT.MERC_SHARE of every blow
+ *  aimed at their arm, so a bare arm puts real population in the front rank —
+ *  and regular dead cost population, veterancy and ranking all at once. */
+export function bareArms(p: Player): string[] {
+  const arms = [
+    ["footmen", "footmen"],
+    ["archers", "archers"],
+    ["cavalry", "cavalry"],
+  ] as const;
+  return arms
+    .filter(([k]) => troopTotal(p.army[k]) > 0 && troopTotal(p.army.mercenaries[k]) === 0)
+    .map(([, label]) => label);
+}
+
 export function advisorReport(p: Player): AdvisorReport {
   const civ = civilians(p);
   const mil = military(p);
@@ -190,10 +220,11 @@ export function advisorReport(p: Player): AdvisorReport {
 
   // ── Military ───────────────────────────────────────────────────────────
   const scatterLine = Math.ceil(0.3 * civ);
-  const xpNote = p.army.experience >= 60
-    ? `battle-hardened (+${p.army.experience}% combat power)`
-    : p.army.experience > 0
-      ? `seasoning nicely (+${p.army.experience}% power — veterancy dies with the veterans, so guard your regulars)`
+  const vetPct = veterancyBonus(p.army.experiencePoints) * 100;
+  const xpNote = vetPct >= 20
+    ? `battle-hardened (+${vetPct.toFixed(1)}% combat power)`
+    : vetPct > 0
+      ? `seasoning nicely (+${vetPct.toFixed(1)}% power — every regular who falls costs you points, so screen them)`
       : "still green — every battle they survive makes them stronger";
   let military_: string;
   if (p.army.stamina < 40) {
@@ -202,6 +233,9 @@ export function advisorReport(p: Player): AdvisorReport {
   } else if (mil < scatterLine && p.idlePeasants + civ >= 500) {
     military_ =
       `Danger: only ${mil} soldiers guard ${civ} civilians — below the ${scatterLine} needed to hold the 30% line. At the next dawn our unprotected peasants will scatter and walk away. Raise troops NOW to climb back above the line.`;
+  } else if (bareArms(p).length > 0) {
+    military_ =
+      `Our ${bareArms(p).join(", ")} stand BARE — not one hired blade in front of them, so every blow aimed at that arm lands on our own people. Sellswords soak the first 70%, and dead regulars are the one loss we never get back. Hire a screen at the Black Market before the next raid.`;
   } else {
     military_ =
       `${mil} under arms, stamina ${p.army.stamina}/100, and ${xpNote}. A sound force — pick fights within ±20% of your ranking score for the best experience; punching far below you costs XP and loot.`;
@@ -218,6 +252,9 @@ export function advisorReport(p: Player): AdvisorReport {
   } else if (rates.food < upkeep) {
     economic =
       `We are eating into our stores — food yields ${rates.food.toFixed(0)}/turn against ${upkeep.toFixed(0)}/turn eaten. Assign more farmers (The Grange, 20 slots/level) or buy food before the granaries run dry and the empire freezes.`;
+  } else if (p.workers.researchers > 0 && !p.research?.activeField) {
+    economic =
+      `${p.workers.researchers} scholars sit in the Collegium studying NOTHING — with no field chosen the turn banks no points at all, so their work is not slow, it is thrown away. Choose any field (Research) and it starts landing next turn.`;
   } else {
     const tax = Math.round(p.taxRate * 100);
     economic =
@@ -291,8 +328,10 @@ export function advisorCounsel(p: Player): AdvisorCounsel {
       ? `Stamina ${p.army.stamina}/100 — the army is spent and swings weak. Rest them before you march.`
       : `Stamina ${p.army.stamina}/100 — fit to march. Fights within ±20% of your strength season the army fastest.`,
   );
-  if (p.army.experience > 0) {
-    militaryB.push(`Experience +${p.army.experience}% — veterancy dies with the veterans, so screen your regulars.`);
+  if (p.army.experiencePoints > 0) {
+    militaryB.push(
+      `Experience ${Math.round(p.army.experiencePoints).toLocaleString("en-US")} points — +${(veterancyBonus(p.army.experiencePoints) * 100).toFixed(1)}% to power AND health. Killing regulars earns it; losing your own spends it.`,
+    );
   }
   const bare = (["footmen", "archers", "cavalry"] as const).filter(
     (k) => troopTotal(p.army[k]) > 0 && troopTotal(p.army.mercenaries[k]) === 0,

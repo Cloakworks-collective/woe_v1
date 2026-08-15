@@ -5,7 +5,7 @@
 import type { Race } from "../constants/races";
 import type { BuildingId, CounterType } from "../constants/buildings";
 import type { ResearchField } from "../constants/research";
-import { EFFECT_PER_LEVEL, RESEARCH_EFFECT_PER_LEVEL, shelterAtLevel } from "../constants";
+import { EFFECT_PER_LEVEL, EXPERIENCE, MAX_FIELD_LEVEL, RESEARCH_EFFECT_PER_LEVEL, shelterAtLevel } from "../constants";
 
 export type Resource = "food" | "wood" | "stone" | "ore";
 export type Tier = "light" | "medium" | "heavy";
@@ -76,11 +76,20 @@ export interface ArmyState {
   scouts: number;
   mercenaries: MercForce;
   stamina: number; // 0–100
-  /** Veterancy, 0–100, one stat per corps. Each is earned by doing the work and
-   *  lost with the REGULARS who die or are dismissed — hired blades neither
-   *  earn it nor cost it. Engineers keep a single stat covering both the
-   *  engines they push forward and the ones they man on the wall. */
-  experience: number; // the line army
+  /**
+   * The battle line's veterancy, in EXPERIENCE POINTS — a running ledger with
+   * no ceiling, not a 0–100 pool. Credited for the men you kill, debited for the
+   * men you lose or discharge. `veterancyBonus()` turns it into the multiplier.
+   *
+   * Points, not percent: 100,000 is +2%, 5,000,000 is +100%, and there is
+   * nothing stopping an empire going past that. See the EXPERIENCE block in
+   * battleBalance.ts for why the old proportional pool had to go.
+   */
+  experiencePoints: number;
+  /** Veterancy for the other corps, still 0–100 pools. Earned by doing the work
+   *  and lost with the REGULARS who die or are dismissed — hired blades neither
+   *  earn it nor cost it. Engineers keep a single stat covering both the engines
+   *  they push forward and the ones they man on the wall. */
   siegeExperience: number; // engineers, attack and defence alike
   spyExperience: number;
   scoutExperience: number;
@@ -144,6 +153,20 @@ export interface Player {
   /** Wall-clock ms of the ruler's last page load or command — powers the
    *  ladder's "Online" column. Server-managed; never part of game rules. */
   lastSeenAtMs?: number;
+  /**
+   * Housing was bombarded and the ruler has not been back since.
+   *
+   * While this is set, the day's settler samples are capped by the beds you
+   * BUILT rather than the beds still standing, so a barrage that lands at three
+   * in the morning costs you nothing until you are awake to answer it. Cleared
+   * the moment presence is stamped — any page load, any command — and from then
+   * on the damage counts in full.
+   *
+   * The point is that nobody should have to set an alarm to defend a number.
+   * Set by the engine (bombard), cleared by the server (session/pipeline), so
+   * the engine stays free of the wall clock.
+   */
+  roofDamageUnseen?: boolean;
   /** The Royal Charter (premium): unlocks the Steward — queues + standing orders. */
   premium?: boolean;
   buildQueue?: BuildingId[];
@@ -184,6 +207,10 @@ export interface Player {
   /** Queued vacation: you depart automatically once every revenge window
    *  against you has closed (you can't leave while owing revenge). */
   vacationQueued?: boolean;
+  /** Turn the CURRENT absence began. Distinct from vacationTicksUsed, which is
+   *  the era's cumulative budget: this measures THIS trip, and it is what the
+   *  return shield is gated on (see vacationAwayTicks). Cleared on return. */
+  vacationStartedAtTick?: number;
   /** Turn you last returned from vacation — gates the re-attack cooldown. */
   vacationEndedAtTick?: number;
   starving: boolean; // food hit 0 — empire frozen until fed
@@ -238,7 +265,8 @@ export interface Player {
 
   // Time windows (ticks)
   joinedAtTick: number;
-  shieldUntilTick: number; // newcomer shield; attacking drops it early
+  shieldUntilTick: number; // newcomer shield, or the hour granted on returning
+  // from a long vacation (see returnFromVacation); attacking drops it early
   unrestUntilTick?: number; // Incite Unrest: tax/production −25%, growth halted
   /** Sow Research Doubt: the scholars lose their thread and research crawls.
    *  A scout op (Quell the Doubt) ends it early — which is the reason a
@@ -336,7 +364,14 @@ export interface Clan {
   truceWithUntilTick: Record<string, number>; // clanId → truce end (post-defeat)
   clockFrozenUntilTick?: number; // loser's victory clocks frozen 48h
   tribute?: { toClanId: string; endsAtTick: number; collectedGoldEq: number };
-  friendly: string[]; // mutual friendly clans
+  /**
+   * ALLIED banners, mutual by construction — an id appears here only if it
+   * appears on the other clan's list too (see acceptAlliance). Declaring war
+   * tears it up on both sides, and so does striking an ally's member.
+   */
+  friendly: string[];
+  /** Alliance offers awaiting THIS clan's leadership. One per suitor. */
+  allianceOffers?: { fromClanId: string; byId: string; atTick: number }[];
   pendingRevenge?: { againstClanId: string; memberSnapshot: string[]; expiresAtTick: number };
   /** Petitions awaiting the Leader's or Vice's answer. */
   joinRequests?: { playerId: string; atTick: number }[];
@@ -427,6 +462,8 @@ export interface BattleReport {
   staminaLoss: { attacker: number; defender: number };
   experienceChange: { attacker: number; defender: number };
   siegeExperienceChange?: { attacker: number; defender: number };
+  /** MEDICINE: hired blades the defender's surgeons pulled off the field alive. */
+  mercsRecovered?: number;
   log: BattleLogEntry[];
 }
 
@@ -498,6 +535,19 @@ export class EngineError extends Error {
 
 export function troopTotal(c: TroopCounts): number {
   return c.light + c.medium + c.heavy;
+}
+
+/**
+ * What a ledger of experience points is worth, as an additive bonus to BOTH
+ * power and health. Continuous and uncapped: 100,000 → +2%, 5,000,000 → +100%,
+ * 10,000,000 → +200%.
+ *
+ * The one place points become a multiplier. Everything else — the ranking score,
+ * the advisor, the scout report — reads THIS rather than the raw tally, so a
+ * change to the conversion moves the whole game together.
+ */
+export function veterancyBonus(points: number): number {
+  return Math.max(0, points) / EXPERIENCE.POINTS_FOR_DOUBLE;
 }
 
 export function emptyTroopCounts(): TroopCounts {
@@ -609,14 +659,82 @@ export function normalizePlayer(p: Player): Player {
   if (!a.siegeGear) a.siegeGear = emptySiegeGear();
   if (!a.siegeGearIntegrity) a.siegeGearIntegrity = fullGearIntegrity();
   if (!a.siegeCounterIntegrity) a.siegeCounterIntegrity = fullCounterIntegrity();
-  a.experience ??= 0;
+  // Empires saved under the old 0–100 pool carried `experience`. Points are a
+  // different quantity on a different scale, so an old 73 must NOT be read as
+  // 73 points — it is dropped and the ledger opens at nil. A deliberate reset:
+  // there is no honest conversion between "73% bonus" and a lifetime tally.
+  delete (a as { experience?: number }).experience;
+  a.experiencePoints ??= 0;
   a.siegeExperience ??= 0;
   a.spyExperience ??= 0;
   a.scoutExperience ??= 0;
   p.spyTurnsAvailable ??= 0;
   p.onVacation ??= false;
   p.vacationTicksUsed ??= 0;
+  foldRetiredResearch(p);
+  roundStocks(p);
   return p;
+}
+
+/**
+ * Every stock is a WHOLE number (see the ROUNDING note in tick.ts).
+ *
+ * The Steward's vault duty used to move `capacity − banked` into store, and the
+ * shelter curve is fractional at nearly every level, so a Charter holder's vault
+ * quietly accumulated a fraction of a sack. Harmless arithmetically, visible in
+ * the UI — the treasury ledger compares the vault against floor(capacity) and so
+ * reported "incl. 0 spilled" on a store that had never been touched.
+ *
+ * Floored, never rounded: the same direction the tick rounds every credit, so
+ * healing the dust can never mint a unit.
+ */
+function roundStocks(p: Player): void {
+  for (const r of ["food", "wood", "stone", "ore"] as const) {
+    if (p.resources && !Number.isInteger(p.resources[r])) p.resources[r] = Math.floor(p.resources[r]);
+    if (p.bankedResources && !Number.isInteger(p.bankedResources[r])) {
+      p.bankedResources[r] = Math.floor(p.bankedResources[r]);
+    }
+  }
+  if (!Number.isInteger(p.gold)) p.gold = Math.floor(p.gold);
+  if (!Number.isInteger(p.bankedGold)) p.bankedGold = Math.floor(p.bankedGold);
+}
+
+/**
+ * Fold Siege Accuracy back into Siegecraft.
+ *
+ * The two were merged into one field, so every save written before that has
+ * levels — and possibly banked points — filed under an id that no longer
+ * exists. Left alone the levels would simply vanish, which costs the player
+ * both the effect they paid for AND ranking score (score counts research levels;
+ * see rankingScore).
+ *
+ * Levels are SUMMED, capped at the field maximum, rather than max()'d: research
+ * price is global and progressive, so a player with Siegecraft 3 and Accuracy 4
+ * paid for seven levels of something and should keep seven. Banked points move
+ * across for the same reason. A ruler who had both above half will lose the
+ * overflow past the cap — unavoidable when two ladders become one, and the
+ * generous rounding is deliberate.
+ *
+ * Idempotent: the retired key is deleted, so a second pass finds nothing.
+ */
+function foldRetiredResearch(p: Player): void {
+  const r = p.research;
+  if (!r) return;
+  const RETIRED = "siege_accuracy" as ResearchField;
+  const lv = r.levels as Record<string, number | undefined>;
+  const bk = r.banked as Record<string, number | undefined>;
+
+  if (lv[RETIRED] != null) {
+    lv.siegecraft = Math.min(MAX_FIELD_LEVEL, (lv.siegecraft ?? 0) + (lv[RETIRED] ?? 0));
+    delete lv[RETIRED];
+  }
+  if (bk[RETIRED] != null) {
+    bk.siegecraft = (bk.siegecraft ?? 0) + (bk[RETIRED] ?? 0);
+    delete bk[RETIRED];
+  }
+  // Someone studying the retired field is moved onto the one that replaced it,
+  // rather than left pointing at nothing and quietly banking into a void.
+  if (r.activeField === RETIRED) r.activeField = "siegecraft";
 }
 
 /** Civilians: idle + workers + spies + scouts (all pay tax, all eat). */
@@ -667,6 +785,60 @@ export function level(p: Player, id: BuildingId): number {
   // Saves from before a building existed have no entry — and some very old
   // ones have no `buildings` map at all. Absent means level 0, everywhere.
   return p.buildings?.[id] ?? 0;
+}
+
+/**
+ * THE WHOLE PURSE — loose plus vaulted.
+ *
+ * Everything an empire OWNS, as opposed to everything a raider could take
+ * (`unbankedGold` / `unstored`, which are the exposed halves). Purchases spend
+ * from here: the vault is a shelter from theft, not a separate currency.
+ *
+ * Before these existed, `pay` read the loose piles alone, so banked stock was
+ * invisible to every build, muster and repair — you had to withdraw by hand
+ * first. That was quietly fatal for a Royal Charter holder, whose Steward
+ * re-vaults every loose sack each tick: they would withdraw, the Steward would
+ * put it straight back, and a granary with ten million in it could not buy a
+ * single Hearthstead.
+ */
+export function purseGold(p: Player): number {
+  return p.gold + (p.bankedGold ?? 0);
+}
+
+export function purseRes(p: Player, r: Resource): number {
+  return p.resources[r] + bankedRes(p)[r];
+}
+
+/**
+ * Take `amount` of a resource from the purse, LOOSE FIRST.
+ *
+ * Loose first because loose is what a raid takes: spending it first leaves the
+ * empire's remaining wealth sheltered, which is the choice a player would make
+ * every time. Returns false and changes nothing when the purse is short.
+ */
+export function spendRes(p: Player, r: Resource, amount: number): boolean {
+  if (amount <= 0) return true;
+  if (purseRes(p, r) < amount) return false;
+  const fromLoose = Math.min(p.resources[r], amount);
+  p.resources[r] -= fromLoose;
+  const rest = amount - fromLoose;
+  if (rest > 0) {
+    const banked = { ...bankedRes(p) };
+    banked[r] -= rest;
+    p.bankedResources = banked;
+  }
+  return true;
+}
+
+/** As `spendRes`, for coin: the Counting House is the vault. */
+export function spendGold(p: Player, amount: number): boolean {
+  if (amount <= 0) return true;
+  if (purseGold(p) < amount) return false;
+  const fromLoose = Math.min(p.gold, amount);
+  p.gold -= fromLoose;
+  const rest = amount - fromLoose;
+  if (rest > 0) p.bankedGold -= rest;
+  return true;
 }
 
 /** Vaulted goods, defaulting to zeros for empires saved before banking. */

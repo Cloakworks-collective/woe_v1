@@ -46,6 +46,7 @@ import {
   researchLevel,
   totalPopulation,
   troopTotal,
+  veterancyBonus,
   type Player,
   type Resource,
   type SiegeGearType,
@@ -197,7 +198,7 @@ export function runCovertOp(
       detail =
         `${defender.name}: ${troopTotal(a.footmen)} footmen, ${troopTotal(a.archers)} archers, ` +
         `${troopTotal(a.cavalry)} cavalry, ${a.siegeEngineers} engineers, ` +
-        `${mercTroops(a.mercenaries)} sellswords. Stamina ${a.stamina}, veterancy ${Math.round(a.experience)}. ` +
+        `${mercTroops(a.mercenaries)} sellswords. Stamina ${a.stamina}, veterancy +${(veterancyBonus(a.experiencePoints) * 100).toFixed(1)}%. ` +
         `Sortie orders: ${a.sortieEnabled ? "they will ride out" : "they will hold the wall"}.`;
       break;
     }

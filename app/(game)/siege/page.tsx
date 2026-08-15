@@ -1,5 +1,6 @@
 import { Btn } from "@/components/Btn";
 import { Art } from "@/components/Art";
+import { TiredArt } from "@/components/TiredArt";
 import { CountInput } from "@/components/CountInput";
 import { CmdForm } from "@/components/CmdForm";
 import { ReqTip, type Req } from "@/components/CostTip";
@@ -20,7 +21,15 @@ import {
   WAR_FOUNDRY_LADDER,
 } from "@/lib/constants";
 import type { CounterType } from "@/lib/constants/buildings";
-import { crewCounters, crewGear, level, military, wonderDiscount } from "@/lib/engine";
+import {
+  crewCounters,
+  crewGear,
+  level,
+  military,
+  purseGold,
+  purseRes,
+  wonderDiscount,
+} from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
@@ -56,7 +65,7 @@ const ENGINE_TIP: Record<string, string> = {
   siege_towers: "Escalade at its best: 100 troops arrive in formation against a wall worth only +10%. Slow, dear, and made of timber — Fire Pots answer it.",
   rams: "THE wall-breaker. All of its power lands on masonry and none of it anywhere else. Needs 20 hands to push, who take no part in the assault until the gate gives — and Boiling Oil is poured on them where they stand.",
   ballistae: "Anti-personnel bolt fire, spread across the enemy line. Touches neither wall nor building. Hoardings answer it.",
-  trebuchets: "The only engine that reaches walls, buildings AND other engines — but an inaccurate one: just 30% of its power finds masonry (60% with Siege Accuracy). The bombard engine. The Counter-Engine answers it, and shoots back.",
+  trebuchets: "The only engine that reaches walls, buildings AND other engines — but an inaccurate one: just 30% of its power finds masonry (60% at Siegecraft mastery). The bombard engine. The Counter-Engine answers it, and shoots back.",
 };
 
 // N engineer sprites = how many crew a single engine.
@@ -131,7 +140,15 @@ export default async function SiegePage({
   const clan = p.clanId ? world.clans[p.clanId] : undefined;
   const discount = wonderDiscount(clan);
   const foundry = level(p, "war_foundry");
-  const have: Cost = { gold: p.gold, wood: p.resources.wood, stone: p.resources.stone, ore: p.resources.ore };
+  // Loose AND vaulted: `pay` spends the loose pile first and takes the rest
+  // from the store, so a check against loose alone blocks purchases the engine
+  // would happily allow.
+  const have: Cost = {
+    gold: purseGold(p),
+    wood: purseRes(p, "wood"),
+    stone: purseRes(p, "stone"),
+    ore: purseRes(p, "ore"),
+  };
   const crewed = crewGear(p.army.siegeGear, p.army.siegeEngineers);
   // How many counters your engineers would man on defense (they crew counters
   // first). A display estimate — in a real defence, spares also fire your engines.
@@ -178,10 +195,10 @@ export default async function SiegePage({
     foundry >= 1 &&
     p.idlePeasants >= 1 &&
     musterFree >= 1 &&
-    p.gold >= (engCost.gold ?? 0) &&
-    p.resources.wood >= (engCost.wood ?? 0) &&
-    p.resources.stone >= (engCost.stone ?? 0) &&
-    p.resources.ore >= (engCost.ore ?? 0);
+    have.gold >= (engCost.gold ?? 0) &&
+    have.wood >= (engCost.wood ?? 0) &&
+    have.stone >= (engCost.stone ?? 0) &&
+    have.ore >= (engCost.ore ?? 0);
   const engineerBlockReason = !(foundry >= 1)
     ? "Found the Engine Yard first"
     : p.idlePeasants < 1
@@ -203,7 +220,7 @@ export default async function SiegePage({
         </p>
         <div className="corps">
           <span className="corps-art">
-            <Art path="units/engineer" size={216} title="Siege Engineer" race={p.race} />
+            <TiredArt path="units/engineer" stamina={p.army.stamina} size={216} title="Siege Engineer" race={p.race} />
           </span>
           <div className="corps-body">
             <div className="corps-stats">
@@ -541,27 +558,6 @@ export default async function SiegePage({
         </Panel>
       )}
 
-      {/* ── Standing orders ─────────────────────────────────────────────────
-          Cavalry gain nothing from a parapet and everything from open ground,
-          so this is a genuine choice of shape rather than a switch to leave on:
-          a cavalry-heavy defender wants to ride out, a footman-heavy one almost
-          certainly does not. */}
-      <Panel
-        title="🐎 Standing orders — the sortie"
-        info="When besieged, do your riders hold the wall or charge the siege lines? Cavalry lead, and each brings three footmen behind. You keep the wall's protection either way — but the attacker's screen can hold you off before you reach their engines."
-        guide="/guide#battle"
-      >
-        <p style={{ fontSize: 14, marginBottom: 8 }}>
-          Your captains are ordered to{" "}
-          <b>{p.army.sortieEnabled ? "ride out at the siege lines" : "hold the wall"}</b>.
-        </p>
-        <CmdForm name="setSortie" path={path}>
-          <input type="hidden" name="enabled" value={p.army.sortieEnabled ? "false" : "true"} />
-          <Btn className="btn">
-            {p.army.sortieEnabled ? "Hold the wall instead" : "Order the sortie"}
-          </Btn>
-        </CmdForm>
-      </Panel>
     </>
   );
 }

@@ -198,7 +198,6 @@ export const rankingHarness: Harness = {
     const total = scoreOf(BASE);
     const metrics: Record<string, number> = {
       "ranking.reference.total": total,
-      "ranking.perXpPoint": SCORE.PER_XP_POINT,
       "ranking.wallsAtL10": wallsScoreAtLevel(10),
     };
     for (const race of ALL_RACES) metrics[`ranking.race.${race}`] = scoreOf({ ...BASE, race });

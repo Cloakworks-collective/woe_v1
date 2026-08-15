@@ -8,7 +8,9 @@ import { Art } from "@/components/Art";
 
 export type ResearchStatus =
   | { state: "active"; fid: string; name: string; level: number; percent: number; eta: string; rate: number; scholars: number }
-  | { state: "idle"; scholars: number }
+  // `rate` is what those scholars WOULD bank each turn — the size of what is
+  // being thrown away, which is the whole point of the warning.
+  | { state: "idle"; scholars: number; rate: number }
   | { state: "silent" };
 
 export function ResearchStatus(s: ResearchStatus) {
@@ -42,18 +44,35 @@ export function ResearchStatus(s: ResearchStatus) {
     );
   }
 
+  // SCHOLARS WITH NO FIELD ARE NOT "READY", THEY ARE BEING WASTED.
+  //
+  // This read as a friendly prompt — a glowing cap, "scholars stand ready" —
+  // which is exactly the wrong tone. With no active field the tick banks NO
+  // points at all (see processTurnTick): the work is not queued or slowed, it is
+  // thrown away, every turn, silently. An empire can sit like this for days and
+  // the page will have looked cheerfully expectant the whole time.
   if (s.state === "idle") {
     return (
-      <div className="rstat rstat-idle" role="status">
-        <div className="rstat-emblem rstat-ready">
-          <span className="rstat-glow" aria-hidden />
-          <span className="rstat-face" aria-hidden>🎓</span>
+      <div className="rstat rstat-idle rstat-wasting" role="alert">
+        <div className="rstat-emblem rstat-warn">
+          <span className="rstat-face" aria-hidden>⚠</span>
         </div>
         <div className="rstat-main">
-          <div className="rstat-kicker">{s.scholars} {s.scholars === 1 ? "scholar stands" : "scholars stand"} ready</div>
-          <div className="rstat-title">Choose a field to study</div>
+          <div className="rstat-kicker">
+            {s.scholars} {s.scholars === 1 ? "scholar is" : "scholars are"} studying nothing
+          </div>
+          <div className="rstat-title">
+            {s.rate > 0 ? (
+              <>
+                Wasting <b>{s.rate.toLocaleString("en-US")}</b> research a turn
+              </>
+            ) : (
+              <>Their work is being thrown away</>
+            )}
+          </div>
           <div className="rstat-hint">
-            pick one below <span className="rstat-arrow" aria-hidden>↓</span>
+            Nothing is banked until you choose a field — pick one below{" "}
+            <span className="rstat-arrow" aria-hidden>↓</span>
           </div>
         </div>
       </div>

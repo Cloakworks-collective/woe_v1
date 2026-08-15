@@ -22,7 +22,9 @@ import {
   buildingIntegrity,
   EngineError,
   level,
+  purseGold,
   researchLevel,
+  spendGold,
   type MarketOrder,
   type Player,
   type Resource,
@@ -308,8 +310,8 @@ export function blackMarketBuy(
   const p = structuredClone(input);
   if (!Number.isInteger(amount) || amount <= 0) throw new EngineError("amount", "Invalid amount");
   const cost = amount * BLACK_MARKET.BUY_PRICE;
-  if (p.gold < cost) throw new EngineError("gold", "Not enough gold");
-  p.gold -= cost;
+  if (purseGold(p) < cost) throw new EngineError("gold", "Not enough gold");
+  spendGold(p, cost);
   p.resources[resource] += amount;
   return { player: p, cost };
 }

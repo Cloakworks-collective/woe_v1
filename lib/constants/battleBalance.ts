@@ -137,7 +137,7 @@ export const EFFECTIVENESS: Record<string, Record<TargetKind, number>> = {
   counter_engine: { troops: 0, walls: 0, buildings: 0, siege: 1.0 },
 };
 
-/** Siege Accuracy research raises the trebuchet's delivery against structures
+/** SIEGECRAFT raises the trebuchet's delivery against structures
  *  (and its counter-battery fire) — the ONE research that moves a gate rather
  *  than the additive pool, which is exactly why it is so strong. Interpolated
  *  linearly from level 0 to MAX_FIELD_LEVEL. */
@@ -208,7 +208,7 @@ export const WALL_EDGE = {
  *
  *  10,000 → 30,000 (2026-08), alongside the coverage rule above. The old figure
  *  was fitted to a "ten bombards to level a Citadel" anchor; at 40 crewed
- *  trebuchets and no Siege Accuracy that is now nearer 625 volleys, so a siege
+ *  trebuchets and no Siegecraft that is now nearer 625 volleys, so a siege
  *  is a campaign rather than an afternoon — and a defender who mends between
  *  volleys (repair costs half the damage) can genuinely outlast a besieger who
  *  cannot keep engines in the field. Re-derive with `SIM_ONLY=bombard pnpm sim`
@@ -403,11 +403,44 @@ export const CASUALTY_SPLIT = {
  *  layer of light troops beneath your heavies is a genuine shock absorber. */
 export const CASUALTY_TIER_ORDER = ["light", "medium", "heavy"] as const;
 
-/** A side breaks and quits the field below this share of its starting power. */
-export const BREAK_THRESHOLD = 0.3; // frac
+/**
+ * Volleys in one bombardment. BOMBARD ONLY — a barrage really is a sequence of
+ * shots, and each one reads the wall the last one left.
+ *
+ * Field battles have no equivalent and no longer count anything: a raid, a
+ * castle attack and a revenge are each ONE exchange down the order of battle.
+ * (This was `MAX_ROUNDS`, shared by both, back when a battle ran up to ten
+ * rounds and ended when a side broke. Nothing about a barrage changed; it just
+ * stopped sharing a name with something that no longer exists.)
+ */
+export const BOMBARD_VOLLEYS = 10;
 
-/** Rounds per battle. Also the reason an attack costs 10 action turns. */
-export const MAX_ROUNDS = 10;
+/**
+ * TEMPO — what fraction of an arm's power lands in the ONE exchange a battle is.
+ *
+ * ****  THE DIAL. If you want strikes to bite harder or softer, move this   ****
+ * ****  and nothing else. Everything about how much a war costs runs        ****
+ * ****  through this number.                                               ****
+ *
+ * The fourth delivery ratio. Power and Health share a scale but they are not the
+ * same KIND of quantity — health is a pool spent once, power is spent every time
+ * the armies meet. Read raw, a medium archer (30 power) kills 1.5 light footmen
+ * (25 health, ~35 after bonuses) in a single volley, so an equal host is wiped
+ * out before the cavalry have even moved. This is the ratio that turns a swing
+ * into a bite instead of a beheading.
+ *
+ * Applied to ANTI-TROOP damage only — never to rams or trebuchets working
+ * masonry. Wall and building health are calibrated against a separate anchor
+ * (see the header: 40 trebuchets, one Citadel); scaling siege by this would move
+ * that anchor and turn every siege into a month. It changes how fast men die,
+ * and nothing else.
+ *
+ * NOT TUNED. 0.15 is a placeholder that produces sane-looking numbers, not a
+ * fitted value — it was fitted to a ten-round model that no longer exists. What
+ * one strike should cost, and how many strikes should break an empire, is a
+ * question for `pnpm sim` and the person reading it. Sweep it; don't trust it.
+ */
+export const COMBAT_TEMPO = 0.15; // frac
 
 /** Fog of war: ±this, rolled fresh per side per round. Delivery, not a bonus. */
 export const LUCK_SWING = 0.1; // frac
@@ -430,6 +463,16 @@ export const STAMINA = {
   MOD_PER_POINT: 0.005,
   /** At or below this a defender yields to anything but revenge. */
   MERCY_FLOOR: 25,
+
+  // Where the troops START LOOKING tired (components/TiredArt.tsx). Art only —
+  // no engine code reads these, and moving them changes no arithmetic.
+  //
+  // Placed on thresholds that already mean something rather than on round
+  // numbers. Below ART_SPENT_BELOW an army is at the MERCY_FLOOR and will lay
+  // down arms rather than be cut apart, so the torn-armour sprite and the
+  // surrender are the same moment. Keep the two in step if either moves.
+  ART_WORN_BELOW: 70,
+  ART_SPENT_BELOW: 25,
 };
 
 // ─── 12 · THE BATTLEFIELD YIELD ─────────────────────────────────────────────
@@ -447,41 +490,70 @@ export const YIELD = {
 // what makes "bombard the storehouses open, then raid, then castle" a plan
 // rather than a single button.
 
+/**
+ * THE FOUR NUMBERS, and nothing else decides a share:
+ *
+ *                      FOUGHT AND LOST      LAID DOWN ARMS
+ *   at war                    100%                50%
+ *   at peace              up to 50%        up to 25%
+ *
+ * Two rules produce that whole table, which is why there are not four bands:
+ *
+ *   WAR removes the roll, the size-scaling and the relief. Everything outside
+ *   the vault is simply gone, and the vault becomes the only defence there is.
+ *
+ *   SURRENDER always costs half of what fighting would have. One factor, applied
+ *   last, in war and peace alike. It used to be a separate pair of bands that
+ *   happened to work out at 0.6–0.71× a win, and in WAR it did not apply at all
+ *   — `lootShare` returned WAR_SHARE before it ever looked at whether the
+ *   defender had yielded, so laying down arms in wartime cost exactly as much as
+ *   dying. Half is the point of surrendering.
+ */
 export const LOOT = {
-  /** Won the field outright. */
+  /** Won the field outright. Rolled, then scaled by size, then relieved, then
+   *  clamped to PEACE_CEILING. */
   RAID_WIN: { min: 0.5, max: 0.7 } as Band,
   CASTLE_WIN: { min: 0.5, max: 0.7 } as Band,
-  /** They laid down arms — less is carried off, because less was scattered. */
-  RAID_YIELD: { min: 0.3, max: 0.5 } as Band,
-  CASTLE_YIELD: { min: 0.3, max: 0.5 } as Band,
+
+  /** Laying down arms costs half of what fighting to the end would have —
+   *  in war and in peace alike. Applied last, after the ceiling. */
+  YIELD_FACTOR: 0.5, // ×
+
   /** Size scaling, applied to the rolled band. Punching up pays; farming
-   *  minnows does not. Tops out at 0.70 × 1.25 = 87.5% — never over 100%,
-   *  so no cap is needed. */
+   *  minnows does not. */
   BIG_TARGET_RATIO: 1.5, // ×  target this much stronger…
   BIG_TARGET_BONUS: 1.25, // …× this much loot
   SMALL_TARGET_RATIO: 0.5, // ×  target this much weaker…
   SMALL_TARGET_PENALTY: 0.75, // …× this much loot
 
   /**
-   * PEACETIME RELIEF. Applied last, to every peacetime share. Losing a raid
-   * should sting without emptying you — the whole point of the clan-war rules
-   * below is that they are worse, and they can only be worse if peace is
-   * survivable. A 15% haircut on every peacetime share: the ceiling drops
-   * 87.5% → 74.4%, and an even-matched win takes 42.5–59.5% instead of 50–70%.
+   * PEACETIME RELIEF. Applied to every peacetime share. Losing a raid should
+   * sting without emptying you — the whole point of the war rules is that they
+   * are worse, and they can only be worse if peace is survivable.
    */
   PEACE_MULTIPLIER: 0.85,
 
   /**
+   * The hard ceiling on any peacetime share, applied after the roll, the size
+   * scaling and the relief. Without it the big-target bonus carried a peacetime
+   * raid to 74.4%, which is war money for a peacetime blow — and it left war
+   * with nothing to escalate TO.
+   *
+   * Half in peace, all of it in war: that gap is the entire incentive to declare.
+   */
+  PEACE_CEILING: 0.5, // frac
+
+  /**
    * CLAN WAR — the gloves come off, but only on the modes that already loot.
    * Between members of two clans formally at war, a raid or a castle attack
-   * takes **everything left outside the vault**. No roll, no size-scaling, no
-   * peacetime relief.
+   * takes everything left outside the vault. No roll, no size-scaling, no
+   * relief, no ceiling.
    *
-   *              PEACE (×0.9)         WAR
-   *   raid       goods 42.5–74.4%  →  goods 100%
-   *   castle     gold  42.5–74.4%  →  gold  100%
-   *   bombard    nothing          →   nothing   (2× damage instead)
-   *   revenge    nothing          →   nothing   (2× damage instead)
+   *              PEACE            WAR
+   *   raid       goods ≤50%   →   goods 100%
+   *   castle     gold  ≤50%   →   gold  100%
+   *   bombard    nothing      →   nothing    (2× damage instead)
+   *   revenge    nothing      →   nothing    (2× damage instead)
    *
    * War changes the SHARE and the ferocity, never the character of the blow.
    * Bombard stays a setup move and revenge stays a punishment — if war made
@@ -496,30 +568,154 @@ export const LOOT = {
 };
 
 // ─── 14 · EXPERIENCE ────────────────────────────────────────────────────────
-// Outcome-based, not opponent-based. Farming a minnow pays badly because there
-// is nothing there to kill — no bully band needed, the arithmetic does it.
 
-export const XP = {
+/**
+ * Attacking is refused outright above this score ratio — it is what stops small
+ * accounts harassing large ones. Applies to bombard too (engineers count toward
+ * ranking, so a siege specialist is not locked out of their own strategy).
+ * Revenge is exempt.
+ *
+ * It is also the top of the MATCHUP ladder below: the most you can ever be
+ * punching up by is the most the gate will let you attack.
+ */
+export const ATTACK_REFUSAL_RATIO = 1.75; // ×
+
+/**
+ * EXPERIENCE POINTS — a ledger, not a pool.
+ *
+ * Veterancy used to be a 0–100 pool that decayed PROPORTIONALLY: `xp × (1 −
+ * lost/before)`. Two things were wrong with that, and they were structural
+ * rather than a matter of tuning.
+ *
+ *   It compounded. A flat +5 for being attacked was a rounding error when a
+ *   battle was a ten-round engagement you fought once. Once a strike became one
+ *   exchange and an empire could throw 28 of them a day, that +5 became the
+ *   largest force in the game — measured at 80 XP for the defender against 9
+ *   for the attacker after twelve strikes between IDENTICAL armies. Attacking
+ *   somebody trained them.
+ *
+ *   It saturated. At 100 there was nowhere left to go, so the difference
+ *   between a seasoned army and a legendary one was nothing at all.
+ *
+ * The ledger fixes both by being ABSOLUTE on both sides. You are credited for
+ * the men you kill and debited for the men you lose, in points, and the balance
+ * is what you have. No percentage of a pile, no ceiling.
+ *
+ *     gained = (casualties×PER_CASUALTY + attackerRegularBonus) × matchup × outcome × luck
+ *     paid   = own regulars lost × PER_REGULAR_LOST          ← never scaled
+ *     net    = min(MAX_PER_BATTLE, gained) − paid
+ *
+ * The debit is deliberately NOT scaled by the matchup: losing two hundred men
+ * costs the same whoever killed them. Scale it and punching up would make your
+ * own casualties cheaper, which is backwards and farmable.
+ */
+export const EXPERIENCE = {
+  /** Points that buy +100% to power and health. The bonus is CONTINUOUS —
+   *  `points / POINTS_FOR_DOUBLE` — and has no ceiling: 10,000,000 is +200%.
+   *  2% per 100,000 points, which is where this figure comes from. */
+  POINTS_FOR_DOUBLE: 5_000_000,
+
+  /** 100,000 points = +2%. PURELY a display granularity — the bonus itself is
+   *  continuous, and the engine never reads this. It exists so the UI can say
+   *  "34,000 to your next 2%" instead of drawing a bar against a ceiling that
+   *  does not exist. */
+  POINTS_PER_STEP: 100_000,
+
+  /** Every enemy soldier who falls to you, regular or sellsword alike. */
+  PER_CASUALTY: 45,
+
+  /**
+   * ATTACKER ONLY, and on REGULARS only — on top of PER_CASUALTY.
+   *
+   * Withheld from defenders on purpose. If killing regulars paid the defender,
+   * two players could collude: march an army into a friend's garrison, let it
+   * die, and hand them the points. Regulars are the attacker's prize precisely
+   * because the attacker is the one who chose the fight.
+   */
+  ATTACKER_PER_REGULAR: 45,
+
+  /** What your own dead cost you. Absolute, and never scaled. */
+  PER_REGULAR_LOST: 40,
+
+  /** Discharging is cheaper than dying — you keep some of what they knew. */
+  DISCHARGE_FACTOR: 0.5, // ×
+
+  /** Outcome. Attackers take 20% more than defenders for the same work; losing
+   *  still teaches you something, but half as much. */
+  WON_ATTACK: 1.2, // ×
+  WON_DEFENCE: 1.0, // ×
+  LOST: 0.5, // ×
+
+  /**
+   * MATCHUP, on `ratio = theirScore ÷ yourScore` — and read from EACH SIDE'S
+   * OWN point of view, so one table serves both. Punching up pays; repelling
+   * somebody bigger than you pays the same way. Crushing a minnow costs you,
+   * whether you marched on them or they were foolish enough to march on you.
+   *
+   * Breakpoints, linear between:
+   *
+   *   ratio  ×        what it is
+   *   0.00   −1.0     bullying — the more you massacre, the more you LOSE
+   *   0.50    0.0     nothing to learn here
+   *   0.75    1.0     ─┐
+   *   1.25    1.0     ─┘ "in your range", FLAT — an even fight is ×1
+   *   1.25+   2.0     punching up starts
+   *   1.75    3.0     the most the gate will even permit
+   *
+   * The in-range band is deliberately FLAT rather than a ramp. Ramping it read
+   * an even fight at ×0.75, which quietly undercut every point target the
+   * system is calibrated against — ratio 1.0 has to be exactly ×1 or nothing
+   * else means what it says.
+   *
+   * Two boundaries are steps rather than slopes, and both come straight from
+   * the spec: ×0.5→×1 at 0.75, and ×1→×2 at 1.25. A hair of score either side
+   * of those changes the award sharply. Deleting the `1.2501` row smooths the
+   * upper one; moving `0.75` down to `mult: 0.5` smooths the lower.
+   */
+  MATCHUP: [
+    { ratio: 0.0, mult: -1.0 },
+    { ratio: 0.5, mult: 0.0 },
+    { ratio: 0.75, mult: 1.0 },
+    { ratio: 1.25, mult: 1.0 },
+    { ratio: 1.2501, mult: 2.0 },
+    { ratio: ATTACK_REFUSAL_RATIO, mult: 3.0 },
+  ] as { ratio: number; mult: number }[],
+
+  /**
+   * Revenge never reads below "in your range".
+   *
+   * Without this, a big empire raided by a small one would be PENALISED for
+   * answering — the bully band would fire on a blow they did not choose. Revenge
+   * already skips the refusal gate for the same reason. Not in the original
+   * spec; delete it if retaliation should carry the bully penalty too.
+   */
+  REVENGE_MATCHUP_FLOOR: 1.0, // ×
+
+  /** Fog of war on the award, rolled once per side per battle. */
+  LUCK: 0.1, // ± frac
+
+  /** Nothing beyond this is awarded for one battle, however large it was. The
+   *  size ladder is meant to approach it and stop short: giant 2,000-man hosts
+   *  land at 10–15k, and only a huge field with heavy regular losses reaches
+   *  the cap. */
+  MAX_PER_BATTLE: 20_000,
+};
+
+/**
+ * The ENGINEERS' veterancy, still a 0–100 pool.
+ *
+ * Deliberately left alone when the battle line moved to a points ledger. Siege
+ * experience was never part of the runaway — it only moves in fights that have
+ * walls in them, so it cannot be farmed by being raided twenty times a day, and
+ * a besieger's corps is small enough that the proportional decay behaves. These
+ * are the old XP numbers, unchanged, so bombard resolves exactly as it did.
+ */
+export const SIEGE_XP = {
   MAX: 100,
-  /** Attacking is refused outright above this score ratio. Kept as validation
-   *  (it is what stops small accounts harassing large ones), and it applies to
-   *  bombard too — engineers count toward ranking, so a siege specialist is
-   *  not artificially locked out of their own strategy. Revenge is exempt. */
-  REFUSAL_RATIO: 1.75,
-  /** Killing regular troops is the highest-paying thing you can do. */
-  PER_REGULAR_KILLED: 0.05,
-  /** Driving civilians off pays half as well, per head. */
+  PER_KILL: 0.05,
   PER_CIVILIAN_DISPLACED: 0.025,
-  /** Mercenary kills pay nothing — they were never anybody's people. */
-  PER_MERC_KILLED: 0,
-  /** Holding your ground is worth something regardless of outcome. */
   DEFENDER_GAIN: 5,
-  /** Ceiling on what one battle can pay, so a single massacre can't max you. */
   MAX_PER_BATTLE: 10,
-  /** Veterancy dies with the veterans: XP × (1 − lost/before). Discharging
-   *  costs half as much per head — you keep some of what they knew. */
-  LOSS_ON_DEATH: 1.0, // ×
-  LOSS_ON_DISCHARGE: 0.5, // ×
 };
 
 // ─── 15 · CIVILIAN LOSSES ───────────────────────────────────────────────────

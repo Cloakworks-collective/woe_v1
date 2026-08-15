@@ -34,7 +34,7 @@ import {
 import { COUNTER_TYPES, type CounterType } from "../constants/buildings";
 import type { RaceModifiers } from "../constants/races";
 import { crewCounters } from "./combat/duel";
-import { level, military, type Player, type TroopCounts } from "./types";
+import { level, military, veterancyBonus, type Player, type TroopCounts } from "./types";
 
 type Arm = "footman" | "archer" | "cavalry";
 
@@ -69,83 +69,140 @@ const armPower = (c: TroopCounts | undefined, arm: Arm, factor = 1): number => {
  */
 const n = (v: number | undefined | null): number => (Number.isFinite(v) ? (v as number) : 0);
 
-export function rankingScore(p: Player): number {
-  let score = 0;
+export interface ScorePart {
+  label: string;
+  points: number;
+  /** What produced it, in the player's own numbers. */
+  detail: string;
+}
+
+/**
+ * The same sum as `rankingScore`, itemised.
+ *
+ * `rankingScore` delegates to this rather than duplicating the arithmetic, so
+ * the tooltip can never quote a breakdown that does not add up to the number
+ * beside it — the failure mode of every "explain this figure" panel written as
+ * a second implementation.
+ *
+ * Only what a besieger could see from outside the gate is here. Gold, food,
+ * housing, civilian buildings, your siege train and your spies are all excluded
+ * on purpose, and the UI says so.
+ */
+export function rankingBreakdown(p: Player): ScorePart[] {
   const a = p.army;
   const race = RACES[p.race] ?? RACES.human;
-  if (!a) return 0;
+  if (!a) return [];
+  const parts: ScorePart[] = [];
 
   // People. Spies are covert and never appear; scouts do, at a discount —
   // they stand in the open and everyone can see the rangers on your roads.
   const workers = Object.values(p.workers ?? {}).reduce((sum, w) => sum + n(w), 0);
-  score += (n(p.idlePeasants) + workers) * SCORE.PER_CIVILIAN;
-  score += n(a.scouts) * SCORE.PER_SCOUT;
+  const civs = n(p.idlePeasants) + workers;
+  parts.push({
+    label: "Civilians",
+    points: civs * SCORE.PER_CIVILIAN,
+    detail: `${civs.toLocaleString("en-US")} peasants & workers`,
+  });
+  parts.push({
+    label: "Scouts",
+    points: n(a.scouts) * SCORE.PER_SCOUT,
+    detail: `${n(a.scouts).toLocaleString("en-US")} rangers — spies stay off the ladder`,
+  });
 
-  // The battle line — yours and the hired. Sellswords count now: they hold a
-  // wall and they die like anyone else, and gold spent on them is real
-  // strength that a rival can see coming.
+  // The battle line — yours and the hired. Sellswords count: they hold a wall
+  // and they die like anyone else, and gold spent on them is real strength.
+  //
+  // VETERANCY IS IN HERE, and nowhere else on the board. It used to be a line of
+  // its own, which said a seasoned army was worth points for being seasoned;
+  // what is actually true is that a seasoned army is worth points because its
+  // men hit harder. So the bonus multiplies the power of the REGULARS who carry
+  // it, exactly as it does in a battle, and the ladder reports one thing —
+  // strength — instead of strength plus a separate note about strength.
+  //
+  // It does not touch the sellswords. They are excluded from the veterancy pool
+  // in the field (see bonusPool), and a ladder that paid for veteran mercenaries
+  // would be describing an army that does not exist.
+  const vet = 1 + veterancyBonus(n(a.experiencePoints));
   const line =
-    armPower(a.footmen, "footman", raceUnitFactor(race, "footman")) +
-    armPower(a.archers, "archer", raceUnitFactor(race, "archer")) +
-    armPower(a.cavalry, "cavalry", raceUnitFactor(race, "cavalry"));
+    (armPower(a.footmen, "footman", raceUnitFactor(race, "footman")) +
+      armPower(a.archers, "archer", raceUnitFactor(race, "archer")) +
+      armPower(a.cavalry, "cavalry", raceUnitFactor(race, "cavalry"))) *
+    vet;
   const hired =
     armPower(a.mercenaries?.footmen, "footman") +
     armPower(a.mercenaries?.archers, "archer") +
     armPower(a.mercenaries?.cavalry, "cavalry");
-  score += line * SCORE.PER_POWER_POINT;
-  score += hired * SCORE.PER_POWER_POINT * SCORE.MERC_POWER_FACTOR;
+  parts.push({
+    label: "Battle line",
+    points: line * SCORE.PER_POWER_POINT,
+    detail:
+      vet > 1
+        ? `${Math.round(line).toLocaleString("en-US")} power — tier, race, and +${((vet - 1) * 100).toFixed(1)}% veterancy`
+        : `${Math.round(line).toLocaleString("en-US")} power, tier & race counted`,
+  });
+  parts.push({
+    label: "Sellswords",
+    points: hired * SCORE.PER_POWER_POINT * SCORE.MERC_POWER_FACTOR,
+    detail: `${Math.round(hired).toLocaleString("en-US")} power at ${Math.round(SCORE.MERC_POWER_FACTOR * 100)}% — hired blades bring arms, not blood`,
+  });
 
-  // Engineers count — and they are the reason a bombardier is not invisible on
-  // the ladder. The corps is genuinely dual-use: the same hands that push
-  // trebuchets forward man the Counter-Engines when nobody is marching. So the
-  // INVESTMENT shows while the COMPOSITION stays dark.
+  // Engineers are why a bombardier is not invisible: the corps is dual-use, so
+  // the INVESTMENT shows while the COMPOSITION stays dark.
   const engineers = n(a.siegeEngineers) + n(a.mercenaries?.engineers);
-  score += engineers * SCORE.PER_ENGINEER;
+  parts.push({
+    label: "Engineers",
+    points: engineers * SCORE.PER_ENGINEER,
+    detail: `${engineers.toLocaleString("en-US")} corps — the siege train itself is never shown`,
+  });
 
-  // Defensive works score; the siege train does not. Your engines are the most
-  // valuable thing a rival could learn about you, so the ladder never tells
-  // them. Only what a besieger would SEE from outside is counted — and only
-  // what you can actually man, because forty uncrewed engines are lumber.
-  //
-  // RACE COUNTS HERE, and only here. A Troll counter-engine really does hit
-  // harder and a Dwarf wall really is thicker, so a ladder that ignored it
-  // would misreport how hard these two empires are to crack. It leaks nothing:
-  // race is public on every profile, so anyone could already do this
-  // arithmetic. The multipliers that stay hidden are the ones you cannot see
-  // from outside the gate — army race bonuses, veterancy and research.
+  // Defensive works score; the siege train does not. Only what you can man.
   const owned = a.siegeCounters ?? ({} as Record<CounterType, number>);
   const crewed = SCORE.SIEGE_REQUIRES_CREW ? crewCounters(owned, engineers) : owned;
   let counterPower = 0;
+  let crewedCount = 0;
   for (const t of COUNTER_TYPES) {
-    counterPower += n(crewed[t as CounterType]) * SIEGE_COUNTERS[t].power;
+    const k = n(crewed[t as CounterType]);
+    crewedCount += k;
+    counterPower += k * SIEGE_COUNTERS[t].power;
   }
-  score += counterPower * SCORE.PER_POWER_POINT * SCORE.COUNTER_POWER_FACTOR * race.siege;
+  parts.push({
+    label: "Defensive works",
+    points: counterPower * SCORE.PER_POWER_POINT * SCORE.COUNTER_POWER_FACTOR * race.siege,
+    detail: `${crewedCount.toLocaleString("en-US")} crewed counters — uncrewed engines are lumber`,
+  });
 
-  // Walls — quadratic in level, because that is how their health scales, and
-  // scaled by the race's fortification quality for the same reason.
-  //
-  // MANNED, though. A wall scores only what there is a garrison to hold: it
-  // needs SCORE.WALL_TROOPS_PER_LEVEL regulars per level for its full worth,
-  // and counts pro rata below that. Same principle as SIEGE_REQUIRES_CREW —
-  // forty uncrewed trebuchets are lumber, and an empty Citadel is masonry.
-  // Without it, walls were the cheapest rank in the game to fake: build stone,
-  // raise nobody, and the ladder called you strong.
+  // Walls — quadratic in level, scaled by integrity, race, and the GARRISON.
   const wallLvl = level(p, "walls");
   const manned =
     wallLvl > 0 && SCORE.WALL_TROOPS_PER_LEVEL > 0
       ? Math.min(1, military(p) / (wallLvl * SCORE.WALL_TROOPS_PER_LEVEL))
       : 1;
-  score += wallsScoreAtLevel(wallLvl) * n(p.wallIntegrity) * race.walls * manned;
+  parts.push({
+    label: "Walls",
+    points: wallsScoreAtLevel(wallLvl) * n(p.wallIntegrity) * race.walls * manned,
+    detail:
+      wallLvl > 0
+        ? `level ${wallLvl}, ${Math.round(n(p.wallIntegrity) * 100)}% sound, ${Math.round(manned * 100)}% manned — an empty Citadel is masonry`
+        : "no walls raised",
+  });
 
-  // Veterancy is prestige, and it is the one multiplier the ladder does show.
-  score += n(a.experience) * SCORE.PER_XP_POINT;
+  // (No veterancy line. It is folded into the Battle line above, because what
+  //  veterancy IS on a ladder is stronger troops — see the note there.)
 
-  // Research: the ranked fields. The covert studies stay off the board — it
-  // would be a strange ladder that advertised how deep your spy service runs.
-  for (const f of RESEARCH_FIELDS) {
-    if (f.ranked) score += n(p.research?.levels?.[f.id]) * SCORE.PER_RESEARCH_LEVEL;
-  }
+  // Research: the ranked fields only. The covert studies stay off the board.
+  let ranked = 0;
+  for (const f of RESEARCH_FIELDS) if (f.ranked) ranked += n(p.research?.levels?.[f.id]);
+  parts.push({
+    label: "Research",
+    points: ranked * SCORE.PER_RESEARCH_LEVEL,
+    detail: `${ranked} ranked levels — Tradecraft, Pathfinding & the trade fields are hidden`,
+  });
 
+  return parts;
+}
+
+export function rankingScore(p: Player): number {
+  const score = rankingBreakdown(p).reduce((sum, part) => sum + part.points, 0);
   // Civilian buildings, housing and liquid wealth are NOT counted. Ranking is
   // what you can put in the field, not how comfortable your town is.
   return Number.isFinite(score) ? Math.round(score) : 0;

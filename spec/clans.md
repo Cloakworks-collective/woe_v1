@@ -69,6 +69,26 @@ Clans are commitments, not revolving doors:
 Kicks counting toward the limit prevents kick/rejoin churn gaming; the
 forfeiture rule means clan-hopping always costs the hopper, never the clan.
 
+## Presence is clan business
+
+The roster's **Seen** column — "Online now", "3h ago" — is shown to members of
+that clan and to nobody else. The public clan page (`/clan/[id]`) renders the
+same table with the column, the legend and the online row-highlight all absent.
+
+This is not modesty. Knowing exactly when a banner goes quiet is *raiding
+intelligence*: it tells an outsider which four hours to attack in, and a game
+that publishes it is a game that punishes people for sleeping. Members need it
+to coordinate a war; an enemy needs it to time one.
+
+The same rule binds `GET /api/rankings`, which returns `online: null` for every
+empire outside your own clan. It previously returned presence for the whole
+ladder, which made gating the column pointless — anyone could poll the endpoint
+and read off the answer. The Rankings page has never displayed presence at all.
+
+`lib/server/presencePrivacy.test.ts` scans both files, because the leak is never
+the column somebody remembered to gate: it is the row highlight, the CSS class,
+or the JSON field that quietly answers the same question.
+
 ## Clan buildings
 
 Built from the **Clan Storage** pool — which is why storage comes first:
@@ -201,7 +221,8 @@ work, and a cracked Beacon must be mended from the pool.
   revenge attack** — but it can be executed by **any member who was in the
   clan at that moment** (membership snapshot, 18h window, first to strike
   uses it). The clan chooses its champion: expect their strongest.
-- Mercy rules still apply (vacation blocks; low stamina yields) — except revenge, as always.
+- Mercy rules still apply: vacation blocks EVERYTHING (revenge included, and covert
+  work too — see combat.md); low stamina yields, and revenge alone denies the yield.
 - Peace: either leadership can offer; both must accept.
 
 ### Winning a clan war
@@ -264,12 +285,49 @@ each clan's window is trimmed independently (`pushMessage`, `lib/server/store.ts
 | Stance       | Effect                                                              |
 |--------------|---------------------------------------------------------------------|
 | **Neutral**  | Default between all clans. No shared information.                   |
-| **Friendly** | Mutual (both leaderships accept). Members see each other's **online status** and **when each member was last attacked**. |
+| **Allied**   | Mutual (both leaderships accept). Members see each other's **online status** and **when each member was last attacked**. |
 | **At war**   | +100% battle damage both ways.                                      |
 
-Friendly intel is the coordination layer: seeing a friend was just attacked
+Allied intel is the coordination layer: seeing a friend was just attacked
 (revenge window open, walls damaged) or is offline (vulnerable) lets allied
 clans time joint defense and counterattacks without any formal mechanic.
+
+### Alliances — a promise, not a wall
+
+Stored on `Clan.friendly`, mutual by construction: an id is there only if it is
+on the other clan's list too (`areAllied` checks both, so a half-written pact
+reads as none). Offers wait on `Clan.allianceOffers`.
+
+**Leader or Vice only** — never an officer (`isHighLeadership`). An alliance
+binds every member of the banner, so it is the same rank bar as declaring war.
+
+```
+offer   → lands on THEIR list; if they had already offered us, it seals at once
+accept  → writes BOTH lists
+decline → clears the offer, keeps no grudge (they may ask again)
+end     → either side's Leader or Vice, at any time, no cooldown
+```
+
+You cannot ally with a clan you are at war with — make peace first. Declaring
+war on an ally tears the pact up as a side effect.
+
+**The alliance NEVER blocks a blow.** This is the load-bearing decision. A pact
+a member physically cannot break is a cage, not a promise, and it would make
+alliances a way to *freeze* rivals rather than to cooperate with them. So the
+strike lands, and the pact pays for it:
+
+- The pipeline refuses an attack on an allied member unless it carries
+  `breakAlliance=1`, which comes only from the confirmation dialog
+  (`AllyStrikeDialog`) — so it can never happen by a misclick.
+- The moment the blow **lands** (not when it is attempted), the alliance is torn
+  up on **both** sides, answering to nobody's rank.
+- **The world chronicle records the treachery by name** — the attacker, their
+  clan, and the betrayed clan — and it stays there for the age. Every member of
+  both clans is told.
+
+A clan that has decided to fight a friend should therefore **end the alliance
+first**: same outcome, no chronicle entry, no reputation cost. That choice — pay
+the reputation or spend a turn being honest — is the whole mechanic.
 
 ---
 

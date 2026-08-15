@@ -13,8 +13,8 @@ export function BattleReportPanel({ report }: { report: BattleReport }) {
       : report.yielded
         ? `${report.defenderName} lays down arms without a fight — the stores are taken, the soldiers spared.`
         : won
-          ? `${report.attackerName} carries the field after ${report.rounds} rounds.`
-          : `${report.defenderName} holds after ${report.rounds} rounds.`;
+          ? `${report.attackerName} carries the field — they gave up more than we did.`
+          : `${report.defenderName} holds the field.`;
   return (
     <Panel title={`Battle Report — ${report.mode} on ${report.defenderName} (turn ${report.tick})`}>
       <p
@@ -54,6 +54,17 @@ export function BattleReportPanel({ report }: { report: BattleReport }) {
           </tbody>
         </table>
         <dl className="kv">
+          {(report.mercsRecovered ?? 0) > 0 && (
+            <>
+              {/* MEDICINE. Shown here rather than as a negative in the losses
+                  table above: those sellswords DID fall, and the field hospital
+                  is a separate thing that happened afterwards. */}
+              <dt>🩹 Sellswords saved by the surgeons</dt>
+              <dd style={{ color: "var(--pos)", fontWeight: 700 }}>
+                +{fmt(report.mercsRecovered ?? 0)} ({report.defenderName})
+              </dd>
+            </>
+          )}
           <dt>Wall damage</dt>
           <dd style={{ color: report.wallIntegrityDamage > 0 ? "var(--warn)" : undefined }}>
             −{Math.round(report.wallIntegrityDamage * 100)}%

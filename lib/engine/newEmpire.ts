@@ -43,7 +43,7 @@ export function newEmpire(opts: {
       siegeCounterIntegrity: fullCounterIntegrity(),
       mercenaries: emptyMercForce(),
       stamina: START.STAMINA,
-      experience: 0,
+      experiencePoints: 0,
       siegeExperience: 0,
       spyExperience: 0,
       scoutExperience: 0,

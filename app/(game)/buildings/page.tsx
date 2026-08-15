@@ -28,6 +28,8 @@ import {
   repairCost,
   structureIntegrity,
   type Player,
+  purseGold,
+  purseRes,
 } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
@@ -36,12 +38,21 @@ export const dynamic = "force-dynamic";
 const fmt = (n: number) => n.toLocaleString("en-US");
 type Cost = { gold: number; wood: number; stone: number; ore: number };
 
+/**
+ * Can this be paid for AT ALL — loose and vaulted together?
+ *
+ * Must match `pay` in the engine, which spends the loose pile first and reaches
+ * into the vault for the remainder. Reading only the loose half here greyed out
+ * upgrades a ruler could comfortably afford: with 1.5M stone loose and 23M in
+ * the Mason's Yard the button went red, and for a Royal Charter holder — whose
+ * Steward banks every loose sack each tick — that was most of the time.
+ */
 function affordable(p: Player, c: Cost) {
   return (
-    p.gold >= c.gold &&
-    p.resources.wood >= c.wood &&
-    p.resources.stone >= c.stone &&
-    p.resources.ore >= c.ore
+    purseGold(p) >= c.gold &&
+    purseRes(p, "wood") >= c.wood &&
+    purseRes(p, "stone") >= c.stone &&
+    purseRes(p, "ore") >= c.ore
   );
 }
 
@@ -193,11 +204,13 @@ function LevelTrack({ lvl, max }: { lvl: number; max: number }) {
 }
 
 function BuildingCards({ ids, player, path }: { ids: string[]; player: Player; path: string }) {
+  // The cost tips quote "you have" — so they must quote the PURSE, not the
+  // loose pile, or they contradict the button beside them.
   const have = {
-    gold: player.gold,
-    wood: player.resources.wood,
-    stone: player.resources.stone,
-    ore: player.resources.ore,
+    gold: purseGold(player),
+    wood: purseRes(player, "wood"),
+    stone: purseRes(player, "stone"),
+    ore: purseRes(player, "ore"),
   };
   return (
     <div className="card-grid">

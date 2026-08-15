@@ -105,7 +105,7 @@ for attacks (they're instantaneous) — food is a steady population upkeep:
 foodConsumed = 0.1 × (civilians + regular troops) per turn    // tunable
 ```
 
-- Mercenaries feed themselves (their gold upkeep covers it).
+- Mercenaries feed themselves — they cost no food and no gold to keep.
 - Deducted every tick, before production is added.
 
 **Starvation — if food hits 0, everything stops:**
@@ -154,14 +154,18 @@ Empire: 100 civilians — 20 farmers, 20 quarrymen, 20 miners, 20 lumberjacks,
 
 ```
 Tax income:        100 × 0.2       =    20 gold/turn   (2,880/day)
-Mercenary upkeep:   10 × 1         =   −10 gold/turn
+Mercenary upkeep:                        0 gold/turn   (retired — see below)
 ────────────────────────────────────────────────────
-Net gold:                               10 gold/turn
+Net gold:                               20 gold/turn
 Resources:  200 food, 200 stone, 200 ore, 200 wood + 100 research/turn
 ```
 
-(Ten sellswords eat half this empire's gross tax income — sellswords are a
-premium, exactly as intended.)
+Sellswords no longer draw a wage. Hiring is a **one-time price**: you buy the
+contract, not the month. What keeps a mercenary army in check is
+`MERCENARIES.CAP_RATIO` — they may not outnumber a third of the REGULARS of
+their own arm, and the moment those regulars fall the sellswords who can no
+longer be commanded are paid off and ride away. They cost gold to **get**, not
+to **keep**, so killing an enemy's regulars still costs them more than bodies.
 
 (Mercenary cap check: 10 mercs ≤ 25% of 40 regular troops ✓)
 
@@ -289,6 +293,34 @@ popPerDay  = min(popPerDay, vacantHousingSpace)
 - Each civilian building level is worth ≈ +0.76/day.
 - Nothing gates building levels except cost — the escalating price curve and
   shifting resource ratios pace progression naturally.
+
+#### Burnt housing does not count until you are awake
+
+The day's settler intake is sampled every tick and paid out as the average at
+dawn, so the beds have to be there *while the settlers arrive* — you cannot buy
+Hearthsteads at 23:59 and collect a full day's growth you had no room for.
+
+That sampling has a cruel edge once housing became bombardable: a barrage
+landing at three in the morning would dock every sample until dawn, and the only
+defence would be never sleeping. **So it doesn't.** While `roofDamageUnseen` is
+set — housing was shelled and the ruler has not been back since — the samples
+are capped by the beds you **built** rather than the beds still **standing**.
+
+The flag clears the instant presence is stamped: any page load, any command.
+From that moment the real cap takes over and the damage bites in full.
+
+This buys a night's sleep, not an exemption. It is deliberately generous while
+you are away and deliberately unforgiving once you are back — the answer to a
+burnt Hearthstead is to mend it, and you cannot mend it in your sleep. The
+population advisor says so in as many words when you return.
+
+Bots are excluded — they never act and never log in, so the flag would latch on
+the first bombard and never clear, leaving seeded targets permanently immune to
+the one thing shelling their housing is for.
+
+The mercy does **not** extend to the Muster Hall. Training is something you do
+at a keyboard, while awake; there is no overnight drift to protect against, so
+burnt bunks count against recruitment immediately.
 
 #### Wall damage penalty (temporary only)
 
@@ -694,7 +726,7 @@ rpCost(level) = 2,000 × 5^(level − 1)
 | 4     | 250,000    | 312,000     |
 | 5     | 1,250,000  | 1,562,000   |
 
-- Full field: ~1.56M RP. Entire tree (12 fields): ~18.7M RP.
+- Full field: ~1.56M RP. Entire tree (16 fields): ~25.0M RP.
 - **You cannot research everything.** Pacing at 100 researchers, 50% tax
   (1,000 RP/turn = 144,000 RP/day): level 1 in minutes, one *field* maxed in
   ~11 days, the full tree in ~3.5 months. Specialization is the design intent:

@@ -264,7 +264,7 @@ assembles all tables as `ElderTable[]`, rendered through the Elder Ages'
 **What persists across eras:** player accounts and titles, era history
 (winners' names **and the sealed Annals of every past age**), clan identities
 and war records, and **DMs**. Everything else resets — empires, the ladder,
-era chat, and clan chat are wiped. Permanent trophies: the era name, plus
+world chat, and clan chat are wiped. Permanent trophies: the era name, plus
 "Grand Overlord \<name\>" or founding membership of the winning clan.
 
 ---

@@ -46,9 +46,17 @@ import {
   invitePlayer,
   requestToJoin,
   withdrawJoinRequest,
+  areAllied,
+  acceptAlliance,
+  breakAllianceByTreachery,
   crewGear,
   declareWar,
+  declineAlliance,
+  endAlliance,
+  offerAlliance,
   departClan,
+  departOnVacation,
+  returnFromVacation,
   isLeadership,
   repairClanBuilding,
   setMemberRole,
@@ -99,8 +107,11 @@ import {
 } from "../engine";
 import {
   FOUNDING_MEMBERS,
+  TICKS_PER_HOUR,
   VACATION_DAYS_PER_ERA,
   VACATION_REATTACK_COOLDOWN_TICKS,
+  VACATION_RETURN_SHIELD_MIN_TICKS,
+  VACATION_RETURN_SHIELD_TICKS,
   VACATION_TICKS_PER_ERA,
 } from "../constants";
 import type { Race } from "../constants/races";
@@ -189,6 +200,8 @@ export function applyOneCommand(
     return { result: { ok: false, message: "This empire has been banished by the crown." }, dirty: false };
   }
   player.lastSeenAtMs = Date.now(); // presence for the ladder's Online column
+  // The regent is here, so bombarded housing stops being free. See intakeHousing.
+  player.roofDamageUnseen = false;
 
   // The age is over. The final ladder is frozen, and it stays frozen — no
   // attack, trade or build can move it while the realm waits for the age to be
@@ -465,10 +478,24 @@ function dispatch(
     case "covert": {
       const target = world.players[str(args.targetId)];
       if (!target) throw new EngineError("target", "No such empire");
+      // Your own house and your own banner are both off limits. The attack
+      // validator has always refused these; the shadow war never did, so a
+      // player could scout themselves or read a clanmate's ledger.
+      if (target.id === player.id)
+        throw new EngineError("target", "You cannot spy on your own empire");
+      if (player.clanId && player.clanId === target.clanId)
+        throw new EngineError("clan", "They march under your own banner");
       if (tick - world.meta.eraStartedAtTick < ERA_PEACE_TICKS)
         throw new EngineError("peace", "The era peace holds.");
       if (target.shieldUntilTick > tick)
-        throw new EngineError("shield", "That empire is under the newcomer shield.");
+        throw new EngineError("shield", "That empire is under a shield.");
+      // Vacation stops the shadow war too, not merely the army. A ruler who has
+      // stepped out of the age cannot answer a scout or hunt a spy — there is
+      // nobody home to catch anyone — so leaving covert work open would make an
+      // absence a standing invitation to be read and robbed at no risk. It also
+      // keeps one sentence true everywhere: while you are away, NOTHING lands.
+      if (target.onVacation)
+        throw new EngineError("vacation", "They are away from the world and cannot be touched.");
 
       // Clan war doubles what sabotage achieves (COVERT_WAR_MULTIPLIER).
       const targetClan = target.clanId ? world.clans[target.clanId] : undefined;
@@ -766,6 +793,9 @@ function dispatch(
       const r = giftToMember(player, to, clan, what, num(args.amount));
       put(r.sender);
       world.players[to.id] = r.recipient;
+      // Aid is ledgered now (both directions, same book as the vault), so the
+      // clan comes back changed and has to be written or the cap never bites.
+      world.clans[clan.id] = r.clan;
       pushInbox(world, to.id, {
         type: "clanEvent",
         detail: `${player.name} sends you ${r.sent.toLocaleString("en-US")} ${what} in aid.`,
@@ -808,6 +838,92 @@ function dispatch(
       pushChronicle(world, "war", `⚔ ${clan.name} declares WAR upon ${target.name}!`);
       return;
     }
+    // ── Alliances ─────────────────────────────────────────────────────
+    // Nothing here PREVENTS an attack on an ally. The pact is a promise, and
+    // what gives a promise weight is that breaking it is public — see the
+    // treachery path in doAttack.
+    case "clanAllyOffer": {
+      if (!clan) throw new EngineError("clan", "You have no clan");
+      const target = world.clans[str(args.clanId)];
+      if (!target) throw new EngineError("clan", "No such clan");
+      const r = offerAlliance(clan, target, player.id, tick);
+      world.clans[clan.id] = r.clan;
+      world.clans[target.id] = r.target;
+      // offerAlliance folds straight into an accept when they had already
+      // offered us — so report what actually happened, not what was asked.
+      const sealed = areAllied(r.clan, r.target);
+      for (const m of target.members) {
+        pushInbox(world, m, {
+          type: "clanEvent",
+          detail: sealed
+            ? `🤝 ${clan.name} accepts your alliance — the banners stand together.`
+            : `🤝 ${clan.name} offers your clan an alliance. Your leadership may answer it.`,
+        });
+      }
+      if (sealed) {
+        for (const m of clan.members) {
+          pushInbox(world, m, {
+            type: "clanEvent",
+            detail: `🤝 Your clan is now allied with ${target.name}.`,
+          });
+        }
+        pushChronicle(world, "clan", `🤝 ${clan.name} and ${target.name} are allied.`);
+      }
+      return {
+        ok: true,
+        message: sealed
+          ? `Alliance sealed with ${target.name}.`
+          : `Alliance offered to ${target.name}.`,
+      };
+    }
+    case "clanAllyAccept": {
+      if (!clan) throw new EngineError("clan", "You have no clan");
+      const target = world.clans[str(args.clanId)];
+      if (!target) throw new EngineError("clan", "No such clan");
+      const r = acceptAlliance(clan, target, player.id);
+      world.clans[clan.id] = r.clan;
+      world.clans[target.id] = r.target;
+      for (const m of [...clan.members, ...target.members]) {
+        pushInbox(world, m, {
+          type: "clanEvent",
+          detail: `🤝 ${clan.name} and ${target.name} are now allied.`,
+        });
+      }
+      pushChronicle(world, "clan", `🤝 ${clan.name} and ${target.name} are allied.`);
+      return { ok: true, message: `Allied with ${target.name}.` };
+    }
+    case "clanAllyDecline": {
+      if (!clan) throw new EngineError("clan", "You have no clan");
+      const fromId = str(args.clanId);
+      world.clans[clan.id] = declineAlliance(clan, fromId, player.id);
+      const from = world.clans[fromId];
+      if (from) {
+        for (const m of from.members) {
+          pushInbox(world, m, {
+            type: "clanEvent",
+            detail: `${clan.name} declines your offer of alliance.`,
+          });
+        }
+      }
+      return { ok: true, message: `Offer from ${from?.name ?? "that clan"} declined.` };
+    }
+    case "clanAllyEnd": {
+      if (!clan) throw new EngineError("clan", "You have no clan");
+      const target = world.clans[str(args.clanId)];
+      if (!target) throw new EngineError("clan", "No such clan");
+      const r = endAlliance(clan, target, player.id);
+      world.clans[clan.id] = r.clan;
+      world.clans[target.id] = r.target;
+      for (const m of [...clan.members, ...target.members]) {
+        pushInbox(world, m, {
+          type: "clanEvent",
+          detail: `🤝 The alliance between ${clan.name} and ${target.name} is ended.`,
+        });
+      }
+      pushChronicle(world, "clan", `🤝 ${clan.name} and ${target.name} go their separate ways — the alliance is ended.`);
+      return { ok: true, message: `Alliance with ${target.name} ended.` };
+    }
+
     case "clanBombard":
       return doClanBombard(world, player, str(args.clanId), str(args.which));
 
@@ -922,6 +1038,22 @@ function doAttack(
   const clanWar = atWar(aClan, dClan);
   const warHot = warIsHot(aClan, dClan, tick);
 
+  // TREACHERY. An alliance never blocks a blow — a pact you physically cannot
+  // break is not a promise, it is a cage. What it does is make the blow cost
+  // something no battle report can undo: the pact is torn up on both sides and
+  // the name goes into the world chronicle, where it stays for the age.
+  //
+  // The player must say so first. `breakAlliance` comes from the confirmation
+  // the console puts in front of them (AllyStrikeDialog); without it the strike
+  // is refused with the warning rather than committed by accident.
+  const allied = areAllied(aClan, dClan);
+  if (allied && String(args.breakAlliance ?? "") !== "1") {
+    throw new EngineError(
+      "ally",
+      `${dClan!.name} is your ALLY. Striking them breaks the alliance and the treachery is written into the world chronicle. Confirm to proceed.`,
+    );
+  }
+
   // Clan-bombardment revenge (spec/clans.md): our clan was bombarded by the
   // defender's clan, this player was a member at that moment, and the 18h
   // window is still open. Any such member may deliver the one strike.
@@ -978,6 +1110,28 @@ function doAttack(
   world.players[d.id] = d;
   pushBattle(world, outcome.report);
 
+  // The pact dies with the blow. Done AFTER the battle resolves, not before, so
+  // a strike that was refused for any other reason leaves the alliance intact —
+  // treachery is what LANDED, not what was attempted.
+  if (allied && aClan && dClan) {
+    const torn = breakAllianceByTreachery(aClan, dClan);
+    world.clans[aClan.id] = torn.a;
+    world.clans[dClan.id] = torn.b;
+    for (const m of [...aClan.members, ...dClan.members]) {
+      pushInbox(world, m, {
+        type: "clanEvent",
+        detail: `🗡 TREACHERY — ${a.name} of ${aClan.name} strikes ${d.name} of ${dClan.name}. The alliance is broken.`,
+      });
+    }
+    // The whole world reads this one. An alliance is only worth signing if
+    // breaking it is remembered.
+    pushChronicle(
+      world,
+      "war",
+      `🗡 TREACHERY — ${a.name} of ${aClan.name} strikes their ally ${d.name} of ${dClan.name}. The alliance between ${aClan.name} and ${dClan.name} is broken.`,
+    );
+  }
+
   // Tally this clash into the age's living War Records (Richest/Bloodiest
   // attacks, Feuds, Wars) — sealed into the history books when the age ends.
   const records = world.eraRecords ?? (world.eraRecords = newEraRecords());
@@ -1024,11 +1178,11 @@ function doAttack(
       // Experience transfer: 5% from every loser to every winner (capped).
       for (const id of r.theirs.members) {
         const p = world.players[id];
-        if (p) p.army.experience = Math.max(0, p.army.experience * 0.95);
+        if (p) p.army.experiencePoints = Math.max(0, p.army.experiencePoints * 0.95);
       }
       for (const id of r.ours.members) {
         const p = world.players[id];
-        if (p) p.army.experience = Math.min(100, p.army.experience * 1.05);
+        if (p) p.army.experiencePoints = p.army.experiencePoints * 1.05;
       }
     }
   }
@@ -1037,13 +1191,17 @@ function doAttack(
 }
 
 /**
- * Depart on, or return from, Vacation (spec/combat.md, economy.md). This is the
- * *standing* withdrawal from the age — not a battlefield yield, which the engine
- * decides for you mid-fight (see `resolveBattle`). Vacation makes you untouchable
- * but for revenge, halves tax AND production, and spends an era-limited budget of
- * days. You can't depart while a revenge hangs over you — it queues instead,
- * taking effect once every such window closes. Returning starts a re-attack
- * cooldown so vacation can't be used as a siege-dodge.
+ * Depart on, or return from, Vacation (spec/combat.md). This is the *standing*
+ * withdrawal from the age — not a battlefield yield, which the engine decides
+ * for you mid-fight (see `resolveBattle`). Vacation makes you untouchable by
+ * everything — attacks, revenge, rangers and spies alike (the covert half is
+ * enforced in the `covert` case above) — halves tax, cuts production by four
+ * fifths and research by seven tenths, and spends an era-limited budget of
+ * days. You can't depart while
+ * a revenge hangs over you — it queues instead, taking effect once every such
+ * window closes. Returning starts a re-attack cooldown so vacation can't be used
+ * as a siege-dodge, and — for an absence of at least six hours — buys an hour of
+ * shield so coming home is not itself a punishment.
  */
 function doVacation(world: World, player: Player, away: boolean): CommandResult {
   const tick = world.meta.tickNumber;
@@ -1051,15 +1209,18 @@ function doVacation(world: World, player: Player, away: boolean): CommandResult 
 
   if (!away) {
     const wasAway = p.onVacation;
-    p.onVacation = false;
-    p.vacationQueued = false;
-    if (wasAway) p.vacationEndedAtTick = tick;
+    if (!wasAway) {
+      p.vacationQueued = false;
+      world.players[p.id] = p;
+      return { ok: true, message: "Departure called off." };
+    }
+    const { shieldedUntilTick } = returnFromVacation(p, tick);
     world.players[p.id] = p;
     return {
       ok: true,
-      message: wasAway
-        ? "You are back in the world — your host stands ready again (no attacks for a short while)."
-        : "Departure called off.",
+      message: shieldedUntilTick
+        ? `You are back in the world under a ${VACATION_RETURN_SHIELD_TICKS / TICKS_PER_HOUR}-hour shield — bank your gold and muster while it holds. No fresh attacks of your own for ${VACATION_REATTACK_COOLDOWN_TICKS / TICKS_PER_HOUR} hours (revenge excepted).`
+        : `You are back in the world — and you were away under ${VACATION_RETURN_SHIELD_MIN_TICKS / TICKS_PER_HOUR} hours, so there is NO shield. You are a target from this moment. No fresh attacks of your own for ${VACATION_REATTACK_COOLDOWN_TICKS / TICKS_PER_HOUR} hours (revenge excepted).`,
     };
   }
 
@@ -1079,12 +1240,12 @@ function doVacation(world: World, player: Player, away: boolean): CommandResult 
         "A revenge still hangs over you — your vacation is queued. You depart once every revenge window against you has closed.",
     };
   }
-  p.onVacation = true;
-  p.vacationQueued = false;
+  departOnVacation(p, tick);
   world.players[p.id] = p;
   return {
     ok: true,
-    message: "You have gone on vacation — untouchable but for revenge, at half tax and half production.",
+    message:
+      "You have gone on vacation — nothing reaches you now: no attack, no revenge, no ranger, no spy. Half tax, a fifth of your production, a third of your research. Settlers keep arriving as long as you have beds for them.",
   };
 }
 

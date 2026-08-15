@@ -25,6 +25,7 @@ import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 import { findAccount, findAccountByToken, type Account } from "./accounts";
+import { impersonatedPlayerId } from "./admin";
 import type { World } from "./store";
 
 const COOKIE = "woe_account";
@@ -95,6 +96,13 @@ export function playerIdForAccount(world: World, accountId: string): string | nu
  * the answer to both is the same page.
  */
 export async function currentPlayerId(world: World): Promise<string | null> {
+  // Impersonation is checked HERE and not only in getGame, because commands
+  // resolve the actor through this function. Split the two and the console
+  // would render one empire's pages while its buttons spent another empire's
+  // gold — the worst possible failure for a tool whose whole job is to look at
+  // somebody else's game.
+  const worn = await impersonatedPlayerId();
+  if (worn && world.players[worn]) return worn;
   const accountId = await currentAccountId();
   if (!accountId) return null;
   return playerIdForAccount(world, accountId);

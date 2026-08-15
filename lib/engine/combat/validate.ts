@@ -1,7 +1,7 @@
 // Who may strike whom (spec/combat.md). Pure — the caller supplies the world
 // context; this decides only whether the blow is allowed to land.
 
-import { ACTION_TURNS, XP } from "../../constants";
+import { ACTION_TURNS, ATTACK_REFUSAL_RATIO } from "../../constants";
 import { rankingScore } from "../score";
 import type { AttackMode, Player } from "../types";
 
@@ -24,6 +24,13 @@ export function validateAttack(
   ctx: AttackContext,
 ): string | null {
   if (attacker.id === defender.id) return "You cannot attack yourself.";
+  // No friendly fire. Checked BEFORE the mode switch so it covers revenge as
+  // well: a clanmate cannot open a revenge window against you in the first
+  // place, so a revenge on one could only ever be a stale window from before
+  // they joined — which is exactly the loophole this closes.
+  if (attacker.clanId && attacker.clanId === defender.clanId) {
+    return "They march under your own banner.";
+  }
   if (attacker.starving) return "Starving armies will not march.";
   if (attacker.onVacation) return "You are away from the world — come back first.";
   if (attacker.turnsAvailable < ACTION_TURNS.ATTACK_COST) {
@@ -33,7 +40,7 @@ export function validateAttack(
     return "The era peace holds — no attacks in the opening days.";
   }
   if (defender.shieldUntilTick > ctx.currentTick) {
-    return "That empire is under the newcomer shield.";
+    return "That empire is under a shield.";
   }
 
   if (mode === "revenge") {
@@ -69,7 +76,7 @@ export function validateAttack(
   // their own strategy by it, because engineers and defensive works both count
   // toward ranking — the investment shows even though the siege train does not.
   const ratio = rankingScore(defender) / Math.max(1, rankingScore(attacker));
-  if (ratio >= XP.REFUSAL_RATIO) {
+  if (ratio >= ATTACK_REFUSAL_RATIO) {
     return "Your captains refuse — that empire is far beyond your weight.";
   }
   return null;

@@ -30,7 +30,7 @@ import {
   TROOPS_PER_MUSTER_HALL,
   TURNS_PER_DAY,
 } from "./balance";
-import { LOOT, REVENGE_WINDOW_HOURS, XP } from "./battleBalance";
+import { EXPERIENCE, LOOT, REVENGE_WINDOW_HOURS } from "./battleBalance";
 import { goldShelterAtLevel, storageShelterAtLevel, workerOutputAtLevel } from "./derived";
 
 export interface ExamQuestion {
@@ -221,10 +221,10 @@ export const EXAM: ExamQuestion[] = [
       "It takes double loot",
       "It cannot be defended against",
       "It costs no action turns",
-      "It ignores the protections that stop a normal attack — their vacation, their shield, the strength gap",
+      "It ignores the rules that would refuse a normal attack — their exhaustion, the strength gap, and their chance to yield",
     ],
     answer: 3,
-    why: `Revenge is a punishment, not a payday: it takes nothing. What it does is reach through the rules that would otherwise stop you, for ${REVENGE_WINDOW_HOURS} hours after they strike you or are caught spying on you.`,
+    why: `Revenge is a punishment, not a payday: it takes nothing. What it does is reach through the rules that would otherwise refuse you — the strength gap, their exhaustion, their broken walls, your own re-attack cooldown — and it alone denies them the chance to yield, for ${REVENGE_WINDOW_HOURS} hours after they strike you or are caught spying on you. It does NOT reach through a shield or a vacation; but nobody may depart owing you one, so that door is shut before it opens.`,
     guide: "/guide#revenge",
   },
   {
@@ -238,7 +238,7 @@ export const EXAM: ExamQuestion[] = [
       "It becomes free of action turns",
     ],
     answer: 0,
-    why: `In war a raid or castle attack takes ${pct(LOOT.WAR_SHARE)} of what sits outside the vault — no roll, no size-scaling, no peacetime relief. Bombard and revenge still take nothing; war changes the SHARE and the ferocity, never the character of the blow. The vault becomes your only defence.`,
+    why: `In war a raid or castle attack takes ${pct(LOOT.WAR_SHARE)} of what sits outside the vault — no roll, no size-scaling, no peacetime relief. Lay down arms and it is halved to ${pct(LOOT.WAR_SHARE * LOOT.YIELD_FACTOR)}, which is the whole reason to surrender. Bombard and revenge still take nothing; war changes the SHARE and the ferocity, never the character of the blow. The vault becomes your only defence.`,
     guide: "/guide#clans",
   },
   {

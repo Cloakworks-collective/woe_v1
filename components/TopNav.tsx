@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, type MouseEvent } from "react";
+import { type MouseEvent } from "react";
 import { CHRONICLE_GROUPS } from "@/lib/lore/elderAges";
 
 type Item = { href: string; label: string; icon: string; title: string };
@@ -14,7 +14,7 @@ function Emblem({ name, sm }: { name: string; sm?: boolean }) {
 
 /**
  * The desktop top bar for META links — the annals, the Heralds (letters, the
- * era hall and the public forum),
+ * world chat and the public forum),
  * guides, the sandboxes and the Charter. Everything you MANAGE lives in the
  * left SideNav, and so now does the wider world: the ladder and the age's
  * battles moved down there, because the header also carries the realm's name
@@ -35,28 +35,9 @@ export function TopNav({
 }) {
   const pathname = usePathname();
 
-  // Native <details> only closes via its own summary. Close any open dropdown
-  // when the click (or Escape) lands outside it — this also enforces one-open-
-  // at-a-time, since opening one closes the rest.
-  useEffect(() => {
-    const openDropdowns = () =>
-      document.querySelectorAll<HTMLDetailsElement>("details.topnav-dd[open]");
-    const onClick = (e: globalThis.MouseEvent) => {
-      const t = e.target as Node | null;
-      openDropdowns().forEach((d) => {
-        if (!t || !d.contains(t)) d.open = false;
-      });
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") openDropdowns().forEach((d) => (d.open = false));
-    };
-    document.addEventListener("click", onClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("click", onClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, []);
+  // One-open-at-a-time and click-outside-to-close now live in PopupLayer,
+  // which does the same job for every popover in the app rather than only these
+  // dropdowns. `topnav-dd` is on its managed list.
 
   const premiumItem: Item = premium
     ? { href: "/steward", label: "Premium", icon: "crown", title: "Your Royal Charter — the Steward's build/research queues, standing orders & auto-banking" }
@@ -110,7 +91,7 @@ export function TopNav({
           </details>
 
           <details className="topnav-dd">
-            <summary className={commsActive ? "active" : ""} title="Where the realm's words travel — letters, the era hall, and the public forum">
+            <summary className={commsActive ? "active" : ""} title="Where the realm's words travel — letters, world chat, and the public forum">
               <Emblem name="letter" /> Heralds
             </summary>
             <div className="topnav-menu" role="menu">
@@ -119,7 +100,7 @@ export function TopNav({
                 <span className="topnav-menu-sub">private & permanent, one ruler at a time</span>
               </Link>
               <Link href="/messages/chat" onClick={closeMenu}>
-                <Emblem name="forum" sm /> Era Chat{" "}
+                <Emblem name="forum" sm /> World Chat{" "}
                 <span className="topnav-menu-sub">one public room for this age — wiped when it ends</span>
               </Link>
               <div className="topnav-menu-head">Beyond the age</div>

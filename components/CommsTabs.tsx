@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// Two rooms, two rhythms. Letters are private and permanent; the era hall is
+// Two rooms, two rhythms. Letters are private and permanent; world chat is
 // public and dies with the age. They were tabs inside one page, which meant the
 // nav could not tell you which you were in — or link you straight to one.
 const TABS: { href: string; label: string }[] = [
   { href: "/messages", label: "✉ Letters" },
-  { href: "/messages/chat", label: "🕯 Era Chat" },
+  { href: "/messages/chat", label: "🕯 World Chat" },
 ];
 
 export function CommsTabs() {

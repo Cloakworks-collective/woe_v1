@@ -9,8 +9,22 @@ import { ReqTip } from "./CostTip";
  * __cmd/__path inputs come from CmdForm); submits the same `rate` field.
  * Shows the gold/production trade-off as you drag, and submits on release.
  */
-export function TaxSlider({ taxRate, civilians }: { taxRate: number; civilians: number }) {
-  const [rate, setRate] = useState(taxRate);
+export function TaxSlider({
+  taxRate,
+  civilians,
+  rate: controlled,
+  onRate,
+}: {
+  taxRate: number;
+  civilians: number;
+  /** Controlled mode: the owner holds the rate so other figures can move with
+   *  it (see TaxAndRates). Left out, the slider keeps its own. */
+  rate?: number;
+  onRate?: (r: number) => void;
+}) {
+  const [own, setOwn] = useState(taxRate);
+  const rate = controlled ?? own;
+  const setRate = (r: number) => (onRate ? onRate(r) : setOwn(r));
   const goldPerTurn = Math.round(civilians * 0.4 * rate * 10) / 10;
   const outputPct = Math.round((1 - rate) * 100);
   const changed = Math.abs(rate - taxRate) > 1e-9;

@@ -16,7 +16,7 @@ import {
   SCATTERING,
   SIEGE_SALVAGE_VALUE,
   SIEGE_REPAIR_COST_FACTOR,
-  XP,
+  EXPERIENCE,
   SIEGE_GEAR,
   SIEGE_COUNTERS,
   KINGS_ROADS,
@@ -45,7 +45,11 @@ import {
   regularsOfArm,
   researchLevel,
   military,
+  purseGold,
+  purseRes,
   shelterCapacity,
+  spendGold,
+  spendRes,
   structureIntegrity,
   totalPopulation,
   type EngineResult,
@@ -71,24 +75,40 @@ const ARMY_KEY: Record<TroopType, "footmen" | "archers" | "cavalry"> = {
   cavalry: "cavalry",
 };
 
+/**
+ * Can the WHOLE purse cover this — loose and vaulted together?
+ *
+ * The vault is a shelter from theft, not a separate currency. Reading only the
+ * loose piles here meant a Royal Charter holder, whose Steward sweeps every
+ * loose sack into store each tick, could never spend anything they had banked:
+ * withdraw by hand, and the Steward put it straight back the next turn.
+ */
 function canAfford(p: Player, cost: Cost): boolean {
   return (
-    p.gold >= cost.gold &&
-    p.resources.wood >= cost.wood &&
-    p.resources.stone >= cost.stone &&
-    p.resources.ore >= cost.ore
+    purseGold(p) >= cost.gold &&
+    purseRes(p, "wood") >= cost.wood &&
+    purseRes(p, "stone") >= cost.stone &&
+    purseRes(p, "ore") >= cost.ore
   );
 }
 
+/**
+ * Take the price out of the purse, LOOSE FIRST then the vault.
+ *
+ * Loose first because loose is what a raid carries off — spending it first
+ * leaves what remains sheltered, which is the choice a player would make every
+ * time. Every check happens before any deduction, so a part-paid purchase can
+ * never leave the empire short of one line.
+ */
 function pay(p: Player, cost: Cost) {
-  if (p.gold < cost.gold) throw new EngineError("gold", "Not enough gold");
-  if (p.resources.wood < cost.wood) throw new EngineError("wood", "Not enough wood");
-  if (p.resources.stone < cost.stone) throw new EngineError("stone", "Not enough stone");
-  if (p.resources.ore < cost.ore) throw new EngineError("ore", "Not enough ore");
-  p.gold -= cost.gold;
-  p.resources.wood -= cost.wood;
-  p.resources.stone -= cost.stone;
-  p.resources.ore -= cost.ore;
+  if (purseGold(p) < cost.gold) throw new EngineError("gold", "Not enough gold");
+  if (purseRes(p, "wood") < cost.wood) throw new EngineError("wood", "Not enough wood");
+  if (purseRes(p, "stone") < cost.stone) throw new EngineError("stone", "Not enough stone");
+  if (purseRes(p, "ore") < cost.ore) throw new EngineError("ore", "Not enough ore");
+  spendGold(p, cost.gold);
+  spendRes(p, "wood", cost.wood);
+  spendRes(p, "stone", cost.stone);
+  spendRes(p, "ore", cost.ore);
 }
 
 /**
@@ -254,10 +274,14 @@ export function dischargeTroops(input: Player, type: TroopType, tier: Tier, coun
       `That would drop your guard below the 30% line — at most ${safeDischargeCount(p)} can be discharged safely.`,
     );
   }
-  const before = lineRegulars(p);
   p.army[ARMY_KEY[type]][tier] -= count;
   p.idlePeasants += count;
-  p.army.experience = decayExperience(p.army.experience, count, before, XP.LOSS_ON_DISCHARGE);
+  // Sending men home costs the ledger the same way losing them does, at half
+  // the rate — you keep some of what they knew, and you chose the timing.
+  p.army.experiencePoints = Math.max(
+    0,
+    p.army.experiencePoints - count * EXPERIENCE.PER_REGULAR_LOST * EXPERIENCE.DISCHARGE_FACTOR,
+  );
   // Sellswords serve under the regulars of their arm. Dismiss the regulars and
   // the hired blades above the ratio have nobody left to follow.
   settleMercenaries(p);
@@ -353,6 +377,37 @@ export function build(input: Player, id: BuildingId, count = 1): EngineResult {
  * Rule 2 is what makes rule 1 safe to relax later if we ever want to: the
  * schedule cannot produce two payouts inside a day no matter how it is set.
  */
+
+/**
+ * WHEN the next payout would land if dawn were moved to `offsetTicks`.
+ *
+ * Pulled out of `setRecruitHour` so the confirmation dialog can promise a time
+ * and have the command deliver exactly it. The dialog quotes an hour, the move
+ * is irreversible for the age, and a dialog computing the answer its own way is
+ * a dialog that will eventually quote the wrong one — the 24-hour floor below is
+ * precisely the sort of rule a second implementation forgets.
+ *
+ * Pure, and deliberately takes no Player: the UI knows the two numbers it needs
+ * and should not have to hold a whole empire to ask the question.
+ */
+export function nextRecruitTick(
+  offsetTicks: number,
+  currentTick: number,
+  lastRecruitAtTick?: number,
+): number {
+  // The next occurrence of the chosen slot, strictly in the future…
+  let next = currentTick - (currentTick % TURNS_PER_DAY) + offsetTicks;
+  while (next <= currentTick) next += TURNS_PER_DAY;
+  // …then pushed out until a full day has passed since the last payout. An
+  // empire that has never recorded one is assumed to have collected at the most
+  // recent global dawn, which is exactly where it would have: that keeps the
+  // 24h guarantee honest for legacy saves without making a newcomer wait an
+  // extra day for a slot they are already past.
+  const lastPayout = lastRecruitAtTick ?? currentTick - (currentTick % TURNS_PER_DAY);
+  const floor = lastPayout + TURNS_PER_DAY;
+  while (next < floor) next += TURNS_PER_DAY;
+  return next;
+}
 export function setRecruitHour(input: Player, offsetTicks: number, currentTick: number): EngineResult {
   const p = structuredClone(input);
   if (!Number.isInteger(offsetTicks) || offsetTicks < 0 || offsetTicks >= TURNS_PER_DAY) {
@@ -362,19 +417,7 @@ export function setRecruitHour(input: Player, offsetTicks: number, currentTick: 
     throw new EngineError("once", "You have already set your dawn this era — it may be moved once.");
   }
 
-  // The next occurrence of the chosen slot, strictly in the future…
-  let next = currentTick - (currentTick % TURNS_PER_DAY) + offsetTicks;
-  while (next <= currentTick) next += TURNS_PER_DAY;
-  // …then pushed out until a full day has passed since the last payout. An
-  // empire that has never recorded one is assumed to have collected at the most
-  // recent global dawn, which is exactly where it would have: that keeps the
-  // 24h guarantee honest for legacy saves without making a newcomer wait an
-  // extra day for a slot they are already past.
-  const lastPayout =
-    p.lastRecruitAtTick ?? currentTick - (currentTick % TURNS_PER_DAY);
-  const floor = lastPayout + TURNS_PER_DAY;
-  while (next < floor) next += TURNS_PER_DAY;
-
+  const next = nextRecruitTick(offsetTicks, currentTick, p.lastRecruitAtTick);
   p.nextRecruitAtTick = next;
   p.recruitHourChanged = true;
   return {
@@ -579,8 +622,8 @@ export function hireMercenaries(
   }
 
   const price = mercPrice(p, arm, tier, wonderDiscount) * count;
-  if (p.gold < price) throw new EngineError("gold", "Not enough gold");
-  p.gold -= price;
+  if (purseGold(p) < price) throw new EngineError("gold", "Not enough gold");
+  spendGold(p, price);
 
   const m = p.army.mercenaries;
   if (arm === "engineer") m.engineers += count;

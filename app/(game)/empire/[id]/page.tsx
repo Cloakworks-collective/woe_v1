@@ -6,7 +6,7 @@ import { Panel } from "@/components/Panel";
 import { PublicBattleTable } from "@/components/PublicBattleTable";
 import { WarCouncil } from "@/components/WarCouncil";
 import { RACE_NAMES } from "@/lib/constants";
-import { publicBattle, rankingScore, regularTroops, researchLevel, settlementTitle, troopTotal } from "@/lib/engine";
+import { publicBattle, rankingScore, regularTroops, researchLevel, settlementTitle, troopTotal, veterancyBonus } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 import { REVENGE_WINDOW_TICKS } from "@/lib/server/world";
 
@@ -68,7 +68,7 @@ export default async function EmpireProfilePage({
             </dd>
             <dt>Standing</dt>
             <dd>
-              {p.onVacation ? "🏖 on vacation" : p.shieldUntilTick > tick ? "🛡 newcomer shield" : "at large"}
+              {p.onVacation ? "🏖 on vacation" : p.shieldUntilTick > tick ? "🛡 shielded" : "at large"}
               {p.id === me.id && " (this is you)"}
             </dd>
           </dl>
@@ -87,7 +87,7 @@ export default async function EmpireProfilePage({
               archers: troopTotal(me.army.archers),
               cavalry: troopTotal(me.army.cavalry),
               stamina: me.army.stamina,
-              experience: me.army.experience,
+              experience: veterancyBonus(me.army.experiencePoints) * 100,
             }}
             last={{
               scoutOp: me.lastScoutOp,
@@ -99,6 +99,8 @@ export default async function EmpireProfilePage({
               shielded: p.shieldUntilTick > tick,
               onVacation: p.onVacation,
               revengeOpen,
+              sameClan: Boolean(me.clanId && p.clanId === me.clanId && p.id !== me.id),
+              isSelf: p.id === me.id,
             }}
           />
         )}

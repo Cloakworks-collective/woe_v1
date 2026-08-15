@@ -13,8 +13,20 @@ describe("clan war — what changes and what does not", () => {
     for (const mode of ["raid", "siege"] as const) {
       expect(lootShare(nearOne, mode, false, 1, 1, true)).toBe(LOOT.WAR_SHARE);
       expect(lootShare(zero, mode, false, 1, 1, true)).toBe(1);
-      // Even a yield against a minnow — war removes the band entirely.
-      expect(lootShare(zero, mode, true, 1, 0.1, true)).toBe(1);
+      // Size scaling is gone too — war does not care that they were smaller.
+      expect(lootShare(zero, mode, false, 1, 0.1, true)).toBe(1);
+    }
+  });
+
+  it("surrender halves the bill in war as well as peace", () => {
+    // This is the fix for a real hole: lootShare used to return WAR_SHARE before
+    // it ever looked at `yielded`, so laying down arms to a clan at war cost
+    // exactly as much as being cut apart — and there was no reason to do it.
+    for (const mode of ["raid", "siege"] as const) {
+      expect(lootShare(zero, mode, true, 1, 1, true)).toBe(LOOT.WAR_SHARE * LOOT.YIELD_FACTOR);
+      const fought = lootShare(zero, mode, false, 1, 1);
+      const surrendered = lootShare(zero, mode, true, 1, 1);
+      expect(surrendered).toBeCloseTo(fought * LOOT.YIELD_FACTOR, 6);
     }
   });
 
@@ -27,18 +39,23 @@ describe("clan war — what changes and what does not", () => {
     expect(lootKind("siege")).toBe("gold"); // "siege" is the castle attack
   });
 
-  it("peacetime shares are 15% lighter than the raw bands", () => {
-    // Ceiling was 0.70 × 1.25 = 87.5%; the 15% relief takes it to 74.375%.
-    const ceiling = lootShare(nearOne, "raid", false, 1, 2);
-    expect(ceiling).toBeLessThan(LOOT.RAID_WIN.max * LOOT.BIG_TARGET_BONUS);
-    expect(ceiling).toBeCloseTo(0.7 * 1.25 * LOOT.PEACE_MULTIPLIER, 3);
-    // The floor moves with it: 50% → 45% at even weight.
+  it("no peacetime blow, however lucky, gets past the ceiling", () => {
+    // Best possible peacetime case: top of the band AND the big-target bonus.
+    // Used to reach 0.70 × 1.25 × 0.85 = 74.4%, which was war money for a
+    // peacetime raid and left war with nothing to escalate to.
+    const best = lootShare(nearOne, "raid", false, 1, 2);
+    expect(best).toBe(LOOT.PEACE_CEILING);
+    // And a peacetime surrender is half of that.
+    expect(lootShare(nearOne, "raid", true, 1, 2)).toBe(LOOT.PEACE_CEILING * LOOT.YIELD_FACTOR);
+    // The floor still moves with the relief: 50% → 42.5% at even weight.
     expect(lootShare(zero, "raid", false, 1, 1)).toBeCloseTo(0.5 * LOOT.PEACE_MULTIPLIER, 5);
   });
 
   it("war is strictly worse for the victim than any peacetime roll", () => {
     const worstPeace = lootShare(nearOne, "raid", false, 1, 2); // biggest peacetime bite
     expect(lootShare(zero, "raid", false, 1, 0.1, true)).toBeGreaterThan(worstPeace);
+    // …and even SURRENDERING at war costs as much as the worst peacetime defeat.
+    expect(lootShare(zero, "raid", true, 1, 1, true)).toBeGreaterThanOrEqual(worstPeace);
   });
 });
 

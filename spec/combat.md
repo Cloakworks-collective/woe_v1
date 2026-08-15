@@ -56,11 +56,51 @@ A zero means "cannot touch that target at all".
 The ram reads 100% against walls and zero against everything else: it is the
 wall-breaker and nothing more. The trebuchet is the only engine that reaches
 walls, buildings *and* other engines — but badly. That contrast is the siege
-game, and **Siege Accuracy** research is what closes it (30%→60% vs walls,
-20%→50% vs buildings, and sharper counter-battery fire for the defender too).
+game, and **Siegecraft** research is what closes it (30%→60% vs walls, 20%→50%
+vs buildings, and sharper counter-battery fire for the defender too).
+
+Siegecraft is the one field that works through BOTH halves of the damage model:
+it adds to the siege bonus pool like any other war research, and it interpolates
+the trebuchet's delivery gates. It used to be two fields — Siegecraft and Siege
+Accuracy — split along that implementation seam. Nobody ever built engines and
+then declined to aim them, so the split was two prices for one idea; they were
+merged, and `normalizePlayer` folds old Accuracy levels into Siegecraft (summed
+and capped, so the investment survives).
 
 Counters read 100% because they are emplaced, purpose-built, and shooting at
 something crawling toward them at walking pace.
+
+### Medicine — the field hospital
+
+The one research that gives back something already lost. A share of the
+**sellswords** who fall **defending** you are carried off the field alive
+(`MEDICINE`, 4%/level with a floor of one head per level, paid in food from the
+stores or the vault).
+
+Three restrictions carry the design, and none of them is flavour:
+
+- **Sellswords only.** Regular dead are the single permanent, unrecoverable loss
+  in the game — they cost population and their veterancy dies with them
+  (`XP.LOSS_ON_DEATH`). Killing them is meant to be the worst thing an enemy can
+  do to you, and a hospital that undid it would take the teeth out of every
+  attack. A contract is not a subject.
+- **Defence only.** It is a hospital, not a baggage train: it works where your
+  surgeons, stores and roofs are. This also stops the field being a flat damage
+  discount on aggression.
+- **After the mercenary cascade, inside the cap.** `settleMercenaries` runs
+  first, and recovery is clamped to the room `CAP_RATIO` leaves — otherwise the
+  surgeons would spend grain saving men who ride away the same afternoon.
+
+It saves no regular directly. Because hired blades absorb the first
+`CASUALTY_SPLIT.MERC_SHARE` of every blow aimed at their arm, a screen that
+survives one raid is a screen still standing during the next one — the field
+buys **more turns of cover**, not fewer deaths today. That indirection is the
+point: it is a defensive-economy field, not a combat multiplier.
+
+Note that the **battlefield yield** path books its merc deaths for the hospital
+too. It writes groups directly instead of going through `kill`, so it records
+them by hand — those are the men who covered the retreat, and the fight where
+surgeons matter most.
 
 ---
 
@@ -107,10 +147,57 @@ nothing to besiege.
   lose. A siege specialist is not locked out by it, because engineers and
   defensive works both count toward ranking (see `overview.md`) — the investment
   shows even though the siege train does not.
-- **Vacation** — a departed ruler cannot be touched **at all**, revenge
-  included. Nobody may depart while owing revenge; departure queues until every
-  window against them closes. The queue is the guard, so combat needs no
-  special case.
+- **Vacation** — a departed ruler cannot be touched **at all**: no raid, no
+  siege, no bombard, no revenge, and **no rangers or spies either**. Nobody may
+  depart while owing revenge; departure queues until every window against them
+  closes. The queue is the guard, so combat needs no special case.
+
+  The covert half of that is enforced in the `covert` command
+  (`lib/server/pipeline.ts`) rather than in `validateAttack`, because scouting
+  and spying never went through the attack validator. `covertBlocked` in
+  `lib/constants/attackGating.ts` mirrors it so the ladder's popover and the
+  profile's War Council grey out the same buttons the pipeline would refuse.
+
+  Rangers and spies used to get through an absence, on the reasoning that
+  vacation shelters an army rather than a secret. It does not survive contact
+  with the rest of the model: a departed empire has nobody home to intercept
+  anyone, so its Ranger's Lodge counts for nothing and every op lands at no
+  risk. That made an absence a standing invitation to be read and robbed — the
+  opposite of what it is for. One sentence now covers the whole state: **while
+  you are away, nothing lands.**
+
+  The economy pays for it, and the three dials move by different amounts:
+
+  ```
+  tax          ×0.5    the collectors keep their rounds
+  production   ×0.2    the yards go quiet
+  research     ×0.3    the Collegium reads on — but only while there is food
+  recruitment  ×1.0    UNCHANGED — settlers arrive at the full rate
+  ```
+
+  Research is deliberately the softest cut: study is the one thing a player can
+  leave running while away, and it keeps a long absence from being a dead loss.
+  It is still gated on food like everything else — a **starving** empire studies
+  nothing, away or not.
+
+  Recruitment is not touched at all. Settlers are sampled from beds and the
+  garrison (`arrivalsNow`), neither of which cares whether the regent is home,
+  so an absence that was set up properly keeps growing. The catch is the beds:
+  once the town is full the intake stops, and nobody is there to raise more
+  Hearthsteads. The departure dialog says so, with the ruler's own numbers.
+
+- **Coming home** — an absence of **6 hours or more** earns a **1-hour shield**
+  on return (`VACATION_RETURN_SHIELD_*`). Shorter hops earn nothing, so the
+  shield cannot be farmed by ducking in and out; and it is granted with `max`,
+  never assignment, so a newcomer's 72h shield is never cut down to an hour by
+  taking a holiday. Being shoved home by the era budget running dry counts as a
+  return and earns the same shield — that is the case that needs it most.
+
+  The shield is short on purpose: an attack costs 10 action turns, so an hour is
+  time to bank, muster and read the board, and not enough to matter otherwise.
+  The **18-hour re-attack cooldown** on your *own* sword arm is unchanged and
+  runs alongside it (revenge excepted), so returning is still no way to duck a
+  siege and swing straight back.
 
 ---
 
@@ -345,16 +432,28 @@ does not. Cut them down to the last man and you pay the full price; walk into a
 yield and you pay almost nothing. Bombard drains none from either side — it is
 engines against masonry, not men.
 
-**Loot** is a rolled band, then scaled by relative size:
+**Loot** comes down to four numbers:
 
-| | Won | Yielded |
+| | Fought and lost | Laid down arms |
 |---|---|---|
-| Raid (goods) | 50–70% | 30–50% |
-| Castle (gold) | 50–70% | 30–50% |
+| At war | **100%** | **50%** |
+| At peace | up to **50%** | up to **25%** |
 
-Punching up (target ≥1.5× your power) pays **×1.25**; farming someone half your
-weight pays **×0.75**. The maximum is therefore 0.70 × 1.25 = 87.5% — it can
-never exceed what they own, so no cap is needed.
+Two rules produce that whole table.
+
+**War** removes the roll, the size-scaling and the relief: everything outside the
+vault is simply gone, and the vault becomes the only defence there is.
+
+**Surrender always costs half** of what fighting to the end would have — one
+factor, applied last, in war and peace alike. That is the entire reason to lay
+down arms.
+
+In peace the share is a rolled band (raid and castle alike, 50–70%), scaled by
+relative size — punching up (target ≥1.5× your power) pays **×1.25**, farming
+someone half your weight pays **×0.75** — then given the 0.85 peacetime relief,
+then clamped to the **50% ceiling**. Without that ceiling a lucky peacetime raid
+reached 74.4%, which is war money for a peacetime blow and leaves war with
+nothing to escalate to.
 
 **Experience is outcome-based**, not opponent-based:
 

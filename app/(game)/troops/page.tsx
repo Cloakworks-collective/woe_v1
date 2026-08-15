@@ -2,6 +2,7 @@
 import { BareBadge } from "@/components/BareBadge";
 import { Btn } from "@/components/Btn";
 import { Art } from "@/components/Art";
+import { TiredArt } from "@/components/TiredArt";
 import { CmdForm } from "@/components/CmdForm";
 import { CountInput } from "@/components/CountInput";
 import { Meter } from "@/components/Meter";
@@ -22,6 +23,7 @@ import {
   TROOPS_PER_MUSTER_HALL,
   UNIT_GUIDE,
   UNIT_INFO,
+  EXPERIENCE,
 } from "@/lib/constants";
 import {
   civilians,
@@ -37,6 +39,9 @@ import {
   type MercArm,
   type Tier,
   type TroopType,
+  purseGold,
+  purseRes,
+  veterancyBonus,
 } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
@@ -121,28 +126,40 @@ export default async function TroopsPage({
   // sellsword the engine charged 1,400 for, and ignored Free Companies entirely.
   const mercAsk = (arm: MercArm, tier: Tier = "light") => mercPrice(p, arm, tier, discount);
   const mercPriceLight = mercAsk("footman");
-  const mercPriceDearest = Math.max(...MERC_ARMS.map((a) => mercAsk(a)));
+  // The arms THIS page raises. Spies and rangers are hired on Workers & Levy,
+  // beside the control that trains them — a covert corps split across two pages
+  // read as if the shadow war were an afterthought to the battle line.
+  const HIRABLE_HERE = MERC_ARMS.filter((a) => a !== "spy" && a !== "scout");
+  const mercPriceDearest = Math.max(...HIRABLE_HERE.map((a) => mercAsk(a)));
 
   const musterFree = level(p, "muster_hall") * TROOPS_PER_MUSTER_HALL - military(p);
   const housingFree = level(p, "hearthstead") * 10 - civilians(p);
   const safeDischarge = safeDischargeCount(p);
   const foundry = level(p, "war_foundry");
-  const have: Cost = { gold: p.gold, wood: p.resources.wood, stone: p.resources.stone, ore: p.resources.ore };
+  // Loose AND vaulted: `pay` spends the loose pile first and takes the rest
+  // from the store, so a check against loose alone blocks purchases the engine
+  // would happily allow.
+  const have: Cost = {
+    gold: purseGold(p),
+    wood: purseRes(p, "wood"),
+    stone: purseRes(p, "stone"),
+    ore: purseRes(p, "ore"),
+  };
 
   // Can we afford at least one of a priced thing? (Green button / dull-red when
   // short — recomputed each render, since the page reloads after every action.)
   const canAfford = (c: Cost, mult = 1) =>
-    p.gold >= (c.gold ?? 0) * mult &&
-    p.resources.wood >= (c.wood ?? 0) * mult &&
-    p.resources.stone >= (c.stone ?? 0) * mult &&
-    p.resources.ore >= (c.ore ?? 0) * mult;
+    have.gold >= (c.gold ?? 0) * mult &&
+    have.wood >= (c.wood ?? 0) * mult &&
+    have.stone >= (c.stone ?? 0) * mult &&
+    have.ore >= (c.ore ?? 0) * mult;
   // The bill as `pay` will compute it — King's Roads discount and all. Showing
   // the undiscounted TRAINING_COSTS here told a ruler with metalled roads the
   // wrong price AND gated affordability against a number they were not charged.
   const trainAsk = (type: TroopType, tier: Tier = "light") => trainingCost(p, type, tier, 1);
   const canTrainOne = (type: TroopType) =>
     p.idlePeasants >= 1 && musterFree >= 1 && canAfford(trainAsk(type), 1);
-  const canHireMerc = mercInService < mercCap && p.gold >= mercPriceLight;
+  const canHireMerc = mercInService < mercCap && have.gold >= mercPriceLight;
 
   return (
     <>
@@ -159,7 +176,7 @@ export default async function TroopsPage({
             <div className="bcard" key={type}>
               <div className="bcard-head">
                 <span className="bcard-art">
-                  <Art path={`units/${type}`} size={216} title={label} race={p.race} />
+                  <TiredArt path={`units/${type}`} stamina={p.army.stamina} size={216} title={label} race={p.race} />
                 </span>
                 <div>
                   <Info tip={UNIT_INFO[type].tip} title={UNIT_INFO[type].title} guide={UNIT_GUIDE[type]}>
@@ -245,7 +262,7 @@ export default async function TroopsPage({
           <div className="bcard" key="engineer">
             <div className="bcard-head">
               <span className="bcard-art">
-                <Art path="units/engineer" size={216} title="Siege Engineer" race={p.race} />
+                <TiredArt path="units/engineer" stamina={p.army.stamina} size={216} title="Siege Engineer" race={p.race} />
               </span>
               <div>
                 <Info tip={UNIT_INFO.engineer.tip} title={UNIT_INFO.engineer.title} guide={UNIT_GUIDE.engineer}>
@@ -332,7 +349,15 @@ export default async function TroopsPage({
             body="Earned in battle, up to +100% power at 100. But veterancy lives in the veterans — losing regulars loses experience, while dead mercenaries cost none."
           >
             <div>
-              <Meter label="Experience" value={p.army.experience} max={100} icon="🎖" />
+              {/* Progress to the next +2%, not to a ceiling — there isn't one. */}
+              <Meter
+                label="Veterancy"
+                value={p.army.experiencePoints % EXPERIENCE.POINTS_PER_STEP}
+                max={EXPERIENCE.POINTS_PER_STEP}
+                tone="good"
+                icon="🎖"
+                display={`+${(veterancyBonus(p.army.experiencePoints) * 100).toFixed(1)}%`}
+              />
             </div>
           </ReqTip>
           <ReqTip
@@ -362,7 +387,7 @@ export default async function TroopsPage({
       <Panel title="The Black Market — hired blades">
         <div style={{ float: "right" }}>
           <Info tip={UNIT_INFO.mercenary.tip} title={UNIT_INFO.mercenary.title} guide={UNIT_GUIDE.mercenary}>
-            <Art path="units/mercenary" size={240} title="Mercenary" race={p.race} />
+            <TiredArt path="units/mercenary" stamina={p.army.stamina} size={240} title="Mercenary" race={p.race} />
           </Info>
         </div>
         <p style={{ fontSize: 14, maxWidth: 460, margin: "0 0 8px" }}>
@@ -396,7 +421,7 @@ export default async function TroopsPage({
             sellsword costs half again what a footman does. Tiered arms show the
             light price; medium and heavy scale from it. */}
         <ul className="cost-list" style={{ maxWidth: 360 }}>
-          {MERC_ARMS.map((arm) => (
+          {HIRABLE_HERE.map((arm) => (
             <li key={arm}>
               <span className="cost-tier">{arm}</span>
               <span className="cost-row">
@@ -434,27 +459,14 @@ export default async function TroopsPage({
                   ariaLabel="Mercenary arm to hire"
                   options={[
                     ...CORPS.map((c) => ({ value: c.type, label: c.label, title: UNIT_INFO[c.type].tip })),
-                    // Sellswords now cover every arm, not just the battle line.
-                    // Hired engine crews and covert agents skip population and
-                    // training time exactly as hired footmen do — and leave the
-                    // moment there are too few of your own to command them.
+                    // Sellswords cover the battle line and the engine crews.
+                    // Hired spies and rangers exist too, but they are hired on
+                    // Workers & Levy beside the control that trains them.
                     {
                       value: "engineer",
                       label: "engineer",
                       title:
                         "Hired engine crews. They push your trebuchets and man your Counter-Engines like your own, but earn no veterancy and cost none when they die. Needs barracks room.",
-                    },
-                    {
-                      value: "spy",
-                      label: "spy",
-                      title:
-                        "Hired knives. Capped at a third of your own spies, and taken first when a mission is intercepted — which is what keeps your veterans alive. Needs a Shadow Guild.",
-                    },
-                    {
-                      value: "scout",
-                      label: "scout",
-                      title:
-                        "Hired rangers. They stand the same watch against incoming spies as your own, and fall first when assassins come. Needs a Rangers Lodge.",
                     },
                   ]}
                 />
@@ -498,6 +510,11 @@ export default async function TroopsPage({
             </CmdForm>
           </div>
         </div>
+        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 6 }}>
+          Hired <b>knives and rangers</b> are mustered at{" "}
+          <a href="/train#shadows">Workers &amp; Levy</a>, on the same cards that train your own —
+          they cost no population and no barracks bed, so they never belonged in the barracks.
+        </p>
         {discount > 0 && (
           <p style={{ fontSize: 13.5, color: "var(--green-dark)", marginTop: 4 }}>
             Clan Wonder discount: −{Math.round(discount * 100)}% on mercenaries, troops, and siege gear.
@@ -505,6 +522,45 @@ export default async function TroopsPage({
         )}
       </Panel>
       </div>
+
+      <div id="strategy" />
+      {/* ── Strategy: the army's standing orders ────────────────────────────
+          These are decisions about your HOST, so they belong beside it rather
+          than on the Siege Works page (where the sortie used to live — the
+          engines are equipment, this is doctrine).
+
+          Written as a list of orders from the start, not a single control: the
+          sortie is the only one today and there will be more, and a panel built
+          around one toggle has to be torn apart to take a second. */}
+      <Panel
+        title="⚔ Strategy — your standing orders"
+        info="Doctrine your captains follow without being asked, so a battle fought while you are asleep is still fought your way. Set them once and they hold until you change them."
+        guide="/guide#battle"
+      >
+        <ul className="orders">
+          <li className="order">
+            <div className="order-head">
+              <span className="order-name">🐎 When besieged</span>
+              <span className={`order-state${p.army.sortieEnabled ? " is-on" : ""}`}>
+                {p.army.sortieEnabled ? "Ride out at the siege lines" : "Hold the wall"}
+              </span>
+            </div>
+            <p className="order-why">
+              Cavalry gain nothing from a parapet and everything from open ground, so this is a real
+              choice of shape rather than a switch to leave on: a cavalry-heavy defender wants to ride
+              out, a footman-heavy one almost certainly does not. Riders lead and each brings three
+              footmen behind; you keep the wall&apos;s protection either way, but the attacker&apos;s
+              screen can hold you off before you reach their engines.
+            </p>
+            <CmdForm name="setSortie" path="/troops#strategy">
+              <input type="hidden" name="enabled" value={p.army.sortieEnabled ? "false" : "true"} />
+              <Btn className="btn">
+                {p.army.sortieEnabled ? "Hold the wall instead" : "Order the sortie"}
+              </Btn>
+            </CmdForm>
+          </li>
+        </ul>
+      </Panel>
 
       <Panel title="The Siege Train">
         <p style={{ fontSize: 14.5 }}>

@@ -3,6 +3,7 @@ import { EventToasts, type ToastItem } from "@/components/EventToasts";
 import { FlashProvider } from "@/components/FlashProvider";
 import { HashScroll } from "@/components/HashScroll";
 import { MobileNav } from "@/components/MobileNav";
+import { PopupLayer } from "@/components/PopupLayer";
 import { ResourceBar, TopBar } from "@/components/ResourceBar";
 import { SideNav } from "@/components/SideNav";
 import { TopNav } from "@/components/TopNav";
@@ -11,6 +12,8 @@ import { TourGuide } from "@/components/TourGuide";
 import { eventLine, eventTone } from "@/components/eventLine";
 import { chargeStatuses, examSealed, isOnboardingActive } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
+import { impersonatedPlayerId } from "@/lib/server/admin";
+import { adminReturnToSelf } from "@/app/admin/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +21,9 @@ const GLYPH_TONES = new Set(["war", "shadow", "danger", "growth", "trade", "clan
 
 export default async function GameLayout({ children }: { children: React.ReactNode }) {
   const { world, player } = await getGame();
+  // Wearing someone else's crown must never be a quiet state: from here every
+  // button spends THEIR gold and marches THEIR army (see currentPlayerId).
+  const worn = await impersonatedPlayerId();
 
   // D14 — the six most recent tidings, ready to toast the ones the reader
   // hasn't seen yet (the client decides which, from its last-seen tick).
@@ -30,6 +36,20 @@ export default async function GameLayout({ children }: { children: React.ReactNo
     <FlashProvider>
       {/* Deep links from the advisors land ON their control — see HashScroll. */}
       <HashScroll />
+      {/* One open popover at a time, and click-outside to dismiss — for every
+          <details> popover in the app, not just the nav's own. */}
+      <PopupLayer />
+      {worn === player.id && (
+        <div className="worn-crown" role="status">
+          <span>
+            👑 Crown console — you are acting as <b>{player.name}</b>
+            {player.isBot ? " (a bot)" : ""}. Every command here is theirs.
+          </span>
+          <form action={adminReturnToSelf}>
+            <button className="btn btn-no" type="submit">Return to your own throne</button>
+          </form>
+        </div>
+      )}
       {/* TWO bars, not three. The realm's name, where you can go, and who you
           are all belong to the same question, so they share one row; below 860px
           .topnav hides and the burger takes its place inline. The holdings row

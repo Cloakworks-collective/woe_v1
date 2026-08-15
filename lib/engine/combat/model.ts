@@ -15,6 +15,7 @@ import {
   CASUALTY_TIER_ORDER,
   EFFECTIVENESS,
   EFFECT_PER_LEVEL,
+  MEDICINE,
   MERCENARIES,
   RACES,
   SIEGE_ACCURACY,
@@ -27,11 +28,13 @@ import {
   type TargetKind,
 } from "../../constants";
 import {
+  bankedRes,
   level,
   mercsOfArm,
   regularsOfArm,
   researchLevel,
   troopTotal,
+  veterancyBonus,
   type MercArm,
   type Player,
   type Tier,
@@ -71,6 +74,17 @@ export interface SideLosses {
   mercenariesDisbanded: number;
 }
 
+/** Which hired blades fell, by arm and tier — plus the engine crews.
+ *  `SideLosses.mercenaries` is one flat total, which is all a report needs but
+ *  not enough to put anybody back: the field hospital has to know whether it is
+ *  reviving a light footman or a heavy horseman. Recorded as they die. */
+export interface MercFallen {
+  line: Partial<Record<Arm, Record<Tier, number>>>;
+  engineers: number;
+}
+
+export const noMercFallen = (): MercFallen => ({ line: {}, engineers: 0 });
+
 export interface Side {
   player: Player;
   home: boolean;
@@ -80,6 +94,8 @@ export interface Side {
   engineers: number;
   mercEngineers: number;
   losses: SideLosses;
+  /** Book-keeping for MEDICINE — see fieldHospital. */
+  mercFallen: MercFallen;
   startPower: number;
   /** Civilians driven off by the attack (defender only). */
   civiliansDisplaced: number;
@@ -151,8 +167,9 @@ export function bonusPool(p: Player, ctx: BonusContext): number {
   sum += (ctx.kind === "attack" ? race.attack : race.defence) - 1;
   if (ctx.arm) sum += race.units[ctx.arm as TroopType] - 1;
 
-  // Veterancy: up to +100% at 100 XP.
-  sum += p.army.experience / 100;
+  // Veterancy. +100% at POINTS_FOR_DOUBLE — and no ceiling above it, so a
+  // legendary army really is worth more than a merely seasoned one.
+  sum += veterancyBonus(p.army.experiencePoints);
 
   // What each arm does with a wall it has TRAINED on — archers lethal from a
   // parapet, cavalry wasted behind one. The wall edge itself is shared above;
@@ -194,9 +211,18 @@ export function effectiveness(source: string, target: TargetKind): number {
   return EFFECTIVENESS[source]?.[target] ?? 0;
 }
 
-/** Siege Accuracy is the one research that moves a delivery gate rather than
- *  the additive pool — which is exactly why it is the strongest pick a siege
- *  specialist can make. Interpolated across the field's levels. */
+/**
+ * SIEGECRAFT's second half: the delivery gate, not the additive pool.
+ *
+ * The field does both jobs — it adds to `siegeBonusPool` like any other war
+ * research AND interpolates how much of a trebuchet's power actually finds its
+ * target. Those are opposite halves of the damage model (see the header), which
+ * is why they were once two separate fields; but nobody ever built engines and
+ * then declined to aim them, so the split was two prices for one idea.
+ *
+ * Because this half MULTIPLIES rather than adds, Siegecraft is the strongest
+ * single pick a siege specialist can make — and now the only one they need.
+ */
 export function siegeDelivery(p: Player, target: TargetKind): number {
   const base = effectiveness("trebuchets", target);
   const band = target === "walls" ? SIEGE_ACCURACY.walls
@@ -204,14 +230,15 @@ export function siegeDelivery(p: Player, target: TargetKind): number {
     : target === "siege" ? SIEGE_ACCURACY.siege
     : null;
   if (!band) return base;
-  const lvl = researchLevel(p, "siege_accuracy");
+  const lvl = researchLevel(p, "siegecraft");
   return band.from + (band.to - band.from) * (lvl / MAX_FIELD_LEVEL);
 }
 
-/** The defender's counter-battery benefits from the same study. */
+/** The defender's counter-battery benefits from the same study — one field
+ *  sharpens the engines you push forward and the ones on your own wall. */
 export function counterBatteryDelivery(p: Player): number {
   const b = SIEGE_ACCURACY.counterBattery;
-  return b.from + (b.to - b.from) * (researchLevel(p, "siege_accuracy") / MAX_FIELD_LEVEL);
+  return b.from + (b.to - b.from) * (researchLevel(p, "siegecraft") / MAX_FIELD_LEVEL);
 }
 
 // ── Building a side ─────────────────────────────────────────────────────────
@@ -282,6 +309,7 @@ export function buildSide(p: Player, opts: SideOptions): Side {
     engineers: opts.engineersPresent ? p.army.siegeEngineers : 0,
     mercEngineers: opts.engineersPresent ? p.army.mercenaries.engineers : 0,
     losses: emptyLosses(),
+    mercFallen: noMercFallen(),
     startPower: 0,
     civiliansDisplaced: 0,
   };
@@ -293,6 +321,40 @@ export function buildSide(p: Player, opts: SideOptions): Side {
  *  bypassed by fresh escalade tackle). Called at the top of every round. */
 export function setWallEdge(side: Side, edge: number) {
   for (const g of side.groups) g.health = g.healthBase * (g.healthMult + edge);
+}
+
+/**
+ * Every block's headcount and per-man health at the moment the host formed up.
+ *
+ * A battle is decided by what each side LOST as a share of what it BROUGHT, and
+ * both halves of that have to be priced at the muster. A defender's per-man
+ * health falls during the fight as the wall comes down (setWallEdge), so
+ * measuring the survivors at the closing price would read masonry damage as
+ * casualties and hand the attacker a win for knocking over a gate.
+ *
+ * Caveat worth knowing: ram crews are held out of the line at muster and
+ * rejoin at a breach, so a block can end with MORE men than it mustered. That
+ * reads as zero loss for the block rather than a negative, which is the
+ * conservative direction.
+ */
+export interface Muster {
+  count: number;
+  health: number;
+}
+
+export const muster = (s: Side): Muster[] =>
+  s.groups.map((g) => ({ count: g.count, health: g.health }));
+
+/** Share of the health it marched in with that this side has lost, 0–1. */
+export function healthLostShare(s: Side, start: Muster[]): number {
+  let brought = 0;
+  let lost = 0;
+  for (let i = 0; i < start.length; i++) {
+    const m = start[i];
+    brought += m.count * m.health;
+    lost += Math.max(0, m.count - (s.groups[i]?.count ?? 0)) * m.health;
+  }
+  return brought <= 0 ? 0 : lost / brought;
 }
 
 export const totalPower = (s: Side): number =>
@@ -322,6 +384,10 @@ function kill(side: Side, g: Group, n: number) {
   const k = Math.max(0, Math.min(g.count, Math.floor(n)));
   g.count -= k;
   side.losses[g.isMerc ? "mercenaries" : LOSS_KEY[g.arm]] += k;
+  if (g.isMerc && k > 0) {
+    const byArm = (side.mercFallen.line[g.arm] ??= { light: 0, medium: 0, heavy: 0 });
+    byArm[g.tier] += k;
+  }
 }
 
 /** Spread damage across every block by headcount — volleys and engine fire,
@@ -390,6 +456,7 @@ export function killEngineers(side: Side, n: number) {
   const fromMerc = Math.min(side.mercEngineers, left);
   side.mercEngineers -= fromMerc;
   side.losses.mercenaries += fromMerc;
+  side.mercFallen.engineers += fromMerc;
   left -= fromMerc;
   const fromReg = Math.min(side.engineers, left);
   side.engineers -= fromReg;
@@ -450,6 +517,91 @@ export function settleMercenaries(p: Player): number {
     }
   }
   return disbanded;
+}
+
+// ── Medicine: the field hospital ────────────────────────────────────────────
+
+/**
+ * Pull a share of the fallen sellswords off the field alive.
+ *
+ * Only the DEFENDER's, and only sellswords — see the MEDICINE block in
+ * balance.ts for why both restrictions are load-bearing rather than flavour.
+ *
+ * Runs AFTER `settleMercenaries`, and clamped to the room the cap leaves. Order
+ * matters: revive first and the cascade would immediately pay off anybody there
+ * are no longer regulars to command, so the surgeons would spend food saving
+ * men who ride away the same afternoon. Reviving into the room that actually
+ * exists never wastes a sack of grain.
+ *
+ * Treatment is PARTIAL when the granary is short — a store that covers three of
+ * five saves three. Vaulted food counts: a field hospital may open the stores.
+ *
+ * Mutates `p` (callers hold a clone) and returns how many were saved, for the
+ * report.
+ */
+export function fieldHospital(
+  p: Player,
+  fallen: MercFallen,
+  level: number,
+): { recovered: number; foodSpent: number } {
+  if (level <= 0) return { recovered: 0, foodSpent: 0 };
+
+  const tiers: Tier[] = ["heavy", "medium", "light"];
+  // Heaviest first: they are the dearest contracts and the ones a player would
+  // choose to save. The cheap ranks died first (see drainPool), so this is also
+  // the reverse of the order they fell in — the surgeons reach the back line.
+  const queue: { arm: Arm; tier: Tier }[] = [];
+  for (const tier of tiers) {
+    for (const arm of ["cavalry", "footman", "archer"] as Arm[]) {
+      const n = fallen.line[arm]?.[tier] ?? 0;
+      for (let i = 0; i < n; i++) queue.push({ arm, tier });
+    }
+  }
+  const totalFallen = queue.length + fallen.engineers;
+  if (totalFallen === 0) return { recovered: 0, foodSpent: 0 };
+
+  // 4% a level of the dead, but never fewer than one head a level — a share of
+  // a small skirmish rounds to nothing, and a field that visibly does nothing
+  // in the fights a new player actually has is a field nobody takes.
+  const byShare = Math.round(totalFallen * MEDICINE.RECOVER_PER_LEVEL * level);
+  const wanted = Math.min(totalFallen, Math.max(MEDICINE.MIN_PER_LEVEL * level, byShare));
+
+  // The surgeons may open the vault; a hospital that let men die beside a full
+  // granary would be a strange hospital.
+  const vault = { ...bankedRes(p) };
+  const affordable = Math.floor((p.resources.food + vault.food) / MEDICINE.FOOD_PER_RECOVERY);
+  let recovered = 0;
+  const m = p.army.mercenaries;
+  const ARM_KEY = { footman: "footmen", archer: "archers", cavalry: "cavalry" } as const;
+
+  // Engine crews first — they are untiered and the cheapest bookkeeping.
+  const engineerRoom = mercRoom(p, "engineer");
+  const engineers = Math.min(fallen.engineers, wanted, affordable, engineerRoom);
+  if (engineers > 0) {
+    m.engineers += engineers;
+    recovered += engineers;
+  }
+
+  for (const { arm, tier } of queue) {
+    if (recovered >= wanted || recovered >= affordable) break;
+    if (mercRoom(p, arm) <= 0) continue; // no regulars left to command them
+    m[ARM_KEY[arm]][tier] += 1;
+    recovered += 1;
+  }
+
+  const foodSpent = recovered * MEDICINE.FOOD_PER_RECOVERY;
+  const fromLoose = Math.min(p.resources.food, foodSpent);
+  p.resources.food -= fromLoose;
+  if (foodSpent - fromLoose > 0) {
+    vault.food -= foodSpent - fromLoose;
+    p.bankedResources = vault;
+  }
+  return { recovered, foodSpent };
+}
+
+/** How many more sellswords of this arm the CAP_RATIO leaves room for. */
+function mercRoom(p: Player, arm: MercArm): number {
+  return Math.max(0, Math.floor(regularsOfArm(p, arm) * MERCENARIES.CAP_RATIO) - mercsOfArm(p, arm));
 }
 
 /** Veterancy dies with the veterans. Discharging costs half as much per head —

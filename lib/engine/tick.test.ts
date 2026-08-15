@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { GOLD_PER_CIVILIAN_AT_FULL_TAX, researchOrdinalCost, workerOutputAtLevel } from "../constants";
+import {
+  GOLD_PER_CIVILIAN_AT_FULL_TAX,
+  WORKER_FOOD_PER_TURN,
+  researchOrdinalCost,
+  workerOutputAtLevel,
+} from "../constants";
 import { newEmpire } from "./newEmpire";
-import { processTurnTick } from "./tick";
+import { foodUpkeepPerTurn, processTurnTick } from "./tick";
 import { mercTotal, type Player } from "./types";
 
 function fresh(): Player {
@@ -29,9 +34,10 @@ describe("turn tick", () => {
     p.idlePeasants = 50;
     const { player } = processTurnTick(p);
     // 30 farmers × (10 × 1 level × (1−0.5) tax) × 1.25 human = 187.5 → floored
-    // to 187 (stocks are whole; see ROUNDING in tick.ts). Upkeep 10 taken first.
+    // to 187 (stocks are whole; see ROUNDING in tick.ts). Upkeep taken first:
+    // 10 for the people, plus 30 workers × 5 rations = 160.
     expect(workerOutputAtLevel(1)).toBe(10);
-    expect(player.resources.food).toBe(1000 - 10 + 187);
+    expect(player.resources.food).toBe(1000 - 160 + 187);
   });
 
   it("a bombarded production building yields proportionally less", () => {
@@ -42,8 +48,8 @@ describe("turn tick", () => {
     p.buildingIntegrity = { grange: 0.5 }; // cracked to the floor
     const { player } = processTurnTick(p);
     // 20 × (10 × 1 × 0.5 tax) × 0.5 integrity × 1.25 human = 62.5 → floored to
-    // 62, minus upkeep 10.
-    expect(player.resources.food).toBe(1000 - 10 + 62);
+    // 62, minus upkeep 10 + 20 workers × 5 = 110.
+    expect(player.resources.food).toBe(1000 - 110 + 62);
   });
 
   it("a cracked Collegium banks research slower", () => {
@@ -90,9 +96,9 @@ describe("turn tick", () => {
     p.workers.farmers = 20;
     p.research.levels.statecraft = 5;
     const { player } = processTurnTick(p);
-    // 20 × (10 × 2 level × 0.5 tax) × 1.25 human = 250 food, minus upkeep 12 —
-    // statecraft multiplies none of it.
-    expect(player.resources.food).toBe(1000 - 12 + 250);
+    // 20 × (10 × 2 level × 0.5 tax) × 1.25 human = 250 food, minus upkeep
+    // 12 + 20 workers × 5 = 112 — statecraft multiplies none of it.
+    expect(player.resources.food).toBe(1000 - 112 + 250);
   });
 
   it("the granary vault feeds the people when loose food runs dry", () => {
@@ -137,15 +143,97 @@ describe("turn tick", () => {
     expect(events).toContainEqual({ type: "fed" });
   });
 
-  it("unpaid mercenaries all defect at once", () => {
+  it("mercenaries draw no wage and never desert a broke treasury", () => {
+    // Hiring is a one-time price now: the contract is bought, not rented. The
+    // check on a sellsword army is MERCENARIES.CAP_RATIO (they are paid off when
+    // the regulars of their arm die), never the treasury.
     const p = fresh();
     p.army.mercenaries.footmen.light = 3;
-    p.army.mercenaries.cavalry.heavy = 2; // 5 mercs, 5 g due
+    p.army.mercenaries.cavalry.heavy = 2;
     p.gold = 0;
-    p.taxRate = 0; // no income this tick
+    p.taxRate = 0; // no income this tick either
     const { player, events } = processTurnTick(p);
-    expect(mercTotal(player.army.mercenaries)).toBe(0);
-    expect(events).toContainEqual({ type: "mercsDefected", count: 5 });
+    expect(mercTotal(player.army.mercenaries)).toBe(5);
+    expect(player.gold).toBe(0);
+    expect(events.some((e) => e.type === "mercsDefected")).toBe(false);
+  });
+
+  it("charges every assigned worker a ration on top of the head count", () => {
+    const p = fresh();
+    const idle = foodUpkeepPerTurn(p); // nobody assigned yet
+    p.workers.farmers = 7;
+    p.idlePeasants = Math.max(0, p.idlePeasants - 7);
+    // Assigning does not change the head count — the same people, now working —
+    // so the whole difference is the worker ration.
+    expect(foodUpkeepPerTurn(p) - idle).toBe(7 * WORKER_FOOD_PER_TURN);
+  });
+
+  it("a level-1 worker exactly feeds himself at the default tax", () => {
+    // The floor the ration is set against: L1 output is 10 × 0.5 tax = 5, and a
+    // worker eats 5. Every building level after the first is real surplus.
+    expect(workerOutputAtLevel(1) * 0.5).toBe(WORKER_FOOD_PER_TURN);
+  });
+
+  it("production stops entirely when there is no food to eat", () => {
+    const p = fresh();
+    p.buildings.grange = 5;
+    p.buildings.deepvein_mine = 5;
+    p.workers.farmers = 20;
+    p.workers.miners = 20;
+    p.resources = { food: 0, wood: 0, stone: 0, ore: 0 };
+    p.bankedResources = { food: 0, wood: 0, stone: 0, ore: 0 };
+    const { player, events } = processTurnTick(p);
+    expect(player.starving).toBe(true);
+    expect(events.some((e) => e.type === "starvation")).toBe(true);
+    // Nothing produced — not the ore either, though miners do not eat ore.
+    expect(player.resources.ore).toBe(0);
+    expect(player.resources.food).toBe(0);
+  });
+
+  it("the Steward's vaulting keeps stocks whole", () => {
+    // The shelter curve is fractional at nearly every level, so moving
+    // `capacity − banked` used to put a fraction of a sack in the vault.
+    const p = fresh();
+    p.premium = true;
+    p.buildings.granary = 12;
+    p.buildings.timberyard = 12;
+    p.resources = { food: 50_000_000, wood: 50_000_000, stone: 0, ore: 0 };
+    p.bankedResources = { food: 0, wood: 0, stone: 0, ore: 0 };
+    const { player } = processTurnTick(p);
+    for (const r of ["food", "wood", "stone", "ore"] as const) {
+      expect(Number.isInteger(player.resources[r]), `loose ${r}`).toBe(true);
+      expect(Number.isInteger(player.bankedResources![r]), `vaulted ${r}`).toBe(true);
+    }
+  });
+
+  it("recovers 1 stamina a turn from the GRANARY, not just loose food", () => {
+    // The bug this pins: loose food is what raiders take, so the game teaches
+    // you to bank it — and a ruler who did exactly that had a full granary and
+    // an army whose stamina never moved.
+    const p = fresh();
+    p.army.stamina = 40;
+    p.resources.food = 0;
+    p.bankedResources = { food: 5_000, wood: 0, stone: 0, ore: 0 };
+    const { player } = processTurnTick(p);
+    expect(player.starving).toBe(false);
+    expect(player.army.stamina).toBe(41);
+  });
+
+  it("does not recover when there is no food anywhere", () => {
+    const p = fresh();
+    p.army.stamina = 40;
+    p.resources.food = 0;
+    p.bankedResources = { food: 0, wood: 0, stone: 0, ore: 0 };
+    const { player } = processTurnTick(p);
+    expect(player.starving).toBe(true);
+    expect(player.army.stamina).toBe(40);
+  });
+
+  it("stops at the ceiling", () => {
+    const p = fresh();
+    p.army.stamina = 100;
+    p.resources.food = 5_000;
+    expect(processTurnTick(p).player.army.stamina).toBe(100);
   });
 
   it("banks research points and completes levels behind the Collegium gate", () => {

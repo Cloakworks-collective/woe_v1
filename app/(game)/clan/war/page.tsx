@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Btn } from "@/components/Btn";
+import { ClanAlliances } from "@/components/ClanAlliances";
 import { ClanBombardTargets } from "@/components/ClanBombardTargets";
 import { ClanTabs } from "@/components/ClanTabs";
 import { CmdForm } from "@/components/CmdForm";
@@ -44,6 +45,15 @@ export default async function ClanWarPage({
       <Flash err={err} ok={ok} />
       <LearnLink href="/guide#clans">How clans work &amp; win together</LearnLink>
       <ClanTabs badges={clanBadges(world, clan, p, tick)} />
+
+      {/* ── Who we stand WITH ─────────────────────────────────────────── */}
+      <Panel
+        title="Alliances — who we stand with"
+        info="A promise, not a wall: allied members can still be attacked, but doing it breaks the pact on both sides and the treachery is recorded in the world chronicle. Leader or Vice only."
+        guide="/guide#clans"
+      >
+        <ClanAlliances world={world} clan={clan} canLead={canDeclare} path="/clan/war" />
+      </Panel>
 
       {/* ── Standing wars ─────────────────────────────────────────────── */}
       {enemyClans.length > 0 ? (

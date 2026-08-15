@@ -1,7 +1,8 @@
 import { RACE_NAMES } from "@/lib/constants";
 import { rankingScore, settlementTitle, totalPopulation } from "@/lib/engine";
 import { getWorld } from "@/lib/server/world";
-import { adminEnterAs, adminGrant, adminSetBan, adminSetPremium } from "../actions";
+import { adminEnterAs, adminGrant, adminReturnToSelf, adminSetBan, adminSetPremium } from "../actions";
+import { impersonatedPlayerId } from "@/lib/server/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function AdminEmpiresPage({
 }) {
   const { err, ok, q, only } = await searchParams;
   const world = await getWorld();
+  const worn = await impersonatedPlayerId();
   const players = Object.values(world.players).sort((a, b) => rankingScore(b) - rankingScore(a));
 
   const needle = (q ?? "").trim().toLowerCase();
@@ -40,6 +42,18 @@ export default async function AdminEmpiresPage({
   return (
     <>
       {(err || ok) && <p className={`flat-notice ${err ? "is-bad" : "is-good"}`}>{err ?? ok}</p>}
+
+      {worn && (
+        <div className="flat-notice is-bad flat-row" style={{ justifyContent: "space-between" }}>
+          <span>
+            👑 You are currently acting as <b>{world.players[worn]?.name ?? worn}</b>. Every game
+            command you issue is theirs until you step down.
+          </span>
+          <form action={adminReturnToSelf}>
+            <button className="flat-btn flat-shrink" type="submit">Return to your own throne</button>
+          </form>
+        </div>
+      )}
 
       <div className="flat-card">
         <h2>Royal grant</h2>
@@ -123,12 +137,14 @@ export default async function AdminEmpiresPage({
                           {p.premium ? "Revoke charter" : "Grant charter"}
                         </button>
                       </form>
-                      {!p.isBot && (
-                        <form action={adminEnterAs} className="flat-shrink">
-                          <input type="hidden" name="playerId" value={p.id} />
-                          <button className="flat-btn is-ghost is-small" type="submit">Enter as</button>
-                        </form>
-                      )}
+                      {/* Every empire, bots included — impersonation no longer
+                          needs an account behind the throne. */}
+                      <form action={adminEnterAs} className="flat-shrink">
+                        <input type="hidden" name="playerId" value={p.id} />
+                        <button className="flat-btn is-ghost is-small" type="submit">
+                          {worn === p.id ? "Re-enter" : "Enter as"}
+                        </button>
+                      </form>
                     </div>
                   </td>
                 </tr>

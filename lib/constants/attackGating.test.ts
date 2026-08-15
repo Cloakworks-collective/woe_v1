@@ -19,14 +19,13 @@ describe("attack gating", () => {
     expect(covertBlocked(t)).toMatch(/shield/i);
   });
 
-  it("vacation stops everything EXCEPT an open revenge", () => {
+  it("vacation stops everything — revenge included", () => {
+    // Even holding an open window. validateAttack has always refused a revenge
+    // against a departed ruler; this is the console agreeing with it. The pair
+    // barely arises anyway, since nobody may depart while owing revenge.
     const t = { onVacation: true, revengeOpen: true };
-    expect(modeBlocked("revenge", t)).toBeNull();
-    for (const m of ["raid", "siege", "bombard"] as AttackMode[]) {
-      expect(modeBlocked(m, t), m).toMatch(/vacation/i);
-    }
-    expect(allModesBlocked(t)).toBeNull(); // revenge is still live
-    expect(defaultMode(t)).toBe("revenge");
+    for (const m of ALL) expect(modeBlocked(m, t), m).toMatch(/away from the world/i);
+    expect(allModesBlocked(t)).toMatch(/vacation/i);
   });
 
   it("vacation with no revenge window blocks the lot", () => {
@@ -39,14 +38,34 @@ describe("attack gating", () => {
     expect(modeBlocked("revenge", { revengeOpen: true })).toBeNull();
   });
 
-  it("scouting is not stopped by their vacation — only by the shield", () => {
-    expect(covertBlocked({ onVacation: true })).toBeNull();
+  it("their vacation stops rangers and spies too, not just the army", () => {
+    expect(covertBlocked({ onVacation: true })).toMatch(/vacation/i);
+    expect(covertBlocked({ shielded: true })).toMatch(/shield/i);
     expect(covertBlocked({})).toBeNull();
-    expect(covertBlocked({ shielded: true })).not.toBeNull();
+  });
+
+  it("no friendly fire — your own banner is closed to everything", () => {
+    const t = { sameClan: true, revengeOpen: true };
+    for (const m of ALL) expect(modeBlocked(m, t), m).toMatch(/own banner/i);
+    expect(allModesBlocked(t)).toMatch(/own banner/i);
+    expect(covertBlocked(t)).toMatch(/own banner/i);
+  });
+
+  it("your own seat offers nothing at all", () => {
+    const t = { isSelf: true, revengeOpen: true };
+    for (const m of ALL) expect(modeBlocked(m, t), m).toMatch(/your own empire/i);
+    expect(allModesBlocked(t)).not.toBeNull();
+    expect(covertBlocked(t)).not.toBeNull();
   });
 
   it("never opens on a mode nobody can pick", () => {
-    for (const t of [{}, { revengeOpen: true }, { onVacation: true, revengeOpen: true }]) {
+    for (const t of [
+      {},
+      { revengeOpen: true },
+      { onVacation: true, revengeOpen: true },
+      { sameClan: true, revengeOpen: true },
+      { isSelf: true },
+    ]) {
       const opened = defaultMode(t);
       if (allModesBlocked(t) === null) expect(modeBlocked(opened, t), JSON.stringify(t)).toBeNull();
     }

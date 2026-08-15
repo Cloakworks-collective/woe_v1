@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TURNS_PER_DAY } from "../constants";
-import { setRecruitHour } from "./commands";
+import { nextRecruitTick, setRecruitHour } from "./commands";
 import { newEmpire } from "./newEmpire";
 import type { Player } from "./types";
 
@@ -41,6 +41,21 @@ describe("moving your dawn", () => {
     const moved = at(1000, 40, p);
     expect(moved.recruitHourChanged).toBe(true);
     expect(() => setRecruitHour(moved, 60, 1100)).toThrowError(/once/i);
+  });
+
+  // The confirmation dialog quotes an arrival time BEFORE the move is made, and
+  // the move cannot be undone. It calls nextRecruitTick directly, so the promise
+  // it makes is only as good as this equality.
+  it("the schedule the dialog quotes is the schedule the command applies", () => {
+    for (const last of [undefined, 1000, 4900, 5000]) {
+      for (const hour of [0, 37, 84, 143]) {
+        const p = newEmpire({ id: "a", name: "a", race: "human" });
+        p.lastRecruitAtTick = last;
+        const quoted = nextRecruitTick(hour, 5001, last);
+        const applied = setRecruitHour(p, hour, 5001).player.nextRecruitAtTick;
+        expect(applied, `last=${last} hour=${hour}`).toBe(quoted);
+      }
+    }
   });
 
   it("rejects an hour outside the day", () => {

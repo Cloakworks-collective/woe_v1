@@ -16,6 +16,9 @@ export function StatTile({
   sub?: ReactNode;
   tone?: "good" | "warn" | "bad";
 }) {
+  // A tile that needs explaining is wrapped in <StatTip>, which renders a real
+  // styled bubble. A native `title` was tried and is not good enough for a
+  // multi-row breakdown — see the note in StatTip.
   return (
     <div className={`stat-tile${tone ? ` ${tone}` : ""}`}>
       {icon != null && <span className="stat-icon">{glyphs(icon)}</span>}

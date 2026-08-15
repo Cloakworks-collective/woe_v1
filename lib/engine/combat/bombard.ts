@@ -16,11 +16,11 @@ import {
   BUILDING_HP_CURVE, // clan works are levelled, not counted
   BUILDING_INTEGRITY_FLOOR,
   LUCK_SWING,
-  MAX_ROUNDS,
+  BOMBARD_VOLLEYS,
   SIEGE_COUNTERS,
   SIEGE_GEAR,
   WALL_BREACH_PIVOT,
-  XP,
+  SIEGE_XP,
 } from "../../constants";
 import { isCounted, type BuildingId, type CounterType } from "../../constants/buildings";
 import { evalCurve } from "../../constants/curves";
@@ -126,7 +126,7 @@ export function resolveBombard(
 
   const wallHp = wallHealth(defender);
 
-  for (let round = 1; round <= MAX_ROUNDS && openingTrebs > 0; round++) {
+  for (let round = 1; round <= BOMBARD_VOLLEYS && openingTrebs > 0; round++) {
     if (atkPark.crewed.trebuchets === 0) {
       say(round, "Our last trebuchet is wreckage. The barrage is over.", { tone: "bad" });
       break;
@@ -198,6 +198,10 @@ export function resolveBombard(
         const lost = Math.min(Math.max(0, cur - BUILDING_INTEGRITY_FLOOR), hp > 0 ? dmg / hp : 0);
         defender.buildingIntegrity[target] = cur - lost;
         buildingHits[target] = (buildingHits[target] ?? 0) + lost;
+        // Burnt roofs do not dock the settler intake until the defender has
+        // been back to see them — a barrage at 3am should cost sleep, not
+        // growth. Cleared on their next page load. See intakeHousing.
+        if (target === "hearthstead" && lost > 0) defender.roofDamageUnseen = true;
         say(round, isCounted(target)
           ? `A volley walks through the ${BUILDING_LABEL[target] ?? target}s — roofs come down (−${Math.round(lost * 100)}%).`
           : `A volley cracks the ${BUILDING_LABEL[target] ?? target} open (−${Math.round(lost * 100)}%).`,
@@ -216,11 +220,11 @@ export function resolveBombard(
   const displaced = rounds > 0 ? displaceCivilians(rng, defender, "bombard", false) : 0;
 
   const aGain = Math.min(
-    XP.MAX_PER_BATTLE,
-    engineerLossesDef * XP.PER_REGULAR_KILLED + displaced * XP.PER_CIVILIAN_DISPLACED,
+    SIEGE_XP.MAX_PER_BATTLE,
+    engineerLossesDef * SIEGE_XP.PER_KILL + displaced * SIEGE_XP.PER_CIVILIAN_DISPLACED,
   );
-  attacker.army.siegeExperience = Math.min(XP.MAX, attacker.army.siegeExperience + aGain);
-  defender.army.siegeExperience = Math.min(XP.MAX, defender.army.siegeExperience + XP.DEFENDER_GAIN);
+  attacker.army.siegeExperience = Math.min(SIEGE_XP.MAX, attacker.army.siegeExperience + aGain);
+  defender.army.siegeExperience = Math.min(SIEGE_XP.MAX, defender.army.siegeExperience + SIEGE_XP.DEFENDER_GAIN);
 
   const disbandedA = settleMercenaries(attacker);
   const disbandedD = settleMercenaries(defender);
@@ -257,7 +261,7 @@ export function resolveBombard(
     loot: { gold: 0, resources: { food: 0, wood: 0, stone: 0, ore: 0 } },
     staminaLoss: { attacker: 0, defender: 0 },
     experienceChange: { attacker: 0, defender: 0 },
-    siegeExperienceChange: { attacker: Math.round(aGain), defender: XP.DEFENDER_GAIN },
+    siegeExperienceChange: { attacker: Math.round(aGain), defender: SIEGE_XP.DEFENDER_GAIN },
     log,
   };
   return { attacker, defender, report };
@@ -310,7 +314,7 @@ export function resolveClanBombard(
   log.push(`${trebuchets} crewed trebuchets wheel within range of the ${label} and open fire.`);
 
   const hp = evalCurve(BUILDING_HP_CURVE, Math.max(1, clanLevel(clan, which)));
-  for (let round = 1; round <= MAX_ROUNDS; round++) {
+  for (let round = 1; round <= BOMBARD_VOLLEYS; round++) {
     const now = clan.buildings.integrity[which];
     if (now <= BUILDING_INTEGRITY_FLOOR) {
       log.push(`Round ${round}: the ${label} is already cracked to its foundations.`);

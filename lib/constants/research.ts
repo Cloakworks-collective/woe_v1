@@ -1,4 +1,4 @@
-// Research — The Collegium (spec/empire.md). 10 fields × 5 levels.
+// Research — The Collegium (spec/empire.md). 16 fields × 5 levels.
 // The field LIST (structure + display text + ranked flags) lives here; every
 // number lives in balance.ts — THE tuning file.
 
@@ -15,7 +15,7 @@ export type ResearchField =
   | "art_of_war"
   | "shieldcraft"
   | "siegecraft"
-  | "siege_accuracy"
+  | "medicine"
   | "free_companies"
   | "statecraft"
   | "granarycraft"
@@ -27,7 +27,8 @@ export interface ResearchFieldMeta {
   id: ResearchField;
   name: string;
   desc: string;
-  /** Counts toward ranking score? (victory.md — 7 of 10 fields do.) */
+  /** Counts toward ranking score? (victory.md — the martial and economic
+   *  fields do; the covert and trade ones deliberately do not.) */
   ranked: boolean;
 }
 
@@ -40,8 +41,14 @@ export const RESEARCH_FIELDS: ResearchFieldMeta[] = [
   { id: "pathfinding", name: "Pathfinding", desc: "Scout recon & catch chance, +20%/lvl", ranked: false },
   { id: "art_of_war", name: "The Art of War", desc: "Attack multiplier, all troops, up to +100%", ranked: true },
   { id: "shieldcraft", name: "Shieldcraft", desc: "Defence multiplier, all troops, up to +100%", ranked: true },
-  { id: "siegecraft", name: "Siegecraft", desc: "Siege engine power, up to +100% — every engine, every target", ranked: true },
-  { id: "siege_accuracy", name: "Siege Accuracy", desc: "Trebuchets stop missing: 30%→60% against walls, 20%→50% against buildings, and sharper counter-battery fire", ranked: true },
+  // ONE siege field, not two. Siegecraft and Siege Accuracy were split because
+  // they act through different halves of the damage model — one adds to the
+  // bonus pool, the other moves a delivery gate — but that is an implementation
+  // detail, not a decision a player was ever making. Nobody built engines and
+  // then chose NOT to aim them: the two were always bought together, so they
+  // were two prices for one idea. Merged, Siegecraft does both.
+  { id: "siegecraft", name: "Siegecraft", desc: "Siege engine power up to +100%, AND trebuchet accuracy: 30%→60% against walls, 20%→50% against buildings, sharper counter-battery", ranked: true },
+  { id: "medicine", name: "Medicine", desc: "Field surgeons: a share of the sellswords who fall defending you are pulled off the field alive, so the screen in front of your regulars lasts longer", ranked: true },
   { id: "free_companies", name: "Free Companies", desc: "Sellsword contracts, up to −50% on the price of hiring", ranked: false },
   { id: "statecraft", name: "Statecraft", desc: "Multiplies your tax income, ×2 at level 5 — the treasury, not the workshops", ranked: true },
   // Deliberately UNRANKED. It publishes nothing about your army and everything
@@ -60,10 +67,10 @@ export const RESEARCH_FIELDS: ResearchFieldMeta[] = [
  *
  * Lives HERE, beside RESEARCH_FIELDS, because it used to live in the research
  * page as a hand-written list of ids. Two lists of the same thing in different
- * files drift, and this one did: six fields — siege_accuracy, free_companies,
- * and the four added in the 2026-08 pass — existed in the game, cost points,
- * and could be researched by the Steward, but never appeared on the page a
- * player researches from. They were invisible.
+ * files drift, and this one did: six fields — Siege Accuracy (since merged into
+ * Siegecraft), free_companies, and the four added in the 2026-08 pass — existed
+ * in the game, cost points, and could be researched by the Steward, but never
+ * appeared on the page a player researches from. They were invisible.
  *
  * `research.test.ts` asserts every field appears in exactly one discipline, so
  * adding a field without placing it now fails the suite instead of vanishing.
@@ -92,7 +99,7 @@ export const RESEARCH_DISCIPLINES: ResearchDiscipline[] = [
     key: "war",
     name: "⚔ War",
     blurb: "Sharpen the army for battle",
-    fields: ["art_of_war", "shieldcraft", "siegecraft", "siege_accuracy", "free_companies"],
+    fields: ["art_of_war", "shieldcraft", "siegecraft", "medicine", "free_companies"],
   },
   {
     key: "shadow",

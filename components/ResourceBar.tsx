@@ -16,6 +16,7 @@ import {
   taxIncomePerTurn,
   vacantHousing,
   type Player,
+  type Resource,
 } from "@/lib/engine";
 import type { WorldMeta } from "@/lib/server/store";
 import { leaveSession, toggleTheme } from "@/app/actions";
@@ -80,10 +81,19 @@ export function ResourceBar({ player, meta }: { player: Player; meta: WorldMeta 
   const upkeep = foodUpkeepPerTurn(player);
   const netFood = rates.food - upkeep;
   const banked = bankedRes(player);
-  const foodRunway = netFood < 0 ? player.resources.food / -netFood : Infinity;
+  // The bar shows what you OWN — loose plus vaulted — because that is what you
+  // can actually spend (purchases draw loose first, then the vault). The split
+  // is what a raider cares about, so it lives in the popover rather than the
+  // headline. Showing the loose figure alone read as an empty treasury to any
+  // Charter holder, whose Steward banks every loose sack each tick.
+  const heldGold = player.gold + player.bankedGold;
+  const held = (k: Resource) => player.resources[k] + banked[k];
+  // Runway is measured against the WHOLE larder: upkeep eats loose first and
+  // then opens the granary, so the vault is genuinely part of the buffer.
+  const foodRunway = netFood < 0 ? held("food") / -netFood : Infinity;
 
   let foodCls = "";
-  if (player.starving || player.resources.food === 0) foodCls = "res-crit";
+  if (player.starving || held("food") === 0) foodCls = "res-crit";
   else if (netFood < 0 && foodRunway <= 12) foodCls = "res-crit";
   else if (netFood < 0 && foodRunway <= 72) foodCls = "res-low";
 
@@ -100,14 +110,15 @@ export function ResourceBar({ player, meta }: { player: Player; meta: WorldMeta 
       heading={label}
       rows={[
         { label: "Production / turn", value: signed(rates[key]), tone: "good" },
-        { label: "Loose (raidable)", value: fmt(player.resources[key]) },
-        { label: "Vaulted (safe)", value: fmt(banked[key]) },
+        { label: "Held (loose + vaulted)", value: fmt(held(key)), tone: "good" },
+        { label: "· Loose — raidable", value: fmt(player.resources[key]) },
+        { label: "· Vaulted — safe", value: fmt(banked[key]) },
       ]}
-      note="Loose goods can be looted; store them from the Command View to shelter them."
+      note="The figure on the bar is everything you hold; purchases spend the loose pile first and dip into the vault only for the remainder. Only the loose half can be looted."
     >
-      <div className={`res ${bulk(player.resources[key])}`} data-res={key}>
+      <div className={`res ${bulk(held(key))}`} data-res={key}>
         <ResIcon kind={key} size={28} />
-        {fmt(player.resources[key])}
+        {fmt(held(key))}
       </div>
     </ResTip>
   );
@@ -119,14 +130,15 @@ export function ResourceBar({ player, meta }: { player: Player; meta: WorldMeta 
           heading="Gold"
           rows={[
             { label: "Tax income / turn", value: signed(tax), tone: "good" },
-            { label: "Loose (lootable)", value: fmt(player.gold) },
-            { label: "Banked (safe)", value: fmt(player.bankedGold) },
+            { label: "Held (loose + banked)", value: fmt(heldGold), tone: "good" },
+            { label: "· Loose — lootable", value: fmt(player.gold) },
+            { label: "· Banked — safe", value: fmt(player.bankedGold) },
           ]}
-          note="Loose coin is plundered when your castle is sacked — bank it in the Counting House."
+          note="The figure on the bar is everything you hold; purchases spend loose coin first and reach into the Counting House only for the remainder. Only the loose half is plundered when your castle is sacked."
         >
-          <div className={`res ${bulk(player.gold)}`} data-res="gold">
+          <div className={`res ${bulk(heldGold)}`} data-res="gold">
             <ResIcon kind="gold" size={28} />
-            {fmt(player.gold)}
+            {fmt(heldGold)}
           </div>
         </ResTip>
         <ResTip
@@ -135,13 +147,15 @@ export function ResourceBar({ player, meta }: { player: Player; meta: WorldMeta 
             { label: "Production / turn", value: signed(rates.food), tone: "good" },
             { label: "Upkeep / turn", value: signed(-upkeep), tone: "bad" },
             { label: "Net / turn", value: signed(netFood), tone: netFood >= 0 ? "good" : "bad" },
-            { label: "Vaulted (safe)", value: fmt(banked.food) },
+            { label: "Held (loose + vaulted)", value: fmt(held("food")), tone: "good" },
+            { label: "· Loose — raidable", value: fmt(player.resources.food) },
+            { label: "· Vaulted — safe", value: fmt(banked.food) },
           ]}
           note={foodNote}
         >
           <div className={`res ${foodCls}`} data-res="food">
             <ResIcon kind="food" size={28} />
-            {fmt(player.resources.food)}
+            {fmt(held("food"))}
           </div>
         </ResTip>
         {bulkTip("wood", "Wood")}

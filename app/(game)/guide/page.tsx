@@ -233,7 +233,7 @@ export default function GuidePage() {
         </p>
         <h4>Research — the Collegium</h4>
         <p>
-          <Link href="/research">The Collegium</Link> has <b>12 fields × 5 levels</b>. Any field is
+          <Link href="/research">The Collegium</Link> has <b>16 fields × 5 levels</b>. Any field is
           researchable at any time — the Collegium only sets the <b>speed</b> (its level lifts how
           much research each of your scholars banks per turn). But every level you earn, in{" "}
           <i>any</i> field, makes the <b>next one costlier</b> — a single global, escalating price —
@@ -315,8 +315,9 @@ export default function GuidePage() {
           </li>
           <li>
             <b>Revenge</b> — to <b>kill troops</b>. Opens for 18h after you&apos;re attacked; ignores
-            vacation, low stamina, and broken walls, gives the defender <b>no chance to yield</b>,
-            and <b>chains</b> (revenge re-arms the victim&apos;s window).
+            low stamina and broken walls, gives the defender <b>no chance to yield</b>, and{" "}
+            <b>chains</b> (revenge re-arms the victim&apos;s window). It does <i>not</i> reach someone
+            on vacation — but nobody may depart while owing you one, so the door was never open.
           </li>
           <li>
             <b>Bombard</b> — an artillery duel that wrecks <b>walls first</b>, then cracks random
@@ -381,14 +382,22 @@ export default function GuidePage() {
           <Link href="/clan/works">Works &amp; Vault</Link> (raise and repair the three works, and
           give to or draw from the shared pool that pays for them),{" "}
           <Link href="/clan/chat">Chat</Link>, and{" "}
-          <Link href="/clan/war">War Front</Link> (declare war, and bombard an enemy&apos;s works).
+          <Link href="/clan/war">War Front</Link> (alliances, declare war, and bombard an
+          enemy&apos;s works).
           The tabs carry counts — waiting petitions and the day&apos;s chat — so you can see what
           needs you without opening each one.
         </p>
         <p>
           <b>Clan wars double battle damage both ways.</b> Winning a war siphons tribute and freezes
-          the loser&apos;s victory clocks for 48h. Neutral is the default; friendly clans share online
-          status and last-attacked times.
+          the loser&apos;s victory clocks for 48h. Neutral is the default.
+        </p>
+        <p>
+          <b>Alliances are a promise, not a wall.</b> Your Leader or Vice can offer one to another
+          clan and end one at any time; allied clans share online status and last-attacked times, and
+          you cannot ally with someone you are at war with. But an alliance does <i>not</i> stop your
+          members marching on theirs — it makes doing so <b>treachery</b>: the pact breaks on both
+          sides at once and the deed is written into the world chronicle by name, for the rest of the
+          age. If you mean to fight a friend, <b>end the alliance first</b> — same fight, no stain.
         </p>
       </Guide>
 
@@ -412,10 +421,15 @@ export default function GuidePage() {
             <b>Keep troops above 30% of civilians</b> so your people never scatter at the reset.
           </li>
           <li>
-            <b>Vacation</b> is an option (Command View): you can&apos;t attack and your tax halves,
-            but you become immune to everything except revenge. Don&apos;t confuse it with{" "}
-            <b>yielding</b> — a yield is decided for you on the battlefield when you&apos;re
-            outmatched, and it saves your soldiers but not your stores.
+            <b>Vacation</b> is an option (Command View): <b>nothing reaches you at all</b> — no
+            attack, no revenge, no ranger, no spy — but you can&apos;t attack either, your tax
+            halves, your production drops to a fifth and your research to a third.
+            Recruitment is the one thing that doesn&apos;t suffer: settlers keep arriving at the full
+            rate, so <b>raise extra Hearthsteads before you go</b> or your town fills up and the
+            intake stops. Come home after <b>6 hours or more away</b> and you get a <b>1-hour
+            shield</b> to set your house in order; a shorter hop earns nothing. Don&apos;t confuse
+            any of it with <b>yielding</b> — a yield is decided for you on the battlefield when
+            you&apos;re outmatched, and it saves your soldiers but not your stores.
           </li>
           <li>
             New empires get a <b>72-hour shield</b>, and the first <b>{ERA_PEACE_DAYS} days</b> of
@@ -502,11 +516,11 @@ export default function GuidePage() {
         </p>
         <ul>
           <li>
-            <b><Link href="/messages">Letters</Link></b> — a private thread with one other ruler.
-            Wiped when the age is sealed.
+            <b><Link href="/messages">Letters</Link></b> — a private thread with one other ruler,
+            one thread per pair. Kept: letters outlive the age.
           </li>
           <li>
-            <b><Link href="/messages/chat">Era Chat</Link></b> — one public room for everyone
+            <b><Link href="/messages/chat">World Chat</Link></b> — one public room for everyone
             playing this age. Also wiped with it.
           </li>
           <li>
@@ -650,8 +664,8 @@ export default function GuidePage() {
         <h4>Why it&apos;s special</h4>
         <ul>
           <li>
-            It <b>ignores the rules that stop normal attacks</b>: their vacation, their exhaustion,
-            their broken walls, and even the &ldquo;too strong to attack&rdquo; refusal — so you can
+            It <b>ignores the rules that stop normal attacks</b>: their exhaustion, their broken
+            walls, and even the &ldquo;too strong to attack&rdquo; refusal — so you can
             strike a target far <i>above</i> your weight. Alone among attacks, it also gives them{" "}
             <b>no chance to yield</b>: however beaten they are, the fight is real and their regulars
             die.

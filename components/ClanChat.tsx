@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Btn } from "@/components/Btn";
 import { CmdForm } from "@/components/CmdForm";
 import { ReqTip } from "@/components/CostTip";
-import { TextInput } from "@/components/TextInput";
+import { TextArea } from "@/components/TextArea";
 import { CHAT } from "@/lib/constants";
 import { ticksAgo } from "@/lib/engine";
 import type { ForumMessage } from "@/lib/server/store";
@@ -39,24 +39,22 @@ export function ClanChat({
                 {" · "}
                 {ticksAgo(m.tick, nowTick)}
               </span>
-              <div>{m.body}</div>
+              <div className="comms-body">{m.body}</div>
             </div>
           ))
         )}
       </div>
-      <div style={{ marginTop: 8 }}>
-        <CmdForm name="chat" path={path}>
-          <input type="hidden" name="channel" value="clan" />
-          <TextInput name="body" ariaLabel="Message to your clan" placeholder="Speak to your clan…" maxLength={800} />
-          <ReqTip
-            heading="Post to the clan"
-            body="Only your own clan can read this channel."
-            note={`The hall remembers its last ${CHAT.CLAN_HISTORY} messages — older words are lost for good.`}
-          >
-            <Btn className="btn">Post</Btn>
-          </ReqTip>
-        </CmdForm>
-      </div>
+      <CmdForm name="chat" path={path} inline={false} className="comms-form">
+        <input type="hidden" name="channel" value="clan" />
+        <TextArea name="body" ariaLabel="Message to your clan" placeholder="Speak to your clan…" maxLength={800} rows={4} />
+        <ReqTip
+          heading="Post to the clan"
+          body="Only your own clan can read this channel."
+          note={`The hall remembers its last ${CHAT.CLAN_HISTORY} messages — older words are lost for good.`}
+        >
+          <Btn className="btn">Post</Btn>
+        </ReqTip>
+      </CmdForm>
       <p style={{ fontSize: 12.5, color: "var(--ink-soft)", margin: "6px 0 0" }}>
         Last {CHAT.CLAN_HISTORY} messages kept · also in the{" "}
         <Link href="/messages">Letters</Link>.

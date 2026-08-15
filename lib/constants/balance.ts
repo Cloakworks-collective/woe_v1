@@ -201,16 +201,68 @@ export const RESEARCH_OUTPUT_CURVE: Curve = { kind: "linear", base: 0, perX: 10 
 /** Food consumed per person (civilians + regular troops) per turn. */
 export const FOOD_UPKEEP_PER_PERSON = 0.1; // food/turn
 
+/**
+ * WORKING costs more than living. Every ASSIGNED worker eats this on top of the
+ * per-person figure above — a labourer at a quarry face eats like a labourer,
+ * not like an idle peasant.
+ *
+ * This is what makes food a live constraint rather than a rounding error. At the
+ * default 50% tax a worker's output is 10 × building level × 0.5, so:
+ *
+ *     L1  produces  5/turn — eats 5. EXACTLY break-even.
+ *     L3  produces 15/turn — nets +10
+ *     L10 produces 50/turn — nets +45
+ *
+ * A level-1 building therefore feeds its own worker and nothing more, and every
+ * level after that is real surplus. It also gives the tax dial teeth in a new
+ * direction: at 100% tax nobody produces anything but everybody still eats, so
+ * squeezing the realm dry now starves it rather than merely stalling it.
+ *
+ * Farmers are the counterweight — an L10 human farmer grows 62.5/turn and so
+ * carries roughly twelve other workers. That ratio IS the food economy.
+ */
+export const WORKER_FOOD_PER_TURN = 5; // food/turn per assigned worker
+
 // Vacation — stepping away from the age entirely. Not to be confused with a
 // battlefield yield (see YIELD below): vacation is a standing state you choose
-// out of combat, halving your economy and locking your sword arm in exchange
+// out of combat, gutting your economy and locking your sword arm in exchange
 // for being untouchable by everything but revenge.
+//
+// THE THREE DIALS MOVE BY DIFFERENT AMOUNTS, ON PURPOSE. An empty town still
+// pays its taxes, its fields still yield something without a steward standing
+// over them, and its scholars — who need only bread and a library — barely
+// notice the regent is gone. So:
+//
+//     tax          ×0.5   the collectors keep their rounds
+//     production   ×0.2   the yards go quiet
+//     research     ×0.3   the Collegium reads on
+//
+// Research is deliberately the softest of the three. Study is the one thing a
+// player can meaningfully leave running while they are away, and it keeps a
+// long absence from being a dead loss — but it is still a real cut, so nobody
+// treats vacation as a research strategy. It runs on food like everything else:
+// a STARVING empire researches nothing, away or not (see processTurnTick).
 export const VACATION_TAX_FACTOR = 0.5; // × on tax income
-export const VACATION_PRODUCTION_FACTOR = 0.5; // × on production
+export const VACATION_PRODUCTION_FACTOR = 0.2; // × on resource production (−80%)
+export const VACATION_RESEARCH_FACTOR = 0.3; // × on research points (−70%)
 export const VACATION_DAYS_PER_ERA = 20; // days, cumulative per era
 export const VACATION_TICKS_PER_ERA = VACATION_DAYS_PER_ERA * TURNS_PER_DAY;
 /** After returning from vacation, no fresh attacks for this long (revenge exempt). */
 export const VACATION_REATTACK_COOLDOWN_TICKS = 18 * TICKS_PER_HOUR;
+
+// Coming home. The moment vacation lifts you are a target again, and a ruler
+// who logs in to a raid already in their inbox has been punished for coming
+// back — which is exactly the behaviour that keeps people hiding.
+//
+// So a real absence buys a short shield: one hour to bank your gold, muster,
+// and look at the board before anybody may march. It is deliberately SHORT (an
+// attack costs 10 action turns; an hour is 6 turns) so it cannot be farmed as a
+// rolling immunity, and it is gated behind a MINIMUM absence so that hopping
+// out and back for a minute earns nothing at all.
+/** You must have been away at least this long for the return shield to apply. */
+export const VACATION_RETURN_SHIELD_MIN_TICKS = 6 * TICKS_PER_HOUR; // 6 hours
+/** How long that shield lasts — 6 turns, one hour. */
+export const VACATION_RETURN_SHIELD_TICKS = 1 * TICKS_PER_HOUR;
 
 // Mercenaries — instant strength you rent. They cost no population and no
 // training time, which is their whole appeal; everything else about them is
@@ -218,7 +270,17 @@ export const VACATION_REATTACK_COOLDOWN_TICKS = 18 * TICKS_PER_HOUR;
 // still needs a bed), they are paid off automatically when the regulars who
 // commanded them die (see MERCENARIES.CAP_RATIO in battleBalance), and their
 // upkeep re-pays their purchase price every few days.
-export const MERC_UPKEEP_GOLD_PER_TURN = 1; // gold/turn; unpaid mercs all defect
+/**
+ * RETIRED (kept at 0 so nothing that reads it has to change).
+ *
+ * Sellswords used to draw a wage every turn and desert as one body the first
+ * turn it went unpaid. Hiring is now a single up-front price: you buy the
+ * contract, not the month. The real check on a mercenary army was never the
+ * wage — it is MERCENARIES.CAP_RATIO, which ties their number to the regulars
+ * of the same arm and pays them off the instant those regulars fall. They cost
+ * gold to GET, not to KEEP.
+ */
+export const MERC_UPKEEP_GOLD_PER_TURN = 0; // gold/turn — retired, see above
 
 /**
  * Up-front gold for ONE sellsword of each arm, at light tier — the mercenary
@@ -248,8 +310,12 @@ export const MERC_PRICE_BY_ARM = {
   archer: 900, // 150
   cavalry: 1440, // 240
   engineer: 1200, // 200
-  spy: 1800, // 300
-  scout: 1200, // 200
+  // Held at MERC_PRICE_MULTIPLE × the raised cost, which mercenaryPricing.test
+  // enforces. When spies went to 5,000 and rangers to 3,000 these had to follow,
+  // or hiring a knife would have been cheaper than training one — and there
+  // would be no reason left to raise either.
+  spy: 30000, // 5,000
+  scout: 18000, // 3,000
 };
 
 /**
@@ -517,7 +583,7 @@ export const EFFECT_PER_LEVEL = 0.2; // frac
 /**
  * Per-field overrides. One global rate stopped being workable once fields
  * started doing different KINDS of thing: Free Companies at +100% would make
- * mercenaries free, and Siege Accuracy moves a delivery gate (30%→60%) rather
+ * mercenaries free, and Siegecraft's accuracy half moves a delivery gate (30%→60%) rather
  * than adding to the bonus pool at all. Anything absent here uses
  * EFFECT_PER_LEVEL.
  */
@@ -525,10 +591,6 @@ export const RESEARCH_EFFECT_PER_LEVEL: Record<string, number> = {
   /** Cuts the price of hiring sellswords — −50% at level 5. The field that
    *  makes a long war affordable, since mercenaries now churn constantly. */
   free_companies: 0.1,
-  /** Handled by SIEGE_ACCURACY in battleBalance — it interpolates two delivery
-   *  gates instead of contributing to the additive pool. Listed as 0 so nothing
-   *  double-counts it. */
-  siege_accuracy: 0,
   /** Deeper vaults: +5% protected capacity per level, +25% at level 5. Modest
    *  on purpose — shelter already doubles-ish with each storehouse level, so a
    *  research field that moved it 20% a level would outrun the building it is
@@ -626,8 +688,13 @@ export const TRAINING_COSTS = {
   archer: { gold: 150, wood: 50, stone: 0, ore: 55 }, // muster + arrowheads + bow
   cavalry: { gold: 240, wood: 30, stone: 0, ore: 100 }, // muster + barding, lance, blade
   siegeEngineer: { gold: 200, wood: 0, stone: 0, ore: 0 },
-  spy: { gold: 300, wood: 0, stone: 0, ore: 0 },
-  scout: { gold: 200, wood: 0, stone: 0, ore: 0 },
+  // The shadow war is a SPECIALIST'S game, and the price says so. A spy or a
+  // ranger costs no timber, no ore and no barracks bed — only coin and a head of
+  // population — so gold is the only dial that can make an intelligence service
+  // a real investment rather than something every empire trivially maxes.
+  // 5,000 buys one knife: roughly fifty footmen's worth of muster.
+  spy: { gold: 5000, wood: 0, stone: 0, ore: 0 },
+  scout: { gold: 3000, wood: 0, stone: 0, ore: 0 },
 };
 
 /** Equipment cost multiplier per tier. */
@@ -1093,7 +1160,97 @@ export const CLAN_MUTE_DAYS = [1, 3] as const;
  * can set to zero for one turn is not a cost, and taxing the giver MORE for
  * running a high-tax economy makes no sense.
  */
+/**
+ * MEDICINE — the field hospital, and the only research that gives you back
+ * something you have already lost.
+ *
+ * A share of the SELLSWORDS who fall defending you are carried off the field
+ * alive instead of buried. It reads as mercy and works as arithmetic: hired
+ * blades take the first CASUALTY_SPLIT.MERC_SHARE of every blow aimed at their
+ * arm, so a screen that survives a raid is a screen still standing in front of
+ * your regulars during the next one. Medicine does not save a single regular
+ * directly — it makes the thing that saves them last longer.
+ *
+ * WHY MERCENARIES AND NOT REGULARS. Regular dead are the one permanent,
+ * unrecoverable loss in the game: they cost population, they carry veterancy
+ * that dies with them (XP.LOSS_ON_DEATH), and killing them is meant to be the
+ * worst thing an enemy can do to you. A field hospital that undid that would
+ * take the teeth out of every attack in the game. Sellswords are contracts, not
+ * subjects — giving one back costs the attacker nothing they were promised.
+ *
+ * WHY ONLY ON DEFENCE. It is a hospital, not a baggage train: it works where
+ * your own surgeons, stores and roofs are. Attacking abroad heals nobody, which
+ * also stops the field being a flat damage discount on aggression.
+ *
+ * THE FLOOR MATTERS AS MUCH AS THE RATE. 4% of a small skirmish rounds to
+ * nothing, and a research that visibly does nothing in the fights a new player
+ * actually has is a research nobody takes. So each level guarantees one head.
+ */
+export const MEDICINE = {
+  /** Share of fallen sellswords recovered, per level — 20% at mastery. */
+  RECOVER_PER_LEVEL: 0.04, // frac
+  /** …but never fewer than this many heads per level, if that many fell. */
+  MIN_PER_LEVEL: 1,
+  /** Food per head the surgeons spend. Partial treatment is allowed: a granary
+   *  that covers three of five saves three. Food because a hospital runs on
+   *  stores and hands, not coin — and because it gives the granary a martial
+   *  use beyond not starving. */
+  FOOD_PER_RECOVERY: 50,
+};
+
 export const CLAN_GIFT_TAX = 0.1; // frac, burned
+
+/**
+ * DIRECT AID between clanmates — the two rules that stop it being a funnel.
+ *
+ * The abuse both exist to kill is the same one: a second account founded for no
+ * reason but to feed a first. Each closes a different half of it.
+ *
+ * AID_SCORE_BAND — you may only aid an empire within ±30% of your own ranking
+ * score. A freshly-made alt is tiny, so it simply cannot reach the main it was
+ * made to serve; and a giant cannot bankroll a minnow into the top ten. This is
+ * the load-bearing rule, because it needs no history to work — it bites on the
+ * very first gift.
+ *
+ * AID_LEDGER_MULTIPLE — aid is written to the SAME per-member ledger the clan
+ * vault uses, and capped in BOTH directions:
+ *
+ *     given    ≤ 3 × received      you cannot pour out what you never took in
+ *     received ≤ 3 × given         you cannot be propped up beyond your keep
+ *
+ * The vault's own rule (`WITHDRAW_MULTIPLE`) is the second of those and is
+ * unchanged. What is new is the first, which is what an alt violates: it gives
+ * and gives and never receives.
+ *
+ * NOTE the bootstrap this implies. A member who has neither given nor received
+ * can do neither by gift — their on-ramp is the vault, where DEPOSITING is
+ * deliberately uncapped. Put something in the pool and you have headroom to be
+ * helped; draw something out and you have headroom to help. That is a real
+ * constraint on a brand-new clan and the number to loosen if it bites too hard.
+ */
+export const AID_SCORE_BAND = 0.3; // frac — ±30% of your ranking score
+export const AID_LEDGER_MULTIPLE = 3; // × — both directions, on the clan ledger
+
+/**
+ * The seed the two-way cap needs to be usable at all.
+ *
+ * Capping BOTH directions on a ledger that starts empty is a deadlock: a member
+ * who has neither given nor received may do neither, so no gift can ever be the
+ * FIRST transaction in a new clan and a freshly founded banner cannot help its
+ * own members. This is headroom on both caps:
+ *
+ *     given    ≤ 3 × received + seed
+ *     received ≤ 3 × given    + seed
+ *
+ * It is safe against the abuse the caps exist for, because the ±30% score band
+ * is the rule actually holding that door: an alt cannot reach its main at ALL,
+ * seed or no seed. What the seed can be worth to a funnel is this much, once,
+ * per resource, per member — and only between empires already of a size to be
+ * helping each other legitimately.
+ *
+ * Per resource, not in total: gold and grain are different problems.
+ */
+export const AID_SEED_ALLOWANCE = 10_000; // units per resource, per member
 
 // ─── 13 · VICTORY & RANKING ─────────────────────────────────────────────────
 
@@ -1165,7 +1322,6 @@ export const SCORE = {
    *  zero by design). This is what keeps a bombardier visible on the ladder
    *  without revealing whether their engines throw stones or pour fire. */
   PER_ENGINEER: 12, // pts — priced against a footman per gold spent
-  PER_XP_POINT: 100, // pts, army experience 0–100
   PER_RESEARCH_LEVEL: 1000, // pts, ranked fields only
   /**
    * Regulars needed PER WALL LEVEL for the wall to score its full worth; below

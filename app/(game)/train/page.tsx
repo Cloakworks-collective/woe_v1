@@ -10,10 +10,23 @@ import { Info } from "@/components/Info";
 import { Panel } from "@/components/Panel";
 import { ResIcon } from "@/components/ResIcon";
 import { GUILD_BONUS_PER_LEVEL, researchOutputAtLevel, workerOutputAtLevel, TRAINING_COSTS, UNIT_GUIDE, UNIT_INFO, CARAVAN_CAPACITY_PER_MARKET_LEVEL } from "@/lib/constants";
-import { caravanDeliveryTurns, level, type Player, type WorkerRole } from "@/lib/engine";
+import {
+  caravanDeliveryTurns,
+  level,
+  mercPrice,
+  mercsOfArm,
+  purseGold,
+  regularsOfArm,
+  wonderDiscount,
+  type Player,
+  type WorkerRole,
+} from "@/lib/engine";
+import { MERCENARIES } from "@/lib/constants";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
+
+const fmt = (n: number) => n.toLocaleString("en-US");
 
 const ROLES: { role: WorkerRole; label: string; building: string; buildingId: Parameters<typeof level>[1] }[] = [
   { role: "farmers", label: "Farmers", building: "The Grange", buildingId: "grange" },
@@ -108,22 +121,51 @@ function CountForm({
   );
 }
 
-const MUSTER = (p: Player) =>
+/**
+ * The covert corps — raised AND hired in one place.
+ *
+ * Hiring spies and rangers used to live in the Black Market on /troops, behind a
+ * row of pills whose last two entries were these. That put the covert arms two
+ * pages away from the only other control that touches them, and it read as if
+ * the shadow war were an afterthought to the battle line. Everything about a
+ * spy — the gold, the sellsword, the Guild that makes them better — now sits on
+ * one card.
+ *
+ * `mercGate` is the building each hired arm answers to (hireMercenaries refuses
+ * without it); `mercRoom` is what the ⅓-of-your-own-regulars cap leaves.
+ */
+const MUSTER = (p: Player, discount: number) =>
   [
     {
       unit: "spy" as const,
+      arm: "spy" as const,
       art: "units/spy",
       cmd: "trainSpies",
       current: p.army.spies,
+      hired: mercsOfArm(p, "spy"),
       cost: TRAINING_COSTS.spy.gold,
+      mercCost: mercPrice(p, "spy", "light", discount),
+      mercGate: level(p, "shadow_guild") > 0 ? null : "a Shadow Guild",
+      mercRoom: Math.max(
+        0,
+        Math.floor(regularsOfArm(p, "spy") * MERCENARIES.CAP_RATIO) - mercsOfArm(p, "spy"),
+      ),
       capacity: `unlimited — Shadow Guild L${level(p, "shadow_guild")} makes each mission +${Math.round(level(p, "shadow_guild") * GUILD_BONUS_PER_LEVEL * 100)}% effective`,
     },
     {
       unit: "scout" as const,
+      arm: "scout" as const,
       art: "units/scout",
       cmd: "trainScouts",
       current: p.army.scouts,
+      hired: mercsOfArm(p, "scout"),
       cost: TRAINING_COSTS.scout.gold,
+      mercCost: mercPrice(p, "scout", "light", discount),
+      mercGate: level(p, "rangers_lodge") > 0 ? null : "a Ranger's Lodge",
+      mercRoom: Math.max(
+        0,
+        Math.floor(regularsOfArm(p, "scout") * MERCENARIES.CAP_RATIO) - mercsOfArm(p, "scout"),
+      ),
       capacity: `unlimited — Ranger's Lodge L${level(p, "rangers_lodge")} catches spy ops up to level ${level(p, "rangers_lodge")}`,
     },
   ];
@@ -134,7 +176,9 @@ export default async function TrainPage({
   searchParams: Promise<{ err?: string; ok?: string }>;
 }) {
   const { err, ok } = await searchParams;
-  const { player: p } = await getGame();
+  const { world, player: p } = await getGame();
+  // Sellsword prices carry the Clan Wonder discount, same as the Black Market.
+  const discount = wonderDiscount(p.clanId ? world.clans[p.clanId] : undefined);
 
   return (
     <>
@@ -148,6 +192,19 @@ export default async function TrainPage({
         info={`Worker assignment is free and reversible. EVERY worker is UNLIMITED — you only need the building. Its level raises how effective each worker is: farmers, quarrymen, miners and lumberjacks make ${workerOutputAtLevel(1)}/turn at L1 up to ${workerOutputAtLevel(10)} at L10, while scholars make ${researchOutputAtLevel(1)} up to ${researchOutputAtLevel(10)} research a turn; each Market Square level lets every caravan carry another ${CARAVAN_CAPACITY_PER_MARKET_LEVEL.toLocaleString("en-US")} goods AND shortens the road to the Bazaar (${caravanDeliveryTurns(1)} turns at L1 down to ${caravanDeliveryTurns(10)} at L10).`}
         guide="/guide#grow"
       >
+        {/* The number every decision on this page is made against. It was only
+            visible per-card, inside each Assign control, so the answer to "how
+            many can I move?" lived in six places and nowhere. */}
+        <div className={`idle-bar${p.idlePeasants === 0 ? " is-empty" : ""}`}>
+          <span className="idle-count">
+            🧍 <b>{fmt(p.idlePeasants)}</b> idle peasant{p.idlePeasants === 1 ? "" : "s"}
+          </span>
+          <span className="idle-note">
+            {p.idlePeasants === 0
+              ? "Everyone is already at work. Recall some below, or wait for dawn's settlers."
+              : "Unassigned and producing nothing — put them to a trade below."}
+          </span>
+        </div>
         <div className="card-grid">
           {ROLES.map(({ role, label, building, buildingId }) => {
             const lvl = level(p, buildingId);
@@ -191,9 +248,16 @@ export default async function TrainPage({
       </Panel>
       </div>
 
-      <Panel title="The Muster — spies &amp; scouts" guide="/guide#shadows">
+      <div id="shadows" />
+      <Panel
+        title="The Muster — spies &amp; rangers"
+        info="Your whole covert corps in one place: raise your own, or hire sellswords of the same arm. Neither costs population or a barracks bed — agents live in town — and hired ones are capped at a third of your own and are taken first when a mission is intercepted."
+        guide="/guide#shadows"
+      >
         <div className="card-grid">
-          {MUSTER(p).map(({ unit, art, cmd, current, cost, capacity }) => (
+          {MUSTER(p, discount).map((u) => {
+            const { unit, arm, art, cmd, current, hired, cost, mercCost, mercGate, mercRoom, capacity } = u;
+            return (
             <div className="bcard" key={unit}>
               <div className="bcard-head">
                 <div>
@@ -217,18 +281,62 @@ export default async function TrainPage({
                     name={cmd}
                     path="/train"
                     label="Train"
-                    afford={p.gold >= cost}
+                    afford={purseGold(p) >= cost}
                     heading={`Train ${UNIT_INFO[unit].title}`}
                     goldEach={cost}
-                    haveGold={p.gold}
+                    haveGold={purseGold(p)}
                   />
+
+                  {/* Sellswords of the same arm, on the same card. They cost no
+                      population and no barracks bed — covert agents live in
+                      town — but they are capped at a third of your OWN, and they
+                      are the ones taken first when a mission is intercepted. */}
+                  <div className="covert-hire">
+                    <span className="covert-hire-head">
+                      Hire — {mercCost.toLocaleString("en-US")}g each
+                      {hired > 0 ? ` · ${hired} on the books` : ""}
+                    </span>
+                    {mercGate ? (
+                      <p className="covert-hire-why">
+                        Hired {unit === "spy" ? "knives" : "rangers"} answer only to {mercGate} — build
+                        it first.
+                      </p>
+                    ) : mercRoom === 0 ? (
+                      <p className="covert-hire-why">
+                        No room: sellswords may not outnumber a{" "}
+                        {Math.round(1 / MERCENARIES.CAP_RATIO)}th of your own {unit}s. Train more of
+                        your own first.
+                      </p>
+                    ) : (
+                      <CountForm
+                        name="buyMercs"
+                        path="/train"
+                        label="Hire"
+                        // Tier is ignored for the untiered covert arms — see
+                        // mercPrice — but the command signature still wants one.
+                        extra={{ type: arm, tier: "light" }}
+                        afford={purseGold(p) >= mercCost}
+                        heading={`Hire ${unit === "spy" ? "hired knives" : "hired rangers"}`}
+                        goldEach={mercCost}
+                        haveGold={purseGold(p)}
+                      />
+                    )}
+                    {!mercGate && mercRoom > 0 && (
+                      <p className="covert-hire-why">
+                        Room for <b>{mercRoom.toLocaleString("en-US")}</b> more. They take no
+                        population and no bed, earn no veterancy, and fall first when a mission is
+                        caught — which is what keeps your own alive.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="bcard-gain">
                 <b>Capacity</b>: {capacity}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
         <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 10 }}>
           Footmen, archers, cavalry, and siege engineers are all raised straight from idle peasants

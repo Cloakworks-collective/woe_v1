@@ -1,13 +1,9 @@
-import { Btn } from "@/components/Btn";
 import Link from "next/link";
-import { Art } from "@/components/Art";
 import { BattleReportPanel } from "@/components/BattleReportPanel";
 import { Flash } from "@/components/Flash";
+import { Ladder, type LadderRow } from "@/components/Ladder";
 import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
-import { ReqTip } from "@/components/CostTip";
-import { TargetActions } from "@/components/TargetActions";
-import { Pager } from "@/components/Pager";
 import { ARMY_FLOORS, ATTACK_HISTORY_HOURS, HOLD_CLOCKS, RACE_NAMES } from "@/lib/constants";
 import {
   rankingScore,
@@ -17,13 +13,11 @@ import {
   totalPopulation,
   troopStrengthLabel,
 } from "@/lib/engine";
-import { paginate } from "@/lib/paginate";
 import { getGame } from "@/lib/server/session";
 import { MS_PER_HOUR, REVENGE_WINDOW_TICKS, overlordHold } from "@/lib/server/world";
 
 export const dynamic = "force-dynamic";
 
-const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");
 const PAGE_SIZE = 30;
 
 export default async function RankingsPage({
@@ -49,36 +43,12 @@ export default async function RankingsPage({
     spy: "The Ladder — pick a target and send shadows",
   } as const;
   const { world, player: me } = await getGame();
-  const query = (q ?? "").toLowerCase();
   const tick = world.meta.tickNumber;
   const report = reportId ? world.battles.find((b) => b.id === reportId) : undefined;
 
   const ladder = Object.values(world.players)
     .map((p) => ({ p, score: rankingScore(p) }))
     .sort((a, b) => b.score - a.score);
-  const rankOf = new Map(ladder.map((l, i) => [l.p.id, i + 1]));
-  const filtered = query
-    ? ladder.filter(
-        ({ p }) =>
-          p.name.toLowerCase().includes(query) ||
-          RACE_NAMES[p.race].toLowerCase().includes(query) ||
-          settlementTitle(p).toLowerCase().includes(query) ||
-          (p.clanId && world.clans[p.clanId]?.name.toLowerCase().includes(query)),
-      )
-    : ladder;
-
-  // Arriving to ACT opens at YOUR page — the neighbours you can actually reach.
-  //
-  // Browsing the ladder and picking a fight are different errands. From the top
-  // you read the age's standings; to pick a fight you want the empires near
-  // your own weight, and the crown at #1 is the one target the army will
-  // refuse. Only the DEFAULT moves: page= still wins, so the pager and every
-  // link keep working from wherever you land.
-  const myRow = filtered.findIndex(({ p }) => p.id === me.id);
-  const myPage = myRow >= 0 ? Math.floor(myRow / PAGE_SIZE) + 1 : 1;
-  const paged = paginate(filtered, page ?? (arm ? myPage : 1), PAGE_SIZE);
-  const pageHref = (n: number) =>
-    `/rankings?${q ? `q=${encodeURIComponent(q)}&` : ""}${arm ? `act=${arm}&` : ""}page=${n}`;
 
   // My war context: whom I may revenge (personal window, or a clan-bombardment
   // window my banner still holds), and my Tradecraft for the spy console.
@@ -96,8 +66,73 @@ export default async function RankingsPage({
     for (const id of world.clans[rev.againstClanId]?.members ?? []) clanRevenge.add(id);
   }
   const warClanIds = new Set(myClan?.wars.map((w) => w.clanId) ?? []);
-  // Public raid history — who has been fed upon lately. Same facts the World
-  // News feed already publishes; the ladder just counts them per empire.
+  // Allied banners. Read from BOTH sides so a half-written pact counts as none
+  // (see areAllied) — the strike console must never promise a treachery warning
+  // it cannot deliver, nor withhold one it should.
+  const alliedClanIds = new Set(
+    (myClan?.friendly ?? []).filter((id) => (world.clans[id]?.friendly ?? []).includes(myClan!.id)),
+  );
+  // Every empire, flattened to plain data the browser can filter on a keystroke.
+  // The search is live, so the whole ladder has to be here — but rendered from
+  // data, not markup, so only the visible page ever reaches the DOM.
+  const rows: LadderRow[] = ladder.map(({ p }, i) => {
+    const clan = p.clanId ? world.clans[p.clanId] : undefined;
+    const isMe = p.id === me.id;
+    const shielded = p.shieldUntilTick > tick;
+    const revengeOpen = personalRevenge.has(p.id) || clanRevenge.has(p.id);
+    const atWar = p.clanId ? warClanIds.has(p.clanId) : false;
+    // Your own banner is not a target. The pipeline refuses attacks AND covert
+    // work against a clanmate, so the row must not offer orders the strike
+    // would bounce.
+    const sameClan = Boolean(me.clanId && p.clanId === me.clanId) && !isMe;
+    const allied = Boolean(p.clanId && alliedClanIds.has(p.clanId));
+    const refused = rankingScore(p) / myScore >= 1.75;
+    const title = settlementTitle(p);
+    const hint = allied
+      ? `🤝 Allied with your banner — striking them breaks the alliance and is recorded as treachery.`
+      : sameClan
+      ? "🤝 Your own banner — clanmates cannot be attacked, scouted or spied on."
+      : shielded
+      ? "🛡 Shielded — no attacks or spying."
+      : refused
+        ? "Far stronger than you — the army may refuse to march."
+        : p.onVacation
+          ? "🏖 On vacation — nothing reaches them, revenge included."
+          : undefined;
+    return {
+      id: p.id,
+      name: p.name,
+      race: p.race,
+      raceName: RACE_NAMES[p.race],
+      rank: i + 1,
+      clanId: clan?.id,
+      clanName: clan?.name,
+      troops: troopStrengthLabel(p),
+      population: totalPopulation(p),
+      isMe,
+      onVacation: p.onVacation,
+      shielded,
+      revengeOpen,
+      atWar,
+      allied,
+      allyClanName: allied ? clan?.name : undefined,
+      state: { shielded, onVacation: p.onVacation, revengeOpen, sameClan, isSelf: isMe, allied },
+      hint,
+      hay: [p.name, RACE_NAMES[p.race], title, clan?.name ?? "", `#${i + 1}`]
+        .join(" ")
+        .toLowerCase(),
+    };
+  });
+
+  // Arriving to ACT opens at YOUR page — the neighbours you can actually reach.
+  //
+  // Browsing the ladder and picking a fight are different errands. From the top
+  // you read the age's standings; to pick a fight you want the empires near
+  // your own weight, and the crown at #1 is the one target the army will
+  // refuse. Only the DEFAULT moves: page= still wins.
+  const myRow = rows.findIndex((r) => r.isMe);
+  const myPage = myRow >= 0 ? Math.floor(myRow / PAGE_SIZE) + 1 : 1;
+  const openAt = Number(page) || (arm ? myPage : 1);
 
   const leader = ladder[0];
   const oh = overlordHold(world);
@@ -118,7 +153,7 @@ export default async function RankingsPage({
           <p style={{ fontSize: 13, marginBottom: 6 }}>
             Showing the <b>{arm === "attack" ? "march" : arm === "scout" ? "ranger" : "shadow"}</b>{" "}
             order only
-            {myRow >= 0 && !page && paged.pageNo === myPage && (
+            {myRow >= 0 && !page && !q && (
               <>
                 , opened at <b>your own rank (#{myRow + 1})</b> so you can see who is near your
                 weight
@@ -127,131 +162,29 @@ export default async function RankingsPage({
             . <Link href={`/rankings${q ? `?q=${encodeURIComponent(q)}` : ""}`}>The full ladder from the top →</Link>
           </p>
         )}
-        <form style={{ marginBottom: 8, display: "flex", gap: 6 }}>
-          {arm && <input type="hidden" name="act" value={arm} />}
-          <input
-            name="q"
-            defaultValue={q}
-            placeholder="Search name, race, clan, or title…"
-            style={{ width: 240 }}
-          />
-          <ReqTip heading="Search the ladder" body="Filter to empires matching your query — by empire name, race, clan, or settlement title. Leave blank to see everyone.">
-            <Btn className="btn">Search</Btn>
-          </ReqTip>
-        </form>
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th className="num">Rank</th>
-              <th>Empire</th>
-              <th>Clan</th>
-              <th>
-                <ReqTip
-                  down
-                  heading="Troop strength — a traveller's guess"
-                  body="Read as a passer-by would judge it: None · Weak · Moderate · Strong · Heavy. Exact counts are for spies — run an op from 🗡 Spy to see the real muster."
-                >
-                  <span className="tip-under">Troops</span>
-                </ReqTip>
-              </th>
-              <th className="num">
-                <ReqTip
-                  down
-                  heading="Population — the victory fuel"
-                  body="Civilians + regular troops (mercenaries never count). Ranking score also weighs walls, buildings, treasury, experience, and 7 of the 10 research fields — and the victory clocks only tick with enough REGULARS in the field (mercenaries and engineers do not count)."
-                >
-                  <span className="tip-under">Population</span>
-                </ReqTip>
-              </th>
-              <th>Act</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paged.shown.map(({ p }) => {
-              const rank = rankOf.get(p.id) ?? 0;
-              const clan = p.clanId ? world.clans[p.clanId] : undefined;
-              const isMe = p.id === me.id;
-              const shielded = p.shieldUntilTick > tick;
-              const revengeOpen = personalRevenge.has(p.id) || clanRevenge.has(p.id);
-              const atWar = p.clanId ? warClanIds.has(p.clanId) : false;
-              const refused = rankingScore(p) / myScore >= 1.75;
-              const hint = shielded
-                ? "🛡 Under the newcomer shield — no attacks or spying."
-                : refused
-                  ? "Far stronger than you — the army may refuse to march."
-                  : p.onVacation
-                    ? "🏖 On vacation — only revenge may touch them."
-                    : undefined;
-              return (
-                <tr key={p.id} style={isMe ? { fontWeight: 700 } : undefined}>
-                  <td className="num">
-                    {rank === 1 ? (
-                      <span style={{ color: "var(--coin)", fontWeight: 700 }}>👑 1</span>
-                    ) : rank <= 3 ? (
-                      <span style={{ color: "var(--coin)" }}>{rank}</span>
-                    ) : (
-                      rank
-                    )}
-                  </td>
-                  <td>
-                    <span className="race-cell">
-                      <span className="race-avatar">
-                        <Art path={`races/${p.race}`} size={30} title={RACE_NAMES[p.race]} />
-                      </span>
-                      <span>
-                        <Link href={`/empire/${p.id}`}>{p.name}</Link>
-                        {isMe && <span style={{ color: "var(--pos)" }}> (you)</span>}
-                        {/* Only the flags that change what you can DO to this
-                            empire. The settlement title was a restatement of
-                            the population column, and the race is the avatar
-                            sitting immediately to the left of it. */}
-                        {(revengeOpen || atWar || p.onVacation || shielded) && (
-                          <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>
-                            {revengeOpen && <span style={{ color: "var(--warn)", fontWeight: 700 }}>⚔ revenge open</span>}
-                            {atWar && <span style={{ color: "var(--warn)" }}>{revengeOpen ? " · " : ""}🔥 at war</span>}
-                            {p.onVacation && <span>{revengeOpen || atWar ? " · " : ""}🏖 on vacation</span>}
-                            {shielded && <span>{revengeOpen || atWar || p.onVacation ? " · " : ""}🛡 shielded</span>}
-                          </div>
-                        )}
-                      </span>
-                    </span>
-                  </td>
-                  <td>{clan ? <Link href={`/clan/${clan.id}`}>{clan.name}</Link> : <span style={{ color: "var(--ink-soft)" }}>—</span>}</td>
-                  <td>{troopStrengthLabel(p)}</td>
-                  <td className="num">{fmt(totalPopulation(p))}</td>
-                  <td>
-                    {isMe ? (
-                      <span style={{ color: "var(--ink-soft)", fontSize: 13 }}>— your seat —</span>
-                    ) : (
-                      <TargetActions
-                        target={{ id: p.id, name: p.name }}
-                        revengeOpen={revengeOpen}
-                        tradecraft={tradecraft}
-                        pathfinding={researchLevel(me, "pathfinding")}
-                        state={{ shielded, onVacation: p.onVacation, revengeOpen }}
-                        last={{
-                          scoutOp: me.lastScoutOp,
-                          scoutAgents: me.lastScoutAgents,
-                          spyOp: me.lastSpyOp,
-                          spyAgents: me.lastSpyAgents,
-                        }}
-                        hint={hint}
-                        only={arm}
-                      />
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <Pager page={paged} href={pageHref} noun="empires" />
+        <Ladder
+          rows={rows}
+          initialQuery={q ?? ""}
+          initialPage={openAt}
+          pageSize={PAGE_SIZE}
+          arm={arm}
+          tradecraft={tradecraft}
+          pathfinding={researchLevel(me, "pathfinding")}
+          last={{
+            scoutOp: me.lastScoutOp,
+            scoutAgents: me.lastScoutAgents,
+            spyOp: me.lastSpyOp,
+            spyAgents: me.lastSpyAgents,
+          }}
+        />
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 6 }}>
           Troops read as a traveler would guess them — None · Weak · Moderate · Strong · Heavy.
           Exact counts are for spies. Use <b>⚔ Attack</b>, <b>🏹 Scout</b> or <b>🗡 Spy</b> on any
           empire — or open their profile for the full War Council, which also carries their public
-          war record for the last {ATTACK_HISTORY_HOURS} hours. 🏖 on vacation · 🛡 newcomer shield ·
-          🔥 your clan is at war.
+          war record for the last {ATTACK_HISTORY_HOURS} hours.{" "}
+          <b className="rank-flag-away">🏖 green rows are on vacation</b> — nothing reaches them at
+          all: no attack, no revenge, no ranger, no spy. 🛡 shielded (newcomer, or just home from a
+          long absence) — likewise untouchable. 🔥 your clan is at war.
         </p>
         {leader && (
           <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 6 }}>

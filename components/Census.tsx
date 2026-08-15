@@ -1,10 +1,21 @@
 import { civilians, mercTotal, military, totalPopulation, troopTotal, type Player } from "@/lib/engine";
 import { Art } from "./Art";
+import { TiredArt, tiredLabel } from "./TiredArt";
 import { BareBadge } from "./BareBadge";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
-type Row = { key: string; art?: string; glyph?: string; label: string; count: number; muted?: boolean; bare?: boolean };
+type Row = {
+  key: string;
+  art?: string;
+  glyph?: string;
+  label: string;
+  count: number;
+  muted?: boolean;
+  bare?: boolean;
+  /** Fighting men wear the army's stamina on their backs; civilians don't. */
+  tires?: boolean;
+};
 
 /**
  * The census — who your population actually is, told in three estates:
@@ -30,18 +41,20 @@ export function Census({ player: p }: { player: Player }) {
     troopTotal(p.army[key]) > 0 && troopTotal(p.army.mercenaries[key]) === 0;
 
   const armyRows: Row[] = [
-    { key: "footmen", art: "units/footman", label: "Footmen", count: troopTotal(p.army.footmen), bare: bareArm("footmen") },
-    { key: "archers", art: "units/archer", label: "Archers", count: troopTotal(p.army.archers), bare: bareArm("archers") },
-    { key: "cavalry", art: "units/cavalry", label: "Cavalry", count: troopTotal(p.army.cavalry), bare: bareArm("cavalry") },
-    { key: "engineers", art: "units/engineer", label: "Siege engineers", count: p.army.siegeEngineers },
+    { key: "footmen", art: "units/footman", label: "Footmen", count: troopTotal(p.army.footmen), bare: bareArm("footmen"), tires: true },
+    { key: "archers", art: "units/archer", label: "Archers", count: troopTotal(p.army.archers), bare: bareArm("archers"), tires: true },
+    { key: "cavalry", art: "units/cavalry", label: "Cavalry", count: troopTotal(p.army.cavalry), bare: bareArm("cavalry"), tires: true },
+    { key: "engineers", art: "units/engineer", label: "Siege engineers", count: p.army.siegeEngineers, tires: true },
   ];
 
   const m = p.army.mercenaries;
   const mercs = mercTotal(m);
   const mercRows: Row[] = [
-    { key: "merc-foot", art: "units/footman", label: "Hired footmen", count: troopTotal(m.footmen), muted: troopTotal(m.footmen) === 0 },
-    { key: "merc-arch", art: "units/archer", label: "Hired archers", count: troopTotal(m.archers), muted: troopTotal(m.archers) === 0 },
-    { key: "merc-cav", art: "units/cavalry", label: "Hired cavalry", count: troopTotal(m.cavalry), muted: troopTotal(m.cavalry) === 0 },
+    // Sellswords march under the same standard and tire with it — stamina is one
+    // army-wide stat, and they are in the same battle line taking the first 70%.
+    { key: "merc-foot", art: "units/footman", label: "Hired footmen", count: troopTotal(m.footmen), muted: troopTotal(m.footmen) === 0, tires: true },
+    { key: "merc-arch", art: "units/archer", label: "Hired archers", count: troopTotal(m.archers), muted: troopTotal(m.archers) === 0, tires: true },
+    { key: "merc-cav", art: "units/cavalry", label: "Hired cavalry", count: troopTotal(m.cavalry), muted: troopTotal(m.cavalry) === 0, tires: true },
   ];
 
   const col = (rows: Row[]) => (
@@ -49,7 +62,15 @@ export function Census({ player: p }: { player: Player }) {
       {rows.map((r) => (
         <li key={r.key} className={`census-row${r.muted ? " muted" : ""}`}>
           <span className="census-ic">
-            {r.art ? <Art path={r.art} size={52} title={r.label} race={p.race} /> : <span className="census-glyph">{r.glyph}</span>}
+            {r.art ? (
+              r.tires ? (
+                <TiredArt path={r.art} stamina={p.army.stamina} size={52} title={r.label} race={p.race} />
+              ) : (
+                <Art path={r.art} size={52} title={r.label} race={p.race} />
+              )
+            ) : (
+              <span className="census-glyph">{r.glyph}</span>
+            )}
           </span>
           <span className="census-label">
             {r.label}
@@ -75,6 +96,10 @@ export function Census({ player: p }: { player: Player }) {
         <div className="census-col-head">
           <span>⚔ Regular Army</span>
           <span className="census-col-total">{fmt(military(p))}</span>
+        </div>
+        <div className="census-stamina">
+          Stamina <b>{p.army.stamina}</b>/100 — the host looks <b>{tiredLabel(p.army.stamina)}</b>.
+          Rest them and the kit comes back with them.
         </div>
         {col(armyRows)}
       </div>

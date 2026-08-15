@@ -5,6 +5,7 @@
 // calculator that models the game approximately is worse than none at all.
 // Everything here is pure and nothing touches the world.
 
+import { EXPERIENCE } from "../constants";
 import { RESEARCH_FIELDS, type ResearchField } from "../constants/research";
 import type { BuildingId } from "../constants/buildings";
 import type { Race } from "../constants/races";
@@ -27,6 +28,8 @@ export interface SandboxArmy {
   spies: number;
   scouts: number;
   stamina: number;
+  /** Veterancy as a BONUS PERCENT, not a point tally — a calculator field
+   *  wants "+40%", not "2,000,000 points". Converted on the way in. */
   experience: number;
   siegeExperience: number;
   wallLevel: number;
@@ -96,7 +99,7 @@ export function buildSandboxPlayer(a: SandboxArmy, id: string): Player {
   p.army.spies = Math.max(0, a.spies);
   p.army.scouts = Math.max(0, a.scouts);
   p.army.stamina = Math.max(0, Math.min(100, a.stamina));
-  p.army.experience = Math.max(0, Math.min(100, a.experience));
+  p.army.experiencePoints = Math.max(0, a.experience) * (EXPERIENCE.POINTS_FOR_DOUBLE / 100);
   p.army.siegeExperience = Math.max(0, Math.min(100, a.siegeExperience));
   p.army.sortieEnabled = a.sortie;
 
@@ -210,7 +213,7 @@ export function randomArmy(
 
   const research: SandboxArmy["research"] = {};
   const maxLvl = weight === "strong" ? 4 : weight === "medium" ? 2 : 1;
-  for (const f of ["art_of_war", "shieldcraft", "siegecraft", "siege_accuracy"] as const) {
+  for (const f of ["art_of_war", "shieldcraft", "siegecraft"] as const) {
     research[f] = Math.round(rand() * maxLvl);
   }
 

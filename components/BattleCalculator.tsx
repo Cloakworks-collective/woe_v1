@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { BattleReportPanel } from "@/components/BattleReportPanel";
 import { Info } from "@/components/Info";
 import { Panel } from "@/components/Panel";
-import { RACE_NAMES, SIEGE_COUNTERS, SIEGE_GEAR, WALL_NAMES, XP } from "@/lib/constants";
+import { RACE_NAMES, SIEGE_COUNTERS, SIEGE_GEAR, WALL_NAMES, EXPERIENCE } from "@/lib/constants";
 import { RESEARCH_FIELDS } from "@/lib/constants/research";
 import type { Race } from "@/lib/constants/races";
 import type { CounterType } from "@/lib/constants/buildings";
@@ -180,15 +180,15 @@ function ArmyForm({
           <NumBox label="Stamina" value={army.stamina} onChange={(n) => set({ stamina: n })} max={100} />
         </label>
         <label>
-          Army XP{" "}
+          Veterancy{" "}
           <Info
-            title={`Veterancy — 0–${XP.MAX}`}
-            tip="A straight damage bonus, for regulars only — sellswords always fight at base."
+            title="Veterancy — the bonus %, not the point tally"
+            tip="Lifts power AND health together, for regulars only — sellswords always fight at base."
             bullets={[
-              "Up to +100% damage at 100, on attack AND defence.",
-              `Earned ${XP.PER_REGULAR_KILLED} a regular killed, ${XP.PER_CIVILIAN_DISPLACED} a civilian driven off, nothing for mercenaries.`,
-              `A flat ${XP.DEFENDER_GAIN} just for being attacked, win or lose — capped at ${XP.MAX_PER_BATTLE} a battle.`,
-              "It dies with the veterans: lose a third of your line, lose a third of your XP.",
+              `${EXPERIENCE.POINTS_FOR_DOUBLE.toLocaleString("en-US")} experience points is +100%, and nothing caps it above that.`,
+              `A ledger: +${EXPERIENCE.PER_CASUALTY} an enemy casualty, +${EXPERIENCE.ATTACKER_PER_REGULAR} more per REGULAR if you were the attacker.`,
+              `−${EXPERIENCE.PER_REGULAR_LOST} for every regular of your own who falls, and at most ${EXPERIENCE.MAX_PER_BATTLE.toLocaleString("en-US")} awarded in one battle.`,
+              "Punching up pays double or treble; massacring somebody far beneath you costs you points outright.",
             ]}
             guide="/guide#regulars"
           />

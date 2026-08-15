@@ -308,6 +308,10 @@ h3 {
   .tbl td {
     padding: 5px 6px;
   }
+  /* The writ never gets WIDER on a phone than it was before the rebuild: the
+     ladder table itself already runs past a 390px viewport, and the popover
+     is anchored to a button out at its right edge, so every pixel of extra
+     width is a pixel further off-screen. */
   .act-menu {
     width: min(312px, calc(100vw - 24px));
   }
@@ -2453,23 +2457,32 @@ a.repair-hint:hover {
 }
 
 /* Tabular cost tooltip (inside a .tip-pop). */
+/* ── The cost bubble ──────────────────────────────────────────────────────
+   One measure and two type sizes. It used to run five: a 14px lede, a 13px
+   table, a 12.5px prose line and two 11.5px footnotes, each with its OWN
+   max-width (none / 230 / 220 / 230) inside a bubble that could be 340px
+   wide. A wide table with a 220px ribbon of 11.5px grey text hanging under it
+   is the "hard to read" — the eye has to find a new column edge and a new
+   size for every part of one small answer. */
 .costtip-tbl {
   border-collapse: collapse;
-  margin-top: 6px;
-  font: 400 13px Verdana, sans-serif;
+  margin-top: 8px;
+  font: 400 13.5px Verdana, sans-serif;
   width: 100%;
 }
 .costtip-tbl th,
 .costtip-tbl td {
-  padding: 2px 0;
+  padding: 3px 0;
   text-align: left;
   white-space: nowrap;
 }
 .costtip-tbl th {
-  color: #d9c49a;
-  font-weight: 700;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  padding-bottom: 3px;
+  color: #e2cda3;
+  font: 700 11px Verdana, sans-serif;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(240, 199, 94, 0.32);
+  padding-bottom: 4px;
 }
 .costtip-tbl th.num,
 .costtip-tbl td.num {
@@ -2483,7 +2496,7 @@ a.repair-hint:hover {
   gap: 5px;
 }
 .costtip-tbl tr.short td {
-  color: #ff9f8c;
+  color: #ffb2a0;
   font-weight: 700;
 }
 /* Emoji stand-in for a ResIcon inside a cost row (peasants, beds, slots). */
@@ -2494,36 +2507,42 @@ a.repair-hint:hover {
   font-size: 14px;
   line-height: 1;
 }
+/* The heading. A block of its own so the lede below always starts on a new
+   line — `.tip-pop b` cannot be made a block, because half the tooltips in the
+   game bold words mid-sentence with it. */
+.costtip-head {
+  display: block;
+  font: 700 15px var(--font-heading, Georgia), Georgia, serif;
+  letter-spacing: 0.4px;
+  color: var(--gold);
+}
 .costtip-note {
   display: block;
-  margin-top: 5px;
-  font: 400 11.5px Verdana, sans-serif;
-  color: #cdb98f;
+  margin-top: 7px;
+  font: 400 12.5px/1.45 Verdana, sans-serif;
+  color: #dcc9a4;
   white-space: normal;
-  max-width: 220px;
 }
 /* Prose line describing what a click does, above the cost table. */
 .costtip-body {
   display: block;
-  margin-top: 4px;
-  font: 400 12.5px Verdana, sans-serif;
-  color: #efe4cc;
+  margin-top: 5px;
+  font: 400 13.5px/1.5 Verdana, sans-serif;
+  color: #f2e7d1;
   white-space: normal;
-  max-width: 230px;
 }
 .costtip-body + .costtip-tbl {
-  margin-top: 6px;
+  margin-top: 8px;
 }
 /* Why a disabled button can't be used — a red callout at the foot. */
 .costtip-blocked {
   display: block;
-  margin-top: 6px;
-  padding-top: 5px;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
-  font: 700 11.5px Verdana, sans-serif;
-  color: #ff9f8c;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(240, 199, 94, 0.24);
+  font: 700 12.5px/1.45 Verdana, sans-serif;
+  color: #ffb2a0;
   white-space: normal;
-  max-width: 230px;
 }
 
 /* ── Stat tiles — iconized replacement for dl.kv text lists ─ */
@@ -5087,8 +5106,10 @@ a.repair-hint:hover {
   color: var(--ink-soft);
 }
 /* Prev / next wear the kit's arrow keys (PixelLab woe-button-green); Pager.tsx
-   ships the words only, the glyphs come from here. */
+   ships the words only, the glyphs come from here. The live ladder pages in the
+   browser, so its prev/next are buttons — they must read as the same control. */
 .rank-pager a,
+.rank-pager button,
 .rank-pager .pager-off {
   display: inline-flex;
   align-items: center;
@@ -5113,118 +5134,399 @@ a.repair-hint:hover {
 .rank-pager .pager-off {
   opacity: 0.4;
 }
+.rank-pager button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--link, inherit);
+  cursor: pointer;
+}
+.rank-pager button:hover {
+  text-decoration: underline;
+}
 
-/* ── The war console on the ladder (per-empire action popover) ────────────*/
+/* The ladder's search — live, so there is no Search button to press. The count
+   on the right is the only feedback that a query narrowed anything, which
+   matters most when it narrowed it to nothing. */
+.rank-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.rank-search-glass {
+  font-size: 14px;
+  opacity: 0.7;
+  line-height: 1;
+}
+.rank-search-box {
+  font: 14.5px Verdana;
+  padding: 4px 6px;
+  width: 280px;
+  max-width: 100%;
+}
+/* Chrome's own clear "✕" would sit beside ours. */
+.rank-search-box::-webkit-search-cancel-button {
+  display: none;
+}
+.rank-search-clear {
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.rank-search-clear:hover {
+  color: var(--warn);
+}
+.rank-search-count {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.rank-nohits {
+  text-align: center;
+  font-size: 14px;
+  color: var(--ink-soft);
+  padding: 18px 8px;
+}
+
+/* ── The war console on the ladder (per-empire action popover) ────────────
+   Three orders, three writs. Each popover is a sealed order rather than a
+   menu: a carved nameplate naming who it is against, a wax seal in the arm's
+   own colour pressed into its lower edge, then the order itself.
+
+   The arm colour is the load-bearing idea. Attack, Scout and Spy used to be
+   three identical dark-red buttons opening three identical beige boxes, forty
+   rows deep — you had to read a button to know which one it was. Now the army
+   wears the kit's blood-red plaque, the rangers its forest green, the shadows
+   its dark oak, and the writ's seal, its order button and its trigger all
+   carry the same colour. Nothing else needed to change for the ladder to
+   become scannable.
+
+   Everything is cut from the same PixelLab kit as the rest of the realm
+   (card-frame for the sheet, wood-head for the nameplate, the button plaques,
+   the input slots). The old box — a 1px hairline and a 5px radius — was the
+   last piece of raw browser furniture left in the game. */
+
+/* Per-arm colours. Deep enough that the seal's cream press-ring and the
+   plaque's white label both clear it by a wide margin in either theme. */
+.act-army {
+  --arm: #7f2519;
+}
+.act-ranger {
+  --arm: #3f5511;
+}
+.act-shadow {
+  --arm: #3f6070;
+}
+:root[data-theme="dark"] .act-army {
+  --arm: #93392a;
+}
+:root[data-theme="dark"] .act-ranger {
+  --arm: #56731c;
+}
+:root[data-theme="dark"] .act-shadow {
+  --arm: #45718a;
+}
 
 .act {
   position: relative;
   display: inline-block;
 }
+
+/* The trigger is a carved key from the kit, one finish per arm. */
 .act > summary {
   list-style: none;
   cursor: pointer;
-  padding: 2px 10px;
-  border: 1px solid var(--wood-dark);
-  border-radius: 3px;
-  background: linear-gradient(var(--warn), color-mix(in srgb, var(--warn) 70%, #000));
-  color: #ffe;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 6px;
+  border-style: solid;
+  border-width: 6px 7px;
+  border-image: url("/art/ui/btn-red.png") 6 7 fill / 6px 7px round;
+  border-radius: 0;
+  background: transparent;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
   font: 700 13px Verdana, sans-serif;
   white-space: nowrap;
   user-select: none;
+  transition: filter 0.12s ease;
+}
+.act-ranger > summary {
+  border-image-source: url("/art/ui/btn-green.png");
+}
+.act-shadow > summary {
+  border-image-source: url("/art/ui/btn-wood.png");
 }
 .act > summary::-webkit-details-marker {
   display: none;
 }
+/* One glyph that turns over, rather than two glyphs swapping — a swap can't
+   be eased, and at 10px the jump read as a flicker. */
 .act > summary::after {
-  content: " ▾";
+  content: "▾";
+  display: inline-block;
+  font-size: 10px;
+  line-height: 1;
   opacity: 0.85;
+  transition: transform 0.18s ease;
 }
 .act[open] > summary::after {
-  content: " ▴";
+  transform: rotate(180deg);
 }
 .act > summary:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.12);
 }
+
+/* ── The writ ─────────────────────────────────────────────────────────── */
 .act-menu {
   position: absolute;
   right: 0;
-  top: calc(100% + 4px);
+  top: calc(100% + 6px);
   z-index: 40;
-  width: 312px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 5px;
+  width: 340px;
+  padding: 0;
   background: var(--panel);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32);
+  border-style: solid;
+  border-width: 10px;
+  border-image: url("/art/ui/card-frame.png") 10 / 10px round;
+  border-radius: 0;
+  /* One cast shadow, tight and directional, so the sheet lifts off the table
+     without a second rounded box appearing behind it. */
+  box-shadow:
+    0 12px 22px -8px rgba(28, 16, 4, 0.5),
+    0 3px 7px rgba(28, 16, 4, 0.26);
   text-align: left;
+  animation: act-unfurl 0.18s ease-out both;
+}
+:root[data-theme="dark"] .act-menu {
+  border-image-source: url("/art/ui/card-frame-dark.png");
+}
+/* Transform only — the writ never starts invisible, so a stranded animation
+   leaves a readable order rather than an empty box. */
+@keyframes act-unfurl {
+  from {
+    transform: translateY(-5px);
+  }
+  to {
+    transform: none;
+  }
 }
 
-/* Every form in the console stacks its controls, edge to edge. */
+/* The nameplate. Same carved plate as the sidebar's section heads. */
+.act-crown {
+  position: relative;
+  z-index: 2;
+  display: block;
+  border-style: solid;
+  border-width: 9px 13px;
+  border-image: url("/art/ui/wood-head.png") 10 14 fill / 9px 13px round;
+  border-radius: 0;
+  padding: 2px 5px 4px;
+}
+:root[data-theme="dark"] .act-crown {
+  border-image-source: url("/art/ui/wood-head-dark.png");
+}
+.act-eyebrow {
+  display: block;
+  font: 700 9.5px Verdana, sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #dcb479;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+  /* Both lines stop short of the seal. */
+  padding-right: 40px;
+}
+.act-title {
+  display: block;
+  font: 700 17px var(--font-heading, Georgia), Georgia, serif;
+  line-height: 1.2;
+  letter-spacing: 0.5px;
+  color: #ffdf9e;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  padding-right: 40px;
+  overflow-wrap: anywhere;
+}
+
+/* The seal: a lump of wax in the arm's colour, pressed with a plain ring and
+   hanging over the plate's bottom edge onto the parchment. Purely a signature
+   — aria-hidden, and the body reserves the 14px of top padding it falls into,
+   so it can never land on a word. */
+.act-seal {
+  position: absolute;
+  right: 8px;
+  /* `bottom` is measured from the crown's PADDING box, and the carved plate
+     has 9px of border under that — so this hangs the wax about 6px past the
+     plate's real bottom edge, onto the parchment. The body reserves 16px of
+     top padding, so the overhang lands on empty paper either way. */
+  bottom: -15px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  /* Matte, not glossy. A tight specular highlight made it a plastic knob; wax
+     is a flat body with one soft lift where it pooled and a dark rim where it
+     ran out. */
+  background:
+    radial-gradient(
+      circle at 36% 30%,
+      color-mix(in srgb, var(--arm) 74%, #fff) 0%,
+      color-mix(in srgb, var(--arm) 92%, #fff) 34%,
+      var(--arm) 58%,
+      color-mix(in srgb, var(--arm) 52%, #000) 100%
+    );
+  /* Hand-cut, not a circle: twenty points on a jittered radius so the edge
+     looks like wax that ran rather than something drawn with a compass. The
+     radii are jittered but the polygon's centroid AND its bounding box are
+     both forced to 50% / 50%, so the press below lands dead-centre of the
+     wax and not merely dead-centre of the box. */
+  clip-path: polygon(
+    50% 0%, 64% 6%, 79% 10%, 86% 24%, 98% 35%, 95% 51%, 96% 65%, 85% 76%,
+    80% 91%, 64% 95%, 50% 100%, 36% 93%, 20% 91%, 13% 77%, 4% 65%, 6% 51%,
+    2% 35%, 12% 23%, 21% 10%, 36% 7%
+  );
+  transform: rotate(-11deg);
+  /* drop-shadow, not box-shadow: a clip-path clips the box shadow away, and
+     the cast has to follow the wax's actual silhouette. */
+  filter: drop-shadow(0 2px 1.5px rgba(28, 16, 4, 0.55));
+  animation: act-stamp 0.34s cubic-bezier(0.24, 0.9, 0.32, 1.15) both;
+}
+/* The press: a ring driven INTO the wax, so it is a groove with a lit lower
+   lip, not a raised donut. */
+.act-seal::before {
+  content: "";
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--arm) 86%, #000);
+  box-shadow:
+    inset 0 1.5px 1px color-mix(in srgb, var(--arm) 45%, #000),
+    inset 0 -1px 0 color-mix(in srgb, var(--arm) 76%, #fff),
+    0 1px 0 color-mix(in srgb, var(--arm) 66%, #fff);
+}
+@keyframes act-stamp {
+  from {
+    transform: rotate(-27deg) scale(1.45);
+    opacity: 0.25;
+  }
+  60% {
+    transform: rotate(-8deg) scale(0.96);
+    opacity: 1;
+  }
+  to {
+    transform: rotate(-11deg) scale(1);
+    opacity: 1;
+  }
+}
+
+/* ── The order ────────────────────────────────────────────────────────── */
+.act-body {
+  padding: 16px 12px 12px;
+}
 .act-menu form {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+/* ReqTip wraps its button in a `.tip` span, so `align-self: stretch` on the
+   button reached the span and stopped. The order button is the writ's one
+   commitment and it should span the sheet. */
+.act-menu form > .tip {
+  align-self: stretch;
+  display: flex;
+}
+.act-menu form > .tip > .btn {
+  flex: 1;
+}
+.act-row > .tip {
+  flex: 1;
+  display: flex;
+}
+.act-row > .tip > .btn {
+  flex: 1;
+}
+.act-section {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-
-/* Mode tabs share the row equally — no clipping at the menu's edge. */
-.act-menu .pills {
-  display: flex;
-  width: 100%;
-}
-.act-menu .pill {
-  flex: 1 1 0;
-  min-width: 0;
-}
-.act-menu .pill span {
-  padding: 5px 2px;
-  text-align: center;
-}
-.act-menu .pill:last-child span {
-  border-right: none;
-}
-.act-title {
-  font: 700 14px var(--font-heading, Georgia), Georgia, serif;
-  color: var(--heading);
-  margin-bottom: 2px;
-}
-.act-hint {
-  font: 12.5px Verdana, sans-serif;
-  color: var(--warn);
-  margin-bottom: 6px;
-}
-.act-section {
-  padding: 7px 0;
-  border-top: 1px solid var(--border-light);
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.act-section:first-of-type {
-  border-top: none;
-}
 .act-head {
-  font: 700 11.5px Verdana, sans-serif;
-  letter-spacing: 0.04em;
+  font: 700 11px Verdana, sans-serif;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--wood-light);
 }
-.act-select,
-.act-input {
-  font: 13.5px Verdana, sans-serif;
-  padding: 4px;
-  border: 1px solid var(--border);
-  background: var(--input-bg);
-  color: var(--ink);
+/* What the arm actually is, in a scribe's hand — one sentence, sentence case.
+   It used to be shouted as part of the uppercase label above, where it ran to
+   two lines of all-caps and read as a heading rather than an aside.
+
+   Plain Georgia, deliberately NOT var(--font-heading): the display face is
+   small-caps, and a sentence of small caps at 12.5px reads as a third heading
+   rather than as an aside. */
+.act-note {
+  margin: -4px 0 0;
+  font: italic 12.5px/1.4 Georgia, "Times New Roman", serif;
+  color: var(--ink-soft);
 }
+.act-hint {
+  margin: 0 0 11px;
+  font: italic 13.5px/1.45 Georgia, "Times New Roman", serif;
+  color: var(--neg);
+}
+/* Why the order cannot be given. Verdana, not the scribe's italic: this is a
+   rule of the world, not an aside. */
+.act-blocked {
+  margin: 0 0 11px;
+  font: 700 12.5px/1.45 Verdana, sans-serif;
+  color: var(--neg);
+}
+
+/* Four modes on two rows. One row squeezed each mode into ~70px and sheared
+   the tail off "Bombard" at the writ's edge. */
+.act-menu .pills {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  width: 100%;
+}
+.act-menu .pill {
+  min-width: 0;
+}
+.act-menu .pill span {
+  padding: 3px 4px;
+  text-align: center;
+  font-size: 13px;
+}
+/* The chosen mode wears the arm's own plaque, so the pill you picked and the
+   button that sends it are visibly the same order. */
+.act-army .pill:has(input:checked) span {
+  border-image-source: url("/art/ui/btn-red.png");
+}
+.act-shadow .pill:has(input:checked) span {
+  border-image-source: url("/art/ui/btn-wood.png");
+}
+/* A mode you can't pick still has to be readable — at 42% on parchment the
+   struck-through label had all but vanished. */
+.act-menu .pill.is-off {
+  opacity: 0.66;
+}
+.act-menu .pill.is-off span {
+  color: var(--ink-soft);
+}
+
+/* Fields wear the kit's recessed slot like every other field in the game.
+   They used to override it back to a flat 1px box — and only half worked, so
+   the select and the number beside it did not even match each other. */
 .act-select {
   width: 100%;
-  box-sizing: border-box;
+  font-size: 13.5px;
 }
-.act-go {
-  align-self: stretch;
-  text-align: center;
-}
-/* An input + button sharing one line, button taking the slack. */
 .act-row {
   display: flex;
   gap: 6px;
@@ -5232,23 +5534,118 @@ a.repair-hint:hover {
 }
 .act-row .act-input {
   flex: none;
-  width: 76px;
-  box-sizing: border-box;
+  /* The slot art eats 11px a side; at 76px it sheared "# rangers" mid-word. */
+  width: 106px;
+  text-align: center;
 }
 .act-row .btn {
   flex: 1;
   text-align: center;
 }
+
+/* The order button carries the arm's colour — a strike is not a save, and it
+   should never again wear the same green enamel as one. */
+.act-go {
+  position: relative;
+  align-self: stretch;
+  text-align: center;
+  overflow: hidden;
+}
+.act-army .act-go:not([disabled]):not(.btn-no) {
+  border-image-source: url("/art/ui/btn-red.png");
+}
+.act-shadow .act-go:not([disabled]):not(.btn-no) {
+  border-image-source: url("/art/ui/btn-wood.png");
+}
+/* An order that cannot be given is GREY, not red. Everywhere else in the game
+   `.btn-no` paints the red plaque to mean "you can't" — but the army's live
+   Strike button is red too, so inside a war writ the two states were the same
+   object and a blocked strike looked ready to send.
+   Keyed on [disabled] alone, NOT on `.btn-no`: the treachery button in
+   AllyStrikeDialog wears `.btn-no` while being perfectly live, and it is
+   supposed to look like a warning. */
+.act-menu .btn.act-go[disabled] {
+  border-image-source: url("/art/ui/btn-grey.png");
+  color: #f4efe4;
+}
+/* A line that travels the full width of the plaque on hover, square caps,
+   one easing — the only motion on the writ that answers the pointer. */
+.act-go::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 0;
+  background: rgba(255, 248, 230, 0.72);
+  transition: width 0.3s cubic-bezier(0.22, 0.75, 0.24, 1);
+}
+.act-go:not([disabled]):hover::after {
+  width: 100%;
+}
+
+/* The foot: a recessed shelf for the way out of the writ, so the link reads
+   as an exit rather than a fourth order. */
+.act-foot {
+  padding: 10px 12px 11px;
+  background: var(--panel-alt);
+  box-shadow: inset 0 1px 0 rgba(60, 37, 14, 0.16);
+}
+:root[data-theme="dark"] .act-foot {
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.45);
+}
 a.btn.act-ghost,
-button.act-ghost {
+button.act-ghost,
+summary.btn.act-ghost {
   display: block;
   width: 100%;
   box-sizing: border-box;
   text-align: center;
-  background: var(--panel-alt);
-  color: var(--ink);
-  border-color: var(--border);
+  /* Dark oak, with the kit's own ghost ink. It used to set a parchment
+     background and dark-brown text — but a `fill` border-image paints OVER
+     the background, so what actually shipped was brown text on green enamel,
+     which could not be read at all. */
+  border-image-source: url("/art/ui/btn-wood.png");
+  background: transparent;
+  color: #f2e3c4;
+  font-size: 13px;
   text-decoration: none;
+}
+
+/* The way OUT of the writ is not a fourth order, so it is not a fourth plaque
+   — three carved buttons stacked down a 340px sheet made leaving look like
+   the loudest thing you could do. A quiet link on the shelf instead. */
+.act-exit {
+  display: block;
+  text-align: center;
+  font: 700 13px Verdana, sans-serif;
+  color: var(--link);
+  text-decoration: none;
+  padding: 1px 0;
+}
+.act-exit .act-exit-arrow {
+  display: inline-block;
+  margin-left: 3px;
+  transition: transform 0.18s cubic-bezier(0.22, 0.75, 0.24, 1);
+}
+.act-exit:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.act-exit:hover .act-exit-arrow {
+  transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .act-menu,
+  .act-seal {
+    animation: none;
+  }
+  .act > summary::after,
+  .act-go::after,
+  .act-exit .act-exit-arrow {
+    transition: none;
+  }
 }
 
 /* ── The Collegium research view on the Command dashboard ────────────────*/
@@ -6936,6 +7333,14 @@ button.act-ghost {
   border-image-source: url("/art/ui/btn-green.png");
   color: #fff;
 }
+/* …except inside a war writ, where the picked mode wears its arm's plaque in
+   either theme (see .act-army / .act-shadow above). */
+:root[data-theme="dark"] .act-army .pill:has(input:checked) span {
+  border-image-source: url("/art/ui/btn-red.png");
+}
+:root[data-theme="dark"] .act-shadow .pill:has(input:checked) span {
+  border-image-source: url("/art/ui/btn-wood.png");
+}
 :root[data-theme="dark"] .bcard-art,
 :root[data-theme="dark"] .corps-art,
 :root[data-theme="dark"] .guide-illo,
@@ -8487,12 +8892,30 @@ body {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
   opacity: 0;
   pointer-events: none;
+  /* Closing is DELAYED, opening is not. A pointer crossing a corner of the
+     menu on its way somewhere else should not have to be punished for it. */
   transition: opacity 0.12s;
+  transition-delay: 0.25s;
+}
+/* THE BRIDGE. The 4px above is a visual gap, and it used to be a dead one: the
+   moment the pointer left the name it was over the header rather than the menu,
+   `.throne:hover` stopped matching, and the menu vanished from under the cursor
+   on its way to Sign out. This transparent strip spans the gap so the pointer
+   never leaves the throne — hovering a descendant keeps the parent hovered, and
+   an absolutely-positioned child is still a descendant. */
+.throne-pop::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 8px;
 }
 .throne:hover .throne-pop,
 .throne:focus-within .throne-pop {
   opacity: 1;
   pointer-events: auto;
+  transition-delay: 0s;
 }
 .throne-pop button {
   display: block;
@@ -8917,11 +9340,110 @@ tr:target > td {
 .comms-pick-label { font-size: 13.5px; font-weight: 700; }
 .comms-with { font-size: 14px; margin: 0 0 6px; }
 .comms-empty { font-size: 14px; font-style: italic; color: var(--ink-soft); margin: 0; }
+/* People write letters in paragraphs — the newlines they typed have to survive
+   the trip back out of the world file. */
+.comms-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* The composing box. A letter is not a chat line, so it gets room to be one. */
+.comms-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+}
+.comms-write {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+.comms-write-box {
+  font: 14.5px Verdana;
+  padding: 7px 8px;
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  line-height: 1.45;
+}
+.comms-write-count {
+  font-size: 12px;
+  color: var(--ink-soft);
+  align-self: flex-end;
+}
+
+/* ── The letters room: correspondents on the left, the thread on the right ──
+   Two rulers share exactly one thread, so the rail is simply the list of
+   people you are talking to — a mailbox, not a picker. */
+.dm-room {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 760px) {
+  .dm-room { grid-template-columns: minmax(0, 1fr); }
+  .dm-rail { max-height: 260px; overflow-y: auto; }
+}
+.dm-rail {
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--panel-alt);
+  padding: 8px;
+  max-height: 460px;
+  overflow-y: auto;
+}
+.dm-search { margin-bottom: 6px; }
+.dm-search-box {
+  font: 13.5px Verdana;
+  padding: 4px 6px;
+  width: 100%;
+}
+.dm-search-box::-webkit-search-cancel-button { display: none; }
+.dm-head {
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin: 8px 0 3px;
+}
+.dm-list { list-style: none; margin: 0; padding: 0; }
+.dm-row {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  padding: 5px 6px;
+  border-radius: 5px;
+  text-decoration: none;
+  color: inherit;
+}
+.dm-row:hover { background: rgba(0, 0, 0, 0.06); }
+:root[data-theme="dark"] .dm-row:hover { background: rgba(255, 255, 255, 0.07); }
+.dm-row.is-open {
+  background: rgba(0, 0, 0, 0.1);
+  box-shadow: inset 2px 0 0 var(--warn);
+}
+:root[data-theme="dark"] .dm-row.is-open { background: rgba(255, 255, 255, 0.11); }
+.dm-avatar { flex: none; line-height: 0; }
+.dm-body { min-width: 0; display: flex; flex-direction: column; }
+.dm-name { font-size: 13.5px; font-weight: 700; }
+.dm-when { font-weight: 400; color: var(--ink-soft); font-size: 12px; }
+.dm-snip {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dm-snip-none { font-style: italic; opacity: 0.75; }
+.dm-you { font-weight: 700; }
+.dm-thread { min-width: 0; }
 
 /* Three quick-order buttons per ladder row, in place of one "Act" menu. */
 .act-row-group {
   display: inline-flex;
-  gap: 4px;
+  gap: 5px;
   flex-wrap: wrap;
 }
 .act-btn.is-off {
@@ -9104,4 +9626,491 @@ tr:target > td {
   border: 0;
   opacity: 0;
   pointer-events: none;
+}
+
+/* ── Vacation: the confirm dialog ─────────────────────────
+   Departing and returning are both decisions people regret, and for opposite
+   reasons — one costs four fifths of your production quietly, the other can
+   drop you into the world with no shield. Neither fires on a single click. */
+.btn-brass {
+  background: linear-gradient(#a8853f, #7c5426);
+  border-color: #4e3113;
+}
+.cdlg-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(20, 12, 4, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow-y: auto;
+}
+.cdlg {
+  background: var(--panel);
+  border: 2px solid var(--border);
+  box-shadow: 0 10px 34px rgba(20, 12, 4, 0.5);
+  color: var(--ink);
+  max-width: 620px;
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 16px 18px;
+}
+.cdlg-title {
+  color: var(--heading);
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+.cdlg-lede {
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+.cdlg-note {
+  border-left: 4px solid var(--border);
+  padding: 9px 11px;
+  margin-bottom: 10px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  background: var(--panel-alt);
+}
+.cdlg-note-good {
+  border-left-color: var(--green);
+}
+.cdlg-note-bad {
+  border-left-color: var(--red);
+}
+.cdlg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  margin-bottom: 10px;
+}
+.cdlg-table td {
+  border-bottom: 1px solid var(--border-light);
+  padding: 4px 6px;
+}
+.cdlg-table .num {
+  text-align: right;
+  font-weight: 700;
+}
+.cdlg-bad {
+  color: var(--neg);
+}
+.cdlg-good {
+  color: var(--pos);
+}
+.cdlg-list {
+  font-size: 13.5px;
+  line-height: 1.55;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+.cdlg-list li {
+  list-style: disc;
+}
+.cdlg-warn {
+  color: var(--neg);
+}
+.cdlg-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+}
+.cdlg-go {
+  background: linear-gradient(#a8853f, #7c5426);
+  border-color: #4e3113;
+}
+
+/* ── The ladder: empires that have left the age ───────────
+   A green wash across the whole row. On a forty-row list the small 🏖 beside
+   the name was easy to miss right up until the "they are away" error came back
+   from the pipeline — this is meant to be read at a glance, from the rank
+   column, before you have opened anything. */
+/* Specificity deliberately matches `.tbl tbody tr.row-online td` (and beats the
+   zebra stripe), and it sits later in the file so "away" wins over "online" on
+   the rare row that is both — being untouchable is the fact that changes what
+   you can DO from this row. */
+.tbl tbody tr.rank-away td {
+  background: color-mix(in srgb, var(--green) 30%, var(--panel));
+}
+:root[data-theme="dark"] .tbl tbody tr.rank-away td {
+  background: color-mix(in srgb, var(--green) 26%, var(--panel));
+}
+.tbl tbody tr.rank-away td:first-child {
+  box-shadow: inset 4px 0 0 var(--green-dark);
+}
+.rank-flag-away {
+  color: var(--pos);
+  font-weight: 700;
+}
+
+/* ── Your dawn: picking the settler hour in LOCAL time ────
+   The realm's day boundary is an accident of when the world was seeded, so
+   every figure here is stated in the reader's own clock. The move is allowed
+   once an age, which is why the detected time is shown plainly and can be
+   corrected before anything is committed. */
+.dawn-set {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.dawn-clock {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+}
+.dawn-clock-label,
+.dawn-lt {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+.dawn-clock-now {
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  color: var(--heading);
+}
+.dawn-clock-zone {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.dawn-fixlink {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--link);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.dawn-fixrow {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12.5px;
+}
+.dawn-timein {
+  font: inherit;
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--ink);
+  border-radius: 3px;
+}
+.dawn-mini {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+/* The muster's condition, stated above the army column. Stamina is one
+   army-wide stat and it gates how much power the whole host can bring
+   (0.5 + 0.005 × stamina), so it belongs next to the men, not buried in a
+   meter — and the sprites beneath it change with it. */
+.census-stamina {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  background: var(--panel-alt);
+  border-left: 3px solid var(--border);
+  padding: 5px 8px;
+  margin-bottom: 6px;
+}
+
+/* Wearing another empire's crown (admin "enter as"). Loud on purpose: from this
+   state every button on every page spends THAT empire's gold and marches THAT
+   empire's army, so it must never be a quiet mode you forget you are in. */
+.worn-crown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  margin-bottom: 8px;
+  font-size: 13.5px;
+  color: #fff2cf;
+  background: repeating-linear-gradient(45deg, #7a2318, #7a2318 12px, #8d2a1d 12px, #8d2a1d 24px);
+  border: 2px solid #4e1109;
+}
+
+/* Aid refused because the two empires are too far apart on the ladder. Stated
+   in the menu rather than on a failed submit: the ±30% band is the rule that
+   stops feeder alts, and a player who does not know it exists reads a bounced
+   gift as a bug. */
+.aid-barred {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--neg);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  border-left: 3px solid var(--red);
+  padding: 6px 8px;
+  margin-bottom: 7px;
+}
+
+/* Ordering a blow against an ALLY. The pact never blocks the strike, so the
+   control must carry the weight the rule does not: this is the one attack in the
+   game that writes your name into the world chronicle. */
+.ally-strike {
+  display: grid;
+  gap: 7px;
+}
+.ally-strike-warn {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--neg);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  border-left: 3px solid var(--red);
+  padding: 6px 8px;
+}
+.ally-strike-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+/* `.act-select` is width:100% for the writ's stacked forms; beside a label in
+   a flex row it has to take the slack instead, or it resolves 100% against
+   the row and pushes past the sheet. */
+.ally-strike-pick .act-select {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+/* Alliances, on the clan war page beside the enemies list. */
+.ally-panel { display: grid; gap: 10px; }
+.ally-note {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  background: var(--panel-alt);
+  border-left: 3px solid var(--green);
+  padding: 7px 9px;
+}
+.ally-empty { font-size: 13px; color: var(--ink-soft); }
+.ally-block > h4 {
+  font-size: 13px;
+  color: var(--heading);
+  margin-bottom: 5px;
+}
+.ally-list { display: grid; gap: 6px; }
+.ally-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  padding: 5px 8px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border-light);
+  list-style: none;
+}
+.ally-name { font-weight: 700; }
+.ally-meta { font-size: 12px; color: var(--ink-soft); }
+
+/* Standing orders — doctrine the captains follow unasked, on /troops beside the
+   host they govern. A LIST from the start: the sortie is the only order today
+   and more are coming, and a panel built around one toggle has to be rebuilt to
+   take a second. */
+.orders { display: grid; gap: 10px; }
+.order {
+  list-style: none;
+  padding: 9px 11px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border-light);
+  display: grid;
+  gap: 6px;
+}
+.order-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.order-name { font-weight: 700; font-size: 14.5px; color: var(--heading); }
+.order-state {
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  background: var(--parchment);
+  color: var(--ink-soft);
+}
+.order-state.is-on { color: var(--pos); border-color: var(--green); }
+.order-why { font-size: 13px; line-height: 1.5; color: var(--ink-soft); margin: 0; }
+
+/* Hiring sellswords of a covert arm, on the same card that trains your own.
+   Set apart from the Train control so the two verbs are not mistaken for each
+   other — one spends population-free gold on your OWN corps, the other rents
+   somebody else's. */
+.covert-hire {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  display: grid;
+  gap: 5px;
+}
+.covert-hire-head {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.covert-hire-why {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+/* Idle peasants, above the Assignment Hall. Every decision on that page is made
+   against this number, and it used to live only inside each card's Assign
+   control — so the answer to "how many can I move?" was in six places at once. */
+.idle-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  padding: 7px 10px;
+  margin-bottom: 10px;
+  background: var(--panel-alt);
+  border-left: 3px solid var(--green);
+}
+.idle-bar.is-empty { border-left-color: var(--border); }
+.idle-count { font-size: 15px; }
+.idle-count b { color: var(--heading); }
+.idle-note { font-size: 12.5px; color: var(--ink-soft); }
+
+/* Tax projection. The per-turn tiles follow the slider, so while it sits away
+   from the decreed rate they are a forecast rather than a fact — and must not be
+   mistaken for one. */
+.tax-preview {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--coin);
+  margin: 5px 0 0;
+}
+.stat-grid.is-preview .stat-tile {
+  border-style: dashed;
+  opacity: 0.92;
+}
+
+/* A stat tile that explains itself on hover (wrapped in <StatTip>). The dotted
+   label is the same affordance the growth breakdown uses, so "there is more
+   here" reads the same way everywhere. */
+.stat-tip { display: block; cursor: help; }
+.stat-tip > .stat-tile .stat-label {
+  text-decoration: underline dotted var(--border);
+  text-underline-offset: 2px;
+}
+
+/* The breakdown bubble. Wider than a normal tip because each row carries a
+   short reason under it, and a nine-row list squeezed into the cost-table
+   layout read as a grey wall. */
+.stat-tip-pop {
+  max-width: min(430px, 88vw);
+  padding: 11px 13px;
+}
+.stat-tip-head {
+  display: block;
+  font-size: 14.5px;
+  color: var(--gold);
+  padding-bottom: 7px;
+  margin-bottom: 7px;
+  border-bottom: 1px solid rgba(240, 199, 94, 0.35);
+}
+.stat-tip-rows { display: block; }
+.stat-tip-row {
+  display: block;
+  padding: 5px 0;
+}
+.stat-tip-row + .stat-tip-row {
+  border-top: 1px solid rgba(246, 234, 208, 0.12);
+}
+/* A part worth nothing is dimmed, never hidden — "Research +0" is often the
+   most useful line in the list. */
+.stat-tip-row.is-nil { opacity: 0.55; }
+.stat-tip-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+.stat-tip-label { font-weight: 700; }
+.stat-tip-value {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: #a9d977;
+  font-weight: 700;
+}
+.stat-tip-row.is-nil .stat-tip-value { color: inherit; }
+.stat-tip-detail {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: rgba(246, 234, 208, 0.62);
+  margin-top: 1px;
+}
+.stat-tip-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(240, 199, 94, 0.35);
+  font-weight: 700;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+.stat-tip-note {
+  display: block;
+  margin-top: 8px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: rgba(246, 234, 208, 0.7);
+}
+
+/* Scholars with no field chosen. This used to wear the same friendly glow as
+   "work in progress", which was the wrong tone entirely: with no active field
+   the turn banks NOTHING, so the points are not delayed, they are destroyed. It
+   reads as an alarm now, and matches the danger banner the councillor raises. */
+.rstat.rstat-wasting {
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 10%, var(--panel));
+}
+.rstat-wasting .rstat-kicker { color: var(--neg); font-weight: 700; }
+.rstat-wasting .rstat-title { color: var(--neg); }
+.rstat-emblem.rstat-warn {
+  background: color-mix(in srgb, var(--red) 22%, transparent);
+  border: 1px solid var(--red);
+  color: var(--neg);
+  animation: rstat-pulse 1.8s ease-in-out infinite;
+}
+@keyframes rstat-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--red) 45%, transparent); }
+  50%      { box-shadow: 0 0 0 7px color-mix(in srgb, var(--red) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rstat-emblem.rstat-warn { animation: none; }
 }

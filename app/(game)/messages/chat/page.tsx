@@ -5,16 +5,16 @@ import { CommsTabs } from "@/components/CommsTabs";
 import { ReqTip } from "@/components/CostTip";
 import { Flash } from "@/components/Flash";
 import { Panel } from "@/components/Panel";
-import { TextInput } from "@/components/TextInput";
+import { TextArea } from "@/components/TextArea";
 import { ticksAgo } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
 
-// The era hall — one public room for everyone playing this age, wiped when the
+// World chat — one public room for everyone playing this age, wiped when the
 // age is sealed. Clan talk lives in the clan; the permanent, cross-era place to
 // argue is the public Forum, which has its own login and outlives all of this.
-export default async function EraChatPage({
+export default async function WorldChatPage({
   searchParams,
 }: {
   searchParams: Promise<{ err?: string; ok?: string }>;
@@ -29,7 +29,7 @@ export default async function EraChatPage({
       <Flash err={err} ok={ok} />
       <CommsTabs />
       <Panel
-        title="Era Chat"
+        title="World Chat"
         info="One public room for this age. Wiped when the era is sealed — for talk that should outlive the age, use the Forum."
       >
         <div className="comms-log">
@@ -43,24 +43,22 @@ export default async function EraChatPage({
                   {" · "}
                   {ticksAgo(m.tick, world.meta.tickNumber)}
                 </span>
-                <div>{m.body}</div>
+                <div className="comms-body">{m.body}</div>
               </div>
             ))
           )}
         </div>
-        <div style={{ marginTop: 8 }}>
-          <CmdForm name="chat" path="/messages/chat">
-            <input type="hidden" name="channel" value="era" />
-            <TextInput name="body" ariaLabel="Message" placeholder="Speak…" maxLength={800} />
-            <ReqTip
-              heading="Post to the era hall"
-              body="Everyone playing this age can read it."
-              note="Wiped when the era ends. The Forum is the place for anything that should last."
-            >
-              <Btn className="btn">Speak</Btn>
-            </ReqTip>
-          </CmdForm>
-        </div>
+        <CmdForm name="chat" path="/messages/chat" inline={false} className="comms-form">
+          <input type="hidden" name="channel" value="era" />
+          <TextArea name="body" ariaLabel="Message to the world" placeholder="Speak…" maxLength={800} rows={4} />
+          <ReqTip
+            heading="Post to world chat"
+            body="Everyone playing this age can read it."
+            note="Wiped when the era ends. The Forum is the place for anything that should last."
+          >
+            <Btn className="btn">Speak</Btn>
+          </ReqTip>
+        </CmdForm>
       </Panel>
     </>
   );

@@ -6,7 +6,7 @@
 // drifts from the real one the moment a field is added.
 
 import { newEmpire, type Player } from "@/lib/engine";
-import { SIEGE_GEAR, type SiegeGearKey } from "@/lib/constants";
+import { MERCENARIES, SIEGE_GEAR, type SiegeGearKey } from "@/lib/constants";
 import type { Race } from "@/lib/constants/races";
 
 export interface ArmySpec {
@@ -36,6 +36,17 @@ export interface ArmySpec {
   experience?: number;
   /** All footmen instead of the 50/30/20 split — isolates the archer phase. */
   footmenOnly?: boolean;
+  /**
+   * Hire sellswords up to MERCENARIES.CAP_RATIO of the regulars, as a real
+   * empire does.
+   *
+   * Matters far more than it looks. CASUALTY_SPLIT.MERC_SHARE puts 70% of every
+   * blow onto the hired blades, so an army WITHOUT them takes every casualty on
+   * its regulars — and regulars are what the experience ledger charges you for,
+   * what the mercenary cascade keys off, and what the victory floors count. A
+   * harness that never hires is measuring a fight nobody has.
+   */
+  mercs?: boolean;
   /** Goods sitting outside storage — what a raid can actually take. */
   loose?: number;
   gold?: number;
@@ -59,8 +70,15 @@ export function army(spec: ArmySpec, id = "x"): Player {
   p.army.archers = { light: 0, medium: 0, heavy: 0, [tier]: arch } as typeof p.army.archers;
   p.army.cavalry = { light: 0, medium: 0, heavy: 0, [tier]: cav } as typeof p.army.cavalry;
 
+  if (spec.mercs) {
+    const cap = (n: number) => Math.floor(n * MERCENARIES.CAP_RATIO);
+    p.army.mercenaries.footmen = { light: 0, medium: 0, heavy: 0, [tier]: cap(foot) } as typeof p.army.mercenaries.footmen;
+    p.army.mercenaries.archers = { light: 0, medium: 0, heavy: 0, [tier]: cap(arch) } as typeof p.army.mercenaries.archers;
+    p.army.mercenaries.cavalry = { light: 0, medium: 0, heavy: 0, [tier]: cap(cav) } as typeof p.army.mercenaries.cavalry;
+  }
+
   p.army.siegeEngineers = engineers;
-  p.army.experience = spec.experience ?? 0;
+  p.army.experiencePoints = spec.experience ?? 0;
 
   p.buildings = {
     ...p.buildings,

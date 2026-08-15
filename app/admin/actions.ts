@@ -8,12 +8,14 @@ import { revalidatePath } from "next/cache";
 import {
   checkPassword,
   clearAdminSession,
+  clearImpersonation,
+  impersonatedPlayerId,
   isAdmin,
   setAdminSession,
+  setImpersonation,
 } from "@/lib/server/admin";
-import { setAccountSession } from "@/lib/server/auth";
-import { carryWorldVersion, pushInbox, saveWorld } from "@/lib/server/store";
-import { eraReset, getWorld, runOneTick } from "@/lib/server/world";
+import { pushInbox, type World } from "@/lib/server/store";
+import { commitWithRetry, eraReset, getWorld, runOneTick } from "@/lib/server/world";
 import {
   STORAGE_BUILDING,
   TICKS_PER_HOUR,
@@ -43,98 +45,162 @@ async function requireAdmin(): Promise<void> {
   if (!(await isAdmin())) redirect("/admin");
 }
 
-/** Sit on another empire's throne. This used to live on /login as an open list
- *  of empires — an unguarded server action that would hand any caller a session
- *  as any player. It is a debug tool, so it belongs here, behind requireAdmin. */
+/**
+ * Apply a crown decree to the world, safely.
+ *
+ * Admin actions used to do `getWorld()` → mutate → `saveWorld()`. Two things
+ * were wrong with that, and together they are why a Royal Grant could vanish:
+ *
+ *   · NO RETRY. `saveWorld` is a compare-and-swap. The world ticks on every
+ *     page load, so a decree that lost the race threw WorldConflictError out of
+ *     the server action — the grant was never written and the admin saw a
+ *     crash rather than a message.
+ *   · MUTATING THE SHARED CACHE. `getWorld()` hands back the cached object, so
+ *     a decree that failed to save had ALREADY changed the world every other
+ *     request could see. The console would show the grant applied while the
+ *     database never received it — which is exactly what "it did not go
+ *     through" looks like from the outside.
+ *
+ * `commitWithRetry` fixes both: it clones a fresh world per attempt and replays
+ * on conflict, the same guarantee every ordinary game command already had.
+ *
+ * `mutate` MUST be replayable — it may run several times, each on a pristine
+ * world. Read the form OUTSIDE it, and never redirect from inside: a redirect
+ * throws, which would abort the commit before it saved. Return a message and
+ * let the caller redirect.
+ */
+async function decree(
+  mutate: (world: World) => { ok: boolean; msg: string; dirty?: boolean },
+): Promise<{ ok: boolean; msg: string }> {
+  return commitWithRetry<{ ok: boolean; msg: string }>((world) => {
+    const r = mutate(world);
+    return { result: { ok: r.ok, msg: r.msg }, dirty: r.dirty ?? r.ok };
+  });
+}
+
+/**
+ * Sit on another empire's throne — ANY empire, bots and account-less seeds
+ * included.
+ *
+ * This used to wear the target's ACCOUNT, which meant it could only reach
+ * empires that had one (never a bot, never a seed) and it overwrote the admin's
+ * own session on the way in, with no way back but signing in again. It now
+ * lays a signed impersonation cookie over whatever session you already have —
+ * so every empire is reachable, and `adminReturnToSelf` takes the crown off.
+ */
 export async function adminEnterAs(formData: FormData): Promise<void> {
   await requireAdmin();
+  const id = String(formData.get("playerId") ?? "");
   const world = await getWorld();
-  const p = world.players[String(formData.get("playerId") ?? "")];
+  const p = world.players[id];
   if (!p) back("No such empire.", false);
-  if (p!.isBot) back("Bots keep no session — pick a human empire.", false);
-  // Sessions hold an ACCOUNT now, not an empire, so entering as someone means
-  // wearing the account that founded them. An empire with no account is a bot
-  // or a seed and has no throne to sit on.
-  if (!p!.accountId) back("That empire has no account behind it.", false);
-  await setAccountSession(p!.accountId!);
+  await setImpersonation(id);
   revalidatePath("/", "layout");
   redirect("/");
 }
 
+/** Take the crown off and go back to being yourself. */
+export async function adminReturnToSelf(): Promise<void> {
+  await clearImpersonation();
+  revalidatePath("/", "layout");
+  redirect("/admin/empires");
+}
+
 export async function adminSetBan(formData: FormData): Promise<void> {
   await requireAdmin();
-  const world = await getWorld();
-  const p = world.players[String(formData.get("playerId") ?? "")];
-  if (!p) back("No such empire.", false);
-  p!.banned = formData.get("flag") === "1";
-  await saveWorld(world);
+  const id = String(formData.get("playerId") ?? "");
+  const ban = formData.get("flag") === "1";
+  const r = await decree((world) => {
+    const p = world.players[id];
+    if (!p) return { ok: false, msg: "No such empire.", dirty: false };
+    p.banned = ban;
+    return { ok: true, msg: p.banned ? `${p.name} is banished.` : `${p.name} is pardoned.` };
+  });
   revalidatePath("/admin");
-  back(p!.banned ? `${p!.name} is banished.` : `${p!.name} is pardoned.`);
+  back(r.msg, r.ok);
 }
 
 export async function adminSetPremium(formData: FormData): Promise<void> {
   await requireAdmin();
-  const world = await getWorld();
-  const p = world.players[String(formData.get("playerId") ?? "")];
-  if (!p) back("No such empire.", false);
-  p!.premium = formData.get("flag") === "1";
-  if (p!.premium) {
-    pushInbox(world, p!.id, {
-      type: "info",
-      detail: "👑 The Royal Charter is sealed by decree — the Steward enters your service.",
-    });
-  }
-  await saveWorld(world);
+  const id = String(formData.get("playerId") ?? "");
+  const on = formData.get("flag") === "1";
+  const r = await decree((world) => {
+    const p = world.players[id];
+    if (!p) return { ok: false, msg: "No such empire.", dirty: false };
+    p.premium = on;
+    if (p.premium) {
+      pushInbox(world, p.id, {
+        type: "info",
+        detail: "👑 The Royal Charter is sealed by decree — the Steward enters your service.",
+      });
+    }
+    return { ok: true, msg: `${p.name}: Royal Charter ${p.premium ? "granted" : "revoked"}.` };
+  });
   revalidatePath("/admin");
-  back(`${p!.name}: Royal Charter ${p!.premium ? "granted" : "revoked"}.`);
+  back(r.msg, r.ok);
 }
 
 export async function adminGrant(formData: FormData): Promise<void> {
   await requireAdmin();
-  const world = await getWorld();
-  const p = world.players[String(formData.get("playerId") ?? "")];
-  if (!p) back("No such empire.", false);
+  // Everything read from the form happens ONCE, out here — `decree` may replay
+  // its mutation several times and a FormData read inside it would be wasted
+  // work at best and a moving target at worst.
+  const id = String(formData.get("playerId") ?? "");
   const n = (k: string) => Math.floor(Number(formData.get(k) ?? 0)) || 0;
   const grant = { gold: n("gold"), food: n("food"), wood: n("wood"), stone: n("stone"), ore: n("ore") };
-  p!.gold = Math.max(0, p!.gold + grant.gold);
-  for (const r of ["food", "wood", "stone", "ore"] as const) {
-    p!.resources[r] = Math.max(0, p!.resources[r] + grant[r]);
-  }
   const bits = Object.entries(grant)
     .filter(([, v]) => v !== 0)
     .map(([k, v]) => `${v > 0 ? "+" : ""}${v.toLocaleString("en-US")} ${k}`);
   if (bits.length === 0) back("Nothing granted — all amounts were zero.", false);
-  pushInbox(world, p!.id, {
-    type: "info",
-    detail: `👑 A royal grant arrives: ${bits.join(", ")}.`,
+
+  const r = await decree((world) => {
+    const p = world.players[id];
+    if (!p) return { ok: false, msg: "No such empire.", dirty: false };
+    p.gold = Math.max(0, p.gold + grant.gold);
+    for (const res of ["food", "wood", "stone", "ore"] as const) {
+      p.resources[res] = Math.max(0, p.resources[res] + grant[res]);
+    }
+    pushInbox(world, p.id, {
+      type: "info",
+      detail: `👑 A royal grant arrives: ${bits.join(", ")}.`,
+    });
+    return { ok: true, msg: `${p.name}: ${bits.join(", ")}.` };
   });
-  await saveWorld(world);
-  revalidatePath("/admin");
-  back(`${p!.name}: ${bits.join(", ")}.`);
+  revalidatePath("/", "layout"); // the grant shows on the player's own pages too
+  back(r.msg, r.ok);
 }
 
 export async function adminCloseAge(): Promise<void> {
   await requireAdmin();
-  const world = await getWorld();
-  const era = world.meta.eraName;
-  // Seal the age's annals for good and open the next era named for the winner.
-  const fresh = eraReset(world);
-  // A rebuilt world carries no version of its own; it is meant to overwrite the
-  // row we just read, not to insert a second one.
-  carryWorldVersion(world, fresh);
-  await saveWorld(fresh);
+  const r = await decree((world) => {
+    const era = world.meta.eraName;
+    // Seal the age's annals for good and open the next era named for the winner.
+    const fresh = eraReset(world);
+    // `eraReset` builds a NEW object, but `commitWithRetry` persists the one it
+    // handed us — returning the new reference would silently drop it. So fold
+    // the rebuilt age into the world we were given, which also keeps its
+    // version tag and so overwrites the row we read rather than inserting a
+    // second one (what `carryWorldVersion` used to do by hand).
+    for (const k of Object.keys(world)) delete (world as unknown as Record<string, unknown>)[k];
+    Object.assign(world, fresh);
+    return { ok: true, msg: `${era} is sealed into the Annals; ${fresh.meta.eraName} begins.` };
+  });
   revalidatePath("/", "layout");
-  back(`${era} is sealed into the Annals; ${fresh.meta.eraName} begins.`);
+  back(r.msg, r.ok);
 }
 
 export async function adminForceTicks(formData: FormData): Promise<void> {
   await requireAdmin();
   const ticks = Math.min(1008, Math.max(1, Math.floor(Number(formData.get("ticks") ?? 1))));
-  const world = await getWorld();
-  for (let i = 0; i < ticks; i++) runOneTick(world);
-  await saveWorld(world);
+  const r = await decree((world) => {
+    for (let i = 0; i < ticks; i++) runOneTick(world);
+    return {
+      ok: true,
+      msg: `Forced ${ticks} turn${ticks > 1 ? "s" : ""} — world at tick ${world.meta.tickNumber.toLocaleString("en-US")}.`,
+    };
+  });
   revalidatePath("/", "layout");
-  back(`Forced ${ticks} turn${ticks > 1 ? "s" : ""} — world at tick ${world.meta.tickNumber.toLocaleString("en-US")}.`);
+  back(r.msg, r.ok);
 }
 
 // ── Dev tools ─────────────────────────────────────────────────────────────
@@ -162,9 +228,10 @@ function priceSeries(base: number, tick: number, n: number) {
 // market, so every page renders "populated" for screenshots/testing.
 export async function adminSeed(formData: FormData): Promise<void> {
   await requireAdmin();
-  const world = await getWorld();
-  const p = world.players[String(formData.get("playerId") ?? "")] as Player | undefined;
-  if (!p) back("No such empire.", false);
+  const seedId = String(formData.get("playerId") ?? "");
+  const outcome = await decree((world) => {
+  const p = world.players[seedId] as Player | undefined;
+  if (!p) return { ok: false, msg: "No such empire.", dirty: false };
 
   const tick = world.meta.tickNumber;
 
@@ -236,7 +303,7 @@ export async function adminSeed(formData: FormData): Promise<void> {
     siegeExperience: 40,
     spyExperience: 30,
     scoutExperience: 30,
-    experience: 46,
+    experiencePoints: 2_300_000, // +46%
   };
 
   p!.research = {
@@ -307,9 +374,13 @@ export async function adminSeed(formData: FormData): Promise<void> {
     ore: priceSeries(bases.ore, tick, N),
   };
 
-  await saveWorld(world);
+  return {
+    ok: true,
+    msg: `Seeded ${p!.name}: ${Object.keys(p!.buildings).length} buildings, ${world.orders.length} market orders, ${N + 1} price points.`,
+  };
+  });
   revalidatePath("/", "layout");
-  back(`Seeded ${p!.name}: ${Object.keys(p!.buildings).length} buildings, ${world.orders.length} market orders, ${N + 1} price points.`);
+  back(outcome.msg, outcome.ok);
 }
 
 // Bring existing empires up to the current starting conditions — level-1
@@ -317,7 +388,6 @@ export async function adminSeed(formData: FormData): Promise<void> {
 // newEmpire started granting them. Idempotent: fills gaps, never lowers.
 export async function adminBackfillStorage(): Promise<void> {
   await requireAdmin();
-  const world = await getWorld();
   const STARTING_STORAGE: BuildingId[] = [
     "counting_house",
     "granary",
@@ -325,33 +395,40 @@ export async function adminBackfillStorage(): Promise<void> {
     "masons_yard",
     "ironhold",
   ];
-  const touched: string[] = [];
-  for (const p of Object.values(world.players)) {
-    let changed = false;
-    for (const id of STARTING_STORAGE) {
-      if (!p.buildings[id]) {
-        p.buildings[id] = 1;
+  const r = await decree((world) => {
+    const touched: string[] = [];
+    for (const p of Object.values(world.players)) {
+      let changed = false;
+      for (const id of STARTING_STORAGE) {
+        if (!p.buildings[id]) {
+          p.buildings[id] = 1;
+          changed = true;
+        }
+      }
+      if (!p.bankedResources) {
+        const banked = { food: 0, wood: 0, stone: 0, ore: 0 };
+        for (const res of ["food", "wood", "stone", "ore"] as const) {
+          const cap = shelterCapacity(p, STORAGE_BUILDING[res]);
+          const move = Math.min(p.resources[res], cap);
+          p.resources[res] -= move;
+          banked[res] = move;
+        }
+        p.bankedResources = banked;
         changed = true;
       }
+      if (changed) touched.push(p.name);
     }
-    if (!p.bankedResources) {
-      const banked = { food: 0, wood: 0, stone: 0, ore: 0 };
-      for (const r of ["food", "wood", "stone", "ore"] as const) {
-        const cap = shelterCapacity(p, STORAGE_BUILDING[r]);
-        const move = Math.min(p.resources[r], cap);
-        p.resources[r] -= move;
-        banked[r] = move;
-      }
-      p.bankedResources = banked;
-      changed = true;
-    }
-    if (changed) touched.push(p.name);
-  }
-  await saveWorld(world);
+    return {
+      ok: true,
+      // Nothing to do is a real outcome, not a failure — but it must not be
+      // written, or an idempotent backfill would bump the world version on
+      // every click and lose races for everyone else.
+      dirty: touched.length > 0,
+      msg: touched.length
+        ? `Backfilled storage for ${touched.length} empire${touched.length > 1 ? "s" : ""}: ${touched.join(", ")}.`
+        : "Every empire already has starting storage — nothing to backfill.",
+    };
+  });
   revalidatePath("/", "layout");
-  back(
-    touched.length
-      ? `Backfilled storage for ${touched.length} empire${touched.length > 1 ? "s" : ""}: ${touched.join(", ")}.`
-      : "Every empire already has starting storage — nothing to backfill.",
-  );
+  back(r.msg, r.ok);
 }

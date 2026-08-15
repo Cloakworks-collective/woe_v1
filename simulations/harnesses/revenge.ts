@@ -10,7 +10,7 @@
 // refuse to march. So this harness measures the damage done, and then measures
 // how much of that damage would have been impossible any other way.
 
-import { REVENGE_WINDOW_HOURS, TICKS_PER_HOUR, TRAINING_COSTS, XP } from "@/lib/constants";
+import { EXPERIENCE, REVENGE_WINDOW_HOURS, TICKS_PER_HOUR, TRAINING_COSTS } from "@/lib/constants";
 import { resolveBattle } from "@/lib/engine";
 import { army, lootTotal, lossesTotal } from "../core/armies";
 import { num } from "../core/report";
@@ -97,7 +97,7 @@ function reachSection(): Section {
     },
     findings: [
       `The window is ${REVENGE_WINDOW_HOURS} hours. Whether that is long enough to be a deterrent depends on how often people log in, which no harness can measure — it is a player question, not a number question.`,
-      `A defender also earns a flat ${XP.DEFENDER_GAIN} veterancy just for being attacked, win or lose. Revenge therefore FEEDS the target experience while taking nothing — worth weighing before calling it a punishment.`,
+      `A defender no longer earns anything for merely being attacked — experience is a ledger paid out of casualties inflicted, at ${EXPERIENCE.PER_CASUALTY} points a head, and a surrender pays neither side. Revenge still carries nothing home, but it no longer FEEDS the target the way the old flat defender wage did.`,
     ],
   };
 }

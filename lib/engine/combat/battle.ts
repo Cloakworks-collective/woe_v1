@@ -15,8 +15,8 @@
 // Pure — RNG injected, no clock, no I/O.
 
 import {
-  MAX_ROUNDS,
-  BREAK_THRESHOLD,
+  COMBAT_TEMPO,
+  EXPERIENCE,
   LUCK_SWING,
   RAM_CREW,
   SIEGE_GEAR,
@@ -24,7 +24,6 @@ import {
   SORTIE,
   STAMINA,
   WALL_BREACH_PIVOT,
-  XP,
   YIELD,
   MERCENARIES,
 } from "../../constants";
@@ -34,6 +33,7 @@ import {
   civilians,
   emptySiegeGear,
   level,
+  researchLevel,
   troopTotal,
   type AttackMode,
   type BattleLogEntry,
@@ -48,10 +48,13 @@ import {
   buildSide,
   decayExperience,
   effectiveness,
+  fieldHospital,
   fieldPower,
   headcount,
+  healthLostShare,
   killEngineers,
   lineRegulars,
+  muster,
   regularsLost,
   settleMercenaries,
   setWallEdge,
@@ -75,6 +78,7 @@ import {
   runDuelRound,
   type Park,
 } from "./duel";
+import { rankingScore } from "../score";
 import { archerWallDelivery, blendWallEdge, damageToIntegrity, wallHealth } from "./walls";
 import { displaceCivilians, lootKind, lootShare, plunderGold, plunderResource, unbankedGold, unstored } from "./loot";
 
@@ -207,6 +211,11 @@ export function resolveBattle(
   let dDealt = 0;
   const atkToughness = totalHealth(atk);
   const defToughness = totalHealth(def);
+  // What each side brought, priced as it stood at the muster — the two numbers
+  // the whole battle is judged on. See `muster` in model.ts for why the closing
+  // price will not do.
+  const atkMuster = muster(atk);
+  const defMuster = muster(def);
   let sortied = false;
   let ramCrewJoined = false;
 
@@ -224,6 +233,13 @@ export function resolveBattle(
       aDealt += n * g.health;
       g.count -= n;
       def.losses.mercenaries += n;
+      // Recorded for the field hospital like any other death. This path writes
+      // the group directly rather than going through `kill`, so it has to book
+      // the fallen itself — miss it and MEDICINE would silently do nothing on a
+      // yield, which is precisely the fight where the surgeons matter most:
+      // these are the men who covered the retreat.
+      const byArm = (def.mercFallen.line[g.arm] ??= { light: 0, medium: 0, heavy: 0 });
+      byArm[g.tier] += n;
       fell += n;
     }
     say(0, "prelude",
@@ -233,9 +249,18 @@ export function resolveBattle(
       { defenderRegulars: 0, tone: "neutral" });
   }
 
-  // ── Rounds ────────────────────────────────────────────────────────────────
-  for (let round = 1; round <= MAX_ROUNDS && !yielded; round++) {
-    rounds = round;
+  // ── The exchange ──────────────────────────────────────────────────────────
+  // ONE pass down the order of battle. Not "round one" — the whole battle.
+  //
+  // A battle used to run up to ten rounds and end when somebody broke, which
+  // made a single attack a decisive engagement. It isn't one. An empire draws
+  // 288 action turns a day and an attack costs ten, so a serious aggressor
+  // throws twenty-odd strikes at the same target — the campaign is the unit of
+  // war, and a strike is one exchange inside it. Everything that used to be
+  // decided by grinding through rounds is now decided by coming back tomorrow.
+  if (!yielded) {
+    const round = 1;
+    rounds = 1;
     const aLuck = luck(rng, LUCK_SWING);
     const dLuck = luck(rng, LUCK_SWING);
     const beforeA = { ...atk.losses };
@@ -292,7 +317,7 @@ export function resolveBattle(
           effectiveness("ballistae", "troops") +
           atkPark.crewed.trebuchets * SIEGE_GEAR.trebuchets.power * atkPark.integrity.trebuchets *
             effectiveness("trebuchets", "troops")) *
-        atkSiege * aLuck;
+        atkSiege * aLuck * COMBAT_TEMPO;
       if (troopFire > 0) {
         aDealt += troopFire;
         spreadDamage(def, troopFire);
@@ -303,7 +328,7 @@ export function resolveBattle(
       const answer =
         (defOffPark.crewed.ballistae * SIEGE_GEAR.ballistae.power * effectiveness("ballistae", "troops") +
           defOffPark.crewed.trebuchets * SIEGE_GEAR.trebuchets.power * effectiveness("trebuchets", "troops")) *
-        defSiege * dLuck;
+        defSiege * dLuck * COMBAT_TEMPO;
       if (answer > 0) {
         dDealt += answer;
         spreadDamage(atk, answer);
@@ -368,25 +393,37 @@ export function resolveBattle(
       }
     }
 
-    // Round summary — regulars first, because regulars are what matter.
+    // ── Who held the field ──────────────────────────────────────────────────
+    //
+    // Whoever gave up less of what they brought. Both sides are measured as a
+    // SHARE of their own muster, so a small host that trades well beats a big
+    // one that trades badly, and neither side wins for merely being large.
+    //
+    // Worth knowing what this quietly is: A wins when
+    //     lostShare(A) < lostShare(B)  ⟺  power(A)·health(A) > power(B)·health(B)
+    // — power × health, the square law. Doubling an army doubles both terms and
+    // so quadruples its worth, and a lopsided build (all archers, all footmen)
+    // scores below a mixed one of the same cost. None of that is special-cased;
+    // it falls out of measuring proportional loss.
+    //
+    // A tie goes to the DEFENDER, who is already standing on the ground.
+    const aLostShare = healthLostShare(atk, atkMuster);
+    const dLostShare = healthLostShare(def, defMuster);
+    const wiped = headcount(def) === 0;
+    victor = wiped || dLostShare > aLostShare ? "attacker" : "defender";
+
     const aReg = regularsLost(atk.losses) - regularsLost(beforeA as never);
     const dReg = regularsLost(def.losses) - regularsLost(beforeD as never);
-    const aStr = totalPower(atk);
-    const dStr = totalPower(def);
     say(round, "aftermath",
-      `Round ${round}: our host at ${pct(aStr, atk.startPower)}%, theirs at ${pct(dStr, def.startPower)}%.`,
+      `The lines draw apart. We gave up ${pct(aLostShare, 1)}% of the host we brought; they gave up ${pct(dLostShare, 1)}%.`,
       { attackerRegulars: aReg, defenderRegulars: dReg, tone: dReg > aReg ? "good" : "bad" });
-
-    if (aStr < BREAK_THRESHOLD * atk.startPower) {
-      victor = "defender";
-      say(round, "aftermath", "The host breaks and streams away from the field.", { tone: "bad" });
-      break;
-    }
-    if (dStr < BREAK_THRESHOLD * def.startPower || headcount(def) === 0) {
-      victor = "attacker";
-      say(round, "aftermath", "The defenders break — the day is ours.", { tone: "good" });
-      break;
-    }
+    say(round, "aftermath",
+      wiped
+        ? "Nothing of theirs is left standing — the field is ours."
+        : victor === "attacker"
+          ? "They gave up more than we did. The field is ours."
+          : "We gave up as much as they did or more. We withdraw and leave them the ground.",
+      { tone: victor === "attacker" ? "good" : "bad" });
   }
 
   // ── Aftermath ─────────────────────────────────────────────────────────────
@@ -442,35 +479,72 @@ export function resolveBattle(
     }
   }
 
-  // Experience — earned by what you ACHIEVED, not by who you picked. Farming a
-  // minnow pays badly because there is nothing there to kill; no bully band
-  // needed, the arithmetic does it.
+  // ── Experience ────────────────────────────────────────────────────────────
+  //
+  // A ledger. Credited for the men you killed, debited for the men you lost,
+  // both in absolute points. See the EXPERIENCE block in battleBalance.ts.
+  //
+  // A SURRENDER PAYS NOTHING, to either side. Nobody fought, so nobody learned
+  // — and it closes the obvious farm, since a beaten target yields again and
+  // again once their stamina is under the mercy floor.
   const aRegKilled = regularsLost(def.losses);
   const dRegKilled = regularsLost(atk.losses);
-  const aXpBefore = attacker.army.experience;
-  const dXpBefore = defender.army.experience;
+  const aXpBefore = attacker.army.experiencePoints;
+  const dXpBefore = defender.army.experiencePoints;
   const aSiegeBefore = attacker.army.siegeExperience;
   const dSiegeBefore = defender.army.siegeExperience;
 
-  const aGain = Math.min(
-    XP.MAX_PER_BATTLE,
-    aRegKilled * XP.PER_REGULAR_KILLED + displaced * XP.PER_CIVILIAN_DISPLACED,
-  );
-  const dGain = Math.min(XP.MAX_PER_BATTLE, dRegKilled * XP.PER_REGULAR_KILLED + XP.DEFENDER_GAIN);
+  if (!yielded) {
+    const aScore = rankingScore(attackerIn);
+    const dScore = rankingScore(defenderIn);
+    // Each side reads the ladder from its OWN doorstep: how much bigger was the
+    // other one? Punching up and repelling somebody bigger pay the same way,
+    // and crushing a minnow costs you whichever end of it you were on.
+    const aMatch = matchupMultiplier(dScore / Math.max(1, aScore), mode);
+    const dMatch = matchupMultiplier(aScore / Math.max(1, dScore), mode);
 
-  attacker.army.experience = clamp(
-    decayExperience(attacker.army.experience, lineLosses(atk.losses), lineRegulars(attackerIn), XP.LOSS_ON_DEATH) + aGain,
-  );
-  defender.army.experience = clamp(
-    decayExperience(defender.army.experience, lineLosses(def.losses), lineRegulars(defenderIn), XP.LOSS_ON_DEATH) + dGain,
-  );
-  if (walls) {
-    attacker.army.siegeExperience = clamp(
-      decayExperience(attacker.army.siegeExperience, atk.losses.engineers, attackerIn.army.siegeEngineers, XP.LOSS_ON_DEATH) + aGain,
-    );
-    defender.army.siegeExperience = clamp(
-      decayExperience(defender.army.siegeExperience, def.losses.engineers, defenderIn.army.siegeEngineers, XP.LOSS_ON_DEATH) + dGain,
-    );
+    const aWon = victor === "attacker";
+    // Casualties, not kills-of-regulars: sellswords count toward the base rate
+    // for both sides. Only the ATTACKER is then paid a second time for the
+    // regulars among them — if that bonus reached defenders, two players could
+    // collude by marching an army into a friend's garrison to be slaughtered.
+    const aInflicted = totalCasualties(def.losses);
+    const dInflicted = totalCasualties(atk.losses);
+
+    const aGross =
+      (aInflicted * EXPERIENCE.PER_CASUALTY + aRegKilled * EXPERIENCE.ATTACKER_PER_REGULAR) *
+      aMatch *
+      (aWon ? EXPERIENCE.WON_ATTACK : EXPERIENCE.LOST) *
+      luck(rng, EXPERIENCE.LUCK);
+    const dGross =
+      dInflicted *
+      EXPERIENCE.PER_CASUALTY *
+      dMatch *
+      (aWon ? EXPERIENCE.LOST : EXPERIENCE.WON_DEFENCE) *
+      luck(rng, EXPERIENCE.LUCK);
+
+    // The cap bounds what a battle can PAY. The debit is outside it — there is
+    // no ceiling on what carelessness costs, and a bully whose matchup went
+    // negative should not be rescued by a cap meant for the other direction.
+    const aNet = Math.min(EXPERIENCE.MAX_PER_BATTLE, aGross) - lineLosses(atk.losses) * EXPERIENCE.PER_REGULAR_LOST;
+    const dNet = Math.min(EXPERIENCE.MAX_PER_BATTLE, dGross) - lineLosses(def.losses) * EXPERIENCE.PER_REGULAR_LOST;
+
+    attacker.army.experiencePoints = Math.max(0, attacker.army.experiencePoints + Math.round(aNet));
+    defender.army.experiencePoints = Math.max(0, defender.army.experiencePoints + Math.round(dNet));
+
+    // The engineers keep their own 0–100 pool for now — siege veterancy is a
+    // different trade and was never part of the runaway. It still decays with
+    // the crews who die, and is credited off the same battle.
+    if (walls) {
+      const aSiegeGain = Math.min(10, aInflicted * 0.05);
+      const dSiegeGain = Math.min(10, dInflicted * 0.05);
+      attacker.army.siegeExperience = clamp(
+        decayExperience(attacker.army.siegeExperience, atk.losses.engineers, attackerIn.army.siegeEngineers, 1) + aSiegeGain,
+      );
+      defender.army.siegeExperience = clamp(
+        decayExperience(defender.army.siegeExperience, def.losses.engineers, defenderIn.army.siegeEngineers, 1) + dSiegeGain,
+      );
+    }
   }
 
   // The cascade: sellswords serve under the regulars of their own arm, and the
@@ -479,6 +553,16 @@ export function resolveBattle(
   if (MERCENARIES.DISBAND_ON_REGULAR_LOSS) {
     atk.losses.mercenariesDisbanded = settleMercenaries(attacker);
     def.losses.mercenariesDisbanded = settleMercenaries(defender);
+  }
+
+  // MEDICINE — the field hospital. Defender only, sellswords only, and AFTER the
+  // cascade above so the surgeons never spend grain on a man who has nobody left
+  // to command him. See the MEDICINE block in balance.ts.
+  const hospital = fieldHospital(defender, def.mercFallen, researchLevel(defender, "medicine"));
+  if (hospital.recovered > 0) {
+    say(rounds, "aftermath",
+      `The surgeons work through the night — ${hospital.recovered} sellsword${hospital.recovered === 1 ? "" : "s"} carried off the field alive for ${hospital.foodSpent.toLocaleString("en-US")} food.`,
+      { tone: "good" });
   }
 
   if (victor === "attacker") {
@@ -516,9 +600,10 @@ export function resolveBattle(
     loot,
     staminaLoss: { attacker: aDrain, defender: dDrain },
     experienceChange: {
-      attacker: Math.round(attacker.army.experience - aXpBefore),
-      defender: Math.round(defender.army.experience - dXpBefore),
+      attacker: Math.round(attacker.army.experiencePoints - aXpBefore),
+      defender: Math.round(defender.army.experiencePoints - dXpBefore),
     },
+    mercsRecovered: hospital.recovered,
     siegeExperienceChange: {
       attacker: Math.round(attacker.army.siegeExperience - aSiegeBefore),
       defender: Math.round(defender.army.siegeExperience - dSiegeBefore),
@@ -531,11 +616,47 @@ export function resolveBattle(
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-const clamp = (x: number) => Math.max(0, Math.min(XP.MAX, x));
+const clamp = (x: number) => Math.max(0, Math.min(100, x));
 const pct = (n: number, of: number) => Math.round((n / Math.max(1, of)) * 100);
 
+/** Everyone who fell, hired and raised alike — the base an award is built on. */
+const totalCasualties = (l: Side["losses"]): number =>
+  l.footmen + l.archers + l.cavalry + l.engineers + l.mercenaries;
+
+/**
+ * Where this fight sits on the ladder, as a multiplier on the award.
+ *
+ * `ratio` is THEIR ranking score over YOURS, so each side asks the same
+ * question — "how much bigger was the other one?" — and gets an answer suited to
+ * their own end of it. Interpolated between the EXPERIENCE.MATCHUP breakpoints,
+ * flat beyond either end. Below 0.5 the multiplier is NEGATIVE: massacring
+ * somebody far beneath you does not merely fail to teach your army anything, it
+ * costs you, and it costs more the more thoroughly you do it.
+ */
+export function matchupMultiplier(ratio: number, mode?: AttackMode): number {
+  const pts = EXPERIENCE.MATCHUP;
+  let mult: number;
+  if (ratio <= pts[0].ratio) mult = pts[0].mult;
+  else if (ratio >= pts[pts.length - 1].ratio) mult = pts[pts.length - 1].mult;
+  else {
+    let i = 0;
+    while (i < pts.length - 1 && ratio > pts[i + 1].ratio) i++;
+    const a = pts[i];
+    const b = pts[i + 1];
+    const span = b.ratio - a.ratio;
+    mult = span <= 0 ? b.mult : a.mult + ((ratio - a.ratio) / span) * (b.mult - a.mult);
+  }
+  // Answering a blow you did not choose is never bullying — see
+  // EXPERIENCE.REVENGE_MATCHUP_FLOOR.
+  if (mode === "revenge") return Math.max(EXPERIENCE.REVENGE_MATCHUP_FLOOR, mult);
+  return mult;
+}
+
+/** What one arm brings to bear in a single phase. COMBAT_TEMPO is the delivery
+ *  ratio that makes a battle last more than one exchange — see the constant. */
 const armPower = (s: Side, arm: Arm): number =>
-  s.groups.filter((g) => g.arm === arm).reduce((sum, g) => sum + g.count * g.power, 0);
+  s.groups.filter((g) => g.arm === arm).reduce((sum, g) => sum + g.count * g.power, 0) *
+  COMBAT_TEMPO;
 
 const lineLosses = (l: { footmen: number; archers: number; cavalry: number }) =>
   l.footmen + l.archers + l.cavalry;

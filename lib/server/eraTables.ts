@@ -19,6 +19,7 @@ import {
   topFeuds,
   topWars,
   totalResearchLevels,
+  veterancyBonus,
   type Clan,
   type EraRecords,
   type PlayerFeats,
@@ -173,6 +174,9 @@ interface Champ {
   label: string; // the feat
   epithet: string; // "the Plunderer"
   value: (p: Player, f?: PlayerFeats) => number;
+  /** How the total reads on the card. Defaults to a plain formatted number —
+   *  override when the raw figure is not the thing a player cares about. */
+  format?: (v: number) => string;
   /**
    * Tallied in the open but held ANONYMOUS until the age is sealed.
    *
@@ -222,7 +226,7 @@ function crownRows(
       // An empty name is the "sealed" signal the card renderer reads. The id is
       // never emitted either — a blank row that still linked to a clan page
       // would give the whole thing away.
-      rows.push([hide ? `, ${spec.epithet}` : `${p.name}, ${spec.epithet}`, hide ? "" : clanCell(p.clanId), spec.label, fmt(v)]);
+      rows.push([hide ? `, ${spec.epithet}` : `${p.name}, ${spec.epithet}`, hide ? "" : clanCell(p.clanId), spec.label, spec.format ? spec.format(v) : fmt(v)]);
     }
   }
   return rows;
@@ -315,7 +319,15 @@ export function buildEraTables(world: World, opts: { link?: boolean } = {}): Eld
       value: (_p, f) => (f ? f.defendersKilled + f.attackersKilled : 0),
     },
     { label: "Most siege damage caused", epithet: "the Siege Master", value: (_p, f) => f?.siegeDamage ?? 0, secret: true },
-    { label: "Most experienced army", epithet: "the Undefeatable", value: (p) => Math.round(p.army.experience) },
+    {
+      // Ranked on the raw ledger (the ordering is identical either way, since
+      // the bonus is linear in points) but SHOWN as what those points buy —
+      // "+64.8%" tells a rival something; "3,240,118" is a number.
+      label: "Most experienced army",
+      epithet: "the Undefeatable",
+      value: (p) => Math.round(p.army.experiencePoints),
+      format: (v) => `+${(veterancyBonus(v) * 100).toFixed(1)}% · ${fmt(v)} pts`,
+    },
     { label: "Strongest empire-less ruler", epithet: "the Black Knight", value: (p) => (p.clanId ? 0 : rankingScore(p)) },
     // Sabotage and arson are war — fought without a banner and paid for in spy
     // turns, but war. They sat under "civil feats" beside market sales and

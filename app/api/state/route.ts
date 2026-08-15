@@ -22,6 +22,7 @@ import {
   taxIncomePerTurn,
   totalPopulation,
   wallName,
+  veterancyBonus,
 } from "@/lib/engine";
 import { resolvePlayerId } from "@/lib/server/auth";
 import { REVENGE_WINDOW_TICKS, getCurrentWorld } from "@/lib/server/world";
@@ -85,7 +86,7 @@ export async function GET(req: NextRequest) {
       productionPerTurn: productionRates(p),
       actionTurns: p.turnsAvailable,
     },
-    army: { ...p.army, stamina: p.army.stamina, experience: p.army.experience },
+    army: { ...p.army, stamina: p.army.stamina, veterancyPct: veterancyBonus(p.army.experiencePoints) * 100 },
     buildings: [
       ...CIVILIAN_BUILDINGS,
       { id: "hearthstead", name: "Hearthstead" },

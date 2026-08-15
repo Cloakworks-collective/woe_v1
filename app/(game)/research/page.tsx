@@ -117,7 +117,7 @@ export default async function ResearchPage({
             rate,
             scholars,
           }
-        : { state: "idle", scholars };
+        : { state: "idle", scholars, rate };
 
   return (
     <>

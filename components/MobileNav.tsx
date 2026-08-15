@@ -80,7 +80,7 @@ export function MobileNav({ premium }: { premium: boolean }) {
         { href: "/battles", label: "🌍 World Chronicle" },
         { href: "/annals", label: "📚 Annals — sealed ages" },
         { href: "/messages", label: "✉️ Letters" },
-        { href: "/messages/chat", label: "🕯️ Era Chat" },
+        { href: "/messages/chat", label: "🕯️ World Chat" },
         { href: "/forum", label: "💬 The Forum" },
       ],
     },

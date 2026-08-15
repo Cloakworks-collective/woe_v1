@@ -7,6 +7,7 @@ import {
   POP_GROWTH,
   RESOURCE_BUILDING_IDS,
   SCATTERING,
+  SCORE,
 } from "../constants";
 import {
   buildingIntegrity,
@@ -50,11 +51,45 @@ export function prosperityGrowth(p: Player): number {
   return Math.min(POP_GROWTH.PROSPERITY_MAX, Math.ceil(levels * POP_GROWTH.PROSPERITY_PER_LEVEL));
 }
 
-/** WALLS — scaled by integrity, so rubble reassures nobody until it is rebuilt.
- *  This is what the old flat WALL_DAMAGE_POP_PENALTY used to express, now paid
- *  out of the term it actually concerns instead of docking the whole intake. */
+/**
+ * WALLS — and only walls somebody is standing on.
+ *
+ * Scaled by integrity, so rubble reassures nobody until it is rebuilt. That is
+ * what the old flat WALL_DAMAGE_POP_PENALTY used to express, now paid out of the
+ * term it actually concerns instead of docking the whole intake.
+ *
+ * AND scaled by the GARRISON, which is the part that was missing. The blurb has
+ * always said settlers pay for stone they can stand behind — but the arithmetic
+ * never checked whether anybody was standing behind it, so an empty Citadel drew
+ * a third of an empire's daily intake for existing. That is the identical hole
+ * `SCORE.WALL_TROOPS_PER_LEVEL` was added to close on the ladder ("build stone,
+ * raise nobody, and the ladder called you strong"), left open on population —
+ * and worse here, because settlers compound into workers, gold and more wall.
+ *
+ * It reuses the SAME constant deliberately. Two independent manning bars would
+ * drift, and a player who garrisons to satisfy one should satisfy the other.
+ *
+ * REGULARS ONLY, matching the score. The safety term above counts sellswords on
+ * purpose — a hired blade on the gate reassures a farmer — but a wall is held,
+ * not merely watched, and a contract that ends when its regulars die is not a
+ * garrison. Note the two terms therefore read the muster differently, which is
+ * intended: `guardRatio` uses `guardStrength`, this uses `military`.
+ */
 export function wallsGrowth(p: Player): number {
-  return Math.ceil(level(p, "walls") * POP_GROWTH.WALLS_PER_LEVEL * p.wallIntegrity);
+  const lvl = level(p, "walls");
+  if (lvl <= 0) return 0;
+  return Math.ceil(
+    lvl * POP_GROWTH.WALLS_PER_LEVEL * p.wallIntegrity * wallManning(p),
+  );
+}
+
+/** How much of the wall is actually held, 0–1. Full credit at
+ *  SCORE.WALL_TROOPS_PER_LEVEL regulars per level, pro rata below it. */
+export function wallManning(p: Player): number {
+  const lvl = level(p, "walls");
+  const need = lvl * SCORE.WALL_TROOPS_PER_LEVEL;
+  if (lvl <= 0 || need <= 0) return 1;
+  return Math.min(1, military(p) / need);
 }
 
 /** The four components, for the dashboard breakdown. */
@@ -86,9 +121,42 @@ export function growthBreakdown(p: Player): {
  * Hearthstead a slow strangling rather than a massacre — see BOMBARDABLE.
  */
 export function vacantHousing(p: Player): number {
-  const roofs = Math.floor(
-    level(p, "hearthstead") * HOUSING_PER_HEARTHSTEAD * buildingIntegrity(p, "hearthstead"),
-  );
+  return Math.max(0, standingHousing(p) - civilians(p));
+}
+
+/** Every bed the empire has BUILT, whether or not it still has a roof. */
+export function housingBuilt(p: Player): number {
+  return level(p, "hearthstead") * HOUSING_PER_HEARTHSTEAD;
+}
+
+/** Beds still standing after bombardment. */
+export function standingHousing(p: Player): number {
+  return Math.floor(housingBuilt(p) * buildingIntegrity(p, "hearthstead"));
+}
+
+/**
+ * The cap the day's INTAKE is measured against — which is not always the same
+ * as the beds actually standing.
+ *
+ * A bombard that lands while the ruler is asleep would otherwise dock every
+ * sample until dawn, and the only defence would be never sleeping. So burnt
+ * roofs do not count against recruitment until the regent has been back to see
+ * them: while `roofDamageUnseen` is set the samples are capped by the beds you
+ * BUILT, and the moment you log in — any page, any command — the real cap
+ * takes over and the damage bites in full.
+ *
+ * This buys a night's sleep, not an exemption. It is deliberately generous
+ * while you are away and deliberately unforgiving once you are back: the answer
+ * to a burnt Hearthstead is to mend it, and you cannot mend it in your sleep.
+ *
+ * Bots are excluded. They are seeded targets that never act and never log in,
+ * so the flag would latch on the first bombard and never clear — leaving them
+ * permanently immune to the one thing shelling their housing is meant to do.
+ * The mercy is for people who need to sleep; a bot does not.
+ */
+export function intakeHousing(p: Player): number {
+  const asleep = p.roofDamageUnseen === true && !p.isBot;
+  const roofs = asleep ? housingBuilt(p) : standingHousing(p);
   return Math.max(0, roofs - civilians(p));
 }
 
@@ -115,7 +183,7 @@ export function popPerDay(p: Player): number {
 export function arrivalsNow(p: Player, currentTick: number): number {
   if (p.starving) return 0;
   if ((p.unrestUntilTick ?? 0) > currentTick) return 0;
-  return Math.max(0, Math.min(popPerDay(p), vacantHousing(p)));
+  return Math.max(0, Math.min(popPerDay(p), intakeHousing(p)));
 }
 
 /** Record this tick's sample. Called once per tick, from processTurnTick. */
@@ -141,7 +209,7 @@ export function processDailyReset(input: Player, currentTick = 0): EngineResult 
   //    what arrives reflects the beds and the garrison you kept ALL day, not
   //    whatever you owned in the last minute before dawn.
   const wanted = popPerDay(p);
-  const arrived = Math.min(averagedArrivals(p), vacantHousing(p));
+  const arrived = Math.min(averagedArrivals(p), intakeHousing(p));
   p.idlePeasants += arrived;
   events.push({ type: "dailyRecruitment", arrived, turnedAway: Math.max(0, wanted - arrived) });
   // The ledger resets for the new day either way.

@@ -59,14 +59,18 @@ export function plunderGold(p: Player, amount: number): void {
 /**
  * What share of the exposed stock is carried off.
  *
- * The band is rolled, then scaled by relative size: punching up pays a quarter
- * more, farming someone half your weight pays a quarter less. Because the band
- * tops out at 0.70 and the bonus at ×1.25, the result can never exceed 87.5%
- * — so there is no cap to apply and no awkward clamping at 100%.
+ *                      FOUGHT AND LOST      LAID DOWN ARMS
+ *   at war                    100%                50%
+ *   at peace              up to 50%        up to 25%
  *
- * The anti-bullying work that the old XP "bully band" used to do now lives
- * here and in outcome-based experience: farming a minnow simply doesn't pay,
- * because there is neither loot nor anyone worth killing.
+ * In peace: roll the band, scale by relative size (punching up pays a quarter
+ * more, farming someone half your weight a quarter less), apply the relief,
+ * then clamp to PEACE_CEILING. In war: none of that, just everything outside
+ * the vault. Then, either way, halve it if they surrendered.
+ *
+ * The anti-bullying work that the old XP "bully band" used to do lives in the
+ * size scaling and in outcome-based experience: farming a minnow simply doesn't
+ * pay, because there is neither loot nor anyone worth killing.
  */
 export function lootShare(
   rng: Rng,
@@ -76,20 +80,19 @@ export function lootShare(
   defenderPower: number,
   atWar = false,
 ): number {
-  // CLAN WAR: no roll, no scaling, no relief. Everything outside the vault is
-  // simply gone. Bands and size-scaling are peacetime's way of making a loss
-  // survivable — war removes that entirely, and the vault becomes the only
-  // defence there is.
-  if (atWar) return LOOT.WAR_SHARE;
+  // Laying down arms halves the bill, wherever the rest of the sum lands. It is
+  // applied LAST, to war and peace alike — which is the fix for a real hole:
+  // the war branch below used to return before anything looked at `yielded`, so
+  // surrendering to a clan at war cost exactly as much as being cut apart, and
+  // there was no reason on earth to do it.
+  const surrender = yielded ? LOOT.YIELD_FACTOR : 1;
 
-  const band = yielded
-    ? mode === "raid"
-      ? LOOT.RAID_YIELD
-      : LOOT.CASTLE_YIELD
-    : mode === "raid"
-      ? LOOT.RAID_WIN
-      : LOOT.CASTLE_WIN;
-  const rolled = rollBand(rng, band);
+  // CLAN WAR: no roll, no scaling, no relief, no ceiling. Everything outside the
+  // vault is simply gone. Bands and size-scaling are peacetime's way of making a
+  // loss survivable — war removes that, and the vault is the only defence left.
+  if (atWar) return LOOT.WAR_SHARE * surrender;
+
+  const rolled = rollBand(rng, mode === "raid" ? LOOT.RAID_WIN : LOOT.CASTLE_WIN);
   const ratio = defenderPower / Math.max(1, attackerPower);
   const scale =
     ratio >= LOOT.BIG_TARGET_RATIO
@@ -97,7 +100,9 @@ export function lootShare(
       : ratio <= LOOT.SMALL_TARGET_RATIO
         ? LOOT.SMALL_TARGET_PENALTY
         : 1;
-  return rolled * scale * LOOT.PEACE_MULTIPLIER;
+  // Ceiling before surrender, so a peacetime yield tops out at half the peacetime
+  // cap rather than half of an unbounded roll.
+  return Math.min(LOOT.PEACE_CEILING, rolled * scale * LOOT.PEACE_MULTIPLIER) * surrender;
 }
 
 /**

@@ -5,6 +5,9 @@ import {
   BUILD_COSTS,
   CHURN,
   CLAN_BEACON,
+  AID_LEDGER_MULTIPLE,
+  AID_SCORE_BAND,
+  AID_SEED_ALLOWANCE,
   CLAN_GIFT_TAX,
   CLAN_REPAIR_COST_FACTOR,
   beaconGraceHours,
@@ -24,6 +27,7 @@ import {
   type ClanResource,
   type Player,
 } from "./types";
+import { rankingScore } from "./score";
 
 const ZERO: Record<ClanResource, number> = { gold: 0, food: 0, wood: 0, stone: 0, ore: 0 };
 
@@ -73,6 +77,8 @@ export function normalizeClan(clan: Clan): void {
   clan.buildings.beaconLevel ??= 0;
   clan.buildings.integrity ??= { storage: 1, hall: 1, wonder: 1, beacon: 1 };
   clan.buildings.integrity.beacon ??= 1;
+  clan.friendly ??= [];
+  clan.allianceOffers ??= [];
 }
 
 /**
@@ -132,6 +138,19 @@ export function isLeadership(clan: Clan, playerId: string): boolean {
     clan.viceLeaderId === playerId ||
     clan.officerIds.includes(playerId)
   );
+}
+
+/**
+ * The TOP of the banner only — Leader or Vice, never an officer.
+ *
+ * `isLeadership` includes officers, which is right for the day-to-day (repairs,
+ * admitting petitions, silencing a loudmouth). It is wrong for the decisions
+ * that bind the whole clan to another clan: declaring war already used this
+ * stricter test inline, and alliances need the same one. An officer should not
+ * be able to sign away, or tear up, everyone else's pact.
+ */
+export function isHighLeadership(clan: Clan, playerId: string): boolean {
+  return clan.leaderId === playerId || clan.viceLeaderId === playerId;
 }
 
 export type ClanRole = "leader" | "vice" | "officer" | "member";
@@ -556,31 +575,97 @@ export function buildClanBuilding(
 /**
  * Direct aid between two members of the same banner — no vault in the middle.
  *
- * The pool has the 3× rule precisely so a clan cannot be used as a funnel: you
- * may only draw triple what you have given. A direct gift deliberately skips
- * that, which is the point (a leader can prop up a member who is being farmed
- * TODAY, without them first having deposited for a week) — so it carries its
- * own friction instead: CLAN_GIFT_TAX of every gift is burned.
+ * The point of a direct gift is speed: a leader can prop up a member who is
+ * being farmed TODAY, without them first having deposited for a week. What it
+ * must not become is a funnel — a second account founded for no reason but to
+ * feed a first — so three frictions stand in the way.
+ *
+ *   1. THE TAX. CLAN_GIFT_TAX of every gift is burned. Moving wealth sideways
+ *      always costs something.
+ *   2. THE BAND. Both empires must be within AID_SCORE_BAND of each other on
+ *      ranking score. This is the rule that actually stops alts, because it
+ *      needs no history: a day-old account is tiny and simply cannot reach the
+ *      main it was made to serve, in either direction.
+ *   3. THE LEDGER. Aid is written to the same per-member ledger the vault uses,
+ *      and capped BOTH ways (AID_LEDGER_MULTIPLE): you may not give more than
+ *      three times what you have taken in, nor take in more than three times
+ *      what you have given. An alt fails the first of those by construction.
  *
  * Only LOOSE goods can be given. Anything vaulted has to be drawn out first,
  * which is the same rule the pool uses and the usual reason a transfer is
  * refused while the bar still shows a healthy total.
  */
+
+/** Everything a member has put IN across both channels — vault deposits and
+ *  gifts sent. The denominator for what they may receive. */
+export function aidGiven(clan: Clan, playerId: string, what: ClanResource): number {
+  const l = clan.memberLedger[playerId];
+  return l ? l.deposited[what] : 0;
+}
+
+/** Everything a member has taken OUT across both channels — vault withdrawals
+ *  and gifts received. The denominator for what they may give. */
+export function aidReceived(clan: Clan, playerId: string, what: ClanResource): number {
+  const l = clan.memberLedger[playerId];
+  return l ? l.withdrawn[what] : 0;
+}
+
+/** How much this member may still GIVE of one resource: three times what they
+ *  have taken in, less what they have already put out. */
+export function giftableNow(clan: Clan, playerId: string, what: ClanResource): number {
+  return Math.max(
+    0,
+    AID_LEDGER_MULTIPLE * aidReceived(clan, playerId, what) +
+      AID_SEED_ALLOWANCE -
+      aidGiven(clan, playerId, what),
+  );
+}
+
+/** How much this member may still RECEIVE of one resource — the same shape as
+ *  `withdrawableNow`, which is the vault's half of the identical rule. */
+export function receivableNow(clan: Clan, playerId: string, what: ClanResource): number {
+  return Math.max(
+    0,
+    AID_LEDGER_MULTIPLE * aidGiven(clan, playerId, what) +
+      AID_SEED_ALLOWANCE -
+      aidReceived(clan, playerId, what),
+  );
+}
+
+/** Whether two empires are close enough in standing to help one another.
+ *  Symmetric on purpose — "within 30% of each other" must not depend on which
+ *  way round you ask, or the band would be a ladder to climb in one direction. */
+export function withinAidBand(a: Player, b: Player): boolean {
+  const sa = Math.max(1, rankingScore(a));
+  const sb = Math.max(1, rankingScore(b));
+  const lo = 1 - AID_SCORE_BAND;
+  const hi = 1 + AID_SCORE_BAND;
+  return sb >= sa * lo && sb <= sa * hi;
+}
+
 export function giftToMember(
   senderIn: Player,
   recipientIn: Player,
-  clan: Clan,
+  clanIn: Clan,
   what: ClanResource,
   amount: number,
-): { sender: Player; recipient: Player; sent: number; taxed: number } {
+): { sender: Player; recipient: Player; clan: Clan; sent: number; taxed: number } {
   const sender = structuredClone(senderIn);
   const recipient = structuredClone(recipientIn);
+  const clan = structuredClone(clanIn);
 
   if (sender.id === recipient.id) throw new EngineError("target", "You cannot gift yourself");
   if (!clan.members.includes(sender.id) || !clan.members.includes(recipient.id)) {
     throw new EngineError("clan", "You may only aid your own banner");
   }
   if (!Number.isInteger(amount) || amount <= 0) throw new EngineError("amount", "Invalid amount");
+
+  if (!withinAidBand(sender, recipient)) {
+    throw new EngineError(
+      "band",
+      `Aid only flows between empires within ${Math.round(AID_SCORE_BAND * 100)}% of each other's ranking score — theirs is too far from yours.`,
+    );
+  }
 
   const loose = what === "gold" ? sender.gold : sender.resources[what];
   if (loose < amount) throw new EngineError(what, `Not enough loose ${what}`);
@@ -590,6 +675,22 @@ export function giftToMember(
   const taxed = Math.ceil(amount * CLAN_GIFT_TAX);
   const sent = amount - taxed;
 
+  // The ledger is checked on what each side actually MOVES: the sender is out
+  // `amount`, the recipient is in `sent`. Charging the recipient for the burned
+  // tax would make the tax count twice.
+  if (giftableNow(clan, sender.id, what) < amount) {
+    throw new EngineError(
+      "ledger",
+      `The 3× rule: you may only send triple what you have taken from the banner. Deposit to the pool or draw from it first.`,
+    );
+  }
+  if (receivableNow(clan, recipient.id, what) < sent) {
+    throw new EngineError(
+      "ledger",
+      `The 3× rule: they may only be given triple what they have put into the banner.`,
+    );
+  }
+
   if (what === "gold") {
     sender.gold -= amount;
     recipient.gold += sent;
@@ -597,7 +698,143 @@ export function giftToMember(
     sender.resources[what] -= amount;
     recipient.resources[what] += sent;
   }
-  return { sender, recipient, sent, taxed };
+
+  // Written to the SAME ledger the vault uses, so the two channels cannot be
+  // played against each other: giving counts as putting in, receiving as taking
+  // out, whichever door it went through.
+  ledger(clan, sender.id).deposited[what] += amount;
+  ledger(clan, recipient.id).withdrawn[what] += sent;
+
+  return { sender, recipient, clan, sent, taxed };
+}
+
+// ── Alliances ───────────────────────────────────────────────────────────────
+//
+// An alliance is a PROMISE, and the only thing that makes a promise mean
+// anything is that breaking it costs. So there is no enforcement here: allied
+// members can still be attacked. What the alliance does is make the attack an
+// act of treachery — it tears the pact up on both sides and writes the name of
+// whoever did it into the world chronicle, where everyone can read it forever
+// (see the treachery path in doAttack).
+//
+// Both ends are leadership business: the Leader or the Vice may offer, accept,
+// and end one. Officers may not — an alliance commits the whole banner.
+//
+// Storage is `Clan.friendly`, which has existed as a field since clans did but
+// had no way to be filled. War already tore it up; now something can build it.
+
+/** Are these two banners allied? Mutual by construction, but checked both ways
+ *  so a half-written pact (an old save, a crashed write) reads as no pact. */
+export function areAllied(a: Clan | undefined, b: Clan | undefined): boolean {
+  if (!a || !b || a.id === b.id) return false;
+  return (a.friendly ?? []).includes(b.id) && (b.friendly ?? []).includes(a.id);
+}
+
+/** A standing offer from `fromClanId` awaiting this clan's answer. */
+export function allianceOfferFrom(clan: Clan, fromClanId: string): boolean {
+  return (clan.allianceOffers ?? []).some((o) => o.fromClanId === fromClanId);
+}
+
+/**
+ * Offer an alliance. Leadership only, and refused while blood is between you:
+ * a pact signed mid-war would let two clans farm a third and call a truce for
+ * free. End the war first.
+ */
+export function offerAlliance(
+  clanIn: Clan,
+  targetIn: Clan,
+  actorId: string,
+  currentTick: number,
+): { clan: Clan; target: Clan } {
+  const clan = structuredClone(clanIn);
+  const target = structuredClone(targetIn);
+  if (clan.id === target.id) throw new EngineError("clan", "You cannot ally with yourself");
+  if (!isHighLeadership(clan, actorId)) {
+    throw new EngineError("rank", "Only the Leader or the Vice may offer an alliance");
+  }
+  if (areAllied(clan, target)) throw new EngineError("ally", "You are already allied");
+  if (clan.wars.some((w) => w.clanId === target.id)) {
+    throw new EngineError("war", "You are at war with them — make peace before you make friends");
+  }
+  target.allianceOffers ??= [];
+  if (allianceOfferFrom(target, clan.id)) {
+    throw new EngineError("ally", "Your offer already stands with them");
+  }
+  // They offered US first: taking the offer is accepting it, not trading
+  // letters forever.
+  if (allianceOfferFrom(clan, target.id)) {
+    return acceptAlliance(clan, target, actorId);
+  }
+  target.allianceOffers.push({ fromClanId: clan.id, byId: actorId, atTick: currentTick });
+  return { clan, target };
+}
+
+/** Accept a standing offer. Leadership only. Writes BOTH lists, so the pact is
+ *  never half-signed. */
+export function acceptAlliance(
+  clanIn: Clan,
+  otherIn: Clan,
+  actorId: string,
+): { clan: Clan; target: Clan } {
+  const clan = structuredClone(clanIn);
+  const target = structuredClone(otherIn);
+  if (!isHighLeadership(clan, actorId)) {
+    throw new EngineError("rank", "Only the Leader or the Vice may accept an alliance");
+  }
+  if (!allianceOfferFrom(clan, target.id)) {
+    throw new EngineError("ally", "They have made you no offer");
+  }
+  if (clan.wars.some((w) => w.clanId === target.id)) {
+    throw new EngineError("war", "You are at war with them");
+  }
+  clan.allianceOffers = (clan.allianceOffers ?? []).filter((o) => o.fromClanId !== target.id);
+  target.allianceOffers = (target.allianceOffers ?? []).filter((o) => o.fromClanId !== clan.id);
+  clan.friendly = [...new Set([...(clan.friendly ?? []), target.id])];
+  target.friendly = [...new Set([...(target.friendly ?? []), clan.id])];
+  return { clan, target };
+}
+
+/** Turn an offer down. Leadership only. No memory kept — they may ask again. */
+export function declineAlliance(clanIn: Clan, fromClanId: string, actorId: string): Clan {
+  const clan = structuredClone(clanIn);
+  if (!isHighLeadership(clan, actorId)) {
+    throw new EngineError("rank", "Only the Leader or the Vice may answer an alliance offer");
+  }
+  if (!allianceOfferFrom(clan, fromClanId)) throw new EngineError("ally", "No such offer");
+  clan.allianceOffers = (clan.allianceOffers ?? []).filter((o) => o.fromClanId !== fromClanId);
+  return clan;
+}
+
+/**
+ * End an alliance. Leadership only, and available ALWAYS — an alliance you
+ * cannot leave is a trap, and a clan that has decided to fight should be able
+ * to say so before it strikes rather than be branded a traitor for it.
+ */
+export function endAlliance(
+  clanIn: Clan,
+  otherIn: Clan,
+  actorId: string,
+): { clan: Clan; target: Clan } {
+  const clan = structuredClone(clanIn);
+  const target = structuredClone(otherIn);
+  if (!isHighLeadership(clan, actorId)) {
+    throw new EngineError("rank", "Only the Leader or the Vice may end an alliance");
+  }
+  if (!areAllied(clan, target)) throw new EngineError("ally", "You are not allied with them");
+  return { clan: dropAlly(clan, target.id), target: dropAlly(target, clan.id) };
+}
+
+/** Strike an ally's member and the pact is torn up on both sides, whatever
+ *  either leadership wanted. Separate from `endAlliance` because it answers to
+ *  nobody's rank and skips every check — the blow has already landed. */
+export function breakAllianceByTreachery(a: Clan, b: Clan): { a: Clan; b: Clan } {
+  return { a: dropAlly(structuredClone(a), b.id), b: dropAlly(structuredClone(b), a.id) };
+}
+
+function dropAlly(clan: Clan, otherId: string): Clan {
+  clan.friendly = (clan.friendly ?? []).filter((f) => f !== otherId);
+  clan.allianceOffers = (clan.allianceOffers ?? []).filter((o) => o.fromClanId !== otherId);
+  return clan;
 }
 
 export function declareWar(

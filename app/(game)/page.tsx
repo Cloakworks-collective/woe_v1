@@ -5,7 +5,6 @@ import { Art } from "@/components/Art";
 import { BuildingArt } from "@/components/BuildingArt";
 import { Census } from "@/components/Census";
 import { CmdForm } from "@/components/CmdForm";
-import { ReqTip } from "@/components/CostTip";
 import { Flash } from "@/components/Flash";
 import { HealthBar } from "@/components/HealthBar";
 import { Info } from "@/components/Info";
@@ -18,7 +17,12 @@ import { RegentCharges } from "@/components/RegentCharges";
 import { ResearchView } from "@/components/ResearchView";
 import { SettlementView } from "@/components/SettlementView";
 import { StatTile } from "@/components/StatTile";
-import { TaxSlider } from "@/components/TaxSlider";
+import { StatTip } from "@/components/StatTip";
+import { TiredArt } from "@/components/TiredArt";
+import { LocalTime } from "@/components/LocalTime";
+import { RecruitHourPicker } from "@/components/RecruitHourPicker";
+import { TaxAndRates } from "@/components/TaxAndRates";
+import { VacationGate } from "@/components/VacationGate";
 import { VictoryTracker } from "@/components/VictoryTracker";
 import {
   ACTION_GUIDE,
@@ -35,8 +39,18 @@ import {
   STORAGE_BUILDING,
   VACATION_DAYS_PER_ERA,
   VACATION_TICKS_PER_ERA,
+  VACATION_TAX_FACTOR,
+  VACATION_PRODUCTION_FACTOR,
+  VACATION_RESEARCH_FACTOR,
+  VACATION_REATTACK_COOLDOWN_TICKS,
+  VACATION_RETURN_SHIELD_MIN_TICKS,
+  VACATION_RETURN_SHIELD_TICKS,
+  SCORE,
+  TICKS_PER_HOUR,
+  TURN_MINUTES,
   TURNS_PER_DAY,
   WAR_FOUNDRY_LADDER,
+  EXPERIENCE,
 } from "@/lib/constants";
 import {
   bankedRes,
@@ -49,6 +63,7 @@ import {
   military,
   popPerDay,
   productionRates,
+  rankingBreakdown,
   rankingScore,
   settlementTitle,
   structureIntegrity,
@@ -57,10 +72,13 @@ import {
   unbankedGold,
   unstored,
   vacantHousing,
+  vacationAwayTicks,
+  wallManning,
   growthBreakdown,
   guardRatio,
   type GameEvent,
   type Resource,
+  veterancyBonus,
 } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
@@ -150,6 +168,21 @@ export default async function CommandView({
   const vacationDaysLeft = Math.max(0, VACATION_DAYS_PER_ERA - (p.vacationTicksUsed ?? 0) / TURNS_PER_DAY);
   const vacationBudgetSpent = (p.vacationTicksUsed ?? 0) >= VACATION_TICKS_PER_ERA;
   const away = p.onVacation || p.vacationQueued;
+  // The briefing the confirm dialog reads from. Food is projected at VACATION
+  // rates, not current ones — the whole question the departing ruler is asking
+  // is "will my granary hold while I am gone", and answering it with today's
+  // full-strength harvest would be a lie by a factor of five.
+  const vacationFoodNet = p.onVacation
+    ? rates.food - foodUpkeepPerTurn(p)
+    : Math.floor(rates.food * VACATION_PRODUCTION_FACTOR) - foodUpkeepPerTurn(p);
+  const awayHours = vacationAwayTicks(p, world.meta.tickNumber) / TICKS_PER_HOUR;
+  // The bridge between realm ticks and real instants. The realm's day boundary
+  // is an accident of when the world was seeded, so "turn 84" tells a player
+  // nothing about whether they will be awake for it — everything the dawn
+  // controls show is anchored through here and rendered in the reader's clock.
+  const lastTickAtMs = new Date(world.meta.lastTickAt).getTime();
+  const tickToMs = (tick: number) =>
+    lastTickAtMs + (tick - world.meta.tickNumber) * TURN_MINUTES * 60_000;
 
   return (
     <>
@@ -205,7 +238,29 @@ export default async function CommandView({
           </span>
           <div className="throne-body">
             <div className="stat-grid">
-              <StatTile icon="🏆" label="Ranking score" value={fmt(rankingScore(p))} />
+              {/* How the ladder reached that number, in the player's own
+                  figures — and, as importantly, what it leaves out. A real
+                  bubble rather than a native title: this is a nine-row table
+                  and the browser's own tooltip would render it as a grey blob
+                  a second after you gave up hovering. */}
+              <StatTip
+                heading="🏆 How the ladder counts you"
+                total={fmt(rankingScore(p))}
+                rows={rankingBreakdown(p).map((part) => ({
+                  label: part.label,
+                  detail: part.detail,
+                  value: `+${fmt(part.points)}`,
+                }))}
+                note={
+                  <>
+                    Only what a besieger outside your gate could see. <b>Not counted</b>: gold, food
+                    and goods, housing and civilian buildings, your offensive siege train, and your
+                    spies.
+                  </>
+                }
+              >
+                <StatTile icon="🏆" label="Ranking score" value={fmt(rankingScore(p))} />
+              </StatTip>
               <StatTile
                 icon="👥"
                 label="Population"
@@ -237,28 +292,53 @@ export default async function CommandView({
                 max={STAMINA.MAX}
                 display={`${p.army.stamina} / ${STAMINA.MAX}`}
               />
+              {/* Veterancy has no ceiling, so the bar tracks progress to the
+                  NEXT +2% rather than to a maximum — a meter pinned full at
+                  100% would claim a limit that does not exist, and the default
+                  tone would paint a green army's honest +0.4% in alarm red. */}
               <Meter
                 icon="🎖️"
-                label="Army XP"
-                value={p.army.experience}
-                max={100}
-                display={`${p.army.experience} / 100`}
+                label="Veterancy"
+                value={p.army.experiencePoints % EXPERIENCE.POINTS_PER_STEP}
+                max={EXPERIENCE.POINTS_PER_STEP}
+                tone="good"
+                display={
+                  <>
+                    +{(veterancyBonus(p.army.experiencePoints) * 100).toFixed(1)}%
+                    <span style={{ color: "var(--ink-soft)", fontWeight: 400 }}>
+                      {" · "}
+                      {Math.round(
+                        EXPERIENCE.POINTS_PER_STEP -
+                          (p.army.experiencePoints % EXPERIENCE.POINTS_PER_STEP),
+                      ).toLocaleString("en-US")}{" "}
+                      to next
+                    </span>
+                  </>
+                }
               />
             </div>
             <div className="throne-flag">
-              <CmdForm name="vacation" path="/">
-                <input type="hidden" name="away" value={away ? "" : "1"} />
-                <Btn
-                  className="btn"
-                  style={{ background: "linear-gradient(#a8853f,#7c5426)", borderColor: "#4e3113" }}
-                  disabled={!away && vacationBudgetSpent}
-                >
-                  {p.onVacation ? "Return to the world" : p.vacationQueued ? "Cancel queued vacation" : "🏖 Go on vacation"}
-                </Btn>
-              </CmdForm>
+              <VacationGate
+                onVacation={p.onVacation}
+                queued={Boolean(p.vacationQueued)}
+                budgetSpent={vacationBudgetSpent}
+                daysLeft={vacationDaysLeft}
+                daysPerEra={VACATION_DAYS_PER_ERA}
+                taxPct={Math.round(VACATION_TAX_FACTOR * 100)}
+                productionPct={Math.round(VACATION_PRODUCTION_FACTOR * 100)}
+                researchPct={Math.round(VACATION_RESEARCH_FACTOR * 100)}
+                settlersPerDay={popPerDay(p)}
+                vacantBeds={vacantHousing(p)}
+                foodNetPerTurn={vacationFoodNet}
+                foodStock={p.resources.food + bankedRes(p).food}
+                reattackHours={VACATION_REATTACK_COOLDOWN_TICKS / TICKS_PER_HOUR}
+                awayHours={awayHours}
+                shieldMinHours={VACATION_RETURN_SHIELD_MIN_TICKS / TICKS_PER_HOUR}
+                shieldHours={VACATION_RETURN_SHIELD_TICKS / TICKS_PER_HOUR}
+              />
               <span style={p.onVacation ? { color: "var(--warn)" } : undefined}>
                 {p.onVacation
-                  ? `Away · ${vacationDaysLeft.toFixed(1)} of ${VACATION_DAYS_PER_ERA} vacation-days left`
+                  ? `Away ${awayHours.toFixed(1)}h · ${vacationDaysLeft.toFixed(1)} of ${VACATION_DAYS_PER_ERA} vacation-days left`
                   : p.vacationQueued
                     ? "Queued — begins when revenge windows close"
                     : vacationBudgetSpent
@@ -273,64 +353,9 @@ export default async function CommandView({
 
       <div className="panel-row">
         <Panel title="Growth — the realm's pulse">
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 3, display: "flex", gap: 5, alignItems: "center" }}>
-              <span>The tax dial</span>
-              <Info tip={ACTION_INFO.tax} guide={ACTION_GUIDE.tax} />
-            </div>
-            <CmdForm name="setTax" path="/">
-              <TaxSlider taxRate={p.taxRate} civilians={civilians(p)} />
-            </CmdForm>
-          </div>
-          <div className="stat-grid">
-            <StatTile
-              icon={<ResIcon kind="gold" size={22} />}
-              label="Gold / turn"
-              value={`+${fmt(taxIncomePerTurn(p))}`}
-              sub={`≈ ${fmt(taxIncomePerTurn(p) * TURNS_PER_DAY)} / day`}
-            />
-            <StatTile
-              icon="🍞"
-              label="Food / turn"
-              value={`${foodNet >= 0 ? "+" : "−"}${fmt(Math.abs(foodNet))}`}
-              sub={`+${fmt(rates.food)} grown · −${fmt(foodUpkeepPerTurn(p))} eaten`}
-              tone={foodNet < 0 ? "bad" : undefined}
-            />
-            {(["wood", "stone", "ore"] as const).map((key) => {
-              const { label, icon } = RES_LABELS.find((r) => r.key === key)!;
-              return (
-                <StatTile
-                  key={key}
-                  icon={icon}
-                  label={`${label} / turn`}
-                  value={`+${fmt(rates[key])}`}
-                  sub={`≈ ${fmt(rates[key] * TURNS_PER_DAY)} / day`}
-                />
-              );
-            })}
-            <StatTile
-              icon="🧺"
-              label="Settlers / day"
-              value={
-                p.starving
-                  ? "0"
-                  : vacantHousing(p) < popPerDay(p)
-                    ? // arrivals = min(perDay, vacant beds) — the rest walk on, lost
-                      `+${fmt(Math.min(popPerDay(p), vacantHousing(p)))} of ${fmt(popPerDay(p))}`
-                    : `+${fmt(popPerDay(p))}`
-              }
-              sub={
-                p.starving
-                  ? "halted — the people starve"
-                  : vacantHousing(p) === 0
-                    ? "housing FULL — every arrival walks on, lost"
-                    : vacantHousing(p) < popPerDay(p)
-                      ? `only ${fmt(vacantHousing(p))} beds — the rest are lost`
-                      : `room for ${fmt(vacantHousing(p))} more`
-              }
-              tone={p.starving ? "bad" : vacantHousing(p) < popPerDay(p) ? "warn" : "good"}
-            />
-          </div>
+          {/* The dial and every figure it governs share one piece of state, so
+              the trade-off moves as you drag rather than after a reload. */}
+          <TaxAndRates player={p} />
 
           {/* Why settlers come — the four terms, so the number is never a mystery
               and every one of them is something the ruler can go and change. */}
@@ -355,7 +380,9 @@ export default async function CommandView({
                   label: "Walls",
                   value: g.walls,
                   max: POP_GROWTH.WALLS_PER_LEVEL * 10,
-                  hint: `+${POP_GROWTH.WALLS_PER_LEVEL} per wall level, scaled by integrity (${Math.round(p.wallIntegrity * 100)}%). Rubble reassures nobody.`,
+                  // The manning fraction is the part people are surprised by, so
+                  // it leads — and it says how many regulars would fix it.
+                  hint: `+${POP_GROWTH.WALLS_PER_LEVEL} per wall level, scaled by integrity (${Math.round(p.wallIntegrity * 100)}%) AND by how much of the wall is held: ${Math.round(wallManning(p) * 100)}% manned — ${fmt(military(p))} regulars of the ${fmt(level(p, "walls") * SCORE.WALL_TROOPS_PER_LEVEL)} that walls this high want. Rubble reassures nobody, and neither does an empty parapet.`,
                 },
               ];
               return (
@@ -383,11 +410,17 @@ export default async function CommandView({
               way that pays out twice inside a day (see setRecruitHour). */}
           <div className="dawn-row">
             <span className="dawn-when">
-              🌅 Settlers arrive{" "}
+              🌅 Next settlers{" "}
               <b>
-                {p.nextRecruitAtTick === undefined
-                  ? `at the realm's dawn (turn ${TURNS_PER_DAY - (world.meta.tickNumber % TURNS_PER_DAY)} from now)`
-                  : `in ${Math.max(0, p.nextRecruitAtTick - world.meta.tickNumber)} turns`}
+                <LocalTime
+                  atMs={
+                    tickToMs(
+                      p.nextRecruitAtTick ??
+                        world.meta.tickNumber +
+                          (TURNS_PER_DAY - (world.meta.tickNumber % TURNS_PER_DAY)),
+                    )
+                  }
+                />
               </b>
             </span>
             {p.recruitHourChanged ? (
@@ -396,25 +429,13 @@ export default async function CommandView({
                 <Info tip="The hour may be moved once an age. It resets when the next era opens." />
               </span>
             ) : (
-              <CmdForm name="setRecruitHour" path="/">
-                <label className="dawn-pick">
-                  Move it to{" "}
-                  <select name="offset" defaultValue={String(world.meta.tickNumber % TURNS_PER_DAY)} className="calc-select">
-                    {Array.from({ length: 24 }, (_, h) => (
-                      <option key={h} value={h * 6}>
-                        {String(h).padStart(2, "0")}:00 realm time
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <ReqTip
-                  heading="Move your dawn"
-                  body="Pick the hour your settlers arrive, so it falls when you are actually awake."
-                  note="ONCE per era. Moving it can only ever delay the next arrival, never bring one forward — a full day must pass between payouts, so this can never be used to collect twice."
-                >
-                  <Btn className="btn">Set my dawn</Btn>
-                </ReqTip>
-              </CmdForm>
+              <RecruitHourPicker
+                currentTick={world.meta.tickNumber}
+                lastTickAtMs={lastTickAtMs}
+                turnMinutes={TURN_MINUTES}
+                turnsPerDay={TURNS_PER_DAY}
+                lastRecruitAtTick={p.lastRecruitAtTick}
+              />
             )}
           </div>
           <div style={{ marginTop: 8 }}>
@@ -433,26 +454,30 @@ export default async function CommandView({
         </Panel>
 
         <Panel title="The Counting House — the realm's bank">
-          {/* Five columns ending in a button won't fold below phone width —
-              let the ledger scroll inside the panel rather than widening the
-              page and dragging every other column sideways with it. */}
+          {/* FOUR columns, not five. "Loose" and "Exposed" were the same number
+              in every ordinary game: exposed is loose PLUS whatever a bombarded
+              vault has spilled, and nothing spills while your stores stand. So
+              the ledger carried a duplicate column that only diverged after a
+              bombardment — and paid for it by overflowing on narrow screens.
+              One column now, named for the thing that matters (what a raider
+              takes), with the spill called out inline on the rare turn it is
+              not just the loose pile. */}
           <div className="tbl-scroll">
           <table className="tbl">
             <thead>
               <tr>
                 <th>Holding</th>
-                <th className="num">Loose</th>
+                <th className="num">
+                  <Info tip="Everything a raider carries off or a spy burns: your loose stock, plus anything a bombarded vault has spilled back into the open. Store it to shelter it.">
+                    Exposed
+                  </Info>
+                </th>
                 <th className="num">
                   <Info tip="Sheltered in the vault — safe from raiders and spies while the store stands. A bombarded store shelters less (capacity × its integrity) and any overflow spills back into the open.">
                     Vaulted / shelter
                   </Info>
                 </th>
-                <th className="num">
-                  <Info tip="Everything loose plus any spilled vault overflow. Raiders carry it off; spies torch it.">
-                    Exposed
-                  </Info>
-                </th>
-                {!p.premium && <th></th>}
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -465,7 +490,17 @@ export default async function CommandView({
                         {h.icon} {h.label}
                       </span>
                     </td>
-                    <td className="num">{fmt(h.loose)}</td>
+                    <td className="num" style={h.exposed > 0 ? { color: "var(--neg)" } : undefined}>
+                      {fmt(h.exposed)}
+                      {h.spilled > 0 && (
+                        <span
+                          title="Overflow from the bombarded vault — back in the open and raidable until the store is repaired."
+                          style={{ display: "block", fontSize: 11, color: "var(--red)" }}
+                        >
+                          incl. {fmt(h.spilled)} spilled
+                        </span>
+                      )}
+                    </td>
                     <td className="num" style={h.key === "gold" ? { color: "var(--coin)" } : undefined}>
                       {fmt(h.vaulted)}{" "}
                       <span style={{ color: "var(--ink-soft)" }}>/ {fmt(h.protectedCap)}</span>
@@ -488,20 +523,14 @@ export default async function CommandView({
                         </Link>
                       )}
                     </td>
-                    <td className="num" style={h.exposed > 0 ? { color: "var(--warn)" } : undefined}>
-                      {fmt(h.exposed)}
-                      {h.spilled > 0 && (
-                        <span
-                          title="Overflow spilled from the bombarded vault — back in the open and raidable until the store is repaired."
-                          style={{ display: "block", fontSize: 11, color: "var(--red)" }}
-                        >
-                          incl. {fmt(h.spilled)} spilled
-                        </span>
-                      )}
-                    </td>
-                    {!p.premium && (
-                      <td>
-                        <CmdForm name={h.key === "gold" ? "bank" : "bankRes"} path="/">
+                    {/* Shown to EVERYONE, Charter or not. The Steward banks on
+                        the tick; between ticks a ruler may want it sheltered
+                        NOW — loot just landed, a sale just cleared, a siege is
+                        coming — and waiting up to ten minutes for the automation
+                        is not a choice anybody would make. The button is simply
+                        idle when there is nothing loose to move. */}
+                    <td>
+                      <CmdForm name={h.key === "gold" ? "bank" : "bankRes"} path="/">
                           {h.key !== "gold" && <input type="hidden" name="what" value={h.key} />}
                           <input type="hidden" name="amount" value={h.bankMax} />
                           <Btn
@@ -517,10 +546,9 @@ export default async function CommandView({
                             }
                           >
                             Store all
-                          </Btn>
-                        </CmdForm>
-                      </td>
-                    )}
+                        </Btn>
+                      </CmdForm>
+                    </td>
                   </tr>
                 );
               })}
@@ -531,7 +559,9 @@ export default async function CommandView({
             {p.premium ? (
               <>
                 🪶 <b>The Steward shelters your gold and goods automatically</b> each turn, up to
-                capacity — a Royal Charter privilege.
+                capacity — a Royal Charter privilege. <b>Store all</b> still works by hand when you
+                would rather not wait for the next turn — after a sale, after loot lands, or with a
+                siege coming.
               </>
             ) : (
               <>
@@ -563,7 +593,7 @@ export default async function CommandView({
         <Panel title={`The Siege Train — ${enginesManned} of ${enginesBuilt} engines manned`}>
           <div className="stat-grid">
             <StatTile
-              icon={<Art path="units/engineer" size={46} title="Siege engineers" race={p.race} />}
+              icon={<TiredArt path="units/engineer" stamina={p.army.stamina} size={46} title="Siege engineers" race={p.race} />}
               label="Engineer crews"
               value={fmt(p.army.siegeEngineers)}
               sub={`${fmt(engineersBusy)} manning · ${fmt(engineersIdleCount)} idle`}

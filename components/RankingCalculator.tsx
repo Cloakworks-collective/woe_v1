@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Info } from "@/components/Info";
 import { Panel } from "@/components/Panel";
-import { RACE_NAMES, SCORE, SIEGE_COUNTERS, WALL_NAMES, XP } from "@/lib/constants";
+import { RACE_NAMES, SCORE, SIEGE_COUNTERS, WALL_NAMES, EXPERIENCE } from "@/lib/constants";
 import { RESEARCH_FIELDS } from "@/lib/constants/research";
 import type { Race } from "@/lib/constants/races";
 import type { CounterType } from "@/lib/constants/buildings";
@@ -115,13 +115,13 @@ export function RankingCalculator() {
       {
         label: "Veterancy",
         value: without({ experience: 0 }),
-        tipTitle: `Veterancy — your regulars' battle experience, 0–${XP.MAX}`,
-        tip: "The one multiplier the ladder publishes. Race is folded silently into the rows above; this gets a row of its own because a rival can read it either way.",
+        tipTitle: "Veterancy — worth nothing by itself, and a great deal through your men",
+        tip: "It scores no points of its own. What it does is make every regular you own hit harder, and the Battle line above is priced on power — so this row is that lift, shown separately because a rival can read it either way.",
         bullets: [
-          `Worth ${SCORE.PER_XP_POINT} ranking points a point — ${(SCORE.PER_XP_POINT * XP.MAX).toLocaleString("en-US")} for a fully blooded army.`,
-          `In the field: up to +100% damage at ${XP.MAX}, on attack AND defence.`,
-          "Regulars only — sellswords fight at base however long the war has run.",
-          "It dies with the veterans: lose a third of your line, lose a third of your veterancy.",
+          "NOT a line on the ladder. Veterans raise the Battle line; there is no separate award for being seasoned.",
+          `In the field it lifts power AND health alike, attacking and defending: ${EXPERIENCE.POINTS_FOR_DOUBLE.toLocaleString("en-US")} points is +100%, and nothing caps it above that.`,
+          "Regulars only — sellswords fight at base however long the war has run, and score at base too.",
+          "Earned by killing, spent by dying: every regular of your own who falls takes points off the ledger.",
         ],
         guide: "/guide#regulars",
       },
@@ -341,10 +341,10 @@ export function RankingCalculator() {
             <Num label="Engineers" value={a.engineers} onChange={(n) => set({ engineers: n })} />
           </label>
           <label>
-            Army XP{" "}
+            Veterancy %{" "}
             <Info
-              title={`Veterancy — 0–${XP.MAX}`}
-              tip={`Worth ${SCORE.PER_XP_POINT} ranking points a point here, and up to +100% damage in the field. It dies with the veterans, so an army that wins cheaply keeps it and an army that wins by dying does not.`}
+              title="Veterancy — bonus %"
+              tip="Scores nothing directly. It multiplies the power of your regulars, and the ladder prices the battle line on power — so a veteran army ranks higher because it IS stronger, not because seasoning earns a medal. Earned by killing and spent by dying."
               guide="/guide#regulars"
             />
             <Num label="Experience" value={a.experience} onChange={(n) => set({ experience: n })} max={100} />

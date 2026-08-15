@@ -10,11 +10,12 @@ import {
   popPerDay,
   theWallName,
   totalPopulation,
+  troopTotal,
   vacantHousing,
   type Player,
 } from "@/lib/engine";
 import type { BuildingId } from "@/lib/constants/buildings";
-import { HOUSING_PER_HEARTHSTEAD } from "@/lib/constants";
+import { HOUSING_PER_HEARTHSTEAD, MERCENARIES } from "@/lib/constants";
 
 const STORE_NAMES: { id: BuildingId; name: string }[] = [
   { id: "counting_house", name: "Counting House" },
@@ -22,6 +23,17 @@ const STORE_NAMES: { id: BuildingId; name: string }[] = [
   { id: "timberyard", name: "Timberyard" },
   { id: "masons_yard", name: "Mason's Yard" },
   { id: "ironhold", name: "Ironhold" },
+];
+
+/** The works whose OUTPUT a bombard cuts — each is "× integrity" somewhere in
+ *  the engine, so a cracked one quietly earns less every single tick. */
+const WORKS: { id: BuildingId; name: string; costs: string }[] = [
+  { id: "grange", name: "Grange", costs: "food from your farmers" },
+  { id: "sawyers_mill", name: "Sawyer's Mill", costs: "timber from your lumberjacks" },
+  { id: "masons_quarry", name: "Mason's Quarry", costs: "stone from your quarrymen" },
+  { id: "deepvein_mine", name: "Deepvein Mine", costs: "ore from your miners" },
+  { id: "collegium", name: "Collegium", costs: "research from your scholars" },
+  { id: "market_square", name: "Market Square", costs: "the load every caravan carries" },
 ];
 
 /**
@@ -212,13 +224,56 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
           {brokenRoofs.length === 1 ? "stands" : "stand"} in ruins. <b>Nobody has been driven out</b>
           {" "}— every peasant and every soldier you had is still here. What you have lost is{" "}
           {brokenRoofs.map((r) => r.loses).join(" and ")}, so your empire cannot grow by a single
-          head until the roofs are mended. Repair them before you spend another coin.
+          head until the roofs are mended.
+          <br />
+          <i>
+            While you were away this cost you nothing — burnt housing does not count against your
+            settlers until you are back to answer it, so a barrage at three in the morning is not
+            a reason to lose sleep. You are back now, so from this moment it counts. Mend them.
+          </i>
         </>
       ),
       ctas: [
         { href: `/buildings#b-${brokenRoofs[0].id}`, label: "🔧 Mend the roofs", primary: true },
       ],
       manual: "/guide#grow",
+    });
+  }
+
+  // 5c · Works bombarded — output cut at the source.
+  //
+  //      The third of the three damage alerts, and the one that bleeds
+  //      hardest over time: a cracked producer earns less EVERY TICK, so a
+  //      barrage nobody repairs is a permanent tax on the empire. Grouped
+  //      into one banner because a bombard rarely hits just one.
+  const brokenWorks = WORKS.filter(
+    ({ id }) => level(p, id) > 0 && buildingIntegrity(p, id) < 0.999,
+  );
+  if (!p.starving && brokenWorks.length > 0) {
+    alerts.push({
+      key: "works",
+      variant: "warn",
+      advisor: "economic",
+      icon: "⚒️",
+      headline: "your works are cracked and earning less",
+      body: (
+        <>
+          {brokenWorks.map((w, i) => (
+            <span key={w.id}>
+              {i > 0 ? ", " : ""}
+              <b>{w.name}</b> ({Math.round(buildingIntegrity(p, w.id) * 100)}%)
+            </span>
+          ))}{" "}
+          {brokenWorks.length === 1 ? "is" : "are"} damaged, and every one of them pays out{" "}
+          <b>× its integrity</b> — you are losing{" "}
+          {brokenWorks.map((w) => w.costs).join(", ")} on <i>every single tick</i>, not once.
+          Nothing else in the game compounds like an unrepaired workshop: mend them first.
+        </>
+      ),
+      ctas: [
+        { href: `/buildings#b-${brokenWorks[0].id}`, label: "🔧 Repair the works", primary: true },
+      ],
+      manual: "/guide#defense",
     });
   }
 
@@ -255,6 +310,83 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
         { href: "/troops#train", label: "⚔ Raise them as soldiers" },
       ],
       manual: "/guide#grow",
+    });
+  }
+
+  // · Scholars studying NOTHING. The sharpest of the wasted-work alarms,
+  //   because the loss is total and silent: with no active field the tick banks
+  //   no points at all (see processTurnTick), so every scholar's turn is thrown
+  //   away rather than merely misdirected. An idle peasant costs you what they
+  //   might have made; an unassigned scholar costs you what they DID make.
+  const scholars = p.workers.researchers;
+  if (!p.starving && scholars > 0 && !p.research?.activeField) {
+    alerts.push({
+      key: "no-research",
+      variant: "danger",
+      advisor: "economic",
+      icon: "🎓",
+      headline: `${scholars} scholar${scholars === 1 ? " is" : "s are"} studying nothing`,
+      body: (
+        <>
+          Your Collegium is manned and <b>every point it makes is being thrown away</b> — with no
+          field chosen the turn banks nothing at all, so this is not slow progress, it is no
+          progress. Pick any field and the work starts landing on the very next turn; you can
+          change your mind later for a small loss.
+        </>
+      ),
+      ctas: [
+        { href: "/research", label: "🎓 Choose a field to study", primary: true },
+        { href: "/train#w-researchers", label: "👥 Recall the scholars instead" },
+      ],
+      manual: "/guide#grow",
+    });
+  }
+
+  // · A BARE arm — regulars with no hired blades in front of them. Sellswords
+  //   take the first CASUALTY_SPLIT.MERC_SHARE of every blow aimed at their own
+  //   arm, so an arm without them puts real population in the front rank. Dead
+  //   regulars cost veterancy, ranking and people; a dead sellsword costs gold.
+  const BARE_ARMS = [
+    { key: "footmen", label: "footmen", arm: "footman" },
+    { key: "archers", label: "archers", arm: "archer" },
+    { key: "cavalry", label: "cavalry", arm: "cavalry" },
+  ] as const;
+  const bare = BARE_ARMS.filter(
+    (a) => troopTotal(p.army[a.key]) > 0 && troopTotal(p.army.mercenaries[a.key]) === 0,
+  );
+  const thin = BARE_ARMS.filter((a) => {
+    const regs = troopTotal(p.army[a.key]);
+    const hired = troopTotal(p.army.mercenaries[a.key]);
+    if (regs === 0 || hired === 0) return false;
+    // Well short of the cap — the screen exists but will not last a battle.
+    return hired < Math.floor(regs * MERCENARIES.CAP_RATIO) / 3;
+  });
+  if (!p.starving && (bare.length > 0 || thin.length > 0)) {
+    const naked = bare.length > 0;
+    const arms = (naked ? bare : thin).map((a) => a.label).join(", ");
+    alerts.push({
+      key: "bare-arms",
+      variant: naked ? "danger" : "warn",
+      advisor: "military",
+      icon: "🛡",
+      headline: naked
+        ? `your ${arms} stand bare — no hired blades in front of them`
+        : `your ${arms} are thinly screened`,
+      body: (
+        <>
+          Sellswords take the <b>first 70%</b> of every blow aimed at their own arm, and{" "}
+          {naked ? <>your {arms} have none</> : <>you have barely any of that arm</>} — so those
+          blows land on your <b>own people</b>. Regular dead are the one loss you never get back:
+          they cost population, they drag your ranking down for days, and your veterancy dies with
+          them. A hired blade costs only gold, and they may not outnumber a third of the regulars of
+          their own arm, so hire to that line before the next raid.
+        </>
+      ),
+      ctas: [
+        { href: "/troops#mercenaries", label: "🛡 Hire a screen", primary: true },
+        { href: "/research", label: "🎓 Free Companies — cheaper contracts" },
+      ],
+      manual: "/guide#regulars",
     });
   }
 

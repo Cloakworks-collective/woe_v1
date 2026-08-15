@@ -58,8 +58,13 @@ describe("battle resolution — the spec's worked example", () => {
     const { attacker, defender } = setup(false);
     const { report } = resolveBattle(attacker, defender, "siege", { ...OPTS, rng: seededRng(7) });
     expect(report.victor).toBe("attacker");
-    expect(report.rounds).toBeLessThanOrEqual(4);
-    expect(report.defenderLosses.footmen).toBeGreaterThan(40);
+    // One exchange, always — a battle is no longer a sequence of rounds.
+    expect(report.rounds).toBe(1);
+    // Blood is drawn, but a single strike does not empty a garrison. Both
+    // assertions were once `> 40` of 60, which encoded a ten-round grind that
+    // ran until one side had lost two thirds of itself.
+    expect(report.defenderLosses.footmen).toBeGreaterThan(0);
+    expect(report.defenderLosses.footmen).toBeLessThan(60);
   });
 
   it("with Fork Poles the ladders are countered and the defence holds harder", () => {
@@ -98,7 +103,7 @@ describe("battle resolution — the spec's worked example", () => {
     const log = report.log.map((l) => l.text).join("\n");
     expect(log).toMatch(/Boiling Oil smash \d+ battering rams/); // counter callout
     expect(log).toMatch(/The engines work the wall/);
-    expect(log).toMatch(/Round 1: our host at \d+%/); // round summary retained
+    expect(log).toMatch(/We gave up \d+% of the host we brought/); // the closing tally
     // Regular losses are structured data now, not buried in prose — the whole
     // point of the report rework is that a reader can SEE where their army died.
     const withRegulars = report.log.filter(
@@ -131,9 +136,12 @@ describe("battle resolution — the spec's worked example", () => {
     // Counter-Engines shoot the trebuchets to pieces, so less stone reaches
     // the wall. Attrition, not cancellation — no suppression constant exists.
     expect(some.report.wallIntegrityDamage).toBeLessThan(none.report.wallIntegrityDamage);
-    expect(some.report.log.map((l) => l.text).join("\n")).toMatch(
-      /Counter-Engine smash \d+ trebuchets/,
-    );
+    // Wear, not wreckage. A single exchange batters the trebuchets without
+    // finishing any of them — the destruction comes from being shot at strike
+    // after strike. (Was asserting the "Counter-Engine smash N trebuchets"
+    // callout, which needed ten duel rounds in one battle to fire.)
+    expect(some.report.siegeGearWorn?.trebuchets ?? 0).toBeGreaterThan(0);
+    expect(none.report.siegeGearWorn?.trebuchets ?? 0).toBe(0);
   });
 
   it("a defender with spare engineers fires its own engines back", () => {
@@ -175,7 +183,13 @@ describe("mercenaries die first", () => {
       p.buildings.muster_hall = 6;
     });
     const { report } = resolveBattle(attacker, defender, "raid", { ...OPTS, rng: seededRng(1) });
-    expect(report.defenderLosses.mercenaries).toBe(10); // all merc footmen dead first
+    // Sellswords take CASUALTY_SPLIT.MERC_SHARE of every blow aimed at their
+    // arm, so they die faster than the regulars they serve beside. Was
+    // `toBe(10)` — every last one — which only held while a battle ground on
+    // for ten rounds. One exchange kills some of them, not all of them; what
+    // has to stay true is that they are the ones bleeding.
+    expect(report.defenderLosses.mercenaries).toBeGreaterThan(0);
+    expect(report.defenderLosses.mercenaries).toBeGreaterThan(report.defenderLosses.footmen);
   });
 });
 
@@ -328,10 +342,39 @@ describe("attack validation", () => {
     const a = empire("A", (p) => void (p.shieldUntilTick = 0));
     const d = empire("D", (p) => {
       p.shieldUntilTick = 0;
-      p.gold = 5_000_000; // massive score gap
-      p.army.experience = 100;
+      p.army.footmen.heavy = 2000; // a real army — score is what you can field
+      p.buildings.muster_hall = 250;
     });
     expect(validateAttack(a, d, "raid", CTX)).toMatch(/refuse/i);
+  });
+
+  it("veterancy alone cannot make a target refusable — it needs men to lift", () => {
+    // Veterancy scores nothing of its own: it multiplies the power of the
+    // regulars who carry it. A ruler with a legendary ledger and no army is,
+    // on the ladder, a ruler with no army. (This test exists because the
+    // refusal test above USED to pass on exactly that: 5,000,000 points and
+    // not one soldier.)
+    const disarmed = (pts: number) =>
+      empire(`D${pts}`, (p) => {
+        p.shieldUntilTick = 0;
+        p.army.footmen = { light: 0, medium: 0, heavy: 0 };
+        p.army.archers = { light: 0, medium: 0, heavy: 0 };
+        p.army.cavalry = { light: 0, medium: 0, heavy: 0 };
+        p.army.experiencePoints = pts;
+      });
+    // No regulars: the ledger multiplies nothing and the ladder does not move.
+    expect(rankingScore(disarmed(5_000_000))).toBe(rankingScore(disarmed(0)));
+
+    // Give them men and the SAME ledger is suddenly worth a great deal — which
+    // is the whole point: veterancy ranks through troops, never beside them.
+    const withMen = (pts: number) =>
+      empire(`M${pts}`, (p) => {
+        p.shieldUntilTick = 0;
+        p.army.footmen = { light: 0, medium: 0, heavy: 500 };
+        p.buildings.muster_hall = 60;
+        p.army.experiencePoints = pts;
+      });
+    expect(rankingScore(withMen(5_000_000))).toBeGreaterThan(rankingScore(withMen(0)));
   });
 });
 
@@ -493,7 +536,7 @@ describe("the war-works", () => {
     expect(merc(0, 5) - merc(0, 0)).toBeCloseTo(1.0, 6);
     // What they still do NOT get: your blood, and your veterans' scars.
     const p = armed(0, 0);
-    p.army.experience = 100;
+    p.army.experiencePoints = 5_000_000;
     const hired = bonusPool(p, { kind: "attack", arm: "footman", isMerc: true });
     const raised = bonusPool(p, { kind: "attack", arm: "footman" });
     expect(raised).toBeGreaterThan(hired);
@@ -596,5 +639,50 @@ describe("an unmanned wall is masonry, not strength", () => {
     // Both unmanned: neither gets any wall points, so the only difference left
     // between them is nothing at all.
     expect(rankingScore(manned(10, 0))).toBe(rankingScore(manned(1, 0)));
+  });
+});
+
+describe("no friendly fire", () => {
+  const CTX = {
+    currentTick: 100_000,
+    eraStartedAtTick: 0,
+    eraPeaceTicks: 720,
+    revengeWindowTicks: 108,
+    clanWar: false,
+  };
+
+  it("refuses every mode against a clanmate, revenge included", () => {
+    const a = empire("A", (p) => {
+      p.shieldUntilTick = 0;
+      p.clanId = "iron";
+    });
+    const d = empire("D", (p) => {
+      p.shieldUntilTick = 0;
+      p.clanId = "iron";
+    });
+    // Even with an open window — a stale one from before they joined.
+    a.recentAttackers = [{ playerId: d.id, tick: CTX.currentTick - 10 }];
+    for (const mode of ["raid", "siege", "bombard", "revenge"] as const) {
+      expect(validateAttack(a, d, mode, CTX), mode).toMatch(/own banner/i);
+    }
+  });
+
+  it("allows it once one of them leaves the banner", () => {
+    const a = empire("A", (p) => {
+      p.shieldUntilTick = 0;
+      p.clanId = "iron";
+    });
+    const d = empire("D", (p) => {
+      p.shieldUntilTick = 0;
+      p.clanId = "gold";
+    });
+    expect(validateAttack(a, d, "raid", CTX)).toBeNull();
+  });
+
+  it("clanless players are not accidentally treated as clanmates", () => {
+    const a = empire("A", (p) => void (p.shieldUntilTick = 0));
+    const d = empire("D", (p) => void (p.shieldUntilTick = 0));
+    expect(a.clanId).toBeUndefined();
+    expect(validateAttack(a, d, "raid", CTX)).toBeNull();
   });
 });

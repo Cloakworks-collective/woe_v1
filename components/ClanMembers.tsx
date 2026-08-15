@@ -3,20 +3,29 @@
 // Exact troop counts are clan business: members of this clan see numbers,
 // everyone else sees the same qualitative label as the public ladder.
 //
+// PRESENCE IS CLAN BUSINESS TOO. The Seen column, the Online chip and the
+// row highlight are all shown to members only. Knowing exactly when a banner
+// goes quiet is raiding intelligence: it tells an outsider which four hours to
+// attack in, and it is the difference between losing a war and losing your
+// sleep. Members need it to coordinate; nobody else is entitled to it.
+//
 // Members can also AID one another here: gold or goods straight from your
-// stores to theirs, skipping the pool and its 3× rule (see giftToMember), and
-// leadership can silence a member in the hall without stopping them reading it.
+// stores to theirs, skipping the pool but NOT its ledger — aid is written to the
+// same book and capped both ways, and both empires must be within
+// AID_SCORE_BAND of each other on ranking score (see giftToMember). Leadership
+// can silence a member in the hall without stopping them reading it.
 
 import Link from "next/link";
 import { Art } from "@/components/Art";
 import { Btn } from "@/components/Btn";
 import { CmdForm } from "@/components/CmdForm";
 import { ReqTip } from "@/components/CostTip";
-import { CLAN_GIFT_TAX, CLAN_MUTE_DAYS, RACE_NAMES } from "@/lib/constants";
+import { AID_SCORE_BAND, CLAN_GIFT_TAX, CLAN_MUTE_DAYS, RACE_NAMES } from "@/lib/constants";
 import {
   isLeadership,
   military,
   rankingScore,
+  withinAidBand,
   totalPopulation,
   troopStrengthLabel,
   type Clan,
@@ -52,6 +61,8 @@ export function ClanMembers({
 }) {
   const tick = world.meta.tickNumber;
   const insider = clan.members.includes(viewerId);
+  // The viewer's own empire, for the ±30% aid band.
+  const viewer = world.players[viewerId];
   const ranks = new Map(
     Object.values(world.players)
       .map((p) => ({ id: p.id, score: rankingScore(p) }))
@@ -81,16 +92,16 @@ export function ClanMembers({
 
   return (
     <>
-      <p style={{ fontSize: 13.5, color: "var(--ink-soft)", margin: "2px 0 6px" }}>
-        <span className="online-chip"><span className="online-dot" /> Online now</span>
-        {" · otherwise the last time each banner was seen"}
-        {insider && (
-          <>
-            {" · "}
-            <b style={{ color: "var(--warn)" }}>✗</b> recently attacked
-          </>
-        )}
-      </p>
+      {insider && (
+        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", margin: "2px 0 6px" }}>
+          <span className="online-chip"><span className="online-dot" /> Online now</span>
+          {" · otherwise the last time each banner was seen"}
+          {" · "}
+          <b style={{ color: "var(--warn)" }}>✗</b> recently attacked
+          <br />
+          <i>Kept inside the clan — an outsider cannot see when your banners sleep.</i>
+        </p>
+      )}
       <table className="tbl">
         <thead>
           <tr>
@@ -99,7 +110,7 @@ export function ClanMembers({
             <th className="num">Troops</th>
             <th className="num">Population</th>
             <th className="num">Rank</th>
-            <th>Seen</th>
+            {insider && <th>Seen</th>}
             {insider && <th>Aid</th>}
           </tr>
         </thead>
@@ -107,7 +118,9 @@ export function ClanMembers({
           {members.map((m) => {
             const attacked =
               insider && m.recentAttackers.some((r) => tick - r.tick <= REVENGE_WINDOW_TICKS);
-            const online = isOnline(m, now);
+            // Gated with the column: the row highlight is the same fact in CSS,
+            // and leaving it on would hand an outsider the answer anyway.
+            const online = insider && isOnline(m, now);
             return (
               <tr key={m.id} className={online ? "row-online" : undefined}>
                 <td>
@@ -128,15 +141,17 @@ export function ClanMembers({
                 <td className="num">{insider ? fmt(military(m)) : troopStrengthLabel(m)}</td>
                 <td className="num">{fmt(totalPopulation(m))}</td>
                 <td className="num">{ranks.get(m.id)}</td>
-                <td>
-                  {online ? (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 700 }}>
-                      <span className="online-dot" /> Online
-                    </span>
-                  ) : (
-                    <span className="last-seen">{lastSeenLabel(m.lastSeenAtMs, now)}</span>
-                  )}
-                </td>
+                {insider && (
+                  <td>
+                    {online ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 700 }}>
+                        <span className="online-dot" /> Online
+                      </span>
+                    ) : (
+                      <span className="last-seen">{lastSeenLabel(m.lastSeenAtMs, now)}</span>
+                    )}
+                  </td>
+                )}
                 {insider && (
                   <td>
                     {m.id === viewerId ? (
@@ -146,6 +161,13 @@ export function ClanMembers({
                         <summary className="btn act-ghost aid-btn">🤝 Help</summary>
                         <div className="aid-menu">
                           <div className="aid-title">Send aid to {m.name}</div>
+                          {viewer && !withinAidBand(viewer, m) && (
+                            <div className="aid-barred">
+                              Out of reach — aid only flows between empires within{" "}
+                              <b>{Math.round(AID_SCORE_BAND * 100)}%</b> of each other&apos;s ranking
+                              score, so a small account cannot bankroll a large one (or the reverse).
+                            </div>
+                          )}
                           <CmdForm name="clanGift" path={path}>
                             <input type="hidden" name="toId" value={m.id} />
                             <div className="aid-row">
@@ -166,8 +188,8 @@ export function ClanMembers({
                             </div>
                             <ReqTip
                               heading={`Send aid to ${m.name}`}
-                              body="Straight from your stores to theirs — this does not touch the clan pool, and it is not bound by the 3× withdrawal rule."
-                              note={`Only LOOSE goods can be sent, and ${Math.round(CLAN_GIFT_TAX * 100)}% is lost to the levy on the way. Prop up a member being farmed today, without waiting for them to have deposited first.`}
+                              body={`Straight from your stores to theirs — this does not touch the clan pool, but it IS written to the same ledger, capped both ways: you may send triple what you have taken from the banner, and they may be given triple what they have put in. Both empires must also be within ${Math.round(AID_SCORE_BAND * 100)}% of each other's ranking score.`}
+                              note={`Only LOOSE goods can be sent, and ${Math.round(CLAN_GIFT_TAX * 100)}% is lost to the levy on the way. Prop up a member being farmed today — but a second account made only to feed a first cannot reach it.`}
                             >
                               <Btn className="btn aid-go">Send</Btn>
                             </ReqTip>

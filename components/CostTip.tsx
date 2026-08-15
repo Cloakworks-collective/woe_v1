@@ -47,15 +47,18 @@ export function ReqTip({
     <span className={`tip${down ? " tip-down" : ""}`} tabIndex={0}>
       {children}
       <span className="tip-pop costtip" role="tooltip">
-        {heading && <b>{heading}</b>}
+        {heading && <b className="costtip-head">{heading}</b>}
         {body && <span className="costtip-body">{body}</span>}
         {rows && rows.length > 0 && (
           <table className="costtip-tbl">
             <thead>
+              {/* "Needs / Need / You have" put two spellings of the same word
+                  in adjacent columns and made the reader work out which was
+                  which. */}
               <tr>
                 <th>Needs</th>
-                <th className="num">Need</th>
-                <th className="num">You have</th>
+                <th className="num">Amount</th>
+                <th className="num">You hold</th>
               </tr>
             </thead>
             <tbody>

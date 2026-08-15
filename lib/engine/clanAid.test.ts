@@ -14,7 +14,8 @@ import {
   recordChat,
   unmuteClanMember,
 } from "./chatLimits";
-import { giftToMember, newClan } from "./clanOps";
+import { giftToMember, giftableNow, newClan, receivableNow, withinAidBand } from "./clanOps";
+import { AID_SCORE_BAND, AID_SEED_ALLOWANCE } from "../constants";
 import { newEmpire } from "./newEmpire";
 import type { Player } from "./types";
 
@@ -186,5 +187,106 @@ describe("chat throttle", () => {
     // Anything older than the longest window is dead weight in the world blob.
     expect(recentStamps(p, at).length).toBeLessThanOrEqual(CHAT_LIMITS.DAILY.messages);
     expect((p.chatStamps ?? []).length).toBeLessThanOrEqual(CHAT_LIMITS.DAILY.messages);
+  });
+});
+
+// ── The two rules that stop aid being a funnel ──────────────────────────────
+// Both exist for the same abuse: a second account founded only to feed a first.
+
+describe("clan aid — the ±30% score band", () => {
+  it("refuses aid to an empire far below your weight — the feeder-alt case", () => {
+    const { a, b, clan } = pair();
+    a.gold = 100_000;
+    // A real main against a day-old alt: 20 footmen against none is already
+    // well outside the band.
+    a.army.footmen.heavy = 400;
+    expect(withinAidBand(a, b)).toBe(false);
+    expect(() => giftToMember(a, b, clan, "gold", 1_000)).toThrow(/ranking score/i);
+  });
+
+  it("refuses it in the other direction too — no bankrolling a minnow", () => {
+    const { a, b, clan } = pair();
+    b.army.footmen.heavy = 400; // the RECIPIENT is the giant now
+    b.gold = 0;
+    a.gold = 100_000;
+    expect(withinAidBand(a, b)).toBe(false);
+    expect(() => giftToMember(a, b, clan, "gold", 1_000)).toThrow(/ranking score/i);
+  });
+
+  it("allows it between empires of comparable standing", () => {
+    const { a, b, clan } = pair();
+    a.gold = 10_000;
+    expect(withinAidBand(a, b)).toBe(true);
+    expect(giftToMember(a, b, clan, "gold", 1_000).sent).toBeGreaterThan(0);
+  });
+
+  it("is symmetric — the band cannot depend on who asks", () => {
+    const { a, b } = pair();
+    a.army.footmen.heavy = 50;
+    expect(withinAidBand(a, b)).toBe(withinAidBand(b, a));
+  });
+
+  it("uses the configured width", () => {
+    expect(AID_SCORE_BAND).toBeGreaterThan(0);
+    expect(AID_SCORE_BAND).toBeLessThan(1);
+  });
+});
+
+describe("clan aid — the 3× ledger, both directions", () => {
+  it("seeds a fresh clan so the first gift is possible at all", () => {
+    const { a, b, clan } = pair();
+    expect(giftableNow(clan, a.id, "gold")).toBe(AID_SEED_ALLOWANCE);
+    expect(receivableNow(clan, b.id, "gold")).toBe(AID_SEED_ALLOWANCE);
+  });
+
+  it("stops a giver who has never taken anything in, past the seed", () => {
+    const { a, b, clan } = pair();
+    a.gold = AID_SEED_ALLOWANCE * 4;
+    // Spend the whole seed in one gift…
+    const r = giftToMember(a, b, clan, "gold", AID_SEED_ALLOWANCE);
+    expect(giftableNow(r.clan, a.id, "gold")).toBe(0);
+    // …and the next coin is refused: they have given, never received.
+    const sender = { ...r.sender };
+    expect(() => giftToMember(sender, r.recipient, r.clan, "gold", 1)).toThrow(/3×/);
+  });
+
+  it("stops a recipient being propped up beyond three times their keep", () => {
+    const { a, b, clan } = pair();
+    a.gold = 1_000_000;
+    // Give the sender room by crediting them as a taker, so only the
+    // RECIPIENT's cap can be the thing that bites.
+    clan.memberLedger[a.id] = {
+      deposited: { gold: 0, food: 0, wood: 0, stone: 0, ore: 0 },
+      withdrawn: { gold: 1_000_000, food: 0, wood: 0, stone: 0, ore: 0 },
+    };
+    const room = receivableNow(clan, b.id, "gold");
+    expect(room).toBe(AID_SEED_ALLOWANCE);
+    expect(() => giftToMember(a, b, clan, "gold", room * 2)).toThrow(/3×/);
+  });
+
+  it("writes both sides to the SAME book the vault uses", () => {
+    const { a, b, clan } = pair();
+    a.gold = 5_000;
+    const r = giftToMember(a, b, clan, "gold", 1_000);
+    // Giving reads as putting in; receiving as taking out — whichever door.
+    expect(r.clan.memberLedger[a.id].deposited.gold).toBe(1_000);
+    expect(r.clan.memberLedger[b.id].withdrawn.gold).toBe(r.sent);
+  });
+
+  it("charges the recipient only what LANDED, not the burned tax", () => {
+    const { a, b, clan } = pair();
+    a.gold = 5_000;
+    const r = giftToMember(a, b, clan, "gold", 1_000);
+    expect(r.taxed).toBe(Math.ceil(1_000 * CLAN_GIFT_TAX));
+    expect(r.clan.memberLedger[b.id].withdrawn.gold).toBe(1_000 - r.taxed);
+  });
+
+  it("keeps each resource on its own budget", () => {
+    const { a, b, clan } = pair();
+    a.gold = 100_000;
+    a.resources.wood = 100_000;
+    const r = giftToMember(a, b, clan, "gold", AID_SEED_ALLOWANCE);
+    expect(giftableNow(r.clan, a.id, "gold")).toBe(0);
+    expect(giftableNow(r.clan, a.id, "wood")).toBe(AID_SEED_ALLOWANCE);
   });
 });

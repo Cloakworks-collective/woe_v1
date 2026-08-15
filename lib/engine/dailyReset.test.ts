@@ -6,10 +6,12 @@ import {
   processDailyReset,
   prosperityGrowth,
   safetyGrowth,
+  wallManning,
   wallsGrowth,
 } from "./dailyReset";
 import { newEmpire } from "./newEmpire";
-import { POP_GROWTH, RESOURCE_BUILDING_IDS } from "../constants";
+import { bareArms } from "./reports";
+import { POP_GROWTH, RESOURCE_BUILDING_IDS, SCORE } from "../constants";
 import type { Player } from "./types";
 
 function fresh(): Player {
@@ -62,9 +64,10 @@ describe("daily settler intake — the four terms", () => {
     expect(prosperityGrowth(storageOnly)).toBe(0); // a full granary is not a job
   });
 
-  it("walls pay 4 a level, scaled by integrity", () => {
+  it("walls pay 4 a level, scaled by integrity — when they are HELD", () => {
     const p = fresh();
     p.buildings.walls = 10;
+    p.army.footmen.light = 10 * SCORE.WALL_TROOPS_PER_LEVEL; // fully manned
     expect(wallsGrowth(p)).toBe(40);
     p.wallIntegrity = 0.5;
     expect(wallsGrowth(p)).toBe(20);
@@ -72,11 +75,46 @@ describe("daily settler intake — the four terms", () => {
     expect(wallsGrowth(p)).toBe(0);
   });
 
+  it("an EMPTY wall draws nobody — settlers pay for stone they can stand behind", () => {
+    const p = fresh();
+    p.buildings.walls = 10;
+    p.army.footmen = { light: 0, medium: 0, heavy: 0 };
+    p.army.siegeEngineers = 0;
+    expect(wallManning(p)).toBe(0);
+    expect(wallsGrowth(p)).toBe(0);
+  });
+
+  it("credits a half-held wall pro rata", () => {
+    const p = fresh();
+    p.buildings.walls = 10;
+    p.army.footmen.light = 5 * SCORE.WALL_TROOPS_PER_LEVEL; // half the garrison
+    expect(wallManning(p)).toBeCloseTo(0.5, 6);
+    expect(wallsGrowth(p)).toBe(20);
+  });
+
+  it("counts REGULARS only — a sellsword watches, it does not hold", () => {
+    const p = fresh();
+    p.buildings.walls = 5;
+    p.army.footmen = { light: 0, medium: 0, heavy: 0 };
+    p.army.siegeEngineers = 0;
+    p.army.mercenaries.footmen.light = 5 * SCORE.WALL_TROOPS_PER_LEVEL;
+    expect(wallsGrowth(p)).toBe(0);
+  });
+
+  it("never over-credits past a full garrison", () => {
+    const p = fresh();
+    p.buildings.walls = 2;
+    p.army.footmen.light = 99_999;
+    expect(wallManning(p)).toBe(1);
+    expect(wallsGrowth(p)).toBe(2 * POP_GROWTH.WALLS_PER_LEVEL);
+  });
+
   it("a maxed empire lands exactly on 100/day, and never above", () => {
     const p = fresh();
     p.buildings.hearthstead = 500;
     p.idlePeasants = 1000;
-    p.army.footmen.light = 400; // 40% guard — well past the safety cap
+    // Enough regulars to both clear the safety cap AND hold a level-10 wall.
+    p.army.footmen.light = 10 * SCORE.WALL_TROOPS_PER_LEVEL;
     for (const id of RESOURCE_BUILDING_IDS) p.buildings[id] = 10;
     p.buildings.walls = 10;
     const g = growthBreakdown(p);
@@ -202,5 +240,52 @@ describe("daily reset — scattering", () => {
     p.army.footmen.light = 300; // 300 ≥ 0.3 × 781
     const { events } = processDailyReset(p);
     expect(events.some((e) => e.type === "scattering")).toBe(false);
+  });
+});
+
+// A BARE arm is regulars with no sellswords of the same arm in front of them.
+// Hired blades take the first 70% of every blow aimed at their arm, so a bare
+// arm puts real population in the front rank — which is why the councillor
+// raises it (see AdvisorAlerts) and the Census badges it.
+describe("bare arms", () => {
+  const p0 = () => {
+    const p = newEmpire({ id: "b", name: "b", race: "human" });
+    p.army.footmen = { light: 0, medium: 0, heavy: 0 };
+    p.army.archers = { light: 0, medium: 0, heavy: 0 };
+    p.army.cavalry = { light: 0, medium: 0, heavy: 0 };
+    return p;
+  };
+
+  it("names an arm with regulars and no screen", () => {
+    const p = p0();
+    p.army.footmen.light = 100;
+    expect(bareArms(p)).toEqual(["footmen"]);
+  });
+
+  it("says nothing about an arm that HAS a screen", () => {
+    const p = p0();
+    p.army.footmen.light = 100;
+    p.army.mercenaries.footmen.light = 1;
+    expect(bareArms(p)).toEqual([]);
+  });
+
+  it("ignores an arm you do not field at all — nothing to protect", () => {
+    const p = p0();
+    expect(bareArms(p)).toEqual([]);
+  });
+
+  it("does not let one arm's sellswords cover another", () => {
+    const p = p0();
+    p.army.cavalry.heavy = 50;
+    p.army.mercenaries.footmen.light = 500; // wrong arm entirely
+    expect(bareArms(p)).toEqual(["cavalry"]);
+  });
+
+  it("lists every bare arm", () => {
+    const p = p0();
+    p.army.footmen.light = 10;
+    p.army.archers.light = 10;
+    p.army.cavalry.light = 10;
+    expect(bareArms(p)).toEqual(["footmen", "archers", "cavalry"]);
   });
 });

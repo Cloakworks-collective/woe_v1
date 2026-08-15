@@ -36,7 +36,7 @@
 The game is turn-based with a 10-minute tick interval. Each tick:
 
 1. **Food upkeep** — 0.1 × (civilians + regular troops) deducted; at 0 food the empire **starves**: steps 2–4 and attacking are suspended until fed (`empire.md`).
-2. **Tax income** — Every civilian pays `0.4 × taxRate` gold; mercenary upkeep is deducted — unpaid mercenaries defect (see `empire.md`). Regular military has no upkeep.
+2. **Tax income** — Every civilian pays `0.4 × taxRate` gold. No military upkeep at all: regulars never had one and the mercenary wage is retired (hiring is a one-time price; see `empire.md`).
 3. **Production** — Each worker yields `50 × buildingLevel × (1 − taxRate)` units of their resource (food, stone, ore, wood, research) — 50/turn per level at 0% tax, uncapped worker count — modified by statecraft, clan-hall shelter, and race bonuses (`empire.md`).
 4. **Stamina recovery** — Idle troops regain 1 stamina point per turn (passive).
 5. **The Steward** (premium holders only, `clans.md`) — build queue, research queue, standing orders; issues ordinary instant commands when they become possible.
@@ -355,7 +355,9 @@ interface Player {
   }
   turnsAvailable: number    // action turns: +2/turn, start 200, cap 500; attacks cost 10
   spyTurnsAvailable: number // the covert clock: +1/turn, cap 200; spies AND scouts spend it
-  onVacation: boolean       // blocks ALL attacks, revenge included; halves tax + production
+  onVacation: boolean       // blocks ALL attacks AND all covert work — nothing lands
+                            // tax ×0.5, production ×0.2, research ×0.3, recruitment unchanged
+  vacationStartedAtTick?: number // start of THIS absence; gates the return shield (combat.md)
 
   // Buildings
   buildings: BuildingState[]
@@ -473,7 +475,7 @@ Every read runs due wall-clock ticks first, like every page and command.
 | `cmd:clanDeposit`    | Deposit gold/resources into clan storage     |
 | `cmd:clanWithdraw`   | Withdraw from clan storage (≤ 3× lifetime deposits) |
 | `cmd:clanManage`     | Leadership: build, appoint, invite/kick, declare war, set diplomacy |
-| `cmd:chat`           | Post to era chat, clan chat, or DM (forum-style) |
+| `cmd:chat`           | Post to world chat, clan chat, or DM (forum-style) |
 | `cmd:queueBuild` / `cmd:queueBuildCancel` | Premium: manage the Steward's build queue (`clans.md`) |
 | `cmd:queueResearch` / `cmd:queueResearchCancel` | Premium: manage the research queue |
 | `cmd:orderAdd` / `cmd:orderRemove` | Premium: standing orders ("once X, do Y") |
@@ -569,9 +571,12 @@ it, timing-safe check). Crown decrees bypass the game pipeline:
 - Resource checks before any action (sufficient gold, resources, turns, peasants).
 - Prerequisite checks (building level requirements for troop tiers).
 - Revenge attack: verify attacker was attacked within 18 hours (or their clan's buildings were bombarded while they were a member), hasn't already revenged.
-- Mercy checks: raid/siege/bombard blocked vs players on vacation. Beaten-down
-  (stamina < 25) and heavily outmatched defenders yield instead of being blocked.
-- Protection checks: era peace (first 5 days) and 72h newcomer shield block all attacks.
+- Mercy checks: EVERY attack (raid/siege/bombard/revenge) and every covert op
+  (scout and spy alike) is blocked against a player on vacation — see combat.md.
+  Beaten-down (stamina < 25) and heavily outmatched defenders yield instead of
+  being blocked.
+- Protection checks: era peace (first 5 days), the 72h newcomer shield, and the
+  1h shield granted on returning from a 6h+ vacation all block attacks AND covert work.
 - Action-turn balance checked before any attack (10 per attack).
 - Rate limiting on attacks (prevent abuse / excessive targeting).
 - Anti-farming: reduced loot and XP loss for attacking much smaller players; mercy rules block repeat attacks on beaten-down targets.
@@ -600,7 +605,7 @@ it, timing-safe check). Crown decrees bypass the game pipeline:
   server — serverless can't hold sockets. API routes and the tick write
   events to an `events` table / broadcast channels; clients subscribe to
   their own channel (private events), their clan channel, and public
-  channels (ladder, era chat, market prices).
+  channels (ladder, world chat, market prices).
 - **Tick:** **Vercel Cron** hits `/api/tick` every 10 minutes (secured by
   `CRON_SECRET`); a designated tick runs the daily reset + scattering.
   Ticks are numbered and idempotent — the handler processes all ticks since

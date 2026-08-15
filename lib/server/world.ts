@@ -4,6 +4,7 @@
 import {
   CLAN_BUILDING_POINTS,
   ERA_PEACE_DAYS,
+  EXPERIENCE,
   HOLD_CLOCKS,
   ARMY_FLOORS,
   WONDER_MAX_LEVEL,
@@ -17,6 +18,7 @@ import type { Race } from "../constants/races";
 import {
   civilians,
   hallPenaltyFactor,
+  departOnVacation,
   lapseStaleWar,
   marketPrice,
   military,
@@ -170,7 +172,8 @@ function bot(id: string, name: string, race: Race, pop: number): Player {
     ballistae: L >= 7 ? 2 : 0,
     trebuchets: L >= 9 ? 2 : 0,
   };
-  p.army.experience = Math.min(60, L * 5);
+  // Bots seeded straight onto the ledger: level 10 lands at +50%.
+  p.army.experiencePoints = Math.min(60, L * 5) * (EXPERIENCE.POINTS_FOR_DOUBLE / 100);
 
   p.gold = pop * 5;
   p.bankedGold = Math.min(pop * 2, 20000 * (p.buildings.counting_house ?? 0));
@@ -436,8 +439,9 @@ export function runOneTick(world: World, nowMs = Date.now()): void {
         detail: "Your queued vacation is void — your vacation days for this age are spent.",
       });
     } else if (!revengePendingOn(world, p.id, tick)) {
-      p.onVacation = true;
-      p.vacationQueued = false;
+      // Stamped HERE, not when the queue was joined — the absence starts when
+      // you actually leave, and the return shield is measured from it.
+      departOnVacation(p, tick);
       pushInbox(world, p.id, {
         type: "info",
         detail: "The last revenge window against you has closed — you depart on vacation.",
