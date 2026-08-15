@@ -102,7 +102,10 @@ export function empireNumbers(world: World): Map<string, number> {
 // ── Seeding ─────────────────────────────────────────────────────────────────
 
 /** A bot empire at a given target population, safe from starving/scattering. */
-function bot(id: string, name: string, race: Race, pop: number): Player {
+/** A plausible bot empire at a given population. Exported so the admin
+ *  war-seeder can top the roster up with the same shape `seedWorld` uses —
+ *  two different ideas of "a bot" would drift apart immediately. */
+export function seedBot(id: string, name: string, race: Race, pop: number): Player {
   const p = newEmpire({ id, name, race, joinedAtTick: 0, isBot: true });
   const civ = Math.round(pop * 0.7);
   const mil = pop - civ;
@@ -186,14 +189,14 @@ export function seedWorld(now = new Date()): World {
   const players: Record<string, Player> = {};
   const add = (p: Player) => (players[p.id] = p);
 
-  add(bot("bot-freeholt", "Freeholt", "human", 260));
-  add(bot("bot-sylvangrove", "Sylvangrove", "elf", 380));
-  add(bot("bot-bloodfang", "Bloodfang Horde", "orc", 520));
-  add(bot("bot-nightpaw", "Nightpaw Dens", "gnoll", 640));
-  add(bot("bot-eldervale", "Eldervale", "elf", 900));
-  add(bot("bot-grimhold", "Grimhold", "dwarf", 1150));
-  add(bot("bot-stonewatch", "Stonewatch", "troll", 1500));
-  add(bot("bot-karakdun", "Karak Dûn", "dwarf", 2100));
+  add(seedBot("bot-freeholt", "Freeholt", "human", 260));
+  add(seedBot("bot-sylvangrove", "Sylvangrove", "elf", 380));
+  add(seedBot("bot-bloodfang", "Bloodfang Horde", "orc", 520));
+  add(seedBot("bot-nightpaw", "Nightpaw Dens", "gnoll", 640));
+  add(seedBot("bot-eldervale", "Eldervale", "elf", 900));
+  add(seedBot("bot-grimhold", "Grimhold", "dwarf", 1150));
+  add(seedBot("bot-stonewatch", "Stonewatch", "troll", 1500));
+  add(seedBot("bot-karakdun", "Karak Dûn", "dwarf", 2100));
 
   // A seeded clan so clan mechanics are testable from day one.
   const clans: Record<string, Clan> = {};

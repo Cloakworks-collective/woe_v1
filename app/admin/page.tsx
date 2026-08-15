@@ -1,9 +1,9 @@
-import { TICKS_PER_HOUR } from "@/lib/constants";
+import { COVERT_LOG_DAYS, TICKS_PER_HOUR } from "@/lib/constants";
 import { rankingScore } from "@/lib/engine";
 import { storeMode } from "@/lib/server/store";
 import { getWorld } from "@/lib/server/world";
 import { accountStoreMode } from "@/lib/server/accounts";
-import { adminBackfillStorage, adminCloseAge, adminForceTicks, adminSeed } from "./actions";
+import { adminBackfillStorage, adminCloseAge, adminForceTicks, adminSeed, adminSeedWar } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -189,6 +189,27 @@ export default async function AdminOverview({
         <p className="flat-hint">
           Overwrites the chosen empire with a full, screenshot-ready state and refills the market
           book and price charts.
+        </p>
+        <hr style={{ border: 0, borderTop: "1px solid var(--flat-line)", margin: "14px 0" }} />
+        <div className="flat-row" style={{ marginBottom: 10 }}>
+          <form action={adminSeedWar} className="flat-row" style={{ gap: 8 }}>
+            <select name="playerId" aria-label="Empire to centre the war on">
+              {players.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.isBot ? " (bot)" : ""}
+                </option>
+              ))}
+            </select>
+            <button className="flat-btn is-ghost flat-shrink" type="submit">Seed a war</button>
+          </form>
+        </div>
+        <p className="flat-hint">
+          Tops the roster up to a dozen empires across all six races, then runs raids, castle
+          attacks, bombards, revenges and a full covert campaign — every order through the real
+          command pipeline, so the battle reports and the intelligence desk fill with genuine data.
+          Reports are backdated across the {COVERT_LOG_DAYS}-day window so the ages spread out.
+          Safe to run more than once; it adds to what is there.
         </p>
         <hr style={{ border: 0, borderTop: "1px solid var(--flat-line)", margin: "14px 0" }} />
         <form action={adminBackfillStorage}>

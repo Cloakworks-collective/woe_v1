@@ -15,12 +15,16 @@ import {
   setImpersonation,
 } from "@/lib/server/admin";
 import { pushInbox, type World } from "@/lib/server/store";
-import { commitWithRetry, eraReset, getWorld, runOneTick } from "@/lib/server/world";
+import { ERA_PEACE_TICKS, commitWithRetry, eraReset, getWorld, runOneTick, seedBot } from "@/lib/server/world";
+import { applyOneCommand } from "@/lib/server/pipeline";
 import {
+  COVERT_LOG_DAYS,
   STORAGE_BUILDING,
   TICKS_PER_HOUR,
+  TURNS_PER_DAY,
   type BuildingId,
 } from "@/lib/constants";
+import type { Race } from "@/lib/constants/races";
 import type { MarketOrder, Player, Resource } from "@/lib/engine";
 import { shelterCapacity } from "@/lib/engine";
 import { emptyMercForce, emptySiegeCounters, emptySiegeGear, fullCounterIntegrity, fullGearIntegrity } from "@/lib/engine/types";
@@ -431,4 +435,165 @@ export async function adminBackfillStorage(): Promise<void> {
   });
   revalidatePath("/", "layout");
   back(r.msg, r.ok);
+}
+
+// ─── Seed a war ─────────────────────────────────────────────────────────────
+
+/**
+ * Fill an empty world with a plausible age in progress: a dozen empires across
+ * every race, a spread of raids, castle attacks, bombards and revenges, and a
+ * covert campaign of scout and spy work filed to the intelligence desk.
+ *
+ * Every action runs through `applyOneCommand` — the SAME path a player's click
+ * takes. Nothing here writes a battle report or a covert record by hand, so the
+ * seeded data cannot drift from what the game actually produces, and a gate
+ * that would refuse a real player refuses the seeder too. That is the point:
+ * data made by faking the outputs teaches you nothing about the outputs.
+ *
+ * The one liberty taken is at the end — the finished reports are BACKDATED
+ * across the retention window so the log shows a spread of ages instead of
+ * forty entries all stamped "just now". See the note there.
+ */
+export async function adminSeedWar(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const viewerId = String(formData.get("playerId") ?? "");
+  const outcome = await decree((world) => {
+    const viewer = world.players[viewerId] as Player | undefined;
+    if (!viewer) return { ok: false, msg: "Pick an empire to centre the war on.", dirty: false };
+
+    // ── 1 · A dozen empires, every race represented ───────────────────────
+    const WANTED: { id: string; name: string; race: Race; pop: number }[] = [
+      { id: "bot-freeholt", name: "Freeholt", race: "human", pop: 260 },
+      { id: "bot-sylvangrove", name: "Sylvangrove", race: "elf", pop: 380 },
+      { id: "bot-bloodfang", name: "Bloodfang Horde", race: "orc", pop: 520 },
+      { id: "bot-nightpaw", name: "Nightpaw Dens", race: "gnoll", pop: 640 },
+      { id: "bot-eldervale", name: "Eldervale", race: "elf", pop: 900 },
+      { id: "bot-grimhold", name: "Grimhold", race: "dwarf", pop: 1150 },
+      { id: "bot-stonewatch", name: "Stonewatch", race: "troll", pop: 1500 },
+      { id: "bot-karakdun", name: "Karak Dûn", race: "dwarf", pop: 2100 },
+      // The four that take the roster to twelve, chosen so no race is a
+      // singleton — a ladder where one race appears once tells you nothing
+      // about how that race actually fights.
+      { id: "bot-ashfen", name: "Ashfen Reach", race: "human", pop: 740 },
+      { id: "bot-gorgar", name: "Gorgar's Pit", race: "orc", pop: 1320 },
+      { id: "bot-mirefang", name: "Mirefang Pack", race: "gnoll", pop: 1680 },
+      { id: "bot-hrunmarr", name: "Hrunmarr", race: "troll", pop: 1950 },
+    ];
+    let founded = 0;
+    for (const w of WANTED) {
+      if (world.players[w.id]) continue;
+      world.players[w.id] = seedBot(w.id, w.name, w.race, w.pop);
+      founded++;
+    }
+
+    const tick = world.meta.tickNumber;
+    const cast = WANTED.map((w) => world.players[w.id]).filter(Boolean);
+
+    // ── 2 · Make everyone able to act ─────────────────────────────────────
+    // Shields, turn budgets, agents and the houses that unlock covert work.
+    // Without this the seeder's first order bounces on a gate and the rest of
+    // the script silently does nothing.
+    for (const p of [viewer, ...cast]) {
+      p.shieldUntilTick = 0;
+      p.onVacation = false;
+      p.turnsAvailable = 400;
+      p.spyTurnsAvailable = 200;
+      p.army.stamina = 100;
+      p.army.spies = Math.max(p.army.spies, 60);
+      p.army.scouts = Math.max(p.army.scouts, 60);
+      p.buildings.shadow_guild = Math.max(p.buildings.shadow_guild ?? 0, 5);
+      p.buildings.rangers_lodge = Math.max(p.buildings.rangers_lodge ?? 0, 5);
+      p.buildings.war_foundry = Math.max(p.buildings.war_foundry ?? 0, 6);
+      p.army.siegeEngineers = Math.max(p.army.siegeEngineers, 40);
+      p.army.siegeGear = { ...p.army.siegeGear, rams: 6, ballistae: 4, trebuchets: 8, ladders: 6 };
+    }
+    // The era peace refuses every attack and every covert op. Nothing to seed
+    // inside it, so open the age if it is still closed.
+    if (tick - world.meta.eraStartedAtTick < ERA_PEACE_TICKS) {
+      world.meta.eraStartedAtTick = tick - ERA_PEACE_TICKS - 1;
+    }
+
+    // ── 3 · The campaign ──────────────────────────────────────────────────
+    // Ordered deliberately: a revenge only exists because something was
+    // attacked first, so the raids come before the answers.
+    const others = cast.filter((p) => p.id !== viewer.id);
+    const pick = (i: number) => others[i % others.length];
+    let ran = 0;
+    let refused = 0;
+    const run = (actorId: string, name: string, args: Record<string, unknown>) => {
+      const r = applyOneCommand(world, actorId, name, args);
+      if (r.result.ok) ran++;
+      else refused++;
+    };
+
+    // The viewer's own war — raids, a castle, a bombard.
+    const MODES = ["raid", "raid", "siege", "bombard", "raid", "siege"] as const;
+    MODES.forEach((mode, i) => run(viewer.id, "attack", { targetId: pick(i).id, mode }));
+
+    // Blows landed ON the viewer, which is what opens THEIR revenge windows.
+    for (let i = 0; i < 4; i++) {
+      run(pick(i + 2).id, "attack", { targetId: viewer.id, mode: i % 2 ? "raid" : "siege" });
+    }
+    // …and the answers. Revenge is gated on an open window, so this only works
+    // because of the loop above — which is the whole reason for the ordering.
+    for (let i = 0; i < 3; i++) {
+      run(viewer.id, "attack", { targetId: pick(i + 2).id, mode: "revenge" });
+    }
+
+    // Bot-on-bot, so the chronicle and the ladder are not all about one empire.
+    for (let i = 0; i < 8; i++) {
+      const a = others[i % others.length];
+      const d = others[(i + 3) % others.length];
+      if (a.id === d.id) continue;
+      run(a.id, "attack", { targetId: d.id, mode: (["raid", "siege", "bombard"] as const)[i % 3] });
+    }
+
+    // ── 4 · The shadow war ────────────────────────────────────────────────
+    // Every scout op and every spy op at least once, so the desk shows the
+    // full range: clean runs, caught runs, intel and sabotage alike.
+    const SCOUT_RUN = ["survey_coffers", "map_walls", "map_army", "map_siege", "map_research"];
+    const SPY_RUN = [
+      "torch_stores", "steal_resources", "sabotage_siege",
+      "sabotage_walls", "incite_unrest", "sow_doubt", "steal_research",
+    ];
+    SCOUT_RUN.forEach((op, i) =>
+      run(viewer.id, "covert", { targetId: pick(i).id, op, agents: 8 + i * 2 }),
+    );
+    SPY_RUN.forEach((op, i) =>
+      run(viewer.id, "covert", { targetId: pick(i + 1).id, op, agents: 6 + i }),
+    );
+    // A second pass on two rivals, so the "only this target" filter has
+    // something to gather.
+    ["survey_coffers", "map_walls", "map_army"].forEach((op) =>
+      run(viewer.id, "covert", { targetId: others[0].id, op, agents: 12 }),
+    );
+    // And shadows sent AT the viewer, so their rangers have work to show.
+    for (let i = 0; i < 4; i++) {
+      run(pick(i).id, "covert", { targetId: viewer.id, op: "torch_stores", agents: 10 });
+    }
+
+    // ── 5 · Spread the timestamps ─────────────────────────────────────────
+    // Everything above ran on ONE tick, so without this the desk is forty rows
+    // all reading "just now" and the 5-day window is untestable. Backdating
+    // the finished records is the only liberty this seeder takes: the reports
+    // themselves are exactly what the engine produced.
+    const span = COVERT_LOG_DAYS * TURNS_PER_DAY - 2; // stay inside the window
+    const log = viewer.covertLog ?? [];
+    log.forEach((r, i) => {
+      r.tick = tick - Math.floor((i / Math.max(1, log.length)) * span);
+    });
+    world.battles.forEach((b, i) => {
+      b.tick = Math.max(0, tick - Math.floor((i / Math.max(1, world.battles.length)) * span));
+    });
+
+    return {
+      ok: true,
+      msg:
+        `Seeded a war for ${viewer.name}: ${founded} new empires (${Object.keys(world.players).length} total), ` +
+        `${ran} orders landed, ${refused} refused by the rules, ` +
+        `${log.length} covert reports filed, ${world.battles.length} battles on record.`,
+    };
+  });
+  revalidatePath("/", "layout");
+  back(outcome.msg, outcome.ok);
 }
