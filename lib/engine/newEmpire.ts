@@ -44,7 +44,7 @@ export function newEmpire(opts: {
       mercenaries: emptyMercForce(),
       stamina: START.STAMINA,
       experiencePoints: 0,
-      siegeExperience: 0,
+      siegeExperiencePoints: 0,
       spyExperience: 0,
       scoutExperience: 0,
     },

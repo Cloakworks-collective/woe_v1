@@ -300,7 +300,7 @@ export async function adminSeed(formData: FormData): Promise<void> {
       cavalry: { light: 0, medium: 0, heavy: 0 },
     },
     stamina: 78,
-    siegeExperience: 40,
+    siegeExperiencePoints: 2_000_000, // +40%
     spyExperience: 30,
     scoutExperience: 30,
     experiencePoints: 2_300_000, // +46%

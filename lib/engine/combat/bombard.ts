@@ -16,15 +16,16 @@ import {
   BUILDING_HP_CURVE, // clan works are levelled, not counted
   BUILDING_INTEGRITY_FLOOR,
   LUCK_SWING,
-  BOMBARD_VOLLEYS,
+  BOMBARD_INTENSITY,
+  SIEGE_STANCE,
   SIEGE_COUNTERS,
   SIEGE_GEAR,
   WALL_BREACH_PIVOT,
-  SIEGE_XP,
+  EXPERIENCE,
 } from "../../constants";
 import { isCounted, type BuildingId, type CounterType } from "../../constants/buildings";
 import { evalCurve } from "../../constants/curves";
-import { luck, rollCount, type Rng } from "../rng";
+import { luck, rollBand, rollCount, type Rng } from "../rng";
 import {
   buildingIntegrity,
   level,
@@ -35,9 +36,12 @@ import {
   type SiegeGearType,
   type UnitLosses,
 } from "../types";
-import { siegeBonusPool, siegeDelivery, settleMercenaries } from "./model";
+import { siegeBonusPool, siegeDelivery, siegeLedger, settleMercenaries } from "./model";
+import { rankingScore } from "../score";
+import { matchupMultiplier } from "./battle";
 import {
   batterySilenced,
+  counterSilenced,
   batteryStrength,
   batteryThreatens,
   crewCounters,
@@ -108,6 +112,14 @@ export function resolveBombard(
 
   const openingTrebs = atkPark.crewed.trebuchets;
   const openingBattery = batteryStrength(defPark);
+  const stance = attacker.army.siegeStance ?? "general";
+  // A battery beaten into silence is not a target and not a threat: the guns
+  // are wreckage and the crews are behind the wall. Nothing is allotted to it,
+  // so the whole barrage falls on the masonry — which is precisely the price
+  // the defender pays for standing down, and the reason they have to come back
+  // and mend the things.
+  const battery = defPark.crewed.counter_engine > 0 && !counterSilenced(defPark, "counter_engine");
+  const standingDown = defPark.crewed.counter_engine > 0 && !battery;
   let engineerLossesAtk = 0;
   let engineerLossesDef = 0;
   let wallDamage = 0;
@@ -115,6 +127,11 @@ export function resolveBombard(
   let silenced = false;
   const buildingHits: Partial<Record<BuildingId, number>> = {};
 
+  if (standingDown) {
+    say(0, "Their battery is wreckage and stands abandoned — nothing answers from the keep.", {
+      tone: "good",
+    });
+  }
   if (openingTrebs === 0) {
     say(0, "No crewed trebuchets march — the barrage never begins.", { tone: "bad" });
   } else {
@@ -126,86 +143,174 @@ export function resolveBombard(
 
   const wallHp = wallHealth(defender);
 
-  for (let round = 1; round <= BOMBARD_VOLLEYS && openingTrebs > 0; round++) {
-    if (atkPark.crewed.trebuchets === 0) {
-      say(round, "Our last trebuchet is wreckage. The barrage is over.", { tone: "bad" });
-      break;
-    }
-    rounds = round;
+  // ── The barrage: ONE exchange, landing with BOMBARD_INTENSITY volleys' weight
+  //
+  // The stance decides how the trebuchets spend their fire, and they can only
+  // spend it once. This is the difference from a field battle, where engines
+  // shoot at everything eligible in parallel: a barrage is all the artillery
+  // does, so what it aims at is the whole decision.
+  const baseShare = siegeDelivery(attacker, "siege"); // 0.20, up to 0.40 with Siegecraft
+
+  // Committing to the duel sharpens the fire that reaches their engines by half
+  // — and throws the remainder away. Nothing else is touched this barrage.
+  // With no battery there is nothing to duel, so the stance is moot and the
+  // whole barrage falls on the masonry either way. Zeroing the structure share
+  // regardless would have thrown away a bombard against an undefended wall —
+  // an order to silence a battery that does not exist is not an order to stand
+  // and do nothing.
+  const focused = stance === "counter" && battery;
+  const counterShare = !battery
+    ? 0
+    : focused
+      ? Math.min(1, baseShare * (1 + SIEGE_STANCE.COUNTER_FOCUS_BONUS))
+      : baseShare;
+  const structureShare = focused ? 0 : 1 - counterShare;
+
+  if (openingTrebs > 0) {
+    rounds = 1;
     const roll = luck(rng, LUCK_SWING);
 
-    // ── The duel ────────────────────────────────────────────────────────────
-    if (!silenced) {
-      const duel = runDuelRound({ attacker, defender, atkPark, defPark, war, rng, defenderEdge });
-      for (const note of duel.notes) log.push({ round, phase: "counter-duel", text: note });
+    // The barrage is loosed at the SAME MOMENT the battery answers it, exactly
+    // as both sides of a field battle swing at once. Snapshot the gun-line
+    // before the duel touches it: when this ran as ten sequential volleys the
+    // trebuchets got their shots away on the way down, and resolving a ×5 duel
+    // first would silently delete that — a battery able to wreck the whole
+    // train would take zero stone in return, which no number of volleys ever
+    // produced.
+    const firingTrebs = atkPark.crewed.trebuchets;
+    const firingIntegrity = atkPark.integrity.trebuchets;
+    // And who was manning the engines on both sides when it started — see the
+    // note in duel.ts. Crews are priced on who stood there, not on what was
+    // left standing afterwards.
+    const manningCounters = defPark.crewed.counter_engine;
+    // …and how strong each battery was WHEN IT FIRED. The threat check below
+    // has to read these rather than the wreckage, for the same reason: with
+    // both batteries wiped out in the exchange it would otherwise compare zero
+    // against zero, decide neither side was ever in danger, and report a
+    // mutual annihilation with not one man hurt.
+    const firingStrength = parkStrength(atkPark);
 
-      const atkStrength = parkStrength(atkPark);
-      const defStrength = batteryStrength(defPark);
+    // ── The duel ──────────────────────────────────────────────────────────
+    // Their battery answers as it always did; ours replies with whatever the
+    // stance allotted it. They keep their emplacement edge either way —
+    // choosing to duel makes you better at it, never makes it fair.
+    const duel = runDuelRound({
+      attacker, defender, atkPark, defPark, war, rng, defenderEdge,
+      intensity: BOMBARD_INTENSITY,
+      returnShare: counterShare,
+    });
+    for (const note of duel.notes) log.push({ round: 1, phase: "counter-duel", text: note });
+    if (focused) {
+      say(1, `Every engine is laid on their battery — the walls go untouched until it is silent.`, {
+        tone: "neutral",
+      });
+    }
 
-      // Crews die at their posts — the attacker's only once the battery is a
-      // real threat, the defender's only once theirs is being shot apart.
-      const atRiskAtk = atkPark.crewed.trebuchets * SIEGE_GEAR.trebuchets.crew;
-      if (batteryThreatens(defStrength, atkStrength) && atRiskAtk > 0) {
-        const killed = rollCount(rng, atRiskAtk, ARTILLERY_DUEL.ATTACKER_ENGINEER_RISK.min);
-        if (killed > 0) {
-          engineerLossesAtk += killed;
-          say(round, `Counter-Engine fire finds our gun-line — ${killed} engineers killed.`, {
-            attackerRegulars: killed, tone: "bad",
-          });
-        }
-      }
-      const atRiskDef = defPark.crewed.counter_engine * SIEGE_COUNTERS.counter_engine.crew;
-      const defKilled = defenderEngineerRisk(rng, openingBattery, defStrength, atRiskDef);
-      if (defKilled > 0) {
-        engineerLossesDef += defKilled;
-        say(round, `Their crews are cut down among the wreckage — ${defKilled} lost.`, {
-          defenderRegulars: defKilled, tone: "good",
+    const atkStrength = parkStrength(atkPark);
+    const defStrength = batteryStrength(defPark);
+
+    // Crews die at their posts — the attacker's only once the battery is a real
+    // threat, the defender's only once theirs is being shot apart. The threat is
+    // judged on the batteries as they OPENED fire; the silence check below is
+    // the one that wants the wreckage.
+    const atRiskAtk = firingTrebs * SIEGE_GEAR.trebuchets.crew;
+    if (batteryThreatens(openingBattery, firingStrength) && atRiskAtk > 0) {
+      // 3 — ROLL the band. This took `.min` outright, so the attacker's crews
+      // always came off at the very best case the band allows while the
+      // defender's rolled properly. Nothing justified the asymmetry.
+      const killed = rollCount(
+        rng, atRiskAtk,
+        Math.min(1, rollBand(rng, ARTILLERY_DUEL.ATTACKER_ENGINEER_RISK) * BOMBARD_INTENSITY),
+      );
+      if (killed > 0) {
+        engineerLossesAtk += killed;
+        say(1, `Counter-Engine fire finds our gun-line — ${killed} engineers killed.`, {
+          attackerRegulars: killed, tone: "bad",
         });
       }
+    }
+    const atRiskDef = manningCounters * SIEGE_COUNTERS.counter_engine.crew;
+    const defKilled = defenderEngineerRisk(rng, openingBattery, defStrength, atRiskDef, BOMBARD_INTENSITY);
+    if (defKilled > 0) {
+      engineerLossesDef += defKilled;
+      say(1, `Their crews are cut down among the wreckage — ${defKilled} lost.`, {
+        defenderRegulars: defKilled, tone: "good",
+      });
+    }
 
-      if (batterySilenced(openingBattery, defStrength, atkStrength)) {
-        silenced = true;
-        say(round, "Their battery falls silent — what is left of it cannot answer. The walls are ours to work.", {
+    // Beaten into silence THIS barrage, or already standing down when we
+    // arrived. Either way it answers no more — and unlike before, that now
+    // holds tomorrow too, until they mend it.
+    if (standingDown || counterSilenced(defPark, "counter_engine")) {
+      silenced = true;
+      if (!standingDown) {
+        say(1, "Their battery is beaten silent — the crews abandon the guns. It answers no more until it is mended.", {
           tone: "good",
         });
       }
     }
 
-    // ── The fire that gets through ──────────────────────────────────────────
+    // ── The fire that gets through ────────────────────────────────────────
     const power =
-      atkPark.crewed.trebuchets * SIEGE_GEAR.trebuchets.power * atkPark.integrity.trebuchets *
-      siegeBonusPool(attacker, war) * roll;
-    const wallsStanding = level(defender, "walls") > 0 && defender.wallIntegrity > WALL_BREACH_PIVOT;
+      firingTrebs * SIEGE_GEAR.trebuchets.power * firingIntegrity *
+      siegeBonusPool(attacker, war) * roll * BOMBARD_INTENSITY * structureShare;
 
-    if (wallsStanding) {
-      const dmg = power * siegeDelivery(attacker, "walls");
-      const applied = Math.min(defender.wallIntegrity * wallHp, dmg);
-      defender.wallIntegrity = Math.max(0, defender.wallIntegrity - damageToIntegrity(defender, applied));
-      wallDamage += applied;
-      say(round,
-        defender.wallIntegrity <= WALL_BREACH_PIVOT
-          ? `The wall is breached — the fire spills onto the town.`
-          : `Stone hammers stone — the wall stands at ${Math.round(defender.wallIntegrity * 100)}%.`,
-        { tone: "neutral" });
+    if (power <= 0) {
+      if (focused) {
+        // Nothing here is a bug — it is the price the stance charges.
+        say(1, "Not a stone is thrown at the masonry. The duel was the whole barrage.", {
+          tone: "neutral",
+        });
+      } else if (atkPark.crewed.trebuchets === 0) {
+        say(1, "Our last trebuchet is wreckage. The barrage is over.", { tone: "bad" });
+      }
     } else {
-      const target = pickTarget(defender, rng);
-      if (!target) {
-        say(round, "Nothing left standing to break — the barrage falls on rubble.", { tone: "neutral" });
+      const wallsStanding = level(defender, "walls") > 0 && defender.wallIntegrity > WALL_BREACH_PIVOT;
+      if (wallsStanding) {
+        const dmg = power * siegeDelivery(attacker, "walls");
+        const applied = Math.min(defender.wallIntegrity * wallHp, dmg);
+        defender.wallIntegrity = Math.max(0, defender.wallIntegrity - damageToIntegrity(defender, applied));
+        wallDamage += applied;
+        say(1,
+          defender.wallIntegrity <= WALL_BREACH_PIVOT
+            ? `The wall is breached — the fire spills onto the town.`
+            : `Stone hammers stone — the wall stands at ${Math.round(defender.wallIntegrity * 100)}%.`,
+          { tone: "neutral" });
       } else {
-        const hp = buildingHealth(defender, target);
-        const dmg = power * siegeDelivery(attacker, "buildings");
-        const cur = buildingIntegrity(defender, target);
-        const lost = Math.min(Math.max(0, cur - BUILDING_INTEGRITY_FLOOR), hp > 0 ? dmg / hp : 0);
-        defender.buildingIntegrity[target] = cur - lost;
-        buildingHits[target] = (buildingHits[target] ?? 0) + lost;
-        // Burnt roofs do not dock the settler intake until the defender has
-        // been back to see them — a barrage at 3am should cost sleep, not
-        // growth. Cleared on their next page load. See intakeHousing.
-        if (target === "hearthstead" && lost > 0) defender.roofDamageUnseen = true;
-        say(round, isCounted(target)
-          ? `A volley walks through the ${BUILDING_LABEL[target] ?? target}s — roofs come down (−${Math.round(lost * 100)}%).`
-          : `A volley cracks the ${BUILDING_LABEL[target] ?? target} open (−${Math.round(lost * 100)}%).`,
-          { tone: "good" });
+        // A wall is one target and takes the whole weight at once. A TOWN is
+        // not: the intensity is spent as separate aiming points, so a barrage
+        // still walks across several roofs the way a sequence of volleys did.
+        // Collapsing it to a single pick would have quietly wasted the whole
+        // weighting table — stores are 52% of the weight precisely because you
+        // get many draws against it, and one draw is a coin toss.
+        const perPick = power / BOMBARD_INTENSITY;
+        let hitAny = false;
+        for (let i = 0; i < BOMBARD_INTENSITY; i++) {
+          const target = pickTarget(defender, rng);
+          if (!target) break;
+          hitAny = true;
+          const hp = buildingHealth(defender, target);
+          const dmg = perPick * siegeDelivery(attacker, "buildings");
+          const cur = buildingIntegrity(defender, target);
+          const lost = Math.min(Math.max(0, cur - BUILDING_INTEGRITY_FLOOR), hp > 0 ? dmg / hp : 0);
+          defender.buildingIntegrity[target] = cur - lost;
+          buildingHits[target] = (buildingHits[target] ?? 0) + lost;
+          // Burnt roofs do not dock the settler intake until the defender has
+          // been back to see them — a barrage at 3am should cost sleep, not
+          // growth. Cleared on their next page load. See intakeHousing.
+          if (target === "hearthstead" && lost > 0) defender.roofDamageUnseen = true;
+        }
+        if (!hitAny) {
+          say(1, "Nothing left standing to break — the barrage falls on rubble.", { tone: "neutral" });
+        } else {
+          for (const [b, lost] of Object.entries(buildingHits) as [BuildingId, number][]) {
+            if (lost <= 0) continue;
+            say(1, isCounted(b)
+              ? `The barrage walks through the ${BUILDING_LABEL[b] ?? b}s — roofs come down (−${Math.round(lost * 100)}%).`
+              : `The barrage cracks the ${BUILDING_LABEL[b] ?? b} open (−${Math.round(lost * 100)}%).`,
+              { tone: "good" });
+          }
+        }
       }
     }
   }
@@ -219,12 +324,19 @@ export function resolveBombard(
   // Terror needs no swordsman: a bombarded town loses people too.
   const displaced = rounds > 0 ? displaceCivilians(rng, defender, "bombard", false) : 0;
 
-  const aGain = Math.min(
-    SIEGE_XP.MAX_PER_BATTLE,
-    engineerLossesDef * SIEGE_XP.PER_KILL + displaced * SIEGE_XP.PER_CIVILIAN_DISPLACED,
-  );
-  attacker.army.siegeExperience = Math.min(SIEGE_XP.MAX, attacker.army.siegeExperience + aGain);
-  defender.army.siegeExperience = Math.min(SIEGE_XP.MAX, defender.army.siegeExperience + SIEGE_XP.DEFENDER_GAIN);
+  // The engineers' ledger, same rules as the battle line's. Both sides are
+  // measured on the crews they killed against the crews they lost, from their
+  // own end of the ladder — and the flat wage the defender used to draw for
+  // merely being shot at is gone, because that is exactly the shape that made
+  // being attacked the fastest way to get better at war.
+  const aScore = rankingScore(attackerIn);
+  const dScore = rankingScore(defenderIn);
+  const aSiegeMatch = matchupMultiplier(dScore / Math.max(1, aScore));
+  const dSiegeMatch = matchupMultiplier(aScore / Math.max(1, dScore));
+  const aGain = siegeLedger(engineerLossesDef, engineerLossesAtk, aSiegeMatch, EXPERIENCE.WON_ATTACK);
+  const dGain = siegeLedger(engineerLossesAtk, engineerLossesDef, dSiegeMatch, EXPERIENCE.WON_DEFENCE);
+  attacker.army.siegeExperiencePoints = Math.max(0, attacker.army.siegeExperiencePoints + Math.round(aGain));
+  defender.army.siegeExperiencePoints = Math.max(0, defender.army.siegeExperiencePoints + Math.round(dGain));
 
   const disbandedA = settleMercenaries(attacker);
   const disbandedD = settleMercenaries(defender);
@@ -261,7 +373,7 @@ export function resolveBombard(
     loot: { gold: 0, resources: { food: 0, wood: 0, stone: 0, ore: 0 } },
     staminaLoss: { attacker: 0, defender: 0 },
     experienceChange: { attacker: 0, defender: 0 },
-    siegeExperienceChange: { attacker: Math.round(aGain), defender: SIEGE_XP.DEFENDER_GAIN },
+    siegeExperienceChange: { attacker: Math.round(aGain), defender: Math.round(dGain) },
     log,
   };
   return { attacker, defender, report };
@@ -313,21 +425,23 @@ export function resolveClanBombard(
   }
   log.push(`${trebuchets} crewed trebuchets wheel within range of the ${label} and open fire.`);
 
+  // One exchange at BOMBARD_INTENSITY, like every other barrage. No counters
+  // guard a clan's works — nothing shoots back — so there is no duel here and
+  // the whole weight falls on the masonry.
   const hp = evalCurve(BUILDING_HP_CURVE, Math.max(1, clanLevel(clan, which)));
-  for (let round = 1; round <= BOMBARD_VOLLEYS; round++) {
-    const now = clan.buildings.integrity[which];
-    if (now <= BUILDING_INTEGRITY_FLOOR) {
-      log.push(`Round ${round}: the ${label} is already cracked to its foundations.`);
-      break;
-    }
-    rounds = round;
+  const now = clan.buildings.integrity[which];
+  if (now <= BUILDING_INTEGRITY_FLOOR) {
+    log.push(`The ${label} is already cracked to its foundations.`);
+  } else {
+    rounds = 1;
     const power =
       trebuchets * SIEGE_GEAR.trebuchets.power * attacker.army.siegeGearIntegrity.trebuchets *
-      siegeBonusPool(attacker, true) * luck(opts.rng, LUCK_SWING) * siegeDelivery(attacker, "buildings");
+      siegeBonusPool(attacker, true) * luck(opts.rng, LUCK_SWING) *
+      siegeDelivery(attacker, "buildings") * BOMBARD_INTENSITY;
     const applied = Math.min(now - BUILDING_INTEGRITY_FLOOR, hp > 0 ? power / hp : 0);
     clan.buildings.integrity[which] = now - applied;
     integrityLost += applied;
-    log.push(`Round ${round}: the volley cracks the ${label} (−${Math.round(applied * 100)}%).`);
+    log.push(`The barrage cracks the ${label} (−${Math.round(applied * 100)}%).`);
   }
 
   log.push(`Bombardment done: the ${label} stands at ${Math.round(clan.buildings.integrity[which] * 100)}%.`);

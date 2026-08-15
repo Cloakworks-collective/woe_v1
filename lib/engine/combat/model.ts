@@ -15,6 +15,7 @@ import {
   CASUALTY_TIER_ORDER,
   EFFECTIVENESS,
   EFFECT_PER_LEVEL,
+  EXPERIENCE,
   MEDICINE,
   MERCENARIES,
   RACES,
@@ -22,7 +23,6 @@ import {
   MAX_FIELD_LEVEL,
   STAMINA,
   UNIT_STATS,
-  WALL_ROLE_BONUS,
   WAR,
   WARWORKS_BONUS_PER_LEVEL,
   type TargetKind,
@@ -119,8 +119,6 @@ export interface BonusContext {
   arm?: Arm;
   /** Defending behind an intact wall: which edge applies to this block. */
   wallEdge?: number;
-  /** On the wall, archers are lethal and cavalry are wasted. */
-  onWall?: boolean;
   /** Riding out at the siege lines. */
   sortie?: boolean;
   /** Dug in around the engines. */
@@ -171,11 +169,6 @@ export function bonusPool(p: Player, ctx: BonusContext): number {
   // legendary army really is worth more than a merely seasoned one.
   sum += veterancyBonus(p.army.experiencePoints);
 
-  // What each arm does with a wall it has TRAINED on — archers lethal from a
-  // parapet, cavalry wasted behind one. The wall edge itself is shared above;
-  // this is the drilled role, which is why a sellsword does not get it.
-  if (ctx.onWall && ctx.arm) sum += WALL_ROLE_BONUS[ctx.arm];
-
   return 1 + sum;
 }
 
@@ -190,10 +183,34 @@ const ENTRENCHED = () => SORTIE.ENTRENCHED_BONUS;
 export function siegeBonusPool(p: Player, war: boolean): number {
   let sum = 0;
   sum += RACES[p.race].siege - 1;
-  sum += p.army.siegeExperience / 100;
+  sum += veterancyBonus(p.army.siegeExperiencePoints);
   sum += researchLevel(p, "siegecraft") * EFFECT_PER_LEVEL;
   if (war) sum += WAR.DAMAGE_BONUS; // clan war: +100% by default, and bombard reads this too
   return 1 + sum;
+}
+
+/**
+ * The ENGINEERS' ledger, run on the same rules as the battle line's.
+ *
+ * Credited for the crews you killed, debited for the crews you lost, scaled by
+ * how the matchup sat and whether you carried the day. Engineers are a small
+ * corps, so the numbers here are small — a siege is seasoning won a handful of
+ * men at a time, over a campaign.
+ *
+ * Shared by resolveBattle and resolveBombard so a siege trains a corps the same
+ * way whichever end of it you were on.
+ */
+export function siegeLedger(
+  crewsKilled: number,
+  crewsLost: number,
+  matchup: number,
+  outcome: number,
+): number {
+  const gained = Math.min(
+    EXPERIENCE.MAX_PER_BATTLE,
+    crewsKilled * EXPERIENCE.PER_CASUALTY * matchup * outcome,
+  );
+  return gained - crewsLost * EXPERIENCE.PER_REGULAR_LOST;
 }
 
 // ── Delivery ────────────────────────────────────────────────────────────────
@@ -252,7 +269,7 @@ export interface SideOptions {
   engineersPresent: boolean;
   /** Footmen (then cavalry, then archers) committed to pushing rams — they are
    *  not in the battle line until the wall is breached. */
-  ramCrew?: Partial<Record<Arm, Record<Tier, number>>>;
+  ramCrew?: Partial<Record<Arm, { merc: Record<Tier, number>; regular: Record<Tier, number> }>>;
 }
 
 const ARM_SOURCE = {
@@ -275,7 +292,6 @@ export function buildSide(p: Player, opts: SideOptions): Side {
       arm,
       war: opts.war,
       isMerc,
-      onWall: opts.home && opts.wallEdge > 0,
     };
     const healthBase = stats.health;
     const healthMult = bonusPool(p, defCtx);
@@ -296,9 +312,11 @@ export function buildSide(p: Player, opts: SideOptions): Side {
   for (const tier of CASUALTY_TIER_ORDER) {
     for (const arm of ["footman", "archer", "cavalry"] as const) {
       const src = ARM_SOURCE[arm];
-      const committed = opts.ramCrew?.[arm]?.[tier] ?? 0;
-      push(arm, tier, Math.max(0, p.army[src][tier] - committed), false);
-      push(arm, tier, p.army.mercenaries[src][tier], true);
+      // Ram crews are on the beams, not in the line — and sellswords go on the
+      // beams first, so both pools have to be netted off.
+      const held = opts.ramCrew?.[arm];
+      push(arm, tier, Math.max(0, p.army[src][tier] - (held?.regular[tier] ?? 0)), false);
+      push(arm, tier, Math.max(0, p.army.mercenaries[src][tier] - (held?.merc[tier] ?? 0)), true);
     }
   }
 
@@ -390,62 +408,70 @@ function kill(side: Side, g: Group, n: number) {
   }
 }
 
-/** Spread damage across every block by headcount — volleys and engine fire,
- *  which do not choose who they hit. */
+/**
+ * THE CASUALTY RULE, and it is one rule for every blow in the game.
+ *
+ * Damage walks the tiers in order — LIGHT, then MEDIUM, then HEAVY — and at each
+ * tier it splits CASUALTY_SPLIT.MERC_SHARE onto the sellswords standing there
+ * and the remainder onto your own. Whatever a tier cannot absorb carries to the
+ * next and is split again.
+ *
+ * Two things follow, and both are the point:
+ *
+ *   CHEAP RANKS ARE A REAL SHIELD. A tier holding sellswords and no regulars
+ *   absorbs everything that reaches it, because the regulars' share has nobody
+ *   to land on and simply carries forward. Twenty medium sellswords in front of
+ *   a hundred heavy regulars is not a saving, it is armour.
+ *
+ *   BARE RANKS ARE A HOLE. A tier holding regulars and no sellswords takes the
+ *   WHOLE blow on your own people — the screen's share cannot fall through to
+ *   mercenaries of another rank. Screening is per rank, and the advisor shouts
+ *   about a bare one for exactly this reason.
+ *
+ * This used to split first and walk tiers second, inside each pool separately,
+ * which meant the 30% found your heavy regulars from the first exchange no
+ * matter what stood in front of them — the cushion could not cushion.
+ */
+function applyToArm(side: Side, arm: Arm, damage: number): number {
+  let left = damage;
+  for (const tier of CASUALTY_TIER_ORDER) {
+    if (left <= 0) break;
+    const merc = side.groups.find((g) => g.arm === arm && g.tier === tier && g.isMerc && g.count > 0);
+    const reg = side.groups.find((g) => g.arm === arm && g.tier === tier && !g.isMerc && g.count > 0);
+    const mercHealth = merc ? merc.count * merc.health : 0;
+    const regHealth = reg ? reg.count * reg.health : 0;
+    if (mercHealth + regHealth <= 0) continue;
+
+    const toMerc = Math.min(left * CASUALTY_SPLIT.MERC_SHARE, mercHealth);
+    const toReg = Math.min(left - toMerc, regHealth);
+    if (merc && toMerc > 0) kill(side, merc, toMerc / merc.health);
+    if (reg && toReg > 0) kill(side, reg, toReg / reg.health);
+    left -= toMerc + toReg;
+  }
+  return damage - left;
+}
+
+/** Volleys and engine fire, which do not choose an ARM — spread by headcount,
+ *  then the screen absorbs within each arm exactly as it does for an aimed
+ *  blow. Archers and engines used to bypass the screen entirely, which is how
+ *  most damage in the game reached regulars without touching a sellsword. */
 export function spreadDamage(target: Side, damage: number) {
   const total = headcount(target);
   if (total <= 0 || damage <= 0) return;
-  for (const g of target.groups) {
-    if (g.count === 0) continue;
-    const share = (g.count / total) * damage;
-    kill(target, g, share / g.health);
+  for (const arm of ["footman", "archer", "cavalry"] as Arm[]) {
+    const n = target.groups.reduce((s, g) => (g.arm === arm ? s + g.count : s), 0);
+    if (n === 0) continue;
+    applyToArm(target, arm, (n / total) * damage);
   }
 }
 
-/**
- * Damage aimed at particular arms, in order. Within an arm the split is
- * CASUALTY_SPLIT.MERC_SHARE to the sellswords and the rest to your own —
- * so regulars ALWAYS leak a little even while the buffer holds, which is what
- * keeps losing them the worst thing that can happen to you. Within each pool
- * the cheap ranks fall first, so a layer of light troops beneath your heavies
- * is a genuine shock absorber.
- */
+/** Damage aimed at particular arms, in order — cavalry and the line, which do
+ *  choose. Within an arm it is the same rule as everything else. */
 export function aimDamage(target: Side, damage: number, order: Arm[]) {
   let left = damage;
   for (const arm of order) {
     if (left <= 0) return;
-    const blocks = target.groups.filter((g) => g.arm === arm && g.count > 0);
-    if (blocks.length === 0) continue;
-
-    const mercs = blocks.filter((g) => g.isMerc);
-    const regs = blocks.filter((g) => !g.isMerc);
-    const mercHealth = mercs.reduce((s, g) => s + g.count * g.health, 0);
-    const regHealth = regs.reduce((s, g) => s + g.count * g.health, 0);
-    if (mercHealth + regHealth <= 0) continue;
-
-    // Sellswords take the agreed share — unless there aren't enough of them,
-    // in which case the overflow finds your own people.
-    const wantMerc = mercs.length ? left * CASUALTY_SPLIT.MERC_SHARE : 0;
-    const toMerc = Math.min(wantMerc, mercHealth);
-    const toReg = Math.min(left - toMerc, regHealth);
-
-    drainPool(target, mercs, toMerc);
-    drainPool(target, regs, toReg);
-    left -= toMerc + toReg;
-  }
-}
-
-/** Light before medium before heavy — the cheap ranks are the front rank. */
-function drainPool(side: Side, pool: Group[], damage: number) {
-  let left = damage;
-  for (const tier of CASUALTY_TIER_ORDER) {
-    if (left <= 0) return;
-    const g = pool.find((x) => x.tier === tier && x.count > 0);
-    if (!g) continue;
-    const capacity = g.count * g.health;
-    const spent = Math.min(left, capacity);
-    kill(side, g, spent / g.health);
-    left -= spent;
+    left -= applyToArm(target, arm, left);
   }
 }
 

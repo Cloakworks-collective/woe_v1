@@ -121,7 +121,13 @@ Engineers never attack. They crew engines and they die.
 
 ## Attack modes
 
-Every attack costs **10 action turns** and runs up to 10 rounds.
+Every attack costs **10 action turns** and resolves in **one exchange**. There
+are no rounds anywhere: a raid, a castle attack and a revenge each run once down
+the order of battle, and a bombardment lands as a single barrage weighing
+`BOMBARD_INTENSITY` volleys.
+
+A **bombard** is the one attack whose fire has to be allocated, because
+artillery can only spend itself once — see the siege stance below.
 
 | Mode | Fight | Walls & engines | Takes |
 |---|---|---|---|
@@ -136,6 +142,31 @@ treasury* into a campaign rather than a button.
 
 **Engineers take no part in a raid at all.** It is open country; there is
 nothing to besiege.
+
+### The siege stance — where a barrage aims
+
+A standing order for your engines, like the defender's sortie.
+
+| stance | at their battery | at the wall / town |
+|---|---|---|
+| **General** | the delivery share (20%, up to 40% with Siegecraft) | everything left over |
+| **Counter-siege first** | that share **×1.5** — 20%→30%, 40%→60% | **nothing — wasted** |
+
+Committing to the duel buys accuracy against their Counter-Engines with your
+whole barrage. It is the only way a wall ever falls to a battery you cannot
+out-shoot, and a thrown-away bombard against a token one. The defender keeps
+their emplacement edge either way: choosing to duel makes you better at it, it
+does not make it fair.
+
+With **no battery present** the stance is moot — there is nothing to silence, so
+the whole barrage falls on the masonry whichever order stands.
+
+Both sides fire **simultaneously**, as everywhere else in the engine: the
+trebuchets loose at the same moment the battery answers, so a train that is
+wrecked still got its stone away.
+
+A bombard strips **no bodies** — the two sides never meet, they shell each other
+from a distance — so `SALVAGE` never applies to it.
 
 ### Protection
 
@@ -431,6 +462,32 @@ defender. Swinging hard tires an army; standing in a shield wall absorbing blows
 does not. Cut them down to the last man and you pay the full price; walk into a
 yield and you pay almost nothing. Bombard drains none from either side — it is
 engines against masonry, not men.
+
+**Salvage** is separate from loot, and is paid on every battle.
+
+Whoever holds the field walks it afterwards and strips the fallen — the enemy's
+dead and their own alike. Two sources, one rate each:
+
+| the dead | give back | share |
+|---|---|---|
+| Regulars | **ore** — mail and blades outlive the man | **70%** |
+| Sellswords | **gold** — they were bought, not built | **40%** |
+
+Nothing else is stripped: not engineers, not timber, and a regular's muster gold
+stays spent. Bombard therefore has no salvage at all, since engineers are the
+only thing it kills.
+
+It is deliberately not loot, and is reported on its own line:
+
+- **Loot** comes out of the defender's **storehouses**. Capped, size-scaled,
+  halved on a surrender, and revenge and bombard take none of it.
+- **Salvage** comes off the **bodies**. It scales with nothing but how many died
+  and does not care which mode was fought — so **revenge**, which carries nothing
+  home by design, still pays for the armour of the men it killed.
+
+Read before the mercenary cascade and the field hospital: sellswords paid off for
+want of an officer rode away alive, and ones the surgeons saved are alive too.
+Neither is lying there to be stripped.
 
 **Loot** comes down to four numbers:
 

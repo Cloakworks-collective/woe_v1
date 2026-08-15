@@ -69,7 +69,7 @@ export interface Band {
  *   footman   13/25 → 20/40 → 30/65    the line. Least power, most health.
  *   archer    20/16 → 30/30 → 55/40    the damage. Most power at every tier,
  *                                      least health — and a wall halves their
- *                                      fire (ARCHER_VS_WALL_CURVE), which is
+ *                                      fire is halved by a wall's own
  *                                      the check on it.
  *   cavalry   18/25 → 28/40 → 50/65    the hammer. A footman's health with
  *                                      most of an archer's power, dearest by
@@ -120,21 +120,38 @@ export const EFFECTIVENESS: Record<string, Record<TargetKind, number>> = {
 
   // Offensive engines.
   rams: { troops: 0, walls: 1.0, buildings: 0, siege: 0 },
-  ballistae: { troops: 0.1, walls: 0, buildings: 0, siege: 0 },
-  trebuchets: { troops: 0.15, walls: 0.3, buildings: 0.2, siege: 0.2 },
+  /** The dedicated anti-troop engine, and now the ONLY one: trebuchets gave up
+   *  their share of this so each engine has exactly one job. 0.10 -> 0.60. */
+  ballistae: { troops: 0.6, walls: 0, buildings: 0, siege: 0 },
+  /** Walls, buildings and engines — never men. It used to read 0.15 against
+   *  troops as well, which made it the only engine doing three jobs at once and
+   *  left the ballista with no identity of its own. */
+  trebuchets: { troops: 0, walls: 0.3, buildings: 0.2, siege: 0.2 },
   /** Escalade tools deal no damage — they carry troops over the wall. */
   ropes: { troops: 0, walls: 0, buildings: 0, siege: 0 },
   ladders: { troops: 0, walls: 0, buildings: 0, siege: 0 },
   siege_towers: { troops: 0, walls: 0, buildings: 0, siege: 0 },
 
   // Defensive counters — purpose-built, point-blank, and they only ever shoot
-  // at engines. That is why they read 1.00 where trebuchets read 0.20.
-  billhooks: { troops: 0, walls: 0, buildings: 0, siege: 1.0 },
-  forkpoles: { troops: 0, walls: 0, buildings: 0, siege: 1.0 },
-  fire_pots: { troops: 0, walls: 0, buildings: 0, siege: 1.0 },
-  boiling_oil: { troops: 0, walls: 0, buildings: 0, siege: 1.0 },
-  hoardings: { troops: 0, walls: 0, buildings: 0, siege: 1.0 },
-  counter_engine: { troops: 0, walls: 0, buildings: 0, siege: 1.0 },
+  // at engines. They read 0.30 where a trebuchet reads 0.20: half again as
+  // accurate at the one job they have, because it is the only job they have.
+  //
+  // They are NOT perfect. These used to read 1.00 — every point of power
+  // landing, the only weapon in the game with no accuracy tax at all, and then
+  // MORE than perfect once Siegecraft carried counterBattery to 1.30. A machine
+  // that throws something at a distant target misses like any other, and that
+  // one asymmetry was most of the reason a defended wall could not be besieged
+  // at all past about twenty engines.
+  //
+  // As with the trebuchet's rows, this is the LEVEL-0 figure; the research ramp
+  // lives in SIEGE_ACCURACY.counterBattery and is what the engine actually
+  // reads (see counterBatteryDelivery).
+  billhooks: { troops: 0, walls: 0, buildings: 0, siege: 0.3 },
+  forkpoles: { troops: 0, walls: 0, buildings: 0, siege: 0.3 },
+  fire_pots: { troops: 0, walls: 0, buildings: 0, siege: 0.3 },
+  boiling_oil: { troops: 0, walls: 0, buildings: 0, siege: 0.3 },
+  hoardings: { troops: 0, walls: 0, buildings: 0, siege: 0.3 },
+  counter_engine: { troops: 0, walls: 0, buildings: 0, siege: 0.3 },
 };
 
 /** SIEGECRAFT raises the trebuchet's delivery against structures
@@ -145,9 +162,21 @@ export const SIEGE_ACCURACY = {
   walls: { from: 0.3, to: 0.6 },
   buildings: { from: 0.2, to: 0.5 },
   siege: { from: 0.2, to: 0.4 },
-  /** It also sharpens the defender's counter-battery fire, so the field is
-   *  worth taking on both sides of a siege. */
-  counterBattery: { from: 1.0, to: 1.3 },
+  /**
+   * The DEFENDER's counter-battery fire, on exactly the same shape as the
+   * attacker's: half again the trebuchet's accuracy at level 0, doubling at
+   * mastery, so the field is worth taking on both sides of a siege.
+   *
+   *   trebuchet vs engines   0.20 → 0.40
+   *   counter   vs engines   0.30 → 0.60
+   *
+   * Was 1.00 → 1.30, which made the counter a perfect weapon and then a better
+   * than perfect one. A delivery gate is "what FRACTION of my power shows up"
+   * (see the header) and a fraction cannot exceed 1 — that entry was an
+   * additive bonus wearing a gate's clothes, compounding where it should have
+   * summed. Every gate in the file is under 1.0 again.
+   */
+  counterBattery: { from: 0.3, to: 0.6 },
 };
 
 // ─── 4 · WALLS ──────────────────────────────────────────────────────────────
@@ -157,8 +186,8 @@ export const SIEGE_ACCURACY = {
  *
  * BASE is what a defender enjoys behind whole masonry, and it does NOT grow
  * with wall level — a standing wall is a standing wall. What level buys is
- * durability (WALL_HP_CURVE) and, since 2026-08, HOW MUCH ARMY the wall can
- * hold off at once (COVER_PER_LEVEL).
+ * durability (WALL_HP_CURVE). Every defender behind
+ * intact masonry gets the full edge, however many attackers come.
  *
  * Two dilutions, applied together:
  *
@@ -180,17 +209,6 @@ export const SIEGE_ACCURACY = {
 export const WALL_EDGE = {
   /** Additive bonus to every defending unit behind an intact wall. */
   BASE: 0.5, // frac
-  /**
-   * Attackers a wall can meet at the parapet, per level. A Palisade holds off
-   * 300; a Citadel 3,000 — which covers a serious field army, against a solo
-   * victory floor of 2,400 regulars.
-   *
-   * Applied as a fraction, not a cliff: a wall covering 3,000 against 6,000
-   * attackers gives half its edge, rather than full protection to some troops
-   * and none to others. Continuous, and it composes with the tackle blend by
-   * multiplication.
-   */
-  COVER_PER_LEVEL: 300, // attackers
   /** Troops who came over on grapples fight a lesser wall. */
   VS_GRAPPLE: 0.3, // frac
   /** Ladder parties do better still; siege towers best of all. */
@@ -282,7 +300,7 @@ export const SIEGE_COUNTERS = {
   /** Answers the ram, and answers it hard — see COUNTER_DUEL.BOILING_OIL_BONUS.
    *  It also scalds the ram's footman crew, which nothing else does. */
   boiling_oil: { power: 300, health: 800, crew: 2, gold: 400, wood: 100, stone: 0, ore: 50, foundryLevel: 6, counters: "rams", name: "Boiling Oil" },
-  hoardings: { power: 400, health: 1200, crew: 3, gold: 800, wood: 300, stone: 0, ore: 100, foundryLevel: 8, counters: "ballistae", name: "Hoardings" },
+  hoardings: { power: 1200, health: 1200, crew: 3, gold: 800, wood: 300, stone: 0, ore: 100, foundryLevel: 8, counters: "ballistae", name: "Hoardings" },
   /** NEW — fire against timber. The siege tower's answer. */
   fire_pots: { power: 400, health: 900, crew: 2, gold: 900, wood: 200, stone: 0, ore: 150, foundryLevel: 8, counters: "siege_towers", name: "Fire Pots" },
   /** The artillery duel's other half. Emplaced and sturdy: 2,000 health against
@@ -320,18 +338,59 @@ export const COUNTER_DUEL = {
   /** A counter that outguns the engines it faces by this much stops shooting
    *  at wood and starts killing the crews. */
   OVERWHELM_RATIO: 3.0, // ×
+
+  /** Boiling oil scalds the men on the beams as well as the beams themselves.
+   *  Per cauldron, and capped — both cut by 5 (from 0.05 / 0.30), because oil is
+   *  already suppressing the ram's wall damage by about a third and did not need
+   *  to be a people-killer on top of that. The cap binds at six cauldrons. */
+  OIL_SCALD_PER_CAULDRON: 0.01, // frac of the ram crew
+  OIL_SCALD_CAP: 0.06, // frac
+
+  /**
+   * SILENCE. A counter ground below this share of its own health is wreckage,
+   * and the crews are pulled back off it. It takes no further part — it neither
+   * fires nor is fired at — until somebody mends it.
+   *
+   * PERSISTENT, and derived rather than stored: it is simply "is this type's
+   * integrity under the floor", so a bombardment the next morning finds the guns
+   * still silent, and `repairSiege` sets integrity to 1 and brings them back
+   * with no flag to clear and nothing to keep in sync.
+   *
+   * Deliberately just ABOVE SIEGE_DESTROYED_BELOW (0.20), and the gap is the
+   * whole design: engines are still wrecked on the way down, so a besieger can
+   * really hurt a battery — but the survivors stand down before they can be
+   * annihilated. You can break a battery; you cannot erase one. The price the
+   * defender pays is that the wall is naked until they come back and pay for
+   * the repairs.
+   *
+   * Defender-side only. An attacker's engines are in the field by choice and
+   * have nowhere to be pulled back to.
+   */
+  SILENCE_FLOOR: 0.25, // frac of engine health
 };
 
 /** Bombard-specific artillery rules. */
 export const ARTILLERY_DUEL = {
+  /**
+   * PERSONNEL COME OFF LIGHTLY. An artillery duel is machines breaking
+   * machines: the men are behind the frames, at range, with earth and timber
+   * between them and the incoming. Engines are the thing that dies.
+   *
+   * Both bands were cut by 90% (attacker 0.05–0.10 → 0.005–0.010, defender
+   * 0.01–0.05 → 0.001–0.005). At the old rates a single barrage killed 62 of
+   * 250 crew, which made a bombard a way of killing ENGINEERS rather than a way
+   * of knocking a wall down — and engineers are slow to raise and cannot be
+   * mended the way an engine can. Wrecked engines are the cost of a siege;
+   * dead crews were an accident of the numbers.
+   */
   /** Attacker's engineers start dying once the defender's artillery is at
    *  least this fraction of the attacker's — a token battery is no threat. */
   ATTACKER_ENGINEER_RISK_ABOVE: 0.3, // frac
-  ATTACKER_ENGINEER_RISK: { min: 0.05, max: 0.1 } as Band,
+  ATTACKER_ENGINEER_RISK: { min: 0.005, max: 0.01 } as Band,
   /** Defender's engineers only start dying once their own battery is being
    *  shot to pieces. */
   DEFENDER_ENGINEER_RISK_AFTER_LOSS: 0.4, // frac of starting artillery lost
-  DEFENDER_ENGINEER_RISK: { min: 0.01, max: 0.05 } as Band,
+  DEFENDER_ENGINEER_RISK: { min: 0.001, max: 0.005 } as Band,
   /** The battery stops answering only when BOTH hold — 70% of it is wreckage
    *  AND what is left is half the attacker's strength. Requiring both is what
    *  stops "keep no counters" from being a cheap way to opt out of the duel:
@@ -367,18 +426,6 @@ export const SORTIE = {
 // hold it; cavalry are wasted on it but own the counter-charge. On the other
 // side, footmen push rams best and archers barely at all.
 
-/** Additive bonuses for DEFENDING units on an intact wall. */
-export const WALL_ROLE_BONUS = {
-  archer: 0.2, // frac — lethal from the parapet
-  footman: 0.1, // frac — built for holding it
-  cavalry: 0.0, // dismounted and wasted
-};
-
-/** Attacking archers shoot at a defender behind cover. Delivery, not a bonus:
- *  a curve of x = wall integrity. 1.0 → ×0.5 (half your arrows find nothing
- *  but stone); 0.5 → ×0.9; a rubbled wall hides nobody. */
-export const ARCHER_VS_WALL_CURVE: Curve = { kind: "expr", formula: "min(1, 0.1 + 0.8 * (1 - x))" };
-
 /** Battering rams are pushed by hand. Crew is drawn footmen first, then
  *  cavalry, then archers — and how well the ram works depends on who is
  *  pushing it. Ram crews take no part in the assault until the wall is
@@ -386,6 +433,17 @@ export const ARCHER_VS_WALL_CURVE: Curve = { kind: "expr", formula: "min(1, 0.1 
  *  stand. */
 export const RAM_CREW = {
   TROOPS_PER_RAM: 20,
+  /**
+   * The ram's wall damage, multiplied. A ram reads 100% against masonry and is
+   * described as THE wall-breaker, but at 300 power ten of them took 67 attacks
+   * to breach a Stone Footing and 417 to breach a Citadel — which is not a
+   * wall-breaker, it is a rounding error with a crew of 200.
+   *
+   * Applied to the wall damage ONLY, never to the ram's raw power, because
+   * `parkStrength` sums that raw power for the crew-risk threshold and a 20x
+   * ram would drown every other engine in it.
+   */
+  WALL_MULTIPLIER: 20, // ×
   PRIORITY: ["footman", "cavalry", "archer"] as const,
   EFFECTIVENESS: { footman: 1.2, cavalry: 1.1, archer: 1.0 },
 };
@@ -404,16 +462,40 @@ export const CASUALTY_SPLIT = {
 export const CASUALTY_TIER_ORDER = ["light", "medium", "heavy"] as const;
 
 /**
- * Volleys in one bombardment. BOMBARD ONLY — a barrage really is a sequence of
- * shots, and each one reads the wall the last one left.
+ * A bombardment is ONE exchange, like every other attack — this is how heavily
+ * it lands. Five volleys' worth of stone, resolved in a single pass.
  *
- * Field battles have no equivalent and no longer count anything: a raid, a
- * castle attack and a revenge are each ONE exchange down the order of battle.
- * (This was `MAX_ROUNDS`, shared by both, back when a battle ran up to ten
- * rounds and ended when a side broke. Nothing about a barrage changed; it just
- * stopped sharing a name with something that no longer exists.)
+ * Rounds are gone from bombard too. They bought nothing a multiplier does not:
+ * a barrage has no manoeuvre and no decisions inside it, so ten iterations of
+ * the same arithmetic were ten chances for the reader to lose the thread and
+ * one long log nobody finished. What a sustained barrage actually IS — more
+ * stone than a single throw — is a number, and this is the number.
  */
-export const BOMBARD_VOLLEYS = 10;
+export const BOMBARD_INTENSITY = 5; // ×
+
+/**
+ * SIEGE STANCE — a standing order, like the defender's sortie.
+ *
+ * Trebuchets can only spend their fire once. In the GENERAL stance a share goes
+ * to the enemy battery (whatever `siegeDelivery` says, 20% up to 40% with
+ * Siegecraft) and everything left over falls on the wall, or on the town once
+ * the wall is breached.
+ *
+ * COUNTER-SIEGE FIRST buys accuracy against their engines with everything else:
+ * the share against the battery is half again as large — 0.20 → 0.30, and a
+ * maxed 0.40 → 0.60 — and the remainder is simply WASTED. No stone reaches the
+ * masonry at all.
+ *
+ * That is the trade, and it is meant to be a real one. Against a heavy battery
+ * you cannot out-shoot, silencing it first is the only way the wall ever falls;
+ * against a token battery it throws your whole barrage away. The defender keeps
+ * their emplacement edge either way — choosing to duel does not make the duel
+ * fair, it only makes you better at it.
+ */
+export const SIEGE_STANCE = {
+  /** How much sharper your fire is against engines when you commit to the duel. */
+  COUNTER_FOCUS_BONUS: 0.5, // frac, multiplicative on the delivery share
+};
 
 /**
  * TEMPO — what fraction of an arm's power lands in the ONE exchange a battle is.
@@ -483,6 +565,44 @@ export const YIELD = {
   STRENGTH_RATIO: 0.6,
   /** The sellswords cover the retreat. That is what sellswords are for. */
   MERC_LOSS_FRACTION: 0.25,
+};
+
+// ─── 12b · STRIPPING THE DEAD ───────────────────────────────────────────────
+
+/**
+ * SALVAGE — what the victor picks up off the field itself, and it is NOT loot.
+ *
+ * Whoever holds the ground walks it afterwards and strips the fallen: their
+ * enemy's dead and their own alike. Two sources, one rate each:
+ *
+ *   DEAD REGULARS give back ORE, at ORE_SHARE. Mail, plate and blades outlive
+ *   the man wearing them, so this is the generous one.
+ *   DEAD SELLSWORDS give back GOLD, at GOLD_SHARE. They were bought rather than
+ *   built; their whole cost was coin, and coin is what their bodies return.
+ *
+ * Nothing else is stripped. Not engineers, not timber (arrows are loosed and
+ * staves splinter), and a regular's muster gold stays spent.
+ *
+ * Kept deliberately apart from LOOT, in its own report line and its own field:
+ *
+ *   LOOT comes out of the DEFENDER'S STOREHOUSES. Capped, size-scaled, halved on
+ *   a surrender, and revenge and bombard take none of it.
+ *
+ *   SALVAGE comes off the BODIES. It scales with nothing but how many died, and
+ *   does not care which mode was fought — so REVENGE, which carries nothing home
+ *   by design, still pays for the armour of the men it killed. A punishment
+ *   should cost the attacker something less than everything, without ever
+ *   becoming the efficient way to farm somebody.
+ *
+ * Bombard has no salvage at all: it kills engineers, and engineers are not
+ * stripped.
+ */
+export const SALVAGE = {
+  /** Share of a dead SELLSWORD's hire price, recovered as gold. */
+  GOLD_SHARE: 0.4, // frac
+  /** Share of a dead REGULAR's ore, recovered as ore. Higher, because steel
+   *  outlives the soldier. */
+  ORE_SHARE: 0.7, // frac
 };
 
 // ─── 13 · LOOT ──────────────────────────────────────────────────────────────
@@ -701,22 +821,6 @@ export const EXPERIENCE = {
   MAX_PER_BATTLE: 20_000,
 };
 
-/**
- * The ENGINEERS' veterancy, still a 0–100 pool.
- *
- * Deliberately left alone when the battle line moved to a points ledger. Siege
- * experience was never part of the runaway — it only moves in fights that have
- * walls in them, so it cannot be farmed by being raided twenty times a day, and
- * a besieger's corps is small enough that the proportional decay behaves. These
- * are the old XP numbers, unchanged, so bombard resolves exactly as it did.
- */
-export const SIEGE_XP = {
-  MAX: 100,
-  PER_KILL: 0.05,
-  PER_CIVILIAN_DISPLACED: 0.025,
-  DEFENDER_GAIN: 5,
-  MAX_PER_BATTLE: 10,
-};
 
 // ─── 15 · CIVILIAN LOSSES ───────────────────────────────────────────────────
 // Every successful attack drives people off — they flee a sacked town. This is

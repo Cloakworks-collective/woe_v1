@@ -9,6 +9,7 @@ import { Panel } from "@/components/Panel";
 import { ResearchStatus } from "@/components/ResearchStatus";
 import {
   MAX_FIELD_LEVEL,
+  SCHOLARSHIP,
   RESEARCH_FIELDS,
   RESEARCH_DISCIPLINES,
   RESEARCH_GUIDE,
@@ -21,6 +22,7 @@ import {
   researchLevel,
   researchLevelEffect,
   researchRate,
+  researchSwitchLoss,
   totalResearchLevels,
   type Player,
 } from "@/lib/engine";
@@ -103,6 +105,13 @@ export default async function ResearchPage({
   const activeMaxed = active ? activeLvl >= MAX_FIELD_LEVEL : false;
   const activeBanked = active ? (p.research.banked[active] ?? 0) : 0;
   const activeEtaTurns = active && rate > 0 && !activeMaxed ? Math.ceil((nextCost - activeBanked) / rate) : 0;
+  // What moving the scholars off `active` would ACTUALLY cost. Zero when nothing
+  // is banked there yet, and zero once Scholarship is mastered — in both cases
+  // the field cards must not offer a "Switch" with a forfeit warning attached,
+  // because no forfeit is charged. See setResearch: the penalty is a share of
+  // the banked points, so with none banked there is nothing to take.
+  const switchLoss = researchSwitchLoss(p);
+  const forfeit = Math.floor(activeBanked * switchLoss);
   const status: ResearchStatus =
     rate === 0
       ? { state: "silent" }
@@ -136,8 +145,19 @@ export default async function ResearchPage({
           (50/turn at L1 up to 500 at L10). But research grows <b>progressively dearer</b> — each
           level you earn, in any field, makes the next cost more — so the{" "}
           <b>order you research in is the strategy</b>.
-          Scholars study one field at a time, and <b>switching abandons half</b> the progress banked
-          toward the current field&apos;s next level.
+          Scholars study one field at a time, and{" "}
+          {switchLoss > 0 ? (
+            <>
+              <b>switching abandons {Math.round(switchLoss * 100)}%</b> of the progress banked toward
+              the current field&apos;s next level
+            </>
+          ) : (
+            <>
+              <b>Scholarship has bought the switching penalty away</b> — your scholars may move
+              between fields freely
+            </>
+          )}
+          .
         </p>
         <div className="rnext-banner">
           <span>
@@ -235,13 +255,33 @@ export default async function ResearchPage({
                           ) : (
                             <CmdForm name="setResearch" path="/research">
                               <input type="hidden" name="field" value={fid} />
-                              {active && active !== fid ? (
+                              {forfeit > 0 && active && active !== fid ? (
                                 <ReqTip
-                                  heading={`Switch scholars to ${f.name}`}
-                                  body={`Redirect your scholars here. Points already banked toward ${f.name} are kept — but you forfeit half of ${META[active].name}'s progress toward its next level.`}
-                                  note="Switching back later costs half again; study one field to the level you need before moving on."
+                                  heading={`Switch scholars from ${META[active].name}`}
+                                  body={`Redirect your scholars here. Points already banked toward ${f.name} are kept — but ${fmt(forfeit)} of ${META[active].name}'s ${fmt(activeBanked)} banked points are abandoned (${Math.round(switchLoss * 100)}%).`}
+                                  note={
+                                    researchLevel(p, "scholarship") >= MAX_FIELD_LEVEL
+                                      ? "Scholarship mastered — you may move the scholars freely."
+                                      : `Switching back later costs the same again. Scholarship buys this down ${Math.round(SCHOLARSHIP.SWITCH_LOSS_PER_LEVEL * 100)}% a level, to nothing at mastery.`
+                                  }
                                 >
                                   <Btn className="btn">Switch here</Btn>
+                                </ReqTip>
+                              ) : active && active !== fid ? (
+                                // The scholars are elsewhere, but moving them costs
+                                // NOTHING — either that field has no banked points to
+                                // abandon, or Scholarship has bought the penalty away.
+                                // Calling it a "switch" and warning about forfeit
+                                // would be inventing a price that is not charged.
+                                <ReqTip
+                                  heading={`Set the scholars on ${f.name}`}
+                                  body={`Move them here from ${META[active].name}. Nothing is lost — ${
+                                    activeBanked > 0
+                                      ? "Scholarship has bought the switching penalty away entirely."
+                                      : `there are no points banked toward ${META[active].name} to abandon.`
+                                  }`}
+                                >
+                                  <Btn className="btn">Study this</Btn>
                                 </ReqTip>
                               ) : (
                                 <ReqTip

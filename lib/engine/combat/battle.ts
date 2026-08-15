@@ -16,9 +16,12 @@
 
 import {
   COMBAT_TEMPO,
+  COUNTER_DUEL,
   EXPERIENCE,
   LUCK_SWING,
   RAM_CREW,
+  SALVAGE,
+  SIEGE_STANCE,
   SIEGE_GEAR,
   SIEGE_GEAR_LOSS_ON_DEFEAT,
   SORTIE,
@@ -60,6 +63,7 @@ import {
   setWallEdge,
   siegeBonusPool,
   siegeDelivery,
+  siegeLedger,
   spreadDamage,
   staminaDelivery,
   totalHealth,
@@ -74,13 +78,14 @@ import {
   defenderCrews,
   makePark,
   parkStrength,
+  counterSilenced,
   rollDefenderEdge,
   runDuelRound,
   type Park,
 } from "./duel";
 import { rankingScore } from "../score";
 import { archerWallDelivery, blendWallEdge, damageToIntegrity, wallHealth } from "./walls";
-import { displaceCivilians, lootKind, lootShare, plunderGold, plunderResource, unbankedGold, unstored } from "./loot";
+import { displaceCivilians, fallenValue, lootKind, lootShare, plunderGold, plunderResource, unbankedGold, unstored } from "./loot";
 
 export interface BattleOptions {
   rng: Rng;
@@ -97,23 +102,40 @@ export interface BattleOutcome {
 
 // ── Ram crews ───────────────────────────────────────────────────────────────
 
+/** Who is on the beams, split by whether you raised them or bought them —
+ *  because boiling oil kills the hired first, like everything else does. */
+export interface RamCrewBlock {
+  merc: Record<Tier, number>;
+  regular: Record<Tier, number>;
+}
+
 interface RamCrew {
-  committed: Partial<Record<Arm, Record<Tier, number>>>;
+  committed: Partial<Record<Arm, RamCrewBlock>>;
   total: number;
   /** Weighted by who is pushing — footmen do it best, archers barely at all. */
   effectiveness: number;
 }
 
+const emptyBlock = (): RamCrewBlock => ({
+  merc: { light: 0, medium: 0, heavy: 0 },
+  regular: { light: 0, medium: 0, heavy: 0 },
+});
+
 /**
  * Twenty pairs of hands per ram, drawn footmen first, then cavalry, then
- * archers. They are NOT in the battle line — pushing a ram against a gate is
- * not the same job as holding a shield wall — and boiling oil can scald them
- * where they stand. Once the wall is breached they drop the beams and join the
- * assault.
+ * archers — and SELLSWORDS BEFORE YOUR OWN at every rank. They are NOT in the
+ * battle line (pushing a ram against a gate is not holding a shield wall), and
+ * boiling oil scalds them where they stand. Once the wall is breached they drop
+ * the beams and join the assault.
+ *
+ * The hired go on the beams first because they go first everywhere: it is the
+ * one invariant the casualty model never breaks. Before this, ram crews were
+ * drawn from regulars ONLY, so the single counter in the game that kills people
+ * rather than machines could only ever kill your own.
  */
 function assignRamCrew(p: Player, rams: number): RamCrew {
   const need = rams * RAM_CREW.TROOPS_PER_RAM;
-  const committed: Partial<Record<Arm, Record<Tier, number>>> = {};
+  const committed: Partial<Record<Arm, RamCrewBlock>> = {};
   let left = need;
   let weighted = 0;
   let total = 0;
@@ -121,14 +143,17 @@ function assignRamCrew(p: Player, rams: number): RamCrew {
   const SRC = { footman: "footmen", archer: "archers", cavalry: "cavalry" } as const;
   for (const arm of RAM_CREW.PRIORITY) {
     if (left <= 0) break;
-    const block: Record<Tier, number> = { light: 0, medium: 0, heavy: 0 };
-    for (const tier of ["light", "medium", "heavy"] as const) {
-      if (left <= 0) break;
-      const take = Math.min(p.army[SRC[arm]][tier], left);
-      block[tier] = take;
-      left -= take;
-      total += take;
-      weighted += take * RAM_CREW.EFFECTIVENESS[arm];
+    const block = emptyBlock();
+    for (const pool of ["merc", "regular"] as const) {
+      for (const tier of ["light", "medium", "heavy"] as const) {
+        if (left <= 0) break;
+        const have = pool === "merc" ? p.army.mercenaries[SRC[arm]][tier] : p.army[SRC[arm]][tier];
+        const take = Math.min(have, left);
+        block[pool][tier] = take;
+        left -= take;
+        total += take;
+        weighted += take * RAM_CREW.EFFECTIVENESS[arm];
+      }
     }
     committed[arm] = block;
   }
@@ -190,7 +215,7 @@ export function resolveBattle(
   const refreshWall = () => {
     if (!hasWall) return { blendedEdge: 0, grappled: 0, laddered: 0, towered: 0, unaided: 0 };
     const troops = headcount(atk);
-    const esc = blendWallEdge(defender, troops, atkPark.crewed);
+    const esc = blendWallEdge(defender, troops, atkPark.crewed, atkPark.integrity);
     // A wall that has been battered shelters proportionally less.
     setWallEdge(def, esc.blendedEdge * wallIntegrity);
     return esc;
@@ -218,6 +243,22 @@ export function resolveBattle(
   const defMuster = muster(def);
   let sortied = false;
   let ramCrewJoined = false;
+
+  // ── The siege stance ──────────────────────────────────────────────────────
+  // The same standing order that governs a bombard, because it is the same
+  // question: a trebuchet can only throw its stone at one thing. General splits
+  // between their battery and the wall; counter-first lays everything on the
+  // battery and wastes the remainder. With no battery to duel there is nothing
+  // to allot and the whole barrage goes to the masonry.
+  const stance = attacker.army.siegeStance ?? "general";
+  const battery = walls && defPark.crewed.counter_engine > 0 && !counterSilenced(defPark, "counter_engine");
+  const focused = stance === "counter" && battery;
+  const counterShare = !battery
+    ? 0
+    : focused
+      ? Math.min(1, siegeDelivery(attacker, "siege") * (1 + SIEGE_STANCE.COUNTER_FOCUS_BONUS))
+      : siegeDelivery(attacker, "siege");
+  const structureShare = focused ? 0 : 1 - counterShare;
 
   if (yielded) {
     victor = "attacker";
@@ -268,14 +309,15 @@ export function resolveBattle(
 
     // Phase 0 — the engine duel.
     if (walls) {
-      const duel = runDuelRound({ attacker, defender, atkPark, defPark, war, rng, defenderEdge });
+      const duel = runDuelRound({ attacker, defender, atkPark, defPark, war, rng, defenderEdge, returnShare: counterShare });
       if (duel.attackerEngineerKills > 0) killEngineers(atk, duel.attackerEngineerKills);
       for (const note of duel.notes) say(round, "counter-duel", note, { tone: "neutral" });
 
       // Boiling oil scalds the men at the gate, not just the beams.
       const oil = defPark.crewed.boiling_oil;
       if (oil > 0 && ramCrew.total > 0 && !ramCrewJoined) {
-        const scalded = rollCount(rng, ramCrew.total, Math.min(0.3, 0.05 * oil));
+        const scalded = rollCount(rng, ramCrew.total,
+          Math.min(COUNTER_DUEL.OIL_SCALD_CAP, COUNTER_DUEL.OIL_SCALD_PER_CAULDRON * oil));
         if (scalded > 0) {
           // Take them out of the committed crew, not just off the tally —
           // otherwise applyLosses hands them back at the end and the report
@@ -296,10 +338,16 @@ export function resolveBattle(
       if (hasWall && wallIntegrity > 0) {
         const ramDmg =
           atkPark.crewed.rams * SIEGE_GEAR.rams.power * atkPark.integrity.rams *
-          effectiveness("rams", "walls") * ramCrew.effectiveness * atkSiege * aLuck;
+          effectiveness("rams", "walls") * ramCrew.effectiveness * RAM_CREW.WALL_MULTIPLIER *
+          atkSiege * aLuck;
+        // Trebuchets spend their fire ONCE, here as in a bombard — the siege
+        // stance decides how much went to the enemy battery and this is what is
+        // left. They used to hit the counters, the wall and the garrison all at
+        // once, which made artillery strictly better in an assault than in the
+        // dedicated artillery attack.
         const trebDmg =
           atkPark.crewed.trebuchets * SIEGE_GEAR.trebuchets.power * atkPark.integrity.trebuchets *
-          siegeDelivery(attacker, "walls") * atkSiege * aLuck;
+          siegeDelivery(attacker, "walls") * structureShare * atkSiege * aLuck;
         const applied = Math.min(wallIntegrity * wallHp, ramDmg + trebDmg);
         if (applied > 0) {
           wallDamage += applied;
@@ -312,12 +360,10 @@ export function resolveBattle(
       }
 
       // Engines that hurt men rather than masonry.
+      // Ballistae, and only ballistae. One job each.
       const troopFire =
-        (atkPark.crewed.ballistae * SIEGE_GEAR.ballistae.power * atkPark.integrity.ballistae *
-          effectiveness("ballistae", "troops") +
-          atkPark.crewed.trebuchets * SIEGE_GEAR.trebuchets.power * atkPark.integrity.trebuchets *
-            effectiveness("trebuchets", "troops")) *
-        atkSiege * aLuck * COMBAT_TEMPO;
+        atkPark.crewed.ballistae * SIEGE_GEAR.ballistae.power * atkPark.integrity.ballistae *
+        effectiveness("ballistae", "troops") * atkSiege * aLuck * COMBAT_TEMPO;
       if (troopFire > 0) {
         aDealt += troopFire;
         spreadDamage(def, troopFire);
@@ -326,9 +372,8 @@ export function resolveBattle(
       // The defender's spare engineers work their own engines and shoot back.
       const defSiege = siegeBonusPool(defender, war);
       const answer =
-        (defOffPark.crewed.ballistae * SIEGE_GEAR.ballistae.power * effectiveness("ballistae", "troops") +
-          defOffPark.crewed.trebuchets * SIEGE_GEAR.trebuchets.power * effectiveness("trebuchets", "troops")) *
-        defSiege * dLuck * COMBAT_TEMPO;
+        defOffPark.crewed.ballistae * SIEGE_GEAR.ballistae.power *
+        effectiveness("ballistae", "troops") * defSiege * dLuck * COMBAT_TEMPO;
       if (answer > 0) {
         dDealt += answer;
         spreadDamage(atk, answer);
@@ -431,6 +476,33 @@ export function resolveBattle(
   applyLosses(defender, def, null, false);
   if (hasWall) defender.wallIntegrity = Math.max(0, wallIntegrity);
 
+  // ── Stripping the dead ────────────────────────────────────────────────────
+  //
+  // Whoever holds the ground walks it afterwards and strips the fallen — the
+  // enemy's and their own alike. Read HERE, immediately after the losses are
+  // written back and deliberately before the mercenary cascade and the field
+  // hospital: sellswords paid off for want of an officer rode away alive, and
+  // ones the surgeons saved are alive too. Neither is lying there to be looted.
+  //
+  // This is not loot. It comes off bodies rather than out of storehouses, it is
+  // not capped or size-scaled or halved on a surrender, and it does not care
+  // which mode was fought — so a REVENGE, which carries nothing home by design,
+  // still pays for the armour of the men it killed. See SALVAGE.
+  const atkFell = fallenValue(attackerIn, attacker);
+  const defFell = fallenValue(defenderIn, defender);
+  const salvage = {
+    gold: Math.floor((atkFell.gold + defFell.gold) * SALVAGE.GOLD_SHARE),
+    ore: Math.floor((atkFell.ore + defFell.ore) * SALVAGE.ORE_SHARE),
+  };
+  const victorSide = victor === "attacker" ? attacker : defender;
+  victorSide.gold += salvage.gold;
+  victorSide.resources.ore += salvage.ore;
+  if (salvage.gold > 0 || salvage.ore > 0) {
+    say(rounds, "aftermath",
+      `${victor === "attacker" ? "Our" : "Their"} people walk the field and strip the fallen — ${salvage.gold.toLocaleString("en-US")} gold and ${salvage.ore.toLocaleString("en-US")} ore off the dead of both sides.`,
+      { tone: victor === "attacker" ? "good" : "bad" });
+  }
+
   // Engines: what the duel wrecked, plus what a failed assault leaves behind.
   const gearLost: Partial<Record<SiegeGearType, number>> = { ...atkPark.destroyed };
   writeBackPark(attacker.army.siegeGear, attacker.army.siegeGearIntegrity, atkPark);
@@ -491,8 +563,8 @@ export function resolveBattle(
   const dRegKilled = regularsLost(atk.losses);
   const aXpBefore = attacker.army.experiencePoints;
   const dXpBefore = defender.army.experiencePoints;
-  const aSiegeBefore = attacker.army.siegeExperience;
-  const dSiegeBefore = defender.army.siegeExperience;
+  const aSiegeBefore = attacker.army.siegeExperiencePoints;
+  const dSiegeBefore = defender.army.siegeExperiencePoints;
 
   if (!yielded) {
     const aScore = rankingScore(attackerIn);
@@ -532,17 +604,20 @@ export function resolveBattle(
     attacker.army.experiencePoints = Math.max(0, attacker.army.experiencePoints + Math.round(aNet));
     defender.army.experiencePoints = Math.max(0, defender.army.experiencePoints + Math.round(dNet));
 
-    // The engineers keep their own 0–100 pool for now — siege veterancy is a
-    // different trade and was never part of the runaway. It still decays with
-    // the crews who die, and is credited off the same battle.
+    // The ENGINEERS keep their own ledger, run on exactly the same rules as the
+    // battle line's — credited for the crews they killed, debited for the crews
+    // they lost. Only in fights that had engines in them; a raid teaches an
+    // engineer nothing because they were not there.
     if (walls) {
-      const aSiegeGain = Math.min(10, aInflicted * 0.05);
-      const dSiegeGain = Math.min(10, dInflicted * 0.05);
-      attacker.army.siegeExperience = clamp(
-        decayExperience(attacker.army.siegeExperience, atk.losses.engineers, attackerIn.army.siegeEngineers, 1) + aSiegeGain,
+      attacker.army.siegeExperiencePoints = Math.max(
+        0,
+        attacker.army.siegeExperiencePoints +
+          Math.round(siegeLedger(def.losses.engineers, atk.losses.engineers, aMatch, aWon ? EXPERIENCE.WON_ATTACK : EXPERIENCE.LOST)),
       );
-      defender.army.siegeExperience = clamp(
-        decayExperience(defender.army.siegeExperience, def.losses.engineers, defenderIn.army.siegeEngineers, 1) + dSiegeGain,
+      defender.army.siegeExperiencePoints = Math.max(
+        0,
+        defender.army.siegeExperiencePoints +
+          Math.round(siegeLedger(atk.losses.engineers, def.losses.engineers, dMatch, aWon ? EXPERIENCE.LOST : EXPERIENCE.WON_DEFENCE)),
       );
     }
   }
@@ -598,6 +673,7 @@ export function resolveBattle(
       ? { grappled: escalade.grappled, laddered: escalade.laddered, towered: escalade.towered }
       : undefined,
     loot,
+    salvage,
     staminaLoss: { attacker: aDrain, defender: dDrain },
     experienceChange: {
       attacker: Math.round(attacker.army.experiencePoints - aXpBefore),
@@ -605,8 +681,8 @@ export function resolveBattle(
     },
     mercsRecovered: hospital.recovered,
     siegeExperienceChange: {
-      attacker: Math.round(attacker.army.siegeExperience - aSiegeBefore),
-      defender: Math.round(defender.army.siegeExperience - dSiegeBefore),
+      attacker: Math.round(attacker.army.siegeExperiencePoints - aSiegeBefore),
+      defender: Math.round(defender.army.siegeExperiencePoints - dSiegeBefore),
     },
     log,
   };
@@ -681,29 +757,44 @@ function crewCountersEmpty(): Record<CounterType, number> {
  *  cheapest ranks go first, as everywhere else. */
 function burnRamCrew(side: Side, crew: RamCrew, n: number) {
   let left = n;
-  for (const arm of RAM_CREW.PRIORITY) {
-    const block = crew.committed[arm];
-    if (!block) continue;
-    for (const tier of ["light", "medium", "heavy"] as const) {
-      if (left <= 0) break;
-      const take = Math.min(block[tier], left);
-      block[tier] -= take;
-      left -= take;
-      crew.total = Math.max(0, crew.total - take);
-      side.losses[arm === "footman" ? "footmen" : arm === "cavalry" ? "cavalry" : "archers"] += take;
+  // Sellswords off the beams first, at every rank, before one of your own is
+  // touched — the same order every other blow in the game follows.
+  for (const pool of ["merc", "regular"] as const) {
+    for (const arm of RAM_CREW.PRIORITY) {
+      const block = crew.committed[arm];
+      if (!block) continue;
+      for (const tier of ["light", "medium", "heavy"] as const) {
+        if (left <= 0) break;
+        const take = Math.min(block[pool][tier], left);
+        if (take <= 0) continue;
+        block[pool][tier] -= take;
+        left -= take;
+        crew.total = Math.max(0, crew.total - take);
+        if (pool === "merc") {
+          side.losses.mercenaries += take;
+          // Booked for the field hospital like any other sellsword death.
+          const byArm = (side.mercFallen.line[arm] ??= { light: 0, medium: 0, heavy: 0 });
+          byArm[tier] += take;
+        } else {
+          side.losses[arm === "footman" ? "footmen" : arm === "cavalry" ? "cavalry" : "archers"] += take;
+        }
+      }
     }
-    if (left <= 0) break;
   }
 }
 
 /** Ram crews rejoin the line at a breach, fighting as the arm they always were. */
 function returnRamCrew(side: Side, crew: RamCrew) {
-  for (const [arm, tiers] of Object.entries(crew.committed) as [Arm, Record<Tier, number>][]) {
-    for (const tier of ["light", "medium", "heavy"] as const) {
-      const n = tiers[tier];
-      if (n <= 0) continue;
-      const g = side.groups.find((x) => x.arm === arm && x.tier === tier && !x.isMerc);
-      if (g) g.count += n;
+  for (const [arm, block] of Object.entries(crew.committed) as [Arm, RamCrewBlock][]) {
+    for (const pool of ["merc", "regular"] as const) {
+      for (const tier of ["light", "medium", "heavy"] as const) {
+        const n = block[pool][tier];
+        if (n <= 0) continue;
+        const g = side.groups.find(
+          (x) => x.arm === arm && x.tier === tier && x.isMerc === (pool === "merc"),
+        );
+        if (g) g.count += n;
+      }
     }
   }
   crew.committed = {};
@@ -745,9 +836,9 @@ function applyLosses(p: Player, s: Side, crew: RamCrew | null, joined: boolean) 
     for (const tier of ["light", "medium", "heavy"] as const) {
       const reg = s.groups.find((g) => g.arm === arm && g.tier === tier && !g.isMerc);
       const merc = s.groups.find((g) => g.arm === arm && g.tier === tier && g.isMerc);
-      const held = !joined && crew ? (crew.committed[arm]?.[tier] ?? 0) : 0;
-      p.army[SRC[arm]][tier] = (reg?.count ?? 0) + held;
-      p.army.mercenaries[SRC[arm]][tier] = merc?.count ?? 0;
+      const block = !joined && crew ? crew.committed[arm] : undefined;
+      p.army[SRC[arm]][tier] = (reg?.count ?? 0) + (block?.regular[tier] ?? 0);
+      p.army.mercenaries[SRC[arm]][tier] = (merc?.count ?? 0) + (block?.merc[tier] ?? 0);
     }
   }
   p.army.siegeEngineers = s.engineers;

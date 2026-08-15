@@ -333,11 +333,26 @@ export function advisorCounsel(p: Player): AdvisorCounsel {
       `Experience ${Math.round(p.army.experiencePoints).toLocaleString("en-US")} points — +${(veterancyBonus(p.army.experiencePoints) * 100).toFixed(1)}% to power AND health. Killing regulars earns it; losing your own spends it.`,
     );
   }
-  const bare = (["footmen", "archers", "cavalry"] as const).filter(
-    (k) => troopTotal(p.army[k]) > 0 && troopTotal(p.army.mercenaries[k]) === 0,
-  );
+  // Screening is per RANK, not per arm. Damage walks light → medium → heavy and
+  // splits at each rank onto the sellswords standing THERE; a rank holding
+  // regulars and no sellswords takes the whole blow on your own people, because
+  // the screen's share cannot fall through to hired blades of another rank.
+  // A hundred heavy footmen behind mercenaries who are all medium are not
+  // screened at all, and the old per-ARM check called that covered.
+  const TIER_NAME = { light: "light", medium: "medium", heavy: "heavy" } as const;
+  const ARM_NAME = { footmen: "footmen", archers: "archers", cavalry: "cavalry" } as const;
+  const bare: string[] = [];
+  for (const k of ["footmen", "archers", "cavalry"] as const) {
+    for (const tier of ["light", "medium", "heavy"] as const) {
+      if (p.army[k][tier] > 0 && p.army.mercenaries[k][tier] === 0) {
+        bare.push(`${TIER_NAME[tier]} ${ARM_NAME[k]}`);
+      }
+    }
+  }
   if (bare.length > 0) {
-    militaryB.push(`Your ${bare.join(", ")} stand bare — no hired blades in front of them. Mercenaries of the same arm die first; buy the shield.`);
+    militaryB.push(
+      `Your ${bare.join(", ")} stand bare — no hired blades at that rank. Damage splits per RANK, so these take the whole blow on your own people; sellswords of another tier cannot cover them. Buy the shield where the gap is.`,
+    );
   }
 
   // ── Economic ──

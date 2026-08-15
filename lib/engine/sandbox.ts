@@ -100,7 +100,7 @@ export function buildSandboxPlayer(a: SandboxArmy, id: string): Player {
   p.army.scouts = Math.max(0, a.scouts);
   p.army.stamina = Math.max(0, Math.min(100, a.stamina));
   p.army.experiencePoints = Math.max(0, a.experience) * (EXPERIENCE.POINTS_FOR_DOUBLE / 100);
-  p.army.siegeExperience = Math.max(0, Math.min(100, a.siegeExperience));
+  p.army.siegeExperiencePoints = Math.max(0, a.siegeExperience) * (EXPERIENCE.POINTS_FOR_DOUBLE / 100);
   p.army.sortieEnabled = a.sortie;
 
   for (const [t, n] of Object.entries(a.gear)) {

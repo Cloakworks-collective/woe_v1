@@ -82,6 +82,7 @@ import {
   repairSiege,
   sellSiege,
   setSortie,
+  setSiegeStance,
   setRecruitHour,
   repairWalls,
   resolveBattle,
@@ -466,6 +467,8 @@ function dispatch(
       return put(sellSiege(player, args.type as never, num(args.count)).player), undefined;
     case "setSortie":
       return put(setSortie(player, str(args.enabled) === "true").player), undefined;
+    case "setSiegeStance":
+      return put(setSiegeStance(player, str(args.stance) === "counter" ? "counter" : "general").player), undefined;
 
     // ── War ───────────────────────────────────────────────────────────
     case "attack":

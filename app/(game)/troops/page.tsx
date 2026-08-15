@@ -24,6 +24,7 @@ import {
   UNIT_GUIDE,
   UNIT_INFO,
   EXPERIENCE,
+  SIEGE_STANCE,
 } from "@/lib/constants";
 import {
   civilians,
@@ -42,6 +43,7 @@ import {
   purseGold,
   purseRes,
   veterancyBonus,
+  siegeDelivery,
 } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
@@ -120,6 +122,11 @@ export default async function TroopsPage({
   const clan = p.clanId ? world.clans[p.clanId] : undefined;
   const discount = wonderDiscount(clan);
   const mercCap = Math.floor(MERCENARIES.CAP_RATIO * military(p));
+  // The siege standing order, and the share it actually buys. Read from the
+  // engine's own delivery gate rather than a hardcoded 20%, so Siegecraft moves
+  // the copy the moment it moves the number.
+  const counterFirst = (p.army.siegeStance ?? "general") === "counter";
+  const siegeShare = siegeDelivery(p, "siege");
   const mercInService = mercTotal(p.army.mercenaries);
   // Per ARM and per TIER, straight from the engine — this used to be a local
   // recompute off the flat MERC_PRICE_GOLD, which quoted 900 for a cavalry
@@ -556,6 +563,32 @@ export default async function TroopsPage({
               <input type="hidden" name="enabled" value={p.army.sortieEnabled ? "false" : "true"} />
               <Btn className="btn">
                 {p.army.sortieEnabled ? "Hold the wall instead" : "Order the sortie"}
+              </Btn>
+            </CmdForm>
+          </li>
+
+          <li className="order">
+            <div className="order-head">
+              <span className="order-name">🎯 When bombarding</span>
+              <span className={`order-state${counterFirst ? " is-on" : ""}`}>
+                {counterFirst ? "Counter-siege first" : "General barrage"}
+              </span>
+            </div>
+            <p className="order-why">
+              Trebuchets can only spend their fire once. A <b>general barrage</b> sends{" "}
+              {Math.round(siegeShare * 100)}% at whatever battery answers and drops the rest on the
+              wall — or on the town once the wall is breached. <b>Counter-siege first</b> lays every
+              engine on their Counter-Engines instead: your accuracy against them rises by half, to{" "}
+              {Math.round(Math.min(1, siegeShare * (1 + SIEGE_STANCE.COUNTER_FOCUS_BONUS)) * 100)}%,
+              and everything left over is <b>wasted</b> — not a stone reaches the masonry. Worth it
+              against a battery you cannot out-shoot, and a thrown-away barrage against a token one.
+              They keep their emplacement edge either way; committing makes you better at the duel,
+              never makes it fair.
+            </p>
+            <CmdForm name="setSiegeStance" path="/troops#strategy">
+              <input type="hidden" name="stance" value={counterFirst ? "general" : "counter"} />
+              <Btn className="btn">
+                {counterFirst ? "Back to a general barrage" : "Silence their battery first"}
               </Btn>
             </CmdForm>
           </li>

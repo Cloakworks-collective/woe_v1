@@ -8,7 +8,11 @@
 import {
   CIVILIAN_LOSS,
   LOOT,
+  MERC_PRICE_BY_ARM,
   STORAGE_BUILDING,
+  TIER_COST_MULT,
+  TRAINING_COSTS,
+  TRAINING_COST_BY_TIER,
 } from "../../constants";
 import { rollBand, type Rng } from "../rng";
 import {
@@ -121,6 +125,56 @@ export function lootKind(mode: AttackMode): "goods" | "gold" | "none" {
   if (mode === "raid") return "goods";
   if (mode === "siege") return "gold"; // "siege" IS the castle attack (see AttackMode)
   return "none"; // bombard and revenge go home empty-handed, war or no war
+}
+
+/**
+ * What the fallen are worth to strip — from two sources, one each.
+ *
+ *   DEAD REGULARS give back ORE. Mail, plate and blades outlive the man wearing
+ *   them, which is why the ore share is the generous one.
+ *   DEAD SELLSWORDS give back GOLD. They were bought rather than built, so their
+ *   whole cost was coin and coin is what their bodies return.
+ *
+ * Nothing else. Engineers are not stripped, timber is not recovered (arrows are
+ * loosed and staves splinter), and a regular's muster gold stays spent.
+ *
+ * Measured by diffing the army against the one that marched out, per arm and per
+ * tier, so a dead heavy footman is priced as a heavy footman rather than as an
+ * average. That also means it must be read BEFORE `settleMercenaries` and
+ * `fieldHospital` run: sellswords paid off for want of an officer rode away
+ * alive, and ones the surgeons pulled off the field are alive too. Neither is
+ * lying on the grass to be stripped.
+ *
+ * Priced from the BASE constants rather than from what the owner actually paid.
+ * A dead man's mail is worth what mail is worth; it does not become dearer
+ * because his king had metalled roads.
+ */
+export function fallenValue(before: Player, after: Player): { gold: number; ore: number } {
+  let gold = 0;
+  let ore = 0;
+
+  const ARMS = [
+    ["footmen", "footman"],
+    ["archers", "archer"],
+    ["cavalry", "cavalry"],
+  ] as const;
+
+  for (const [key, type] of ARMS) {
+    for (const tier of ["light", "medium", "heavy"] as const) {
+      const mult = TIER_COST_MULT[tier];
+
+      const fellRegular = Math.max(0, before.army[key][tier] - after.army[key][tier]);
+      ore += fellRegular * (TRAINING_COST_BY_TIER[type]?.[tier]?.ore ?? TRAINING_COSTS[type].ore * mult);
+
+      const fellMerc = Math.max(
+        0,
+        before.army.mercenaries[key][tier] - after.army.mercenaries[key][tier],
+      );
+      gold += fellMerc * MERC_PRICE_BY_ARM[type] * mult;
+    }
+  }
+
+  return { gold, ore };
 }
 
 /**

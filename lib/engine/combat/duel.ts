@@ -153,6 +153,19 @@ export interface DuelContext {
   /** Rolled once per battle — defenders shoot from a fixed emplacement at a
    *  known range, and that is worth something every round. */
   defenderEdge: number;
+  /** How many volleys' worth this single resolution represents. Bombard passes
+   *  BOMBARD_INTENSITY; a field battle leaves it at 1. */
+  intensity?: number;
+  /**
+   * What share of the attacker's engine power is aimed at the battery at all.
+   *
+   * A field battle leaves this undefined and the engines fire at everything in
+   * parallel, as they always did. A BOMBARD sets it, because artillery can only
+   * spend its fire once and the siege stance is the choice of where — see
+   * SIEGE_STANCE. Their counters are unaffected either way: the defender never
+   * has anything else to shoot at.
+   */
+  returnShare?: number;
 }
 
 /**
@@ -166,6 +179,7 @@ export interface DuelContext {
  */
 export function runDuelRound(ctx: DuelContext): DuelRound {
   const { attacker, defender, atkPark, defPark, war, rng } = ctx;
+  const intensity = ctx.intensity ?? 1;
   const out: DuelRound = { attackerEngineerKills: 0, defenderEngineerKills: 0, notes: [] };
 
   const atkSiege = siegeBonusPool(attacker, war);
@@ -175,16 +189,29 @@ export function runDuelRound(ctx: DuelContext): DuelRound {
     const ct = COUNTER_FOR[gear];
     if (!ct) continue;
 
+    // A counter ground to wreckage stands down and STAYS down until mended:
+    // it does not fire, and nothing fires at it. That is what stops a defender
+    // being ground to nothing by an attacker who simply keeps coming back —
+    // and what makes mending the guns a thing they have to log in and do.
+    if (counterSilenced(defPark, ct)) continue;
+
     const enginePwr = gearPower(gear, atkPark);
     const counterRaw = counterPower(ct, defPark);
     if (enginePwr <= 0 && counterRaw <= 0) continue;
+
+    // Who was STANDING at these engines when the fire came in. Read before
+    // `damagePark` below, because reading it after meant the men vanished with
+    // the machines: an engine park wiped out entirely reported zero casualties,
+    // while one that merely got scratched reported plenty. Total annihilation
+    // was the safest thing that could happen to a crew.
+    const manning = atkPark.crewed[gear];
 
     // The counter's swing: its own bonus pool, the defender's emplacement
     // edge, and — for boiling oil against a ram — the fact that it is being
     // poured straight down onto men at the gate.
     const oilBonus = ct === "boiling_oil" ? COUNTER_DUEL.BOILING_OIL_BONUS : 0;
     const counterPwr =
-      counterRaw * (defSiege + oilBonus + ctx.defenderEdge) * counterBatteryDelivery(defender);
+      counterRaw * (defSiege + oilBonus + ctx.defenderEdge) * counterBatteryDelivery(defender) * intensity;
 
     // Counters wreck engines.
     if (counterPwr > 0 && atkPark.crewed[gear] > 0) {
@@ -199,7 +226,10 @@ export function runDuelRound(ctx: DuelContext): DuelRound {
       gear === "trebuchets"
         ? siegeDelivery(attacker, "siege")
         : effectiveness(gear, "siege");
-    const returnFire = enginePwr * atkSiege * returnDelivery;
+    // `returnShare` overrides the matrix when the caller is allocating fire
+    // rather than letting every engine shoot at everything (see DuelContext).
+    const returnFire =
+      enginePwr * atkSiege * (ctx.returnShare ?? returnDelivery) * intensity;
     if (returnFire > 0 && defPark.crewed[ct] > 0) {
       const lost = damagePark(defPark, ct, returnFire, SIEGE_COUNTERS[ct].health);
       if (lost > 0) {
@@ -208,8 +238,16 @@ export function runDuelRound(ctx: DuelContext): DuelRound {
     }
 
     // Overwhelmed: the crews are next.
-    if (enginePwr > 0 && counterPwr >= COUNTER_DUEL.OVERWHELM_RATIO * enginePwr) {
-      const crewAtRisk = atkPark.crewed[gear] * SIEGE_GEAR[gear].crew;
+    //
+    // Compared RAW against RAW — `count × power × integrity` on both sides, the
+    // same shape `batteryThreatens` uses — so OVERWHELM_RATIO means literally
+    // "three times the guns". It used to weigh the counter's fully DELIVERED
+    // fire (pool × accuracy × intensity) against the engine's raw power, which
+    // made the threshold depend on research and, once intensity arrived, on a
+    // multiplier that scales both sides equally in reality. At ×5 a counter
+    // needed only 0.6× the guns to "overwhelm" threefold.
+    if (enginePwr > 0 && counterRaw >= COUNTER_DUEL.OVERWHELM_RATIO * enginePwr) {
+      const crewAtRisk = manning * SIEGE_GEAR[gear].crew;
       const killed = rollCount(rng, crewAtRisk, rollBand(rng, ARTILLERY_DUEL.ATTACKER_ENGINEER_RISK));
       if (killed > 0) {
         out.attackerEngineerKills += killed;
@@ -230,6 +268,20 @@ export const parkStrength = (park: Park<SiegeGearType>): number =>
 
 export const batteryStrength = (park: Park<CounterType>): number =>
   COUNTER_TYPES.reduce((s, t) => s + counterPower(t, park), 0);
+
+/**
+ * Has this counter type been beaten into silence?
+ *
+ * Per TYPE rather than per battery, because a defender may hold fresh Boiling
+ * Oil beside shattered Counter-Engines and only the shattered ones should stand
+ * down. Derived from integrity, so mending clears it — see SILENCE_FLOOR.
+ */
+export const counterSilenced = (park: Park<CounterType>, t: CounterType): boolean =>
+  park.crewed[t] > 0 && park.integrity[t] < COUNTER_DUEL.SILENCE_FLOOR;
+
+/** Whether ANY of the battery still answers. */
+export const batteryAnswers = (park: Park<CounterType>): boolean =>
+  COUNTER_TYPES.some((t) => park.crewed[t] > 0 && !counterSilenced(park, t));
 
 /**
  * A battery falls silent only when BOTH conditions hold: seven-tenths of it is
@@ -255,11 +307,13 @@ export function defenderEngineerRisk(
   startStrength: number,
   now: number,
   crewAtRisk: number,
+  intensity = 1,
 ): number {
   if (startStrength <= 0 || crewAtRisk <= 0) return 0;
   const lost = 1 - now / startStrength;
   if (lost < ARTILLERY_DUEL.DEFENDER_ENGINEER_RISK_AFTER_LOSS) return 0;
-  return rollCount(rng, crewAtRisk, rollBand(rng, ARTILLERY_DUEL.DEFENDER_ENGINEER_RISK));
+  const chance = Math.min(1, rollBand(rng, ARTILLERY_DUEL.DEFENDER_ENGINEER_RISK) * intensity);
+  return rollCount(rng, crewAtRisk, chance);
 }
 
 /** Whether the defender's battery is dangerous enough to threaten the crews

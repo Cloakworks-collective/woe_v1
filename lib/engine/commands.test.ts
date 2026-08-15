@@ -326,7 +326,7 @@ describe("training & army", () => {
     expect(p.army.siegeGearIntegrity.trebuchets).toBe(1);
     expect(p.army.siegeCounterIntegrity.counter_engine).toBe(1);
     expect(p.army.mercenaries.engineers).toBe(0);
-    expect(p.army.siegeExperience).toBe(0);
+    expect(p.army.siegeExperiencePoints).toBe(0);
     expect(p.spyTurnsAvailable).toBeGreaterThanOrEqual(0);
     // idempotent — a second pass is a no-op
     normalizePlayer(p);

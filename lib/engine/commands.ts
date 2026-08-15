@@ -780,3 +780,17 @@ export function setSortie(input: Player, enabled: boolean): EngineResult {
   p.army.sortieEnabled = enabled;
   return { player: p, events: [] };
 }
+
+/**
+ * Standing order for the ENGINES: where a barrage spends its fire.
+ *
+ * "general" splits it — a share at whatever battery answers, the rest onto the
+ * wall or the town behind it. "counter" lays every engine on their battery,
+ * buying half again the accuracy against it and wasting everything left over.
+ * See SIEGE_STANCE.
+ */
+export function setSiegeStance(input: Player, stance: "general" | "counter"): EngineResult {
+  const p = structuredClone(input);
+  p.army.siegeStance = stance;
+  return { player: p, events: [] };
+}

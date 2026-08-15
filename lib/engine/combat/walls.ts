@@ -19,7 +19,6 @@
 
 import { evalCurve } from "../../constants/curves";
 import {
-  ARCHER_VS_WALL_CURVE,
   BUILDING_HP_CURVE,
   COUNTED_HP_PER_UNIT,
   RACES,
@@ -90,6 +89,13 @@ export function blendWallEdge(
   defender: Player,
   troops: number,
   surviving: Record<SiegeGearType, number>,
+  /** How whole each kind of tackle is, 0–1. Capacity scales with it: a siege
+   *  tower shot to half its health carries half as many men over. Without this
+   *  the escalade COUNTERS did nothing at all until they destroyed an engine
+   *  outright — a tower at 21% integrity carried its full hundred — so Fire
+   *  Pots, Fork Poles and Bill-hooks were all-or-nothing weapons priced as
+   *  attrition ones. Defaults to whole for callers that do not track it. */
+  integrity?: Partial<Record<SiegeGearType, number>>,
 ): EscaladeResult {
   const wallLvl = level(defender, "walls");
   const base = wallLvl > 0 ? WALL_EDGE.BASE : 0;
@@ -97,12 +103,13 @@ export function blendWallEdge(
     return { blendedEdge: 0, coverage: 0, grappled: 0, laddered: 0, towered: 0, unaided: troops };
   }
 
+  const whole = (t: SiegeGearType) => Math.max(0, Math.min(1, integrity?.[t] ?? 1));
   let left = troops;
-  const towered = Math.min(left, surviving.siege_towers * WALL_EDGE.TROOPS_PER_TOWER);
+  const towered = Math.min(left, surviving.siege_towers * WALL_EDGE.TROOPS_PER_TOWER * whole("siege_towers"));
   left -= towered;
-  const laddered = Math.min(left, surviving.ladders * WALL_EDGE.TROOPS_PER_LADDER);
+  const laddered = Math.min(left, surviving.ladders * WALL_EDGE.TROOPS_PER_LADDER * whole("ladders"));
   left -= laddered;
-  const grappled = Math.min(left, surviving.ropes * WALL_EDGE.TROOPS_PER_GRAPPLE);
+  const grappled = Math.min(left, surviving.ropes * WALL_EDGE.TROOPS_PER_GRAPPLE * whole("ropes"));
   left -= grappled;
   const unaided = left;
 
@@ -112,20 +119,14 @@ export function blendWallEdge(
     grappled * WALL_EDGE.VS_GRAPPLE +
     unaided * base;
 
-  // A wall has a LENGTH. Only so many attackers can be met at the parapet at
-  // once; anyone beyond that spills round and fights as if there were no wall.
-  // Applied as a fraction of the whole host rather than a cliff, so the edge
-  // decays smoothly as numbers mount instead of snapping at a threshold.
-  //
-  // This is what gives wall LEVEL a say in who wins rather than merely how long
-  // the masonry lasts — and it is why a horde beats a wall where an elite does
-  // not: nine thousand light foot are covered a third, three thousand heavy are
-  // covered whole.
-  const covered = Math.min(1, (wallLvl * WALL_EDGE.COVER_PER_LEVEL) / troops);
-
+  // EVERY defender behind intact masonry gets the full edge, however many come.
+  // There used to be a length rule here — `wallLvl × 300` attackers met at the
+  // parapet, the rest diluting the edge — which meant a big enough host walked
+  // up to a Citadel as though it were open ground. Wall level now buys
+  // durability and nothing else about the field fight.
   return {
-    blendedEdge: (weighted / troops) * covered,
-    coverage: covered,
+    blendedEdge: weighted / troops,
+    coverage: 1,
     grappled,
     laddered,
     towered,
@@ -134,15 +135,19 @@ export function blendWallEdge(
 }
 
 /**
- * Attacking archers shooting at men behind a parapet. Delivery, not a bonus:
- * against an intact wall half your arrows find nothing but stone, and as the
- * masonry comes down the defenders run out of places to hide.
+ * THE WALL EDGE IS THE ONLY EDGE.
  *
- * This is the counterweight to the defenders' +20% archer bonus on the wall,
- * and it is why breaching matters even to an army with no intention of
- * storming the breach.
+ * Attacking archers used to be gated to a tenth of their fire against an intact
+ * wall (ARCHER_VS_WALL_CURVE), on top of the defenders' health bonus and a
+ * parapet role bonus that turned out never to fire at all. Stacked, that made
+ * the archer exchange roughly fifteen to one — and the gate was doing almost
+ * all of it, while its own comment claimed a figure five times gentler than the
+ * formula delivered.
+ *
+ * A wall now does one thing: it makes the people behind it harder to kill. Kept
+ * as a function so the call sites read the same and the rule has somewhere to
+ * live if it ever comes back.
  */
-export function archerWallDelivery(wallIntegrity: number, hasWall: boolean): number {
-  if (!hasWall) return 1;
-  return Math.max(0, Math.min(1, evalCurve(ARCHER_VS_WALL_CURVE, wallIntegrity)));
+export function archerWallDelivery(_wallIntegrity: number, _hasWall: boolean): number {
+  return 1;
 }

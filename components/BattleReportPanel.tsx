@@ -88,6 +88,23 @@ export function BattleReportPanel({ report }: { report: BattleReport }) {
             {fmt(report.loot.resources.food)} / {fmt(report.loot.resources.wood)} /{" "}
             {fmt(report.loot.resources.stone)} / {fmt(report.loot.resources.ore)}
           </dd>
+          {/* Stripped off the dead of BOTH sides, and NOT part of the haul above:
+              it comes off bodies rather than out of storehouses, so a revenge
+              that plunders nothing still comes home with this. */}
+          {(report.salvage?.gold ?? 0) + (report.salvage?.ore ?? 0) > 0 && (
+            <>
+              <dt>
+                Stripped from the fallen{" "}
+                <span style={{ color: "var(--ink-soft)", fontWeight: 400 }}>
+                  — both sides&rsquo; dead, on top of the haul
+                </span>
+              </dt>
+              <dd style={{ color: won ? "var(--coin)" : undefined, fontWeight: won ? 700 : undefined }}>
+                {won ? "" : "they took "}
+                {fmt(report.salvage!.gold)} gold · {fmt(report.salvage!.ore)} ore
+              </dd>
+            </>
+          )}
           {Object.keys(report.siegeGearLost).length > 0 && (
             <>
               <dt>Siege gear you lost</dt>

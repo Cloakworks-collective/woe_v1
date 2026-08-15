@@ -13,7 +13,7 @@ import { STAMINA, storageShelterAtLevel } from "../constants";
 import { buildingIntegrity, type Player } from "./types";
 import { bonusPool } from "./combat/model";
 import { WAR, WALL_EDGE, SCORE } from "../constants";
-import { blendWallEdge } from "./combat/walls";
+import { blendWallEdge, wallHealth } from "./combat/walls";
 import { rankingScore } from "./score";
 
 function empire(name: string, mods: (p: Player) => void): Player {
@@ -101,7 +101,11 @@ describe("battle resolution — the spec's worked example", () => {
     });
     const { report } = resolveBattle(attacker, defender, "siege", { ...OPTS, rng: seededRng(11) });
     const log = report.log.map((l) => l.text).join("\n");
-    expect(log).toMatch(/Boiling Oil smash \d+ battering rams/); // counter callout
+    // Boiling oil scalds the men on the beams — the one counter that kills crew
+    // as well as timber. Was asserting it SMASHED the ram outright, which stopped
+    // being true when counters went from perfect accuracy (1.00) to 0.30: one
+    // cauldron wears a ram down now, it does not wreck it in a single exchange.
+    expect(log).toMatch(/Boiling oil comes over the parapet/);
     expect(log).toMatch(/The engines work the wall/);
     expect(log).toMatch(/We gave up \d+% of the host we brought/); // the closing tally
     // Regular losses are structured data now, not buried in prose — the whole
@@ -153,7 +157,9 @@ describe("battle resolution — the spec's worked example", () => {
       p.army.footmen.light = 150;
       p.buildings.walls = 6;
       p.buildings.war_foundry = 9;
-      p.army.siegeGear.trebuchets = 3; // offensive engines to fire back
+      // BALLISTAE, not trebuchets: engines have one job each now, and shooting
+      // men is the ballista's. A defender's trebuchets have no wall to throw at.
+      p.army.siegeGear.ballistae = 4;
       p.army.siegeEngineers = 15; // no counters bought → all spare, fire back
       p.buildings.muster_hall = 20;
     });
@@ -190,6 +196,66 @@ describe("mercenaries die first", () => {
     // has to stay true is that they are the ones bleeding.
     expect(report.defenderLosses.mercenaries).toBeGreaterThan(0);
     expect(report.defenderLosses.mercenaries).toBeGreaterThan(report.defenderLosses.footmen);
+  });
+});
+
+describe("stripping the dead", () => {
+  const host = (n: number) => (p: Player) => {
+    p.army.footmen.light = n;
+    p.army.mercenaries.footmen.light = Math.floor(n / 3);
+    p.buildings.muster_hall = Math.ceil(n / 5) + 10;
+    p.shieldUntilTick = 0;
+  };
+
+  it("the victor strips BOTH sides' fallen, and the loser gets nothing", () => {
+    const a0 = empire("A", host(400));
+    const d0 = empire("D", host(150));
+    const { report, attacker, defender } = resolveBattle(a0, d0, "raid", {
+      ...OPTS,
+      rng: seededRng(5),
+    });
+    expect(report.victor).toBe("attacker");
+    expect(report.salvage!.gold).toBeGreaterThan(0);
+    expect(report.salvage!.ore).toBeGreaterThan(0);
+    // It lands on the winner, in full, and the loser's stores never move —
+    // measured as a DELTA because an empire is founded holding stock.
+    expect(attacker.gold - a0.gold).toBe(report.salvage!.gold);
+    // A raid ALSO loots ore out of the storehouses, so the ore that arrives home
+    // is the two streams added — which is the clearest possible demonstration
+    // that they are two streams.
+    expect(attacker.resources.ore - a0.resources.ore).toBe(
+      report.salvage!.ore + report.loot.resources.ore,
+    );
+    // And the loser gains nothing from the field: their ore moves by exactly the
+    // loot taken off them, with no salvage credited in the other direction.
+    expect(d0.resources.ore - defender.resources.ore).toBe(report.loot.resources.ore);
+  });
+
+  it("revenge carries no loot home but still strips the field", () => {
+    const { report } = resolveBattle(empire("A", host(400)), empire("D", host(150)), "revenge", {
+      ...OPTS,
+      rng: seededRng(5),
+    });
+    // Revenge is a punishment, not a payday — no storehouse is touched...
+    expect(report.loot.gold).toBe(0);
+    expect(report.loot.resources.ore).toBe(0);
+    // ...but the dead are still lying there, and mail is mail.
+    expect(report.salvage!.gold).toBeGreaterThan(0);
+  });
+
+  it("a battle where nobody falls yields nothing to strip", () => {
+    const { report } = resolveBattle(
+      empire("A", (p) => void (p.shieldUntilTick = 0)),
+      empire("D", (p) => {
+        p.army.footmen.light = 0;
+        p.army.archers.light = 0;
+        p.army.cavalry.light = 0;
+        p.shieldUntilTick = 0;
+      }),
+      "raid",
+      { ...OPTS, rng: seededRng(2) },
+    );
+    expect(report.salvage).toEqual({ gold: 0, ore: 0 });
   });
 });
 
@@ -246,8 +312,13 @@ describe("bombard", () => {
       rng: seededRng(5),
     });
     expect(report.victor).toBe("none");
-    expect(d2.wallIntegrity).toBeLessThan(1); // 4 trebs − 2 cancelled = 2 still pound
-    expect(a2.army.siegeGear.trebuchets).toBeLessThan(4); // Counter-Engines splinter them
+    expect(d2.wallIntegrity).toBeLessThan(1); // the surviving trebuchets still pound
+    // Two Counter-Engines batter four trebuchets without finishing any — wear,
+    // not wreckage. (Was `toBeLessThan(4)`, which held only while counters fired
+    // at a flat 100% accuracy; at 0.30 the destruction comes from being shot at
+    // barrage after barrage, which is what makes a siege a campaign.)
+    expect(report.siegeGearWorn?.trebuchets ?? 0).toBeGreaterThan(0);
+    expect(a2.army.siegeGear.trebuchets).toBeLessThanOrEqual(4);
   });
 
   it("with the walls already down, the fire cracks the town's buildings (floor 50%)", () => {
@@ -293,9 +364,16 @@ describe("bombard", () => {
       p.wallIntegrity = 0.3; // walls already breached
       p.buildings.granary = 5;
     });
-    const { defender: d2 } = resolveBombard(attacker, defender, { ...OPTS, rng: seededRng(3) });
-    expect(buildingIntegrity(d2, "granary")).toBeGreaterThanOrEqual(0.5); // the floor holds
-    expect(buildingIntegrity(d2, "granary")).toBeLessThan(1); // but it was cracked
+    const { defender: d2, report } = resolveBombard(attacker, defender, { ...OPTS, rng: seededRng(3) });
+    // Named the granary before, which only held because ten volleys gave ten
+    // draws at the weighting table. A barrage is one exchange spending
+    // BOMBARD_INTENSITY aiming points now, so WHICH roofs it walks across is
+    // properly random — the claim is about the town, not one storehouse.
+    expect(report.buildingDamage?.length ?? 0).toBeGreaterThan(0);
+    for (const { building } of report.buildingDamage ?? []) {
+      expect(buildingIntegrity(d2, building)).toBeLessThan(1); // cracked…
+      expect(buildingIntegrity(d2, building)).toBeGreaterThanOrEqual(0.5); // …never levelled
+    }
   });
 });
 
@@ -568,44 +646,46 @@ describe("the war-works", () => {
   });
 });
 
-describe("a wall has a length", () => {
+describe("the wall edge is the only edge", () => {
   const noTackle = { ropes: 0, ladders: 0, siege_towers: 0, rams: 0, ballistae: 0, trebuchets: 0 };
   const walled = (lvl: number) => empire("D", (p) => { p.buildings.walls = lvl; p.wallIntegrity = 1; });
 
-  it("gives its full edge only to as many attackers as it can meet", () => {
-    // A Citadel covers 3,000. Against that many or fewer, the full +50%.
-    expect(blendWallEdge(walled(10), 3000, noTackle).blendedEdge).toBeCloseTo(WALL_EDGE.BASE, 6);
-    expect(blendWallEdge(walled(10), 1000, noTackle).blendedEdge).toBeCloseTo(WALL_EDGE.BASE, 6);
-    // Twice that many, and half of them are fighting no wall at all.
-    expect(blendWallEdge(walled(10), 6000, noTackle).blendedEdge).toBeCloseTo(WALL_EDGE.BASE / 2, 6);
+  it("gives its full edge to EVERY defender, however many come", () => {
+    // This block used to assert the opposite — a wall covered `level × 300`
+    // attackers and diluted its edge past that, so a big enough host walked up
+    // to a Citadel as though it were open ground. Removed by design: everyone
+    // behind intact masonry is behind it.
+    for (const host of [10, 1_000, 3_000, 9_000, 50_000]) {
+      expect(blendWallEdge(walled(10), host, noTackle).blendedEdge).toBeCloseTo(WALL_EDGE.BASE, 6);
+    }
   });
 
-  it("makes wall LEVEL decide the edge, which is the whole point", () => {
-    // The failure this rule exists to fix: against a host of 3,000 a Palisade
-    // and a Citadel used to give an identical +50%.
+  it("wall LEVEL buys durability, not a bigger edge", () => {
     const at = (lvl: number) => blendWallEdge(walled(lvl), 3000, noTackle).blendedEdge;
-    expect(at(10)).toBeGreaterThan(at(5));
-    expect(at(5)).toBeGreaterThan(at(1));
-    expect(at(10) / at(1)).toBeCloseTo(10, 6); // linear in level, until it caps
+    expect(at(1)).toBeCloseTo(WALL_EDGE.BASE, 6);
+    expect(at(10)).toBeCloseTo(WALL_EDGE.BASE, 6);
+    // What level DOES buy is health — quadratic, so a Citadel soaks 100x a Palisade.
+    expect(wallHealth(walled(10)) / wallHealth(walled(1))).toBeCloseTo(100, 6);
   });
 
-  it("is beaten by NUMBERS, not by quality", () => {
-    // 3,000 heavies are covered whole; 9,000 lights are covered a third. A horde
-    // beats a wall where an elite does not — which is the right way round, and
-    // gives cheap troops a job.
-    const elite = blendWallEdge(walled(10), 3000, noTackle).blendedEdge;
-    const horde = blendWallEdge(walled(10), 9000, noTackle).blendedEdge;
-    expect(horde).toBeCloseTo(elite / 3, 6);
-  });
-
-  it("still stacks with the tackle blend, multiplicatively", () => {
-    // Siege towers already deliver troops onto a lesser wall. Coverage thins
-    // whatever the tackle left, rather than replacing it.
+  it("tackle is what thins the edge, and only tackle", () => {
     const towers = { ...noTackle, siege_towers: 30 }; // 3,000 men carried
     const bare = blendWallEdge(walled(10), 3000, noTackle).blendedEdge;
     const withTowers = blendWallEdge(walled(10), 3000, towers).blendedEdge;
     expect(withTowers).toBeLessThan(bare);
     expect(withTowers).toBeCloseTo(WALL_EDGE.VS_TOWER, 6);
+  });
+
+  it("battered tackle carries fewer men, so escalade counters bite immediately", () => {
+    // The fix that made Fire Pots, Fork Poles and Bill-hooks worth owning: a
+    // tower at half health carries half a load, where it used to carry a full
+    // one until the moment it was destroyed outright.
+    const towers = { ...noTackle, siege_towers: 30 };
+    const whole = blendWallEdge(walled(10), 3000, towers).blendedEdge;
+    const half = blendWallEdge(walled(10), 3000, towers, { siege_towers: 0.5 }).blendedEdge;
+    expect(half).toBeGreaterThan(whole); // fewer men on the good edge
+    // 1,500 towered at 0.1, 1,500 unaided at 0.5 → 0.30
+    expect(half).toBeCloseTo((1500 * WALL_EDGE.VS_TOWER + 1500 * WALL_EDGE.BASE) / 3000, 6);
   });
 
   it("no wall means no edge, however few come", () => {

@@ -24,37 +24,40 @@ export function ResearchView({ player: p }: { player: Player }) {
   const cost = active ? researchOrdinalCost(totalResearchLevels(p) + 1) : 0;
   const pct = active && cost > 0 ? Math.min(100, Math.round((banked / cost) * 100)) : 0;
   const rate = researchRate(p);
-  const maxed = active && activeLvl >= MAX_FIELD_LEVEL;
+  const maxed = Boolean(active) && activeLvl >= MAX_FIELD_LEVEL;
+  /**
+   * A maxed field is NOT a study in progress, so it does not get the headline.
+   *
+   * It used to render as one — name, "— mastered", and "The scholars have wrung
+   * this field dry" — which duplicated the 5/5 pips in the grid below AND read
+   * like a happy ending. It is not one: `tick.ts` keeps banking points into the
+   * active field whatever its level, while the level-up loop is gated at
+   * MAX_FIELD_LEVEL, so every point those scholars make is poured away until
+   * somebody moves them. Showing the prompt instead says the one useful thing.
+   */
+  const studying = active && !maxed ? active : undefined;
 
   return (
     <>
-      {active ? (
+      {studying ? (
         <div className="rsch-active">
-          <Art path={`research/${active.id}`} size={64} title={active.name} />
+          <Art path={`research/${studying.id}`} size={64} title={studying.name} />
           <div className="rsch-active-body">
             <div className="rsch-active-name">
-              {active.name}{" "}
+              {studying.name}{" "}
               <span style={{ color: "var(--ink-soft)", fontWeight: 400 }}>
-                {maxed ? "— mastered" : `— level ${activeLvl} → ${activeLvl + 1}`}
+                — level {activeLvl} → {activeLvl + 1}
               </span>
             </div>
-            {!maxed && (
-              <div className="rsch-bar" role="progressbar" aria-valuenow={pct} aria-valuemax={100}>
-                <span style={{ width: `${pct}%` }} />
-              </div>
-            )}
+            <div className="rsch-bar" role="progressbar" aria-valuenow={pct} aria-valuemax={100}>
+              <span style={{ width: `${pct}%` }} />
+            </div>
             <div className="rsch-active-sub">
-              {maxed ? (
-                "The scholars have wrung this field dry."
-              ) : (
+              <b style={{ color: "var(--pos)" }}>{pct}%</b> · {fmt(banked)} / {fmt(cost)} points ·{" "}
+              <b style={{ color: "var(--pos)" }}>+{fmt(rate)}</b>/turn
+              {rate > 0 && (
                 <>
-                  <b style={{ color: "var(--pos)" }}>{pct}%</b> · {fmt(banked)} / {fmt(cost)} points ·{" "}
-                  <b style={{ color: "var(--pos)" }}>+{fmt(rate)}</b>/turn
-                  {rate > 0 && (
-                    <>
-                      {" · "}⏳ {etaLabel(Math.ceil((cost - banked) / rate))}
-                    </>
-                  )}
+                  {" · "}⏳ {etaLabel(Math.ceil((cost - banked) / rate))}
                 </>
               )}
             </div>
@@ -62,7 +65,17 @@ export function ResearchView({ player: p }: { player: Player }) {
         </div>
       ) : (
         <p style={{ fontSize: 13.5, margin: "0 0 8px" }}>
-          No scholars at work — <Link href="/research">choose a field to study</Link>.
+          {maxed ? (
+            <>
+              <b style={{ color: "var(--warn)" }}>{active!.name} is at {MAX_FIELD_LEVEL}/{MAX_FIELD_LEVEL}</b>{" "}
+              — every point your scholars make is being poured into a field that cannot rise.{" "}
+              <Link href="/research">Set them on something else</Link>.
+            </>
+          ) : (
+            <>
+              No scholars at work — <Link href="/research">choose a field to study</Link>.
+            </>
+          )}
         </p>
       )}
 

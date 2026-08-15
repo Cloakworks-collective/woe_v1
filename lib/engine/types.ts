@@ -86,17 +86,24 @@ export interface ArmyState {
    * battleBalance.ts for why the old proportional pool had to go.
    */
   experiencePoints: number;
-  /** Veterancy for the other corps, still 0–100 pools. Earned by doing the work
-   *  and lost with the REGULARS who die or are dismissed — hired blades neither
-   *  earn it nor cost it. Engineers keep a single stat covering both the engines
-   *  they push forward and the ones they man on the wall. */
-  siegeExperience: number; // engineers, attack and defence alike
+  /**
+   * The ENGINEERS' veterancy, on the same points ledger as the battle line —
+   * credited for the crews you kill, debited for the crews you lose, no ceiling.
+   * One stat covers both the engines they push forward and the ones they man on
+   * the wall; `veterancyBonus()` turns it into the multiplier.
+   */
+  siegeExperiencePoints: number;
   spyExperience: number;
   scoutExperience: number;
   /** Standing order: ride out at the besieger, or hold the wall? Cavalry are
    *  wasted behind stone and murderous in the open, so this is a real choice
    *  and not merely a toggle. */
   sortieEnabled?: boolean;
+  /**
+   * Standing order for your ENGINES: spend the barrage on their battery, or on
+   * the wall? See SIEGE_STANCE. Defaults to "general" when unset.
+   */
+  siegeStance?: "general" | "counter";
 }
 
 // ── Premium — the Royal Charter (spec/clans.md) ───────────────────────────
@@ -458,6 +465,12 @@ export interface BattleReport {
   /** Troops who came over the wall by grapple, ladder and tower — how much of
    *  the wall's edge was bypassed, and by what. */
   escalade?: { grappled: number; laddered: number; towered: number };
+  /**
+   * Stripped off the dead of BOTH sides by whoever held the field. Separate
+   * from `loot` on purpose — it comes off bodies rather than out of
+   * storehouses, and revenge earns it despite carrying no loot at all.
+   */
+  salvage?: { gold: number; ore: number };
   loot: { gold: number; resources: Record<Resource, number> };
   staminaLoss: { attacker: number; defender: number };
   experienceChange: { attacker: number; defender: number };
@@ -665,7 +678,10 @@ export function normalizePlayer(p: Player): Player {
   // there is no honest conversion between "73% bonus" and a lifetime tally.
   delete (a as { experience?: number }).experience;
   a.experiencePoints ??= 0;
-  a.siegeExperience ??= 0;
+  // Same reset as the battle line: an old 0–100 siege pool is a different
+  // quantity from a points ledger, and there is no honest conversion.
+  delete (a as { siegeExperience?: number }).siegeExperience;
+  a.siegeExperiencePoints ??= 0;
   a.spyExperience ??= 0;
   a.scoutExperience ??= 0;
   p.spyTurnsAvailable ??= 0;
