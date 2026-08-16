@@ -46,6 +46,7 @@ export function WarCouncil({
   yours,
   last,
   state,
+  scoutNeeds,
 }: {
   target: { id: string; name: string };
   revengeOpen: boolean;
@@ -62,6 +63,11 @@ export function WarCouncil({
   last?: { scoutOp?: string; scoutAgents?: number; spyOp?: string; spyAgents?: number };
   /** Shield / vacation / revenge — the same facts both consoles gate on. */
   state: TargetState;
+  /** Rangers each scout mission NEEDS against THIS realm, keyed by op id —
+   *  missions are priced by the size of the realm being read, and a party
+   *  under the mark returns ranges instead of figures (under a quarter of it,
+   *  nothing but the bill). The player must see the price before paying it. */
+  scoutNeeds: Record<string, number>;
 }) {
   const path = `/empire/${target.id}`;
   const blocked = allModesBlocked(state);
@@ -203,11 +209,12 @@ export function WarCouncil({
               disabled={scoutsLocked}
             >
               <option value="" disabled>
-                {scoutsLocked ? "Study Pathfinding first" : "What to look for…"}
+                {scoutsLocked ? "Build the Ranger's Lodge first" : "What to look for…"}
               </option>
               {SCOUT_OPS.map((op) => (
                 <option key={op.id} value={op.id} disabled={lodge < op.level}>
                   L{op.level} · {op.name}
+                  {lodge >= op.level && scoutNeeds[op.id] ? ` — wants ${scoutNeeds[op.id]}` : ""}
                   {lodge < op.level ? " (locked)" : ""}
                 </option>
               ))}
@@ -224,8 +231,8 @@ export function WarCouncil({
               />
               <ReqTip
                 heading={`Scout ${target.name}`}
-                body="Rangers work in the open and always come home. Map the Siege Train is the one worth remembering: a rival's engines never appear on the ladder, so this is the only way to learn whether a bombardment is coming."
-                disabledReason={covertStop ?? (scoutsLocked ? "Study Pathfinding first." : undefined)}
+                body="Rangers work in the open and always come home. Each mission WANTS a party sized to this realm — the number beside it. Send fewer and the figures come back as ranges; send under a quarter and they cannot finish at all, with the turns still spent. Map the Siege Train is the one worth remembering: a rival's engines never appear on the ladder."
+                disabledReason={covertStop ?? (scoutsLocked ? "Build the Ranger's Lodge first — the Lodge unlocks scout work; Pathfinding only sharpens it." : undefined)}
               >
                 <Btn className={scoutsLocked || covertStop ? "btn btn-no" : "btn wc-ghost"} disabled={scoutsLocked || Boolean(covertStop)}>
                   Send
@@ -254,7 +261,7 @@ export function WarCouncil({
               disabled={spiesLocked}
             >
               <option value="" disabled>
-                {spiesLocked ? "Study Tradecraft first" : "Choose an operation…"}
+                {spiesLocked ? "Build the Shadow Guild first" : "Choose an operation…"}
               </option>
               {SPY_OPS.map((op) => (
                 <option key={op.id} value={op.id} disabled={guild < op.level}>
@@ -288,7 +295,7 @@ export function WarCouncil({
               <ReqTip
                 heading={`Send spies against ${target.name}`}
                 body="Only the survivors do the damage. A clean run stays anonymous; if even one is taken, they learn who sent them and the revenge window opens. The turn cost is a MINIMUM — commit more and the extra buys reconnoitred routes and a night of their choosing, up to double what the party is worth."
-                disabledReason={covertStop ?? (spiesLocked ? "Study Tradecraft first." : undefined)}
+                disabledReason={covertStop ?? (spiesLocked ? "Build the Shadow Guild first — the Guild unlocks the knives; Tradecraft only sharpens them." : undefined)}
               >
                 <Btn className={spiesLocked || covertStop ? "btn btn-no" : "btn"} disabled={spiesLocked || Boolean(covertStop)}>
                   Send

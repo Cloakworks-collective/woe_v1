@@ -15,15 +15,16 @@ import { ResIcon, type ResKind } from "@/components/ResIcon";
 import {
   ACTION_GUIDE,
   ACTION_INFO,
+  EXPERIENCE,
   MERCENARIES,
+  SIEGE_STANCE,
+  SORTIE,
+  STAMINA,
   TIER_INFO,
   TRAINING_COSTS,
   TROOPS_PER_MUSTER_HALL,
   UNIT_GUIDE,
   UNIT_INFO,
-  EXPERIENCE,
-  SIEGE_STANCE,
-  STAMINA,
 } from "@/lib/constants";
 import {
   bareTiers,
@@ -850,10 +851,35 @@ export default async function TroopsPage({
             <p className="order-why">
               Cavalry gain nothing from a parapet and everything from open ground, so this is a real
               choice of shape rather than a switch to leave on: a cavalry-heavy defender wants to ride
-              out, a footman-heavy one almost certainly does not. Riders lead and each brings three
-              footmen behind; you keep the wall&apos;s protection either way, but the attacker&apos;s
-              screen can hold you off before you reach their engines.
+              out, a footman-heavy one almost certainly does not. Your footmen and cavalry ride
+              together; you keep the wall&apos;s protection either way, but the attacker&apos;s
+              screen draws off riders by the head before any reach their engines.
             </p>
+            {/* THE GATES, live. The order used to sit enabled and silently
+                never fire — a player at 60 stamina or with a thin screen had
+                no way to see why their captains kept the gates shut. */}
+            {p.army.sortieEnabled && (() => {
+              const cap = Math.floor(
+                (troopTotal(p.army.footmen) + troopTotal(p.army.cavalry)) * MERCENARIES.CAP_RATIO,
+              );
+              const screenHave = troopTotal(p.army.mercenaries.footmen) + troopTotal(p.army.mercenaries.cavalry);
+              const screenNeed = Math.ceil(cap * SORTIE.MIN_SCREEN);
+              const rested = p.army.stamina >= SORTIE.MIN_STAMINA;
+              const screened = cap <= 0 || screenHave >= screenNeed;
+              return (
+                <p className="order-why" style={{ marginTop: 4 }}>
+                  Your captains only open the gates <b>rested and screened</b>:{" "}
+                  <span style={{ color: rested ? "var(--pos)" : "var(--neg)", fontWeight: 700 }}>
+                    {rested ? "✓" : "✗"} stamina {p.army.stamina} / {SORTIE.MIN_STAMINA}
+                  </span>
+                  {" · "}
+                  <span style={{ color: screened ? "var(--pos)" : "var(--neg)", fontWeight: 700 }}>
+                    {screened ? "✓" : "✗"} hired screen {screenHave} / {screenNeed}
+                  </span>
+                  {!rested || !screened ? " — until both hold, the order stands but nobody rides." : ""}
+                </p>
+              );
+            })()}
             <CmdForm name="setSortie" path="/troops#strategy">
               <input type="hidden" name="enabled" value={p.army.sortieEnabled ? "false" : "true"} />
               <Btn className="btn">

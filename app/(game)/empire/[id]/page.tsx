@@ -5,8 +5,8 @@ import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { PublicBattleTable } from "@/components/PublicBattleTable";
 import { WarCouncil } from "@/components/WarCouncil";
-import { RACE_NAMES } from "@/lib/constants";
-import { level, publicBattle, rankingScore, regularTroops, settlementTitle, troopTotal, veterancyBonus } from "@/lib/engine";
+import { RACE_NAMES, SCOUT_OPS } from "@/lib/constants";
+import { level, publicBattle, rankingScore, regularTroops, scoutsNeeded, settlementTitle, troopTotal, veterancyBonus } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 import { REVENGE_WINDOW_TICKS } from "@/lib/server/world";
 
@@ -95,6 +95,7 @@ export default async function EmpireProfilePage({
               spyOp: me.lastSpyOp,
               spyAgents: me.lastSpyAgents,
             }}
+            scoutNeeds={Object.fromEntries(SCOUT_OPS.map((op) => [op.id, scoutsNeeded(op, p, me)]))}
             state={{
               shielded: p.shieldUntilTick > tick,
               onVacation: p.onVacation,
