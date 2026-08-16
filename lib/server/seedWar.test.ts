@@ -99,14 +99,36 @@ describe("the war seeder's preparation", () => {
 });
 
 describe("the covert command carries a turn offer", () => {
-  it("passes extra turns through to the engine as preparation", () => {
+  it("passes extra turns through, clamped to the last USEFUL one", () => {
     const world = readyWorld();
     const before = world.players[A].spyTurnsAvailable;
     applyOneCommand(world, A, "covert", {
       targetId: B, op: "torch_stores", agents: 60, turns: 100,
     });
-    // The minimum for 60 knives is well under 100; the surplus was committed.
-    expect(before - world.players[A].spyTurnsAvailable).toBe(100);
+    const spent = before - world.players[A].spyTurnsAvailable;
+    // Preparation caps at 3x the minimum (PREPARATION.MAX / PER_EXTRA_MULTIPLE
+    // = 2 extra multiples), so of the 100 offered only 3 x ceil(60 x 0.28) = 51
+    // are worth anything — and only that much is taken. Patience past the cap
+    // used to be pocketed for no bonus.
+    const minimum = Math.ceil(60 * 0.28);
+    expect(spent).toBeGreaterThan(minimum);
+    expect(spent).toBe(minimum * 3);
+  });
+
+  it("refuses garbage in the turns field rather than corrupting the ledger", () => {
+    const world = readyWorld();
+    const before = world.players[A].spyTurnsAvailable;
+    // NaN used to sail through Math.max and every comparison, leaving
+    // spyTurnsAvailable = NaN in the stored world — after which every covert
+    // op failed forever. The worst kind of bug: permanent, silent, from a
+    // text box.
+    const { result } = applyOneCommand(world, A, "covert", {
+      targetId: B, op: "torch_stores", agents: 60, turns: "abc",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/number/i);
+    expect(world.players[A].spyTurnsAvailable).toBe(before);
+    expect(Number.isFinite(world.players[A].spyTurnsAvailable)).toBe(true);
   });
 
   it("and pays the minimum when none is offered", () => {

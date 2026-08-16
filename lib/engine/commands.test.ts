@@ -669,3 +669,40 @@ describe("how many of your own may be something other than farmer or soldier", (
     expect(() => buySiegeCounter(withGear, "counter_engine", 5)).toThrow(/can only keep/i);
   });
 });
+
+describe("the yard budget is one purse, not one per weapon", () => {
+  const smith = (engineers: number) => {
+    const p = newEmpire({ id: "y", name: "Yard", race: "human" });
+    p.army.footmen = { light: 2_000, medium: 0, heavy: 0 };
+    p.army.siegeEngineers = engineers;
+    p.idlePeasants = 5_000;
+    p.gold = 50_000_000;
+    p.resources = { food: 9e6, wood: 9e6, stone: 9e6, ore: 9e6 };
+    p.buildings = { ...p.buildings, war_foundry: 10, muster_hall: 900 };
+    return p;
+  };
+
+  it("filling the budget with one type leaves no room for another", () => {
+    // Ten engineers is a crew-weight budget of 20. Four trebuchets (5 apiece)
+    // spend all of it — the first cut of this cap gave every type its own
+    // dedicated allowance, so the same ten crews could hold 100 rams AND 40
+    // trebuchets AND 40 ballistae at once, and the storage bank the cap exists
+    // to close was mostly reopened.
+    const p = buySiegeGear(smith(10), "trebuchets", 4).player;
+    expect(() => buySiegeGear(p, "rams", 1)).toThrow(/only keep/i);
+  });
+
+  it("…and a mix inside the budget is fine", () => {
+    // 2 trebuchets (10) + 4 rams (8) = 18 of 20.
+    const p = buySiegeGear(smith(10), "trebuchets", 2).player;
+    expect(buySiegeGear(p, "rams", 4).player.army.siegeGear.rams).toBe(4);
+  });
+
+  it("the battery keeps its own purse", () => {
+    // The train being full says nothing about the battery: they are built and
+    // crewed apart, so neither may stable the other's surplus — in EITHER
+    // direction.
+    const p = buySiegeGear(smith(10), "trebuchets", 4).player;
+    expect(buySiegeCounter(p, "counter_engine", 4).player.army.siegeCounters.counter_engine).toBe(4);
+  });
+});

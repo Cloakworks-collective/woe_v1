@@ -729,12 +729,13 @@ export function buySiegeGear(
   // ENGINES YOU CANNOT CREW ARE ENGINES YOU MAY NOT KEEP. Without this the yard
   // is a bank: engines are bought with resources and sold on the black market,
   // so income could be poured into trebuchets nobody meant to man and broken
-  // out again later, beyond the reach of tax or raid (SIEGE_STOCK_RATIO).
-  const room = siegeStockRoom(p, "gear");
-  if (p.army.siegeGear[type] + count > room[type]) {
+  // out again later, beyond the reach of tax or raid. ONE crew-weight budget
+  // across the whole train (SIEGE_STOCK_RATIO) — see siegeStockRoom.
+  const room = siegeStockRoom(p, "gear", type);
+  if (count > room) {
     throw new EngineError(
       "crew",
-      `Your engineers can only keep ${room[type]} ${type.replace("_", " ")}. Raise more crews, or man what you have.`,
+      `Your engineers can only keep ${room} more ${type.replace("_", " ")} — the train already holds most of what they could man twice over. Raise more crews, or man what you have.`,
     );
   }
   p.army.siegeGear[type] += count;
@@ -763,11 +764,11 @@ export function buySiegeCounter(
     stone: 0,
     ore: Math.round(c.ore * m),
   });
-  const room = siegeStockRoom(p, "counters");
-  if (p.army.siegeCounters[type] + count > room[type]) {
+  const room = siegeStockRoom(p, "counters", type);
+  if (count > room) {
     throw new EngineError(
       "crew",
-      `Your engineers can only keep ${room[type]} ${type.replace("_", " ")}. Raise more crews, or man what you have.`,
+      `Your engineers can only keep ${room} more ${type.replace("_", " ")} — the battery already holds most of what they could man twice over. Raise more crews, or man what you have.`,
     );
   }
   p.army.siegeCounters[type] += count;

@@ -1059,3 +1059,88 @@ describe("a garrison in no condition to sally stays behind the wall", () => {
     })).toBe(false);
   });
 });
+
+describe("a breach assault leaves the whole siege camp at home", () => {
+  const stormer = (trebuchets: number) => empire("A", (p) => {
+    p.army.footmen.heavy = 300;
+    p.army.archers.heavy = 300;
+    p.army.siegeEngineers = 200;
+    p.army.siegeGear.trebuchets = trebuchets;
+    p.buildings.muster_hall = 900;
+    p.buildings.war_foundry = 10;
+    p.shieldUntilTick = 0;
+  });
+  const breached = (walls: number) => empire("D", (p) => {
+    p.army.cavalry.heavy = 900;
+    p.army.mercenaries.cavalry.heavy = 300;
+    p.buildings.muster_hall = 900;
+    p.buildings.walls = walls;
+    p.wallIntegrity = 0; // rubble
+    p.army.stamina = 100;
+    p.army.sortieEnabled = true;
+    p.shieldUntilTick = 0;
+  });
+
+  it("the crews stay home with their train, so a sortie cannot touch them", () => {
+    // engineersPresent used to key on the MODE, not on whether the train came:
+    // crews marched to a breach with nothing to crew and died to sorties there.
+    const out = resolveBattle(stormer(40), breached(8), "siege", { ...OPTS, rng: seededRng(3) });
+    expect(out.report.forces?.attacker.engineers).toBe(0);
+    expect(out.attacker.army.siegeEngineers).toBe(200);
+  });
+
+  it("a sortie that finds no park spends its whole breakthrough on the men", () => {
+    // Half of a breakthrough is aimed at the siege park. Against a parkless
+    // besieger that half used to hit an empty park and simply evaporate —
+    // wreckPark now hands the unspendable share back, and it falls on the men.
+    const withPark = resolveBattle(stormer(40), breached(8), "siege", { ...OPTS, rng: seededRng(9) });
+    const without = resolveBattle(stormer(0), breached(8), "siege", { ...OPTS, rng: seededRng(9) });
+    const men = (r: typeof withPark) =>
+      r.report.attackerLosses.footmen + r.report.attackerLosses.archers +
+      r.report.attackerLosses.cavalry + r.report.attackerLosses.mercenaries;
+    expect(without.report.sortied).toBe(true);
+    expect(men(without)).toBeGreaterThanOrEqual(men(withPark));
+    expect(men(without)).toBeGreaterThan(0);
+  });
+
+  it("a town that never built a wall has no gates to sortie from", () => {
+    const out = resolveBattle(stormer(0), breached(0), "siege", { ...OPTS, rng: seededRng(3) });
+    expect(out.report.log.some((l) => l.phase === "sortie")).toBe(false);
+  });
+
+  it("rubble is not stone, and the archers' line says so", () => {
+    const a = empire("A", (p) => { p.army.archers.heavy = 200; p.buildings.muster_hall = 60; p.shieldUntilTick = 0; });
+    const d = empire("D", (p) => {
+      p.army.archers.heavy = 200;
+      p.buildings.muster_hall = 60;
+      p.buildings.walls = 8;
+      p.wallIntegrity = 0;
+      p.shieldUntilTick = 0;
+    });
+    const log = resolveBattle(a, d, "siege", { ...OPTS, rng: seededRng(5) })
+      .report.log.map((l) => l.text).join("\n");
+    expect(log).not.toMatch(/behind stone/);
+    // The garrison of a BREACHED wall is described in the breach, not sheltered.
+    if (/volleys/.test(log)) expect(log).toMatch(/rubble|breach/);
+  });
+});
+
+describe("engineers who stayed home come home", () => {
+  it("a raid touches no engineer on either side", () => {
+    // Engineers take no part in a raid — and for the game's whole history the
+    // write-back still assigned the Side's zero over the player's real count,
+    // deleting every crew both sides owned, own and hired alike, silently.
+    const mk = (id: string) => empire(id, (p) => {
+      p.army.footmen.heavy = 200;
+      p.army.siegeEngineers = 150;
+      p.army.mercenaries.engineers = 40;
+      p.buildings.muster_hall = 200;
+      p.shieldUntilTick = 0;
+    });
+    const out = resolveBattle(mk("a"), mk("d"), "raid", { ...OPTS, rng: seededRng(1) });
+    for (const side of [out.attacker, out.defender]) {
+      expect(side.army.siegeEngineers).toBe(150);
+      expect(side.army.mercenaries.engineers).toBe(40);
+    }
+  });
+});

@@ -226,14 +226,14 @@ export function resolveBattle(
    * it. A report listing only the dead cannot be read: 853 fallen is a rout or
    * a scratch depending on whether five thousand came or nine hundred.
    */
-  const musterRoll = (p: Player, crewedGear: Record<SiegeGearType, number>, crewedCounters: Record<CounterType, number>): BattleForces => ({
+  const musterRoll = (p: Player, crewedGear: Record<SiegeGearType, number>, crewedCounters: Record<CounterType, number>, withEngineers = true): BattleForces => ({
     footmen: { ...p.army.footmen },
     archers: { ...p.army.archers },
     cavalry: { ...p.army.cavalry },
     mercFootmen: { ...p.army.mercenaries.footmen },
     mercArchers: { ...p.army.mercenaries.archers },
     mercCavalry: { ...p.army.mercenaries.cavalry },
-    engineers: p.army.siegeEngineers + p.army.mercenaries.engineers,
+    engineers: withEngineers ? p.army.siegeEngineers + p.army.mercenaries.engineers : 0,
     gear: { ...crewedGear },
     counters: { ...crewedCounters },
     wallLevel: level(p, "walls"),
@@ -244,7 +244,7 @@ export function resolveBattle(
   const forces = {
     // The attacker brings a train and no wall of their own to speak of; the
     // defender brings a battery and the masonry.
-    attacker: musterRoll(attackerIn, atkCrewed, crewCountersEmpty()),
+    attacker: musterRoll(attackerIn, atkCrewed, crewCountersEmpty(), bringSiege),
     defender: musterRoll(defenderIn, defCrew.offensive, defCrew.counters),
   };
 
@@ -256,7 +256,10 @@ export function resolveBattle(
     home: false,
     wallEdge: 0,
     war,
-    engineersPresent: walls,
+    // bringSiege, not walls: when the masonry is already rubble the TRAIN
+    // stays home, and crews without a train have no business on the field —
+    // they were marching to a breach for no reason and dying to sorties there.
+    engineersPresent: bringSiege,
     ramCrew: ramCrew.committed,
     // BLOODLUST — the avenging side only. The defender never gets it, however
     // aggrieved they feel: it is bought by having been struck first.
@@ -494,13 +497,15 @@ export function resolveBattle(
     spreadDamage(atk, dArrow);
     phaseReport("archers", preArrowA, preArrowD, (aFell, dFell) => {
       if (aFell + dFell === 0) return null;
-      // Keyed on whether there IS a wall, not on the archer gate: that gate
-      // reads 1 in every case now (the wall's edge does the work instead of a
-      // separate accuracy tax), so testing it would have made this branch dead
-      // and every siege would have read "across the open".
-      const shooting = hasWall
+      // Keyed on STANDING masonry, not on wall level: a garrison behind
+      // rubble is not "behind stone", and saying so misread every breach
+      // assault. (The archer gate itself reads 1 in every case now — the
+      // wall's edge does the work — so it cannot key this branch.)
+      const shooting = hasWall && wallIntegrity > 0
         ? "Our bowmen loose at the parapet, and theirs shoot down from behind stone"
-        : "The volleys go out across the open";
+        : hasWall
+          ? "The wall is rubble — the volleys go out across the breach"
+          : "The volleys go out across the open";
       return `${shooting} — ${dFell} of theirs fall to arrows, ${aFell} of ours.`;
     });
 
@@ -552,7 +557,10 @@ export function resolveBattle(
     // Never in a REVENGE. An answering strike comes with everything the
     // avenger has and expects the gates to stay shut — a garrison that has
     // already provoked one does not then ride out to meet it.
-    if (walls && mode !== "revenge" && defender.army.sortieEnabled && !sortied && willSally(defender)) {
+    // hasWall, not merely the mode: a sortie is riders coming OUT OF A GATE,
+    // and a town that never built a wall has none to open. A breached wall
+    // still counts — the gates exist, however battered.
+    if (hasWall && mode !== "revenge" && defender.army.sortieEnabled && !sortied && willSally(defender)) {
       const screen = fieldPower(atk);
       const riders = fieldPower(def);
       if (riders > 0 && riders >= SORTIE.TRIGGER_RATIO * screen) {
@@ -622,9 +630,11 @@ export function resolveBattle(
           aimDamage(def, guard, ["cavalry", "footman", "archer"]);
 
           // Half into the park — worn, not fired: engines are only lost once
-          // they are battered past SIEGE_DESTROYED_BELOW. Half into the men.
-          wrecked = wreckPark(atkPark, atRear * SORTIE.ENGINE_SHARE);
-          const atMen = atRear * (1 - SORTIE.ENGINE_SHARE);
+          // they are battered past SIEGE_DESTROYED_BELOW. Half into the men,
+          // plus whatever the park could not soak up.
+          const park = wreckPark(atkPark, atRear * SORTIE.ENGINE_SHARE);
+          wrecked = park.lost;
+          const atMen = atRear * (1 - SORTIE.ENGINE_SHARE) + park.leftover;
           applyToArm(atk, "archer", atMen * archerShare);
           crewLost = damageEngineers(atk, atMen * (1 - archerShare));
         }
@@ -681,8 +691,8 @@ export function resolveBattle(
   }
 
   // ── Aftermath ─────────────────────────────────────────────────────────────
-  applyLosses(attacker, atk, ramCrew, ramCrewJoined);
-  applyLosses(defender, def, null, false);
+  applyLosses(attacker, atk, ramCrew, ramCrewJoined, bringSiege);
+  applyLosses(defender, def, null, false, walls);
   if (hasWall) defender.wallIntegrity = Math.max(0, wallIntegrity);
 
   // ── Stripping the dead ────────────────────────────────────────────────────
@@ -1097,7 +1107,7 @@ const totalEngines = (park: Park<SiegeGearType>): number =>
  * once it is battered below SIEGE_DESTROYED_BELOW. A breakthrough that used to
  * end a siege now mostly leaves a park that needs repairing.
  */
-function wreckPark(park: Park<SiegeGearType>, damage: number): number {
+function wreckPark(park: Park<SiegeGearType>, damage: number): { lost: number; leftover: number } {
   let budget = damage;
   let lost = 0;
   for (const t of SIEGE_ORDER) {
@@ -1108,7 +1118,12 @@ function wreckPark(park: Park<SiegeGearType>, damage: number): number {
     lost += damagePark(park, t, spend, SIEGE_GEAR[t].health);
     budget -= spend;
   }
-  return lost;
+  // What the park could not absorb goes back to the caller. Riders who find
+  // fewer engines than they came for do not swing at air — the surplus falls
+  // on the men instead. Against a besieger with no park at all (a breach
+  // assault leaves the train home), HALF the breakthrough used to simply
+  // evaporate here.
+  return { lost, leftover: Math.max(0, budget) };
 }
 
 /** What the sortie looked like from the siege lines. */
@@ -1151,8 +1166,14 @@ function writeBackPark<T extends string>(
 }
 
 /** Write surviving counts back onto the player. Ram crews that never rejoined
- *  come home with the army. */
-function applyLosses(p: Player, s: Side, crew: RamCrew | null, joined: boolean) {
+ *  come home with the army.
+ *
+ *  `engineersFielded` guards the crew write-back, and the guard is not
+ *  optional: when engineers stayed home the Side carries zero of them, and
+ *  assigning that zero back DELETED EVERY ENGINEER THE PLAYER OWNED. Every
+ *  raid in the game's history did this — both sides, own and hired alike —
+ *  silently, which is why long raid campaigns kept "running out" of crews. */
+function applyLosses(p: Player, s: Side, crew: RamCrew | null, joined: boolean, engineersFielded: boolean) {
   const SRC = { footman: "footmen", archer: "archers", cavalry: "cavalry" } as const;
   for (const arm of ["footman", "archer", "cavalry"] as const) {
     for (const tier of ["light", "medium", "heavy"] as const) {
@@ -1163,8 +1184,10 @@ function applyLosses(p: Player, s: Side, crew: RamCrew | null, joined: boolean) 
       p.army.mercenaries[SRC[arm]][tier] = (merc?.count ?? 0) + (block?.merc[tier] ?? 0);
     }
   }
-  p.army.siegeEngineers = s.engineers;
-  p.army.mercenaries.engineers = s.mercEngineers;
+  if (engineersFielded) {
+    p.army.siegeEngineers = s.engineers;
+    p.army.mercenaries.engineers = s.mercEngineers;
+  }
 }
 
 export { assignRamCrew };

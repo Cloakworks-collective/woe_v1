@@ -252,8 +252,23 @@ export function runCovertOp(
   /** The party's weight, in regulars-equivalent. */
   const partyWorth = regularsGone * REGULAR_SPY_POWER + mercsGone;
 
+  // A turn offer must be a real number BEFORE it touches arithmetic. NaN
+  // sails through Math.max and every < comparison, so garbage typed into the
+  // turns field used to become cost = NaN, be "affordable" (NaN < x is
+  // false), and leave spyTurnsAvailable = NaN in the stored world — after
+  // which every covert op fails forever. Persisted state corruption from a
+  // text box.
+  if (turnsOffered !== undefined && !Number.isFinite(turnsOffered)) {
+    throw new EngineError("turns", "Turns must be a number.");
+  }
   const minimum = covertTurnCost(op, agentsSent);
-  const cost = arm === "spy" ? Math.max(minimum, Math.floor(turnsOffered ?? minimum)) : minimum;
+  // FIX 8 alongside: patience past PREPARATION.MAX buys nothing, so the spend
+  // is clamped to the last useful turn rather than silently pocketing half a
+  // budget for no bonus. Offer 10x and pay 3x.
+  const usefulCeiling = Math.ceil(minimum * (1 + PREPARATION.MAX / PREPARATION.PER_EXTRA_MULTIPLE));
+  const cost = arm === "spy"
+    ? Math.min(usefulCeiling, Math.max(minimum, Math.floor(turnsOffered ?? minimum)))
+    : minimum;
   const prepared = arm === "spy" ? preparationBonus(cost, minimum) : 1;
 
   // ── The guild master's answer ─────────────────────────────────────────────
@@ -679,22 +694,24 @@ export function covertHistory(p: Player, currentTick: number): CovertRecord[] {
 }
 
 /**
- * How many of each engine a realm may KEEP, offensive and defensive counted
+ * How many MORE of one engine a realm may buy, offensive and defensive counted
  * apart. See SIEGE_STOCK_RATIO for why the yard is not allowed to be a bank.
  *
- * "Manned" is what your engineers could crew if they turned their hands to that
- * one type and nothing else — so the allowance is generous per weapon and tight
- * across a whole park, which is the shape a stockpile runs into and a working
- * train does not.
+ * ONE crew-weight budget across the whole park, not an allowance per type. The
+ * first cut of this computed each type's room as if every engineer manned that
+ * type alone — so 100 crews could hold 100 rams AND 40 trebuchets AND 40
+ * ballistae simultaneously, each inside its own dedicated 2×, and the storage
+ * bank the cap exists to close was mostly reopened. The budget is
+ *
+ *     Σ (engines owned × crew each engine wants)  ≤  crews × SIEGE_STOCK_RATIO
+ *
+ * per side of the yard, which is what "twice the manned siege" actually means.
  */
-export function siegeStockRoom(p: Player, which: "gear"): Record<SiegeGearType, number>;
-export function siegeStockRoom(p: Player, which: "counters"): Record<CounterType, number>;
-export function siegeStockRoom(p: Player, which: "gear" | "counters"): Record<string, number> {
+export function siegeStockRoom(p: Player, which: "gear" | "counters", type: string): number {
   const crews = p.army.siegeEngineers + p.army.mercenaries.engineers;
   const table: Record<string, { crew: number }> = which === "gear" ? SIEGE_GEAR : SIEGE_COUNTERS;
-  const out: Record<string, number> = {};
-  for (const [type, spec] of Object.entries(table)) {
-    out[type] = Math.floor((crews / spec.crew) * SIEGE_STOCK_RATIO);
-  }
-  return out;
+  const owned: Record<string, number> = which === "gear" ? p.army.siegeGear : p.army.siegeCounters;
+  const used = Object.entries(table).reduce((n, [t, spec]) => n + (owned[t] ?? 0) * spec.crew, 0);
+  const budget = crews * SIEGE_STOCK_RATIO - used;
+  return Math.max(0, Math.floor(budget / table[type].crew));
 }
