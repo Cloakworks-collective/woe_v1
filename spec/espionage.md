@@ -206,20 +206,23 @@ same cascade the army runs (`combat.md`).
 
 ## Recruitment
 
-Measured against your **regular troops** — footmen, archers and cavalry — never
-against how many people live in your realm. A shadow service is raised *behind
-an army*: a ruler who farms and never musters keeps no knives at all, and the
-ceiling rises only as the muster does.
+Measured against **total population** — civilians and regular military together,
+sellswords never, since they are on your payroll rather than in your realm.
 
 | | |
 |---|---|
-| Spies | ≤ **5%** of regulars |
-| Scouts | ≤ **5%** of regulars |
+| Spies | ≤ **5%** of population |
+| Scouts | ≤ **5%** of population |
 | Combined | ≤ **10%** |
-| Engine crews | ≤ **10%** of regulars |
+| Engine crews | ≤ **10%** of population |
 
-So six hundred rangers is not something a populous realm has — it is something a
-realm of twelve thousand soldiers has, and it deserves to be near untouchable.
+**These bound your OWN, not your hired.** Sellsword knives, rangers and crews sit
+on top under the ordinary hire ratio — which is itself measured against the
+regulars of that arm, so hiring extends a shadow service you have already built
+and can never replace one you have not.
+
+Six hundred rangers therefore means a realm of twelve thousand souls, which is a
+genuinely enormous one, and a realm that large deserves to be near untouchable.
 
 **Engines you cannot crew are engines you may not keep.** A realm may hold
 `SIEGE_STOCK_RATIO` × what its engineers could man, counted separately for the

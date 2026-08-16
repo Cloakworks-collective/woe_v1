@@ -226,31 +226,33 @@ export const INTERCEPTION = {
 // ─── 4 · RECRUITMENT CAPS ───────────────────────────────────────────────────
 
 /**
- * SPECIALISTS ARE RAISED BEHIND AN ARMY, NOT BESIDE A POPULATION.
+ * HOW MANY OF YOUR OWN PEOPLE MAY BE SOMETHING OTHER THAN A SOLDIER OR A FARMER.
  *
- * Measured against your REGULAR TROOPS — footmen, archers and cavalry — not
- * against how many people live in your realm. A ruler who farms and never
- * musters cannot field a shadow service at all, and the ceiling on knives,
- * rangers and engine crews rises only as the army does.
+ * Measured against TOTAL POPULATION — civilians and regular military together,
+ * sellswords never, because they are on your payroll rather than in your realm.
+ * Six hundred rangers therefore means a realm of twelve thousand souls, which is
+ * a genuinely enormous one, and a realm that large deserves to be near
+ * untouchable.
  *
- * That is the difference between a realm holding six hundred rangers because it
- * is populous and holding them because it is genuinely enormous under arms. If
- * someone does field six hundred, they earned them behind twelve thousand
- * soldiers, and they deserve to be very hard to touch.
+ * THESE BOUND YOUR OWN, NOT YOUR HIRED. Sellsword knives, rangers and engine
+ * crews sit on top under the ordinary hire ratio, which is itself measured
+ * against the regulars of that arm — so hiring extends a shadow service you
+ * have already built and can never replace one you have not.
  *
- * These used to read against total population and, worse, were never enforced
- * anywhere: `covertCap` was written, exported, and called by nothing.
+ * Both used to be written and never enforced: `covertCap` was exported,
+ * documented in two places, and called by nothing, so spies and scouts have
+ * been uncapped since the day they existed.
  */
 export const COVERT_CAPS = {
-  /** Each arm may not exceed this share of your regular troops… */
-  PER_ARM: 0.05, // frac of regulars
+  /** Each arm may not exceed this share of your people… */
+  PER_ARM: 0.05, // frac of population
   /** …and together they may not exceed this. */
-  COMBINED: 0.1, // frac of regulars
+  COMBINED: 0.1, // frac of population
 };
 
-/** Engine crews, on the same rule and twice the room — a siege park is a
- *  larger undertaking than a shadow service. */
-export const ENGINEER_CAP = 0.1; // frac of regulars
+/** Engine crews of your own, on the same rule and twice the room — a siege park
+ *  is a larger undertaking than a shadow service. */
+export const ENGINEER_CAP = 0.1; // frac of population
 
 /**
  * ENGINES YOU CANNOT CREW ARE ENGINES YOU MAY NOT KEEP.

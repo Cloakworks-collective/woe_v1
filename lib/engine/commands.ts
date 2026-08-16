@@ -294,10 +294,10 @@ export function trainSpies(input: Player, count: number): EngineResult {
   if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
   if (p.idlePeasants < count) throw new EngineError("peasants", "Not enough idle peasants");
   if (level(p, "shadow_guild") === 0) throw new EngineError("building", "Build the Shadow Guild first");
-  // A shadow service is raised BEHIND AN ARMY — the ceiling is a share of your
-  // regular troops, never of your people (COVERT_CAPS).
+  // A share of your PEOPLE may be something other than a farmer or a soldier
+  // (COVERT_CAPS). This bounds your OWN knives; hired ones sit on top of it.
   if (p.army.spies + count > covertCap(p, "spy")) {
-    throw new EngineError("cap", `Your regulars will only carry ${covertCap(p, "spy")} spies. Muster more troops first.`);
+    throw new EngineError("cap", `Your realm will only carry ${covertCap(p, "spy")} spies of its own. Grow, or hire.`);
   }
   pay(p, scale(TRAINING_COSTS.spy, count));
   p.idlePeasants -= count;
@@ -311,7 +311,7 @@ export function trainScouts(input: Player, count: number): EngineResult {
   if (p.idlePeasants < count) throw new EngineError("peasants", "Not enough idle peasants");
   if (level(p, "rangers_lodge") === 0) throw new EngineError("building", "Build the Ranger's Lodge first");
   if (p.army.scouts + count > covertCap(p, "scout")) {
-    throw new EngineError("cap", `Your regulars will only carry ${covertCap(p, "scout")} scouts. Muster more troops first.`);
+    throw new EngineError("cap", `Your realm will only carry ${covertCap(p, "scout")} scouts of its own. Grow, or hire.`);
   }
   pay(p, scale(TRAINING_COSTS.scout, count));
   p.idlePeasants -= count;
@@ -325,10 +325,11 @@ export function trainSiegeEngineers(input: Player, count: number): EngineResult 
   if (p.idlePeasants < count) throw new EngineError("peasants", "Not enough idle peasants");
   if (level(p, "war_foundry") < 1) throw new EngineError("foundry", "Engine Yard required");
   if (musterVacancy(p) < count) throw new EngineError("muster", "No free Muster Hall slots");
-  // Crews are raised behind an army too, with twice the room a shadow service
-  // gets — a siege park is the larger undertaking (ENGINEER_CAP).
+  // Crews come out of the same people, with twice the room a shadow service
+  // gets — a siege park is the larger undertaking (ENGINEER_CAP). Your own
+  // only; hired crews sit on top under the hire ratio.
   if (p.army.siegeEngineers + count > engineerCap(p)) {
-    throw new EngineError("cap", `Your regulars will only carry ${engineerCap(p)} engineers. Muster more troops first.`);
+    throw new EngineError("cap", `Your realm will only carry ${engineerCap(p)} engineers of its own. Grow, or hire.`);
   }
   pay(p, scale(TRAINING_COSTS.siegeEngineer, count));
   p.idlePeasants -= count;

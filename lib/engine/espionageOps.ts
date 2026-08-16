@@ -51,7 +51,6 @@ import {
   level,
   mercTroops,
   researchLevel,
-  regularTroops,
   totalPopulation,
   troopTotal,
   veterancyBonus,
@@ -621,18 +620,20 @@ const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");
 
 /** How many agents of one arm this realm may keep. */
 export function covertCap(p: Player, arm: "spy" | "scout"): number {
-  // Against the ARMY, not the population — see COVERT_CAPS. A realm that farms
-  // and never musters keeps no shadow service.
-  const line = regularTroops(p);
-  const perArm = Math.floor(line * COVERT_CAPS_PER_ARM);
-  const combined = Math.floor(line * COVERT_CAPS_COMBINED);
+  // Against your PEOPLE — civilians and regulars alike, sellswords never (see
+  // totalPopulation). It bounds how many of your OWN you may put in the shadow
+  // service; hired knives sit on top of it under the ordinary hire ratio.
+  const pop = totalPopulation(p);
+  const perArm = Math.floor(pop * COVERT_CAPS_PER_ARM);
+  const combined = Math.floor(pop * COVERT_CAPS_COMBINED);
   const other = arm === "spy" ? p.army.scouts : p.army.spies;
   return Math.max(0, Math.min(perArm, combined - other));
 }
 
-/** Engine crews you may keep — the same rule, twice the room. */
+/** Engine crews of your OWN — the same rule, twice the room. Hired crews are
+ *  bounded separately, by the hire ratio against these. */
 export function engineerCap(p: Player): number {
-  return Math.floor(regularTroops(p) * ENGINEER_CAP);
+  return Math.floor(totalPopulation(p) * ENGINEER_CAP);
 }
 
 import { COVERT_CAPS, ENGINEER_CAP, SIEGE_STOCK_RATIO } from "../constants";

@@ -601,12 +601,13 @@ describe("training costs", () => {
   });
 });
 
-describe("specialists are raised behind an army", () => {
-  const realm = (regulars: number, engineers = 0) => {
+describe("how many of your own may be something other than farmer or soldier", () => {
+  /** `people` is the whole realm — peasants and the levy both count. */
+  const realm = (people: number, engineers = 0) => {
     const p = newEmpire({ id: "c", name: "Caps", race: "human" });
-    p.army.footmen = { light: regulars, medium: 0, heavy: 0 };
+    p.army.footmen = { light: 0, medium: 0, heavy: 0 };
     p.army.siegeEngineers = engineers;
-    p.idlePeasants = 5_000;
+    p.idlePeasants = Math.max(0, people - engineers);
     p.gold = 50_000_000;
     p.bankedGold = 0;
     p.resources = { food: 9e6, wood: 9e6, stone: 9e6, ore: 9e6 };
@@ -617,23 +618,40 @@ describe("specialists are raised behind an army", () => {
     return p;
   };
 
-  it("caps spies and scouts at a share of the REGULAR LINE, not the population", () => {
-    // 5,000 idle peasants and only 100 soldiers: a populous realm that never
-    // mustered keeps almost no shadow service.
-    const p = realm(100);
-    expect(() => trainSpies(p, 6)).toThrow(/only carry/i);
-    expect(trainSpies(p, 5).player.army.spies).toBe(5);
+  it("caps each shadow arm at a share of the WHOLE PEOPLE", () => {
+    const p = realm(1_000);
+    expect(() => trainSpies(p, 51)).toThrow(/only carry/i);
+    expect(trainSpies(p, 50).player.army.spies).toBe(50);
   });
 
-  it("…and the ceiling rises only as the army does", () => {
-    expect(trainScouts(realm(2_000), 100).player.army.scouts).toBe(100);
-    expect(() => trainScouts(realm(200), 100)).toThrow(/only carry/i);
+  it("…so the ceiling rises with the realm", () => {
+    expect(trainScouts(realm(4_000), 200).player.army.scouts).toBe(200);
+    expect(() => trainScouts(realm(1_000), 200)).toThrow(/only carry/i);
+  });
+
+  it("holds both arms together to a tighter line than either alone", () => {
+    const p = trainSpies(realm(1_000), 50).player;
+    // 50 knives already stand; the combined ceiling is 100, so 50 rangers fit
+    // and not one more.
+    expect(trainScouts(p, 50).player.army.scouts).toBe(50);
+    expect(() => trainScouts(p, 51)).toThrow(/only carry/i);
   });
 
   it("gives engine crews twice the room — a siege park is the larger undertaking", () => {
     const p = realm(1_000);
     expect(trainSiegeEngineers(p, 100).player.army.siegeEngineers).toBe(100);
     expect(() => trainSiegeEngineers(p, 101)).toThrow(/only carry/i);
+  });
+
+  it("bounds YOUR OWN only — hired knives sit on top of the ceiling", () => {
+    const p = trainSpies(realm(1_000), 50).player;
+    p.gold = 50_000_000;
+    // At the cap for regulars, and sellswords may still be taken on beside them
+    // under the ordinary hire ratio.
+    expect(() => trainSpies(p, 1)).toThrow(/only carry/i);
+    const hired = hireMercenaries(p, "spy", "light", 10).player;
+    expect(hired.army.mercenaries.spies).toBe(10);
+    expect(hired.army.spies).toBe(50);
   });
 
   it("refuses engines nobody could crew — the yard is not a bank", () => {
