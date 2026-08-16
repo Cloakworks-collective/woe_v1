@@ -76,7 +76,14 @@ export interface CovertResult {
    *  desk renders this as a table; `detail` stays the tiding and the fallback. */
   facts?: CovertFact[];
   victimDetail?: string; // what the victim sees (anonymous unless exposed)
+  /** Goods BURNED. Feeds the era's "Vandal" record, so only arson may fill it —
+   *  a thief moves goods rather than destroying them, and counting theft here
+   *  would crown the wrong person. */
   resourcesDestroyed?: number;
+  /** Goods CARRIED OFF, which is a different thing and kept apart for the
+   *  reason above. Theft used to report nothing at all: it plundered correctly
+   *  and then filed a record that said zero. */
+  resourcesStolen?: number;
   gearDestroyed?: number;
   turnsSpent: number;
 }
@@ -348,6 +355,7 @@ export function runCovertOp(
   let facts: CovertFact[] | undefined;
   let victimDetail: string | undefined;
   let resourcesDestroyed = 0;
+  let resourcesStolen = 0;
   let gearDestroyed = 0;
 
   if (headsHome <= 0) {
@@ -481,6 +489,7 @@ export function runCovertOp(
         const amt = Math.floor(unstored(defender, r) * pct);
         plunderResource(defender, r, amt);
         attacker.resources[r] += amt;
+        resourcesStolen += amt;
         if (amt > 0) taken.push(`${fmt(amt)} ${r}`);
       }
       detail = taken.length ? `Carried off ${taken.join(", ")} in the night.` : "Nothing lay outside to carry.";
@@ -611,7 +620,7 @@ export function runCovertOp(
   return {
     attacker, defender, op,
     sent: agentsSent, intercepted, exposed,
-    detail, facts, victimDetail, resourcesDestroyed, gearDestroyed, turnsSpent: cost,
+    detail, facts, victimDetail, resourcesDestroyed, resourcesStolen, gearDestroyed, turnsSpent: cost,
   };
 }
 

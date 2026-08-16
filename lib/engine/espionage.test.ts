@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { covertHistory, covertTurnCost, recordCovert, runCovertOp, scoutsNeeded } from "./espionageOps";
+import {
+  covertHistory,
+  covertTurnCost,
+  preparationBonus,
+  recordCovert,
+  runCovertOp,
+  scoutsNeeded,
+} from "./espionageOps";
 import { covertOp } from "../constants";
 import { newEmpire } from "./newEmpire";
 import { COVERT_LOG_DAYS, MERCENARIES, TURNS_PER_DAY } from "../constants";
@@ -435,5 +442,66 @@ describe("a spy corps is your own people, padded with bought ones", () => {
   it("refuses a night where the watch would seize more than REFUSAL_RATE of them", () => {
     expect(() => runCovertOp(guild(20, 0), mark(400), "torch_stores", 20, 1000, seededRng(3)))
       .toThrow(/refuses/i);
+  });
+});
+
+describe("turns are a minimum, and the surplus buys preparation", () => {
+  const guild = (spies: number) => {
+    const p = newEmpire({ id: "g", name: "Guild", race: "human" });
+    p.buildings.shadow_guild = 6;
+    p.army.spies = spies;
+    p.research.levels.tradecraft = 5;
+    p.spyTurnsAvailable = 2_000;
+    return p;
+  };
+  const watched = () => {
+    const p = newEmpire({ id: "w", name: "Watched", race: "human" });
+    p.buildings.rangers_lodge = 5;
+    p.army.scouts = 300;
+    p.research.levels.pathfinding = 3;
+    p.gold = 2_000_000;
+    p.resources = { food: 2e6, wood: 2e6, stone: 2e6, ore: 2e6 };
+    return p;
+  };
+
+  it("floors an under-funded offer at the minimum rather than shorting the party", () => {
+    const min = covertTurnCost(covertOp("torch_stores")!, 100);
+    const r = runCovertOp(guild(200), watched(), "torch_stores", 100, 1000, seededRng(1), false, 1);
+    expect(r.turnsSpent).toBe(min);
+  });
+
+  it("spends what is offered above it, and it tells", () => {
+    const min = covertTurnCost(covertOp("torch_stores")!, 100);
+    let plain = 0, prepared = 0;
+    for (let i = 0; i < 60; i++) {
+      plain += runCovertOp(guild(200), watched(), "torch_stores", 100, 1000, seededRng(i)).intercepted;
+      prepared += runCovertOp(
+        guild(200), watched(), "torch_stores", 100, 1000, seededRng(i), false, min * 3,
+      ).intercepted;
+    }
+    // Same party, same watch, same dice — only the time they were given differs.
+    expect(prepared).toBeLessThan(plain);
+  });
+
+  it("caps the patience, so a fourth multiple buys nothing a third did not", () => {
+    const min = covertTurnCost(covertOp("torch_stores")!, 100);
+    expect(preparationBonus(min * 3, min)).toBe(preparationBonus(min * 8, min));
+  });
+});
+
+describe("theft reports what it carried off", () => {
+  it("fills resourcesStolen, and leaves the arsonist's record alone", () => {
+    const a = newEmpire({ id: "t", name: "Thief", race: "human" });
+    a.buildings.shadow_guild = 6;
+    a.army.spies = 200;
+    a.research.levels.tradecraft = 5;
+    a.spyTurnsAvailable = 200;
+    const v = newEmpire({ id: "v", name: "Victim", race: "human" });
+    v.resources = { food: 2e6, wood: 2e6, stone: 2e6, ore: 2e6 };
+    const r = runCovertOp(a, v, "steal_resources", 30, 1000, seededRng(4));
+    expect(r.resourcesStolen).toBeGreaterThan(0);
+    // "the Vandal" counts goods BURNED. A thief moves them; crowning them for
+    // it would name the wrong person.
+    expect(r.resourcesDestroyed ?? 0).toBe(0);
   });
 });

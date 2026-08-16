@@ -180,6 +180,8 @@ export interface CovertRecord {
   facts?: CovertFact[];
   turnsSpent: number;
   resourcesDestroyed?: number;
+  /** Carried off rather than burned — see CovertResult. */
+  resourcesStolen?: number;
   gearDestroyed?: number;
 }
 

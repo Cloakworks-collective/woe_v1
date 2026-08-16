@@ -97,3 +97,24 @@ describe("the war seeder's preparation", () => {
     expect(world.players[A].covertLog ?? []).toHaveLength(0);
   });
 });
+
+describe("the covert command carries a turn offer", () => {
+  it("passes extra turns through to the engine as preparation", () => {
+    const world = readyWorld();
+    const before = world.players[A].spyTurnsAvailable;
+    applyOneCommand(world, A, "covert", {
+      targetId: B, op: "torch_stores", agents: 60, turns: 100,
+    });
+    // The minimum for 60 knives is well under 100; the surplus was committed.
+    expect(before - world.players[A].spyTurnsAvailable).toBe(100);
+  });
+
+  it("and pays the minimum when none is offered", () => {
+    const world = readyWorld();
+    const before = world.players[A].spyTurnsAvailable;
+    applyOneCommand(world, A, "covert", { targetId: B, op: "torch_stores", agents: 60 });
+    const spent = before - world.players[A].spyTurnsAvailable;
+    expect(spent).toBeGreaterThan(0);
+    expect(spent).toBeLessThan(100);
+  });
+});

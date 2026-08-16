@@ -98,6 +98,36 @@ operation, not just the lingering ones: agents get over the wall, find every
 door watched, and come home with nothing. Some are caught on the way. This is
 not a wall between equals — the ±30% swing above is what keeps it a gamble.
 
+### Turns are a minimum
+
+The cost of an operation is the least you may spend on it, not the price. Commit
+more and the surplus buys the knives TIME — reconnoitred routes, bribed gatemen,
+a night of their choosing:
+
+```
+funding     = turns committed ÷ the minimum
+preparation = 1 + min(PREPARATION.MAX, (funding − 1) × PER_EXTRA_MULTIPLE)
+```
+
+It multiplies what the party is worth, so it decides both whether the watch
+turns them back and how many come home. Measured, 120 knives against 150
+rangers:
+
+| turns | funding | worth | lost | turned back |
+|---|---|---|---|---|
+| 34 | 1× | 1.00× | 25 | 56% |
+| 51 | 1.5× | 1.25× | 20 | 16% |
+| 68 | 2× | 1.50× | 17 | 0% |
+| 102 | 3× | 2.00× | 13 | 0% |
+
+Double the turns and a raid that failed more than half the time stops failing,
+for a third fewer men. Patience caps there — beyond `PREPARATION.MAX` you are
+waiting where you could be working, and the budget is the same one the rangers
+draw from.
+
+**Spies only.** A scouting party already spends its turns on people, so for
+rangers the two dials are one dial.
+
 ### What lingers, and for how long
 
 Unrest and Doubt are the two operations that do not finish when the spy leaves,

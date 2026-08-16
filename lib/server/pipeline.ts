@@ -518,7 +518,14 @@ function dispatch(
       // Formally at war is not enough — the target's Beacon may still be
       // sounding, in which case their people take peacetime damage.
       const covertWar = warIsHot(clan, targetClan, tick);
-      const r = runCovertOp(player, target, str(args.op), num(args.agents), tick, Math.random, covertWar);
+      // Turns are OPTIONAL and always at least the operation's minimum — the
+      // engine floors it. Anything above buys preparation (PREPARATION).
+      const offered = args.turns === undefined || args.turns === null || args.turns === ""
+        ? undefined
+        : num(args.turns);
+      const r = runCovertOp(
+        player, target, str(args.op), num(args.agents), tick, Math.random, covertWar, offered,
+      );
       // Remember the order so the consoles can open on it next time.
       if (r.op.arm === "scout") {
         r.attacker.lastScoutOp = r.op.id;
@@ -548,6 +555,7 @@ function dispatch(
           facts: r.facts,
           turnsSpent: r.turnsSpent,
           resourcesDestroyed: r.resourcesDestroyed,
+          resourcesStolen: r.resourcesStolen,
           gearDestroyed: r.gearDestroyed,
         },
         tick,

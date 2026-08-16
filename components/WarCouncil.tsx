@@ -273,9 +273,21 @@ export function WarCouncil({
                 defaultValue={last?.spyAgents ? String(last.spyAgents) : ""}
                 disabled={spiesLocked}
               />
+              {/* The turn cost of an operation is a MINIMUM. Anything above it
+                  buys the knives time to prepare, which is worth more than any
+                  number of extra bodies against a heavy watch. Left blank they
+                  pay the minimum and go tonight. */}
+              <input
+                name="turns"
+                placeholder="turns (optional)"
+                aria-label="Spy turns to commit — more than the minimum buys preparation"
+                inputMode="numeric"
+                className="wc-input"
+                disabled={spiesLocked}
+              />
               <ReqTip
                 heading={`Send spies against ${target.name}`}
-                body="Only the survivors do the damage. A clean run stays anonymous; if even one is taken, they learn who sent them and the revenge window opens."
+                body="Only the survivors do the damage. A clean run stays anonymous; if even one is taken, they learn who sent them and the revenge window opens. The turn cost is a MINIMUM — commit more and the extra buys reconnoitred routes and a night of their choosing, up to double what the party is worth."
                 disabledReason={covertStop ?? (spiesLocked ? "Study Tradecraft first." : undefined)}
               >
                 <Btn className={spiesLocked || covertStop ? "btn btn-no" : "btn"} disabled={spiesLocked || Boolean(covertStop)}>
