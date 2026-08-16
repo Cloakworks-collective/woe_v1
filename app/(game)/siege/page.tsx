@@ -205,10 +205,16 @@ export default async function SiegePage({
 
   const engCost = TRAINING_COSTS.siegeEngineer;
   const musterFree = level(p, "muster_hall") * TROOPS_PER_MUSTER_HALL - military(p);
+  // Crews are your PEOPLE. Losing population never dismisses one — the same
+  // rule as a shelled barracks, which keeps every soldier and takes no new
+  // muster — so a realm can sit above this ceiling and simply raise no more.
+  const crewCeiling = engineerCap(p);
+  const crewRoom = crewCeiling - p.army.siegeEngineers;
   const canTrainEngineer =
     foundry >= 1 &&
     p.idlePeasants >= 1 &&
     musterFree >= 1 &&
+    crewRoom >= 1 &&
     have.gold >= (engCost.gold ?? 0) &&
     have.wood >= (engCost.wood ?? 0) &&
     have.stone >= (engCost.stone ?? 0) &&
@@ -219,7 +225,11 @@ export default async function SiegePage({
       ? "No idle peasants to recruit"
       : musterFree < 1
         ? "No free Muster Hall bed"
-        : "Not enough resources for one engineer";
+        : crewRoom < 1
+          ? crewRoom === 0
+            ? `At the ceiling — your people will carry ${crewCeiling.toLocaleString("en-US")} crews of your own. Grow the realm to raise more.`
+            : `${(-crewRoom).toLocaleString("en-US")} over what your people can carry (${crewCeiling.toLocaleString("en-US")}). Nobody is dismissed, but none may be raised until the realm grows back.`
+          : "Not enough resources for one engineer";
 
   return (
     <>
@@ -286,13 +296,13 @@ export default async function SiegePage({
                   max={Math.min(
                     p.idlePeasants,
                     Math.max(0, musterFree),
-                    Math.max(0, engineerCap(p) - p.army.siegeEngineers),
+                    Math.max(0, crewRoom),
                     maxAffordable(engCost, have),
                   )}
                 />
                 <ReqTip
                   heading="Recruit Siege Engineers"
-                  body={`Raise idle peasants into the crews that man your engines — counters and engines both sit idle until crewed. Your own crews are capped at ${Math.round(ENGINEER_CAP * 100)}% of your people (${engineerCap(p).toLocaleString("en-US")} at your size); hired crews sit on top of that. And the yard holds only ${SIEGE_STOCK_RATIO}× what your crews can man, counted separately for the train and the battery — engines you cannot crew are engines you may not keep.`}
+                  body={`Raise idle peasants into the crews that man your engines — counters and engines both sit idle until crewed. Your own crews are capped at ${Math.round(ENGINEER_CAP * 100)}% of your people (${crewCeiling.toLocaleString("en-US")} at your size); hired crews sit on top of that, and losing population never dismisses a crew — it only stops you raising more. And the yard holds only ${SIEGE_STOCK_RATIO}× what your crews can man, counted separately for the train and the battery — engines you cannot crew are engines you may not keep.`}
                   rows={[
                     { icon: <span className="costtip-ico">👥</span>, label: "Idle peasant", need: 1, have: p.idlePeasants },
                     { icon: <span className="costtip-ico">🔧</span>, label: "Crew slot", need: 1, have: Math.max(0, engineerCap(p) - p.army.siegeEngineers) },

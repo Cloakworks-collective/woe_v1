@@ -152,6 +152,7 @@ const MUSTER = (p: Player, discount: number) =>
         0,
         Math.floor(regularsOfArm(p, "spy") * MERCENARIES.CAP_RATIO) - mercsOfArm(p, "spy"),
       ),
+      ceiling: covertCap(p, "spy"),
       capacity: `${fmt(covertCap(p, "spy"))} of your own — ${pct(COVERT_CAPS.PER_ARM)} of your people, and ${pct(COVERT_CAPS.COMBINED)} across both shadow arms. Hired knives sit on top. Shadow Guild L${level(p, "shadow_guild")} makes each +${Math.round(level(p, "shadow_guild") * GUILD_BONUS_PER_LEVEL * 100)}% effective`,
     },
     {
@@ -168,6 +169,7 @@ const MUSTER = (p: Player, discount: number) =>
         0,
         Math.floor(regularsOfArm(p, "scout") * MERCENARIES.CAP_RATIO) - mercsOfArm(p, "scout"),
       ),
+      ceiling: covertCap(p, "scout"),
       capacity: `${fmt(covertCap(p, "scout"))} of your own — ${pct(COVERT_CAPS.PER_ARM)} of your people, and ${pct(COVERT_CAPS.COMBINED)} across both shadow arms. Hired rangers sit on top. Ranger's Lodge L${level(p, "rangers_lodge")} unlocks scout work up to level ${level(p, "rangers_lodge")}`,
     },
   ];
@@ -258,7 +260,13 @@ export default async function TrainPage({
       >
         <div className="card-grid">
           {MUSTER(p, discount).map((u) => {
-            const { unit, arm, art, cmd, current, hired, cost, mercCost, mercGate, mercRoom, capacity } = u;
+            const { unit, arm, art, cmd, current, hired, cost, mercCost, mercGate, mercRoom, capacity, ceiling } = u;
+            // A CAP THAT HAS ALREADY BITTEN SHOULD SAY SO. Specialists are your
+            // people: losing population never dismisses them, it only stops you
+            // raising more — the same rule as a shelled barracks, which keeps
+            // every soldier and takes no new muster. Without this the button
+            // simply dies after a raid and never explains itself.
+            const over = current - ceiling;
             return (
             <div className="bcard" key={unit}>
               <div className="bcard-head">
@@ -279,15 +287,23 @@ export default async function TrainPage({
                       <ResIcon kind="gold" size={20} /> {cost} each
                     </li>
                   </ul>
-                  <CountForm
-                    name={cmd}
-                    path="/train"
-                    label="Train"
-                    afford={purseGold(p) >= cost}
-                    heading={`Train ${UNIT_INFO[unit].title}`}
-                    goldEach={cost}
-                    haveGold={purseGold(p)}
-                  />
+                  {over >= 0 ? (
+                    <p className="covert-hire-why">
+                      {over === 0
+                        ? `At the ceiling — your people will carry ${ceiling} ${unit}s of your own. Grow the realm to raise more.`
+                        : `${over} over what your people can carry (${ceiling}). Nobody is dismissed — losing population never costs you an agent — but none may be raised until the realm grows back.`}
+                    </p>
+                  ) : (
+                    <CountForm
+                      name={cmd}
+                      path="/train"
+                      label="Train"
+                      afford={purseGold(p) >= cost}
+                      heading={`Train ${UNIT_INFO[unit].title}`}
+                      goldEach={cost}
+                      haveGold={purseGold(p)}
+                    />
+                  )}
 
                   {/* Sellswords of the same arm, on the same card. They cost no
                       population and no barracks bed — covert agents live in
