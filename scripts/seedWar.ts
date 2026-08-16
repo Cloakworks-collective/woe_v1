@@ -178,11 +178,18 @@ async function main() {
     SCOUT_OPS.forEach((op) => run(viewer.id, "covert", { targetId: peer!.id, op, agents: 10 }));
     // And spread across the rest, so the target filter has work to do.
     SCOUT_OPS.forEach((op, i) => run(viewer.id, "covert", { targetId: pick(i).id, op, agents: 8 }));
-    SPY_OPS.forEach((op, i) => run(viewer.id, "covert", { targetId: pick(i).id, op, agents: 6 + i }));
-    SPY_OPS.slice(0, 3).forEach((op) => run(viewer.id, "covert", { targetId: peer!.id, op, agents: 9 }));
+    // Knives go in FORCE now. A guild master refuses an order whose nominal
+    // odds reach REFUSAL_RATE, which puts a floor of roughly `their watch /
+    // 2.25` on a quiet operation — a dozen agents against a hundred rangers is
+    // not a raid, it is a funeral, and they say so.
+    SPY_OPS.forEach((op, i) => run(viewer.id, "covert", { targetId: pick(i).id, op, agents: 90 + i }));
+    SPY_OPS.slice(0, 3).forEach((op) => run(viewer.id, "covert", { targetId: peer!.id, op, agents: 110 }));
     // Shadows sent at them, so their rangers have something to show.
     for (let i = 0; i < 3; i++) {
-      run(pick(i).id, "covert", { targetId: viewer.id, op: "torch_stores", agents: 12 });
+      const raider = world.players[pick(i).id];
+      raider.army.spies = Math.max(raider.army.spies, 150);
+      raider.spyTurnsAvailable = 200;
+      run(pick(i).id, "covert", { targetId: viewer.id, op: "torch_stores", agents: 120 });
     }
 
     // ── Spread the timestamps ─────────────────────────────────────────────

@@ -24,7 +24,11 @@ import {
   EFFECT_PER_LEVEL,
   GUILD_BONUS_PER_LEVEL,
   INTERCEPTION,
+  PREPARATION,
   RECON_FUZZ,
+  REGULAR_SPY_POWER,
+  REFUSAL_RATE,
+  SLIP_THROUGH,
   SCOUT_MISSION,
   LODGE_BONUS_PER_LEVEL,
   MAX_FIELD_LEVEL,
@@ -131,25 +135,38 @@ function blur(facts: CovertFact[] | undefined, fill: number, rng: Rng): CovertFa
   }));
 }
 
-const agentPower = (
-  p: Player,
-  arm: "spy" | "scout",
-  count: number,
-  rng: Rng,
-): number => {
+/**
+ * What ONE agent is worth before the dice — race, research, the house they came
+ * out of. Held apart from the roll so the refusal below can judge an order on
+ * its nominal odds; a refusal that came and went with the luck would be
+ * unreadable.
+ *
+ * Additive pool, exactly as in battle — but with NO veterancy term. The shadow
+ * war does not keep a service record: what an agent is worth is what you have
+ * paid for them in research and stone, not what they have lived through.
+ */
+const agentPool = (p: Player, arm: "spy" | "scout"): number => {
   const base = AGENT_POWER[arm].power;
   const race = arm === "spy" ? RACES[p.race].spy : RACES[p.race].scout;
   const building = arm === "spy"
     ? GUILD_BONUS_PER_LEVEL * level(p, "shadow_guild")
     : LODGE_BONUS_PER_LEVEL * level(p, "rangers_lodge");
   const field = arm === "spy" ? "tradecraft" : "pathfinding";
-  // Additive pool, exactly as in battle — but with NO veterancy term. The
-  // shadow war does not keep a service record: what an agent is worth is what
-  // you have paid for them in research and stone, not what they have lived
-  // through. One fewer number to reason about on both sides of every roll.
-  const pool = 1 + (race - 1) + researchLevel(p, field) * EFFECT_PER_LEVEL + building;
-  return count * base * pool * luck(rng, COVERT_LUCK_SWING);
+  return base * (1 + (race - 1) + researchLevel(p, field) * EFFECT_PER_LEVEL + building);
 };
+
+const agentPower = (
+  p: Player,
+  arm: "spy" | "scout",
+  count: number,
+  rng: Rng,
+): number => count * agentPool(p, arm) * luck(rng, COVERT_LUCK_SWING);
+
+/** What spending longer than the minimum is worth. See PREPARATION. */
+export function preparationBonus(spent: number, minimum: number): number {
+  if (minimum <= 0 || spent <= minimum) return 1;
+  return 1 + Math.min(PREPARATION.MAX, (spent / minimum - 1) * PREPARATION.PER_EXTRA_MULTIPLE);
+}
 
 /**
  * How long a lingering effect — unrest, doubt — actually runs.
@@ -188,6 +205,10 @@ export function runCovertOp(
   currentTick: number,
   rng: Rng,
   atWar = false,
+  /** Turns to commit. The op's cost is a MINIMUM — anything above it buys the
+   *  knives time to prepare (PREPARATION). Below it, or omitted, pays the
+   *  minimum. Rangers ignore it: their turns are already priced per head. */
+  turnsOffered?: number,
 ): CovertResult {
   const op = covertOp(opId);
   if (!op) throw new EngineError("op", "Unknown operation");
@@ -210,7 +231,51 @@ export function runCovertOp(
     : attacker.army.scouts + attacker.army.mercenaries.scouts;
   if (available < agentsSent) throw new EngineError(arm, `Not enough ${arm === "spy" ? "spies" : "scouts"}`);
 
-  const cost = covertTurnCost(op, agentsSent);
+  /**
+   * WHO ACTUALLY WENT. The party fills from the HIRED before it touches your
+   * own — 20 sent from a pool of 25 sellswords is 20 sellswords — and one of
+   * your OWN is worth REGULAR_SPY_POWER hired knives, against the watch and at
+   * the work alike. So the only way to get your own people into an operation is
+   * to send enough to exhaust the hire pool, which is also exactly how you put
+   * them in danger. The reward and the risk arrive together.
+   */
+  const mercsGone = arm === "spy" ? Math.min(attacker.army.mercenaries.spies, agentsSent) : 0;
+  const regularsGone = arm === "spy" ? agentsSent - mercsGone : 0;
+  /** The party's weight, in regulars-equivalent. */
+  const partyWorth = regularsGone * REGULAR_SPY_POWER + mercsGone;
+
+  const minimum = covertTurnCost(op, agentsSent);
+  const cost = arm === "spy" ? Math.max(minimum, Math.floor(turnsOffered ?? minimum)) : minimum;
+  const prepared = arm === "spy" ? preparationBonus(cost, minimum) : 1;
+
+  // ── The guild master's answer ─────────────────────────────────────────────
+  // Judged on nominal worth, no dice, BEFORE a single turn is spent. Agents
+  // ordered into a realm watched so heavily that nine in ten will not come home
+  // simply decline, and declining is free. Buying them more time (above) is one
+  // of the two ways to change the answer; the other is sending more of them.
+  if (arm === "spy") {
+    const watch = defender.army.scouts + defender.army.mercenaries.scouts;
+    const nominalSpy = partyWorth * agentPool(attacker, "spy") * prepared;
+    const nominalWatch = watch * agentPool(defender, "scout");
+    if (nominalSpy > 0 && nominalWatch > 0) {
+      const odds = Math.min(
+        INTERCEPTION.MAX,
+        INTERCEPTION.AT_PARITY * (nominalWatch / nominalSpy) * op.detection,
+      );
+      // Judged on how many the watch would lay HANDS on. Most of the grabbed
+      // wriggle free (SLIP_THROUGH), so actual losses top out near 45% and a
+      // threshold above that could never fire — but a night where three in five
+      // of your people are seized is a disaster whoever walks away from it, and
+      // that is what a guild master refuses.
+      if (odds > REFUSAL_RATE) {
+        throw new EngineError(
+          "refused",
+          `Your guild master refuses: ${defender.name} is watched far too closely for ${agentsSent} to walk in and out again. Send more, or give them longer to prepare.`,
+        );
+      }
+    }
+  }
+
   if (attacker.spyTurnsAvailable < cost) {
     throw new EngineError("spyTurns", `${op.name} with ${agentsSent} agents costs ${cost} spy turns.`);
   }
@@ -225,10 +290,12 @@ export function runCovertOp(
   let absorb = 0;
   /** The watch outweighed the knives outright — nothing takes hold. */
   let bounced = false;
+  let mercsTaken = 0;
+  let regularsTaken = 0;
   /** Rangers on the walls when the knives came — read by the clean-run notice. */
   const watching = defender.army.scouts + defender.army.mercenaries.scouts;
   if (arm === "spy") {
-    const spyPwr = agentPower(attacker, "spy", agentsSent, rng);
+    const spyPwr = agentPower(attacker, "spy", partyWorth, rng) * prepared;
     const scoutPwr = watching > 0 ? agentPower(defender, "scout", watching, rng) : 0;
     if (scoutPwr > 0 && spyPwr > 0) {
       const ratio = scoutPwr / spyPwr;
@@ -241,15 +308,36 @@ export function runCovertOp(
         INTERCEPTION.MAX,
         INTERCEPTION.AT_PARITY * ratio * op.detection,
       );
-      intercepted = rollCount(rng, agentsSent, rate);
+      // BEING GRABBED IS NOT BEING TAKEN. The watch lays hands on this many,
+      // and then most of them wriggle free — your own far better than the
+      // hired, who know neither the ground nor anywhere to run to.
+      const grabbed = rollCount(rng, agentsSent, rate);
+      // Hands fall on the hired first, as they do everywhere else in the game.
+      const mercsGrabbed = Math.min(mercsGone, grabbed);
+      const regularsGrabbed = Math.min(regularsGone, grabbed - mercsGrabbed);
+      mercsTaken = rollCount(rng, mercsGrabbed, 1 - SLIP_THROUGH.MERC);
+      regularsTaken = rollCount(rng, regularsGrabbed, 1 - SLIP_THROUGH.REGULAR);
+      intercepted = mercsTaken + regularsTaken;
     }
     if (intercepted > 0) {
-      losePersonnel(attacker, "spy", intercepted);
+      attacker.army.mercenaries.spies = Math.max(0, attacker.army.mercenaries.spies - mercsTaken);
+      attacker.army.spies = Math.max(0, attacker.army.spies - regularsTaken);
       defender.recentAttackers.push({ playerId: attacker.id, tick: currentTick });
     }
   }
 
-  const survivors = agentsSent - intercepted;
+  /**
+   * WHO GOT THROUGH — and what they are worth once inside.
+   *
+   * Every effect below is scaled by this rather than by a head count, because
+   * "four times as effective" has to mean at the WORK as well as against the
+   * watch. A party of your own burns four times what bought men would.
+   */
+  const survivors = arm === "spy"
+    ? Math.max(0, (regularsGone - regularsTaken) * REGULAR_SPY_POWER + (mercsGone - mercsTaken))
+    : agentsSent - intercepted;
+  /** Bodies that came home, for the prose — effects use `survivors` above. */
+  const headsHome = agentsSent - intercepted;
   // Clan war doubles what sabotage achieves. Applied to the finished magnitude
   // below (after each op's cap) so it still bites when the cap is already the
   // binding constraint — scaling the agent count would not.
@@ -261,7 +349,7 @@ export function runCovertOp(
   let resourcesDestroyed = 0;
   let gearDestroyed = 0;
 
-  if (survivors <= 0) {
+  if (headsHome <= 0) {
     detail = `Disaster — all ${agentsSent} were taken at the wall. ${defender.name} knows the hand behind it.`;
     victimDetail = `Rangers took ${intercepted} of ${attacker.name}'s agents attempting "${op.name}". The revenge window is open.`;
     settleMercenaries(attacker);
@@ -526,18 +614,6 @@ export function runCovertOp(
   };
 }
 
-/** Agents lost. Hired ones are taken first — while sellsword agents remain, one
- *  of your own is the one lost only INTERCEPTION.REGULAR_SHARE of the time. */
-function losePersonnel(p: Player, arm: "spy" | "scout", n: number) {
-  let left = n;
-  const mercPool = arm === "spy" ? p.army.mercenaries.spies : p.army.mercenaries.scouts;
-  const takeMerc = Math.min(mercPool, Math.round(left * (1 - INTERCEPTION.REGULAR_SHARE)));
-  if (arm === "spy") p.army.mercenaries.spies -= takeMerc;
-  else p.army.mercenaries.scouts -= takeMerc;
-  left -= takeMerc;
-  if (arm === "spy") p.army.spies = Math.max(0, p.army.spies - left);
-  else p.army.scouts = Math.max(0, p.army.scouts - left);
-}
 
 const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");
 

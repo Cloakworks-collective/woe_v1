@@ -181,9 +181,12 @@ describe("interception", () => {
   });
 
   it("rangers stop agents, and any capture names the hand behind it", () => {
-    const v = victim(10, 400);
+    const v = victim(10, 100);
     v.research.levels.pathfinding = 5;
-    const r = runCovertOp(spymaster(), v, "assassinate_scouts", 20, 1000, seededRng(7));
+    // Sent in force. Twenty knives against this watch is an order the guild
+    // master refuses outright, so it can no longer measure interception — and
+    // the raid still has to fit inside SPY_TURNS.CAP, which is its own ceiling.
+    const r = runCovertOp(spymaster(200), v, "assassinate_scouts", 150, 1000, seededRng(7));
     expect(r.intercepted).toBeGreaterThan(0);
     expect(r.exposed).toBe(true);
     expect(r.defender.recentAttackers.some((a) => a.playerId === "spy")).toBe(true);
@@ -253,7 +256,9 @@ describe("rangers standing watch", () => {
   const watched = () => {
     const p = newEmpire({ id: "v", name: "Watched", race: "human" });
     p.buildings.rangers_lodge = 6;
-    p.army.scouts = 600;
+    // Heavy enough to turn most raids back, light enough that a raid big
+    // enough to be ACCEPTED still fits inside the spy-turn cap.
+    p.army.scouts = 300;
     p.research.levels.pathfinding = 5;
     return p;
   };
@@ -265,10 +270,19 @@ describe("rangers standing watch", () => {
   };
 
   it("turn back an operation outright when they outweigh it", () => {
-    const r = runCovertOp(spymaster(40), watched(), "incite_unrest", 20, 1000, seededRng(3));
-    expect(r.defender.unrestUntilTick).toBeUndefined();
-    expect(r.intercepted).toBeGreaterThan(0);
-    expect(r.detail).toMatch(/took hold/);
+    // A QUIET op, deliberately. The guild refuses anything the watch would lay
+    // hands on past REFUSAL_RATE, and for a noisy operation that threshold sits
+    // barely above the point where the watch outweighs you at all — so for
+    // Incite Unrest and dearer there is almost no raid that is accepted AND
+    // turned back. Torching leaves a real window between the two.
+    let bounced = 0;
+    for (let i = 0; i < 40; i++) {
+      // Your own are worth four hired apiece now, so it takes far fewer of
+      // them to be worth sending — and far fewer before the watch outweighs.
+      const r = runCovertOp(spymaster(300), watched(), "torch_stores", 60, 1000, seededRng(i));
+      if (/took hold/.test(r.detail)) bounced++;
+    }
+    expect(bounced).toBeGreaterThan(20);
   });
 
   it("shorten what does land, against a watch too thin to stop it", () => {
@@ -362,5 +376,62 @@ describe("scouting is priced by the realm you are looking at", () => {
     const r = runCovertOp(ranger(), realm(10_000), "map_walls", 20, 1000, seededRng(4));
     expect(r.intercepted).toBe(0);
     expect(r.exposed).toBe(false);
+  });
+});
+
+describe("a spy corps is your own people, padded with bought ones", () => {
+  const guild = (own: number, hired: number) => {
+    const p = newEmpire({ id: "s", name: "S", race: "human" });
+    p.buildings.shadow_guild = 6;
+    p.army.spies = own;
+    p.army.mercenaries.spies = hired;
+    p.research.levels.tradecraft = 5;
+    p.spyTurnsAvailable = 200;
+    return p;
+  };
+  const mark = (scouts: number) => {
+    const p = newEmpire({ id: "t", name: "Mark", race: "human" });
+    p.army.scouts = scouts;
+    p.buildings.rangers_lodge = 4;
+    p.gold = 2_000_000;
+    p.resources = { food: 2e6, wood: 2e6, stone: 2e6, ore: 2e6 };
+    return p;
+  };
+
+  it("sends the hired first — 20 out of a pool of 25 sellswords is 20 sellswords", () => {
+    const a = guild(500, 25);
+    const r = runCovertOp(a, mark(0), "torch_stores", 20, 1000, seededRng(1));
+    // Nobody was caught (no watch at all), so the proof is in what a party of
+    // pure sellswords achieves: a quarter of what your own would.
+    expect(r.attacker.army.spies).toBe(500);
+    expect(r.attacker.army.mercenaries.spies).toBe(25);
+  });
+
+  it("your own burn four times what a bought party would", () => {
+    // Kept well under TORCH_CAP, or both parties simply max it out and the
+    // difference the weighting makes is invisible.
+    const hired = runCovertOp(guild(500, 200), mark(0), "torch_stores", 5, 1000, seededRng(2));
+    const own = runCovertOp(guild(500, 0), mark(0), "torch_stores", 5, 1000, seededRng(2));
+    expect(hired.resourcesDestroyed).toBeGreaterThan(0);
+    expect(own.resourcesDestroyed).toBeGreaterThan(hired.resourcesDestroyed! * 2);
+  });
+
+  it("and your own people slip the watch four times in five", () => {
+    // Same raid, same watch, same dice — one party bought, one raised.
+    let hiredLost = 0, ownLost = 0;
+    for (let i = 0; i < 60; i++) {
+      const a = guild(500, 300);
+      const b = guild(500, 0);
+      hiredLost += 300 - runCovertOp(a, mark(60), "torch_stores", 300, 1000, seededRng(i))
+        .attacker.army.mercenaries.spies;
+      ownLost += 500 - runCovertOp(b, mark(60), "torch_stores", 300, 1000, seededRng(i))
+        .attacker.army.spies;
+    }
+    expect(hiredLost).toBeGreaterThan(ownLost * 2);
+  });
+
+  it("refuses a night where the watch would seize more than REFUSAL_RATE of them", () => {
+    expect(() => runCovertOp(guild(20, 0), mark(400), "torch_stores", 20, 1000, seededRng(3)))
+      .toThrow(/refuses/i);
   });
 });

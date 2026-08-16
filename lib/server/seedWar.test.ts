@@ -25,7 +25,9 @@ function readyWorld(): World {
     p.turnsAvailable = 400;
     p.spyTurnsAvailable = 200;
     p.army.stamina = 100;
-    p.army.spies = Math.max(p.army.spies, 60);
+    // Enough knives that a raid clears REFUSAL_RATE against a 60-ranger
+    // watch — the guild declines anything hopeless, and 6 against 60 is.
+    p.army.spies = Math.max(p.army.spies, 200);
     p.army.scouts = Math.max(p.army.scouts, 60);
     p.buildings.shadow_guild = 5;
     p.buildings.rangers_lodge = 5;
@@ -77,7 +79,7 @@ describe("the war seeder's preparation", () => {
   it("both arms file, newest first", () => {
     const world = readyWorld();
     applyOneCommand(world, A, "covert", { targetId: B, op: "survey_coffers", agents: 8 });
-    applyOneCommand(world, A, "covert", { targetId: B, op: "torch_stores", agents: 6 });
+    applyOneCommand(world, A, "covert", { targetId: B, op: "torch_stores", agents: 60 });
     const log = world.players[A].covertLog ?? [];
     expect(log).toHaveLength(2);
     expect(log[0].arm).toBe("spy"); // newest first

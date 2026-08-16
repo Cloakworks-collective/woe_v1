@@ -107,6 +107,25 @@ export const AGENT_POWER = {
   scout: { power: 10, health: 10 },
 };
 
+/**
+ * What one of YOUR OWN spies is worth against a hired knife — four of them.
+ *
+ * Note which way round this is written. The sellsword is the baseline and your
+ * own people are the multiplier: this RAISES what a regular achieves rather
+ * than lowering what a bought man does. That is the whole intent — it is a
+ * temptation, not a tax. Nobody is punished for hiring; you are simply shown
+ * what your own would have managed.
+ *
+ * And the temptation has teeth, because the party fills from the HIRED FIRST.
+ * A small raid is all bought men whatever you own; putting your own people in
+ * it means sending enough to exhaust the hire pool, which is also exactly how
+ * you put them at risk. The reward and the danger arrive together.
+ *
+ * Applies against the watch AND at the work — "four times as effective" has to
+ * mean both. Spies only: rangers stand watch at home, on ground they all know.
+ */
+export const REGULAR_SPY_POWER = 4; // × a hired knife's
+
 /** Building levels feed the additive pool, like research does. */
 export const GUILD_BONUS_PER_LEVEL = 0.1; // frac/level — Shadow Guild, spies
 export const LODGE_BONUS_PER_LEVEL = 0.1; // frac/level — Rangers Lodge, scouts
@@ -132,6 +151,63 @@ export const COVERT_LUCK_SWING = 0.3; // frac
 // Scouts do not hunt. They stand watch, and what they catch is decided by
 // weight of numbers on both sides. NO SCOUTS MEANS NO DEFENCE — a realm
 // without rangers is robbed at will.
+
+/**
+ * PREPARATION — what buying your agents TIME is worth.
+ *
+ * The turn cost of an operation is its minimum, not its price. Spend more and
+ * the extra buys reconnoitred routes, bribed gatemen and a night chosen rather
+ * than taken: it multiplies what the knives are worth when they go over the
+ * wall, which decides both whether the watch turns them back and how many come
+ * home.
+ *
+ * Diminishing, and capped. Patience is worth a great deal and then it is worth
+ * nothing more — at some point you are simply waiting where you could be
+ * working, and the spy-turn budget is the same one the other arm draws from.
+ *
+ * SPIES ONLY. A scouting party already spends its turns on people, so for
+ * rangers the two dials are the same dial.
+ */
+export const PREPARATION = {
+  /** Worth gained per extra multiple of the minimum turn cost. */
+  PER_EXTRA_MULTIPLE: 0.5, // frac
+  /** Ceiling on that gain — three times the turns is as prepared as anyone gets. */
+  MAX: 1.0, // frac
+};
+
+/**
+ * The nominal interception rate at which your guild master refuses the order.
+ *
+ * Agents are people. Told to walk into a realm so heavily watched that nine in
+ * ten will not come back, they decline, and no turns are spent declining. It is
+ * the covert twin of ATTACK_REFUSAL_RATIO, where captains refuse a target far
+ * above their weight.
+ *
+ * Judged on NOMINAL worth with no luck rolled, so the same order always gets
+ * the same answer — a refusal that came and went with the dice would be
+ * unreadable. And it is the only signal in the game about the size of another
+ * realm's watch, which no scout operation reports.
+ */
+export const REFUSAL_RATE = 0.6; // frac of the party the watch would lay hands on
+
+/**
+ * SLIPPING THROUGH — being laid hands on is not the same as being taken.
+ *
+ * The watch grabs at whoever it finds; most of them wriggle free. Your OWN
+ * people are far better at it than the hired: they know the ground, they were
+ * raised on it, and they have somewhere to run to. A sellsword has a contract
+ * and an unfamiliar city.
+ *
+ * This is the covert twin of DAMAGE_TAKEN, and it is the single largest thing
+ * standing between a spy corps and annihilation — without it a heavy watch
+ * simply deleted an infiltration.
+ */
+export const SLIP_THROUGH = {
+  /** Share of grabbed HIRED knives who get away. */
+  MERC: 0.5, // frac
+  /** …and of your own, who are better at it. */
+  REGULAR: 0.8, // frac
+};
 
 export const INTERCEPTION = {
   /** Fraction intercepted at parity of power, before the op's detection
