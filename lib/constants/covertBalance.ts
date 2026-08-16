@@ -215,9 +215,6 @@ export const INTERCEPTION = {
   /** Any interception at all reveals the hand behind it and opens the revenge
    *  window. A clean run stays anonymous — that is the whole prize. */
   NAMES_ATTACKER: true,
-  /** Within the caught, sellswords are taken first — a regular agent is the
-   *  one lost only this often while merc agents remain. */
-  REGULAR_SHARE: 0.25, // frac
 };
 
 // ─── 4 · RECRUITMENT CAPS ───────────────────────────────────────────────────
