@@ -12,7 +12,7 @@
 //                  so "damage" means the same thing everywhere.
 //
 //   · bonuses    — ADDITIVE. Race, veterancy (XP), research, wall edge, clan
-//                  war, entrenchment, unit-role bonuses. They all sum into a
+//                  war, bloodlust, unit-role bonuses. They all sum into a
 //                  single pool, so adding a new bonus later contributes exactly
 //                  what it says and never multiplies the whole stack.
 //
@@ -442,8 +442,9 @@ export const ARTILLERY_DUEL = {
 // not merely a worse version of expensive ones.
 //
 // Only ONE multiplier survives in the whole phase, and it belongs to the
-// garrison: horse coming out of a gate at speed are worth half again. The
-// besieger's footmen and cavalry fight at flat power in clashes 1 and 2.
+// garrison: horse coming out of a gate at speed are worth half again — see
+// CAVALRY_BONUS. The besieger's footmen and cavalry fight at flat power in
+// clashes 1 and 2, entrenched or not.
 
 export const SORTIE = {
   /** Only worth attempting when the defender's field arm outweighs the
@@ -472,8 +473,6 @@ export const SORTIE = {
   MIN_SCREEN: 0.7, // frac of the hire cap in footmen + cavalry
   /** Cavalry lead the charge and fight at their best in the open. */
   CAVALRY_BONUS: 0.5, // frac, additive
-  /** Each cavalryman brings this many footmen along behind. */
-  FOOTMEN_PER_CAVALRY: 3,
   /** How many riders ONE of the attacker's FOOTMEN draws off and occupies.
    *  COUNTED IN MEN, not power: a hundred footmen tie up two hundred riders
    *  whoever those riders are and whatever anyone's research says. What a
@@ -484,13 +483,6 @@ export const SORTIE = {
    *  charging. More than footmen manage: horse answer horse better than
    *  anything else does. Also counted in men. */
   CAVALRY_HOLD: 3, // riders per horseman
-  /**
-   * UNUSED as of the three-clash sortie. The besieger's arms fight at flat
-   * power in every stage — the garrison's CAVALRY_BONUS is the only multiplier
-   * left in the phase. Kept rather than deleted because the `bonusPool` branch
-   * that would read it (ctx.entrenched) is still wired; nothing sets that flag.
-   */
-  ENTRENCHED_BONUS: 0.2, // frac, additive — not currently read
   /** What an archer manages with horse already inside the lines. A bow is a
    *  poor weapon at knife range, but the man holding it is still a soldier —
    *  half power, which is still near three times an engineer. Read ONLY by the

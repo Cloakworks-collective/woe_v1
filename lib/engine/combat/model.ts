@@ -142,10 +142,6 @@ export interface BonusContext {
   arm?: Arm;
   /** Defending behind an intact wall: which edge applies to this block. */
   wallEdge?: number;
-  /** Riding out at the siege lines. */
-  sortie?: boolean;
-  /** Dug in around the engines. */
-  entrenched?: boolean;
   /** Clan war doubles the blood. */
   war?: boolean;
   /** Answering a blow already struck against you — the avenging side only. */
@@ -176,8 +172,6 @@ export function bonusPool(p: Player, ctx: BonusContext): number {
 
   // ── Situational: the ground, not the soldier ──────────────────────────────
   if (ctx.wallEdge) sum += ctx.wallEdge;
-  if (ctx.sortie && ctx.arm === "cavalry") sum += SORTIE_CAVALRY_BONUS();
-  if (ctx.entrenched) sum += ENTRENCHED();
   if (ctx.war) sum += WAR.DAMAGE_BONUS;
   // Bloodlust. Reaches the HIRED as well, on the same rule as a clan war: it is
   // the host's fury, and a sellsword marching in an avenging column marches in
@@ -201,10 +195,6 @@ export function bonusPool(p: Player, ctx: BonusContext): number {
 
   return 1 + sum;
 }
-
-// Imported lazily to keep the constant list at the top readable.
-const SORTIE_CAVALRY_BONUS = () => SORTIE.CAVALRY_BONUS;
-const ENTRENCHED = () => SORTIE.ENTRENCHED_BONUS;
 
 /** Siege power carries its own veterancy and its own research. Engineers get
  *  better at their trade whether they are pushing engines forward or manning

@@ -17,8 +17,8 @@ damage = basePower × (1 + Σ bonuses) × delivery
 Troops, walls, buildings and siege engines all sit on ONE scale, so "damage"
 means the same thing everywhere and a single formula covers the lot.
 
-**Bonuses ADD.** Race, veterancy, research, the wall's edge, clan war,
-entrenchment, unit-role bonuses — they sum into one pool. A new bonus therefore
+**Bonuses ADD.** Race, veterancy, research, the wall's edge, clan war, revenge
+bloodlust, unit-role bonuses — they sum into one pool. A new bonus therefore
 contributes exactly what it says and never multiplies the whole stack. This is
 what keeps the ceiling predictable as the game grows.
 
