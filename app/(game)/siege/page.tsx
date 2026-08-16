@@ -11,11 +11,13 @@ import { Panel } from "@/components/Panel";
 import { ResIcon, type ResKind } from "@/components/ResIcon";
 import {
   COUNTER_TYPES,
+  ENGINEER_CAP,
   SIEGE_COUNTERS,
   SIEGE_DESTROYED_BELOW,
   SIEGE_GEAR,
   SIEGE_REPAIR_COST_FACTOR,
   SIEGE_SALVAGE_VALUE,
+  SIEGE_STOCK_RATIO,
   TRAINING_COSTS,
   TROOPS_PER_MUSTER_HALL,
   WAR_FOUNDRY_LADDER,
@@ -24,6 +26,7 @@ import type { CounterType } from "@/lib/constants/buildings";
 import {
   crewCounters,
   crewGear,
+  engineerCap,
   level,
   military,
   purseGold,
@@ -280,13 +283,19 @@ export default async function SiegePage({
                   ariaLabel="Engineers to train"
                   size={3}
                   disabled={!canTrainEngineer}
-                  max={Math.min(p.idlePeasants, Math.max(0, musterFree), maxAffordable(engCost, have))}
+                  max={Math.min(
+                    p.idlePeasants,
+                    Math.max(0, musterFree),
+                    Math.max(0, engineerCap(p) - p.army.siegeEngineers),
+                    maxAffordable(engCost, have),
+                  )}
                 />
                 <ReqTip
                   heading="Recruit Siege Engineers"
-                  body="Raise idle peasants into the crews that man your engines — counters and engines both sit idle until crewed."
+                  body={`Raise idle peasants into the crews that man your engines — counters and engines both sit idle until crewed. Your own crews are capped at ${Math.round(ENGINEER_CAP * 100)}% of your people (${engineerCap(p).toLocaleString("en-US")} at your size); hired crews sit on top of that. And the yard holds only ${SIEGE_STOCK_RATIO}× what your crews can man, counted separately for the train and the battery — engines you cannot crew are engines you may not keep.`}
                   rows={[
                     { icon: <span className="costtip-ico">👥</span>, label: "Idle peasant", need: 1, have: p.idlePeasants },
+                    { icon: <span className="costtip-ico">🔧</span>, label: "Crew slot", need: 1, have: Math.max(0, engineerCap(p) - p.army.siegeEngineers) },
                     { icon: <span className="costtip-ico">🛏</span>, label: "Muster Hall bed", need: 1, have: Math.max(0, musterFree) },
                     ...resReqs(engCost, have),
                   ]}

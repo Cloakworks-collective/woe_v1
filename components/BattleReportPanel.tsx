@@ -38,7 +38,7 @@ const PHASE: Record<string, { icon: string; name: string; blurb: string }> = {
   archers: { icon: "target", name: "Archers", blurb: "Volleys first, spread across the whole enemy line — the one phase that hits every arm at once." },
   cavalry: { icon: "horse", name: "The charge", blurb: "Horse ride down horse, then footmen, then archers. Engineers are never a target for a charge." },
   footmen: { icon: "army", name: "The lines meet", blurb: "The melee. Ram crews drop the beams and join in once the gate has given." },
-  sortie: { icon: "castle", name: "The sortie", blurb: "The defender rode out rather than hold the wall — cavalry gain everything in the open." },
+  sortie: { icon: "castle", name: "The sortie", blurb: "The defender rode out rather than hold the wall — cavalry gain everything in the open. Three clashes: the besieger's footmen draw off riders, then their own horse, and only what neither can occupy reaches the engines." },
   aftermath: { icon: "skull", name: "Aftermath", blurb: "The field is counted: who held it, what was stripped from the dead, and who the surgeons saved." },
 };
 const PHASE_ORDER = ["prelude", "counter-duel", "walls", "archers", "cavalry", "footmen", "sortie", "aftermath"];

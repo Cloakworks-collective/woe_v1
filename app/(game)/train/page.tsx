@@ -12,6 +12,7 @@ import { ResIcon } from "@/components/ResIcon";
 import { GUILD_BONUS_PER_LEVEL, researchOutputAtLevel, workerOutputAtLevel, TRAINING_COSTS, UNIT_GUIDE, UNIT_INFO, CARAVAN_CAPACITY_PER_MARKET_LEVEL } from "@/lib/constants";
 import {
   caravanDeliveryTurns,
+  covertCap,
   level,
   mercPrice,
   mercsOfArm,
@@ -21,12 +22,13 @@ import {
   type Player,
   type WorkerRole,
 } from "@/lib/engine";
-import { MERCENARIES } from "@/lib/constants";
+import { COVERT_CAPS, MERCENARIES } from "@/lib/constants";
 import { getGame } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
+const pct = (f: number) => `${Math.round(f * 100)}%`;
 
 const ROLES: { role: WorkerRole; label: string; building: string; buildingId: Parameters<typeof level>[1] }[] = [
   { role: "farmers", label: "Farmers", building: "The Grange", buildingId: "grange" },
@@ -150,7 +152,7 @@ const MUSTER = (p: Player, discount: number) =>
         0,
         Math.floor(regularsOfArm(p, "spy") * MERCENARIES.CAP_RATIO) - mercsOfArm(p, "spy"),
       ),
-      capacity: `unlimited — Shadow Guild L${level(p, "shadow_guild")} makes each mission +${Math.round(level(p, "shadow_guild") * GUILD_BONUS_PER_LEVEL * 100)}% effective`,
+      capacity: `${fmt(covertCap(p, "spy"))} of your own — ${pct(COVERT_CAPS.PER_ARM)} of your people, and ${pct(COVERT_CAPS.COMBINED)} across both shadow arms. Hired knives sit on top. Shadow Guild L${level(p, "shadow_guild")} makes each +${Math.round(level(p, "shadow_guild") * GUILD_BONUS_PER_LEVEL * 100)}% effective`,
     },
     {
       unit: "scout" as const,
@@ -166,7 +168,7 @@ const MUSTER = (p: Player, discount: number) =>
         0,
         Math.floor(regularsOfArm(p, "scout") * MERCENARIES.CAP_RATIO) - mercsOfArm(p, "scout"),
       ),
-      capacity: `unlimited — Ranger's Lodge L${level(p, "rangers_lodge")} catches spy ops up to level ${level(p, "rangers_lodge")}`,
+      capacity: `${fmt(covertCap(p, "scout"))} of your own — ${pct(COVERT_CAPS.PER_ARM)} of your people, and ${pct(COVERT_CAPS.COMBINED)} across both shadow arms. Hired rangers sit on top. Ranger's Lodge L${level(p, "rangers_lodge")} unlocks scout work up to level ${level(p, "rangers_lodge")}`,
     },
   ];
 

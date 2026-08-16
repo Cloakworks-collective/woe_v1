@@ -344,8 +344,9 @@ export interface Player {
   // from a long vacation (see returnFromVacation); attacking drops it early
   unrestUntilTick?: number; // Incite Unrest: tax/production −25%, growth halted
   /** Sow Research Doubt: the scholars lose their thread and research crawls.
-   *  A scout op (Quell the Doubt) ends it early — which is the reason a
-   *  research empire keeps rangers at all. */
+   *  How long it runs is decided when it lands — by how many knives got through
+   *  and how heavy the standing watch was — so rangers shorten it without being
+   *  ordered to do anything. That is why a research empire keeps them. */
   researchDoubtUntilTick?: number;
   /** Research levels copied FROM others this era, capped by
    *  COVERT_EFFECTS.STEAL_RESEARCH_LEVELS_PER_ERA so theft can supplement the

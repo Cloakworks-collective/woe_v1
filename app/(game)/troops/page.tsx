@@ -548,7 +548,7 @@ export default async function TroopsPage({
               </li>
             </ul>
             <p className="bcard-sub" style={{ margin: "4px 0 0" }}>
-              Needs the Engine Yard &amp; a free Muster Hall bed. They never attack, and they are
+              Needs the Engine Yard &amp; a free Muster Hall bed. They never march out to attack — though they fight for their lives if a sortie reaches the engines — and they are
               never stripped from the field.
             </p>
 

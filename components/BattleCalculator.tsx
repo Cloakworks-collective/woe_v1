@@ -167,7 +167,7 @@ function ArmyForm({
       <div className="calc-grid">
         <label>
           Engineers{" "}
-          <Info tip="They crew engines and they die; they never attack. Uncrewed engines are lumber, so this is the real cap on your siege train." />
+          <Info tip="They crew engines and they die. They never march out to attack, but they fight if a sortie reaches the siege lines. Uncrewed engines are lumber — and you may keep only twice what your crews can man — so this is the real cap on your siege train." />
           <NumBox label="Engineers" value={army.engineers} onChange={(n) => set({ engineers: n })} />
         </label>
         <label>

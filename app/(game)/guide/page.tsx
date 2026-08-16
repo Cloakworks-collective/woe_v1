@@ -378,11 +378,15 @@ export default function GuidePage() {
             <b>not free</b>, and your captains will refuse it outright if the host is under{" "}
             <b>70 stamina</b> or your hired horse and foot have fallen below <b>70% of the hire
             cap</b> — tired men with no screen hold the wall instead. Past that, the gates only
-            open if your horse outweigh their screen half again,
-            and the screen is dug in and fights back. Get through it and you are among the engines
-            — where their bowmen and engineers turn on you, and half of what you land goes into
-            the siege train and half into the men holding it. Engines are <b>battered, not burned</b>
-            : it takes several sorties to put a trebuchet past repair.
+            open if your horse outweigh their screen half again. Past that it is{" "}
+            <b>three battles, not a formula</b>: their footmen draw off <b>two riders each</b> and
+            their own horse <b>three each</b> — counted in <i>men</i>, so a screen protects the
+            siege train by being NUMEROUS and cheap troops out front are a real answer. Only riders
+            neither arm can occupy reach the engines, where their bowmen and engineers turn on you
+            and half of what you land goes into the siege train, half into the men holding it.
+            Engines are <b>battered, not burned</b>: it takes several sorties to put a trebuchet
+            past repair. <b>A revenge is never met with a sortie</b> — an answering strike expects
+            the gates shut.
           </li>
         </ul>
         <h4>How a battle resolves — one exchange, not a war</h4>
@@ -507,9 +511,43 @@ export default function GuidePage() {
         <p>
           <b>Spies</b> run eight operations — intel, theft, sabotage, arson, sowing unrest — from
           any empire&apos;s row on the <Link href="/rankings">ladder</Link>, or from the full War
-          Council on their profile. Send more spies for more damage, but higher catch risk;{" "}
-          <b>caught spies are executed</b> (you lose the population). <b>Scouts</b> gather recon on
-          rivals and, at home, catch enemy spies.
+          Council on their profile. <b>Scouts</b> gather recon on rivals and, at home, catch enemy
+          spies and cut short whatever a spy manages to plant.
+        </p>
+        <h4>Send a real party, or send nobody</h4>
+        <p>
+          <b>Bigger raids are SAFER, not riskier.</b> The number their rangers can seize in a night
+          is set by <i>their</i> watch, not by how many you sent — so doubling a party doubles the
+          survivors for the same losses. A small raid is the dangerous one: below a certain size
+          your guild master <b>refuses the order outright</b>, and no turns are spent refusing.
+          That refusal is also the only hint you will ever get about how heavy a realm&apos;s watch
+          is, since no scout operation reports it.
+        </p>
+        <p>
+          <b>A party fills from the hired first</b>, and one of your own is worth <b>two</b> bought
+          knives — against the watch and at the work alike. So a small raid is all sellswords
+          whatever you own, and the only way to put your own people in one is to send enough to
+          exhaust the hire pool, which is also exactly how you put them in danger. Being seized is
+          not being taken: <b>half of everyone grabbed wriggles free</b>, whoever was paying, and a
+          raid where they all get away leaves no body to name you.
+        </p>
+        <p>
+          <b>The turn cost is a MINIMUM.</b> Commit more and the surplus buys reconnoitred routes
+          and a night of their choosing — doubling the turns on a raid that failed half the time
+          can stop it failing, for a third fewer men.
+        </p>
+        <h4>Rangers earn their keep standing still</h4>
+        <p>
+          A watch that outweighs the knives sent at it <b>turns them back outright</b>, and one
+          that does not still shortens the unrest or doubt they plant. You never order this and it
+          costs nothing: every ranger you own is on the walls. A realm with none is robbed at will
+          and never learns by whom.
+        </p>
+        <p>
+          Scouting is <b>safe but not free</b>. Rangers are never caught, but a mission is priced
+          by the size of the realm you are reading — counting a giant&apos;s granaries is an
+          expedition. Send fewer than it wants and the figures come back as <i>ranges</i> instead
+          of numbers; send far too few and they cannot finish at all.
         </p>
         <p>
           <b>The buildings are the gate; the research is the multiplier.</b> Your{" "}

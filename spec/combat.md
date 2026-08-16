@@ -73,29 +73,30 @@ something crawling toward them at walking pace.
 ### Medicine — the field hospital
 
 The one research that gives back something already lost. A share of the
-**sellswords** who fall **defending** you are carried off the field alive
-(`MEDICINE`, 4%/level with a floor of one head per level, paid in food from the
-stores or the vault).
+critically wounded are carried off the field alive (`MEDICINE`, 4%/level with a
+floor of one head per level, paid in food from the stores or the vault).
 
-Three restrictions carry the design, and none of them is flavour:
+**Both armies**, each at its own level — an army that marches carries its
+surgeons with it, and a field nobody can use on the attack is half a field. It
+used to be defence-only, on the reasoning that a hospital works where your
+stores and roofs are.
 
-- **Sellswords only.** Regular dead are the single permanent, unrecoverable loss
-  in the game — they cost population and their veterancy dies with them
-  (`XP.LOSS_ON_DEATH`). Killing them is meant to be the worst thing an enemy can
-  do to you, and a hospital that undid it would take the teeth out of every
-  attack. A contract is not a subject.
-- **Defence only.** It is a hospital, not a baggage train: it works where your
-  surgeons, stores and roofs are. This also stops the field being a flat damage
-  discount on aggression.
-- **After the mercenary cascade, inside the cap.** `settleMercenaries` runs
-  first, and recovery is clamped to the room `CAP_RATIO` leaves — otherwise the
-  surgeons would spend grain saving men who ride away the same afternoon.
+**Your own dead and the hired are two separate budgets.** Pooling them was a
+real fault rather than a rounding one: a screen dying in bulk bought a recovery
+budget far larger than the regular casualties it was spent on, and since your
+own are treated first, a big enough sellsword massacre recovered every single
+regular who fell. Your people were being saved by other men dying.
 
-It saves no regular directly. Because hired blades absorb the first
-`CASUALTY_SPLIT.MERC_SHARE` of every blow aimed at their arm, a screen that
-survives one raid is a screen still standing during the next one — the field
-buys **more turns of cover**, not fewer deaths today. That indirection is the
-point: it is a defensive-economy field, not a combat multiplier.
+**Regulars are treated first** when the granary runs short. They are population,
+they cannot be re-bought at any price, and their veterancy dies with them.
+
+**After the mercenary cascade, inside the cap.** `settleMercenaries` runs first,
+and hired recovery is clamped to the room `CAP_RATIO` leaves — otherwise the
+surgeons would spend grain saving men who ride away the same afternoon.
+
+**The losses ledger reports who is STILL DEAD**, not who fell: anyone the
+surgeons carried off is standing in the muster again. It used to double-count
+them, so a report said eight regulars lost while the army showed none missing.
 
 Note that the **battlefield yield** path books its merc deaths for the hospital
 too. It writes groups directly instead of going through `kill`, so it records
@@ -120,7 +121,9 @@ read in exactly one place: the rear-guard clash of a sortie, where horse are
 already among the engines and the crews pick up whatever is to hand. They also
 take `DAMAGE_TAKEN` 0.30 — level with cavalry, worse than a drilled footman —
 and that is flight rather than skill: they scatter, and a rider chasing one is
-a rider not burning a trebuchet.
+a rider not burning a trebuchet. The yard is bounded by them too: you may keep
+only `SIEGE_STOCK_RATIO` × what your crews can man, counted apart for the train
+and the battery.
 
 ---
 
@@ -389,9 +392,10 @@ the beams and join the assault.
 
 ### The sortie
 
-A standing order the defender sets out of combat. It is **two battles fought
-back to back**, not a formula — the forces present fight, and both sides bleed
-in both stages. Defenders keep the wall's protection throughout.
+A standing order the defender sets out of combat. It is **three battles fought
+in sequence**, not a formula — the forces present fight, and both sides bleed in
+each. Defenders keep the wall's protection throughout. **A revenge is never met
+with a sortie**: an answering strike expects the gates shut.
 
 **The gates open** only when three things are true. Below any of them they stay
 shut and the phase is silent.
@@ -411,18 +415,30 @@ ground down through a morning stops riding out long before they stop resisting,
 so an attacker cannot be counter-charged forever by a host they have already
 worn to nothing.
 
-**Stage 1 · the screen clash.** The riders against the attacker's footmen and
-cavalry. Cavalry fight at **+50%** on open ground; the screen is **+20%** for
-being dug in around the siege lines. Casualties follow the ordinary rule —
-sellswords first at each rank, each arm at its own dodge.
+**The charge is drawn off by the HEAD, not by weight.** Settled once, before a
+blow lands:
 
-**Stage 2 · the rear-guard clash.** The riders push on only if what survives of
-the charge still outweighs what survives of the screen, and only that surplus
-share of them arrives. Waiting are the **archers**, fighting at **50% power**
-(a bow is a poor weapon at knife range), and the **engineers**, who fight at
-10 power and take only **15%** of any blow — the lowest number in the game,
-and it is flight rather than skill. What the riders land is split **half into
-the siege park, half into the men holding it**.
+```
+heldByFoot   = min(riders, FOOTMEN_HOLD × the besieger's footmen)
+heldByCav    = min(what is left, CAVALRY_HOLD × their cavalry)
+throughHeads = whatever neither arm could occupy
+```
+
+Each stage then receives that SHARE of the charge's damage. Power decides who
+wins a clash; numbers decide who is in it — so a screen protects the siege train
+by being **numerous**, and cheap troops out front are a real answer to a sortie
+rather than a worse version of expensive ones.
+
+**Clash 1 · foot against horse.** Each footman draws off `FOOTMEN_HOLD` riders.
+**Clash 2 · horse against horse.** Their own cavalry counter-charge what spilled
+past, `CAVALRY_HOLD` riders each. **Clash 3 · the rear guard.** Only the
+remainder reaches the **archers**, fighting at **50% power** (a bow is a poor
+weapon at knife range), and the **engineers** at 10 power. What the riders land
+there is split **half into the siege park, half into the men holding it**.
+
+**One multiplier survives the whole phase**, and it belongs to the garrison:
+horse coming out of a gate at speed are worth **+50%**. The besieger's footmen
+and cavalry fight at flat power in clashes 1 and 2, entrenched or not.
 
 Engines are **worn, not fired**: damage comes off integrity tallest-engine
 first (trebuchets → ballistae → towers → rams) and an engine is only lost once

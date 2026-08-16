@@ -8,6 +8,7 @@ import {
   KINGS_ROADS,
   MARKET_FEE,
   MEDICINE,
+  SCOUT_MISSION,
   MARKET_RECALL_LOSS,
   MAX_FIELD_LEVEL,
   MERCHANTS_CHARTER,
@@ -34,15 +35,15 @@ export const UNIT_INFO: Record<string, { title: string; tip: string }> = {
   },
   spy: {
     title: "Spy",
-    tip: "Cloak-and-dagger agents run from the Shadow Guild: steal an enemy's ledger, sabotage their siege engines, torch their stores, or stir up unrest. Send more for a bigger blow — but caught spies are executed, a permanent loss of population, and they name you to your victim.",
+    tip: "Cloak-and-dagger agents run from the Shadow Guild: steal an enemy's ledger, sabotage their siege engines, torch their stores, or stir up unrest. SEND A REAL PARTY — the number their rangers can seize in a night is set by the watch, not by how many you sent, so a big raid is safer per head than a small one, and below a certain size your guild master refuses the order outright. A party fills from the hired first and one of your own is worth two bought knives. Half of everyone seized wriggles free; the rest are a permanent loss of population, and they name you to your victim.",
   },
   scout: {
     title: "Scout",
-    tip: "The eyes of the realm. Abroad they gather rough intel on rivals from beyond the walls; at home they hunt infiltrators. Interception is decided purely by weight of numbers — your rangers' power against the spies sent — so there is no operation too deep for them to catch, and a realm with NO rangers is robbed at will. Your Ranger's Lodge level is what unlocks the scout operations you can run abroad.",
+    tip: "The eyes of the realm, and its only counter-espionage. Abroad they read rivals from beyond the walls — never caught, but a mission is priced by the SIZE of the realm you are reading, and an under-manned party brings back ranges instead of figures. At home every ranger you own is on the walls without being ordered there: a watch that outweighs the knives sent at it turns them back outright, one that does not still shortens whatever unrest they plant, and a realm with NO rangers is robbed at will and never learns by whom. Your Ranger's Lodge level unlocks the scout operations you can run abroad.",
   },
   engineer: {
     title: "Siege Engineer",
-    tip: "The crews that work your war machines — a trebuchet without engineers is just firewood. They carry no weapon of their own (almost helpless in a fight) and are trained at the Siege Works. The heaviest engines are crewed first.",
+    tip: "The crews that work your war machines — a trebuchet without engineers is just firewood, and the heaviest engines are crewed first. They never march out to attack, but they are not helpless: when a sortie reaches the siege lines they pick up whatever is to hand, and they run rather than fight, so most of them get away. THE YARD IS BOUNDED BY THEM — you may keep only twice the engines your crews can actually man, counted apart for the train and the battery, so engines you cannot crew are engines you may not buy.",
   },
   mercenary: {
     title: "Mercenary",
@@ -253,7 +254,7 @@ export const RESEARCH_INFO: Record<ResearchField, { title: string; tip: string; 
     tip: "The spymaster's art — despite the name, this is espionage, not commerce.",
     bullets: [
       "Unlocks nothing — the SHADOW GUILD's level does that, one operation per rung",
-      `+${pct(EFFECT_PER_LEVEL)} to every mission's effect per level: this is what makes a knife bite`,
+      `+${pct(EFFECT_PER_LEVEL)} to what every knife is WORTH per level — against the watch that would take them, and so at the work the survivors do`,
       "Unranked — shadow work earns power, not prestige",
     ],
   },
@@ -262,9 +263,10 @@ export const RESEARCH_INFO: Record<ResearchField, { title: string; tip: string; 
     tip: "Rangers who read ground, and see who else has been walking on it.",
     bullets: [
       "Unlocks nothing — the RANGER'S LODGE's level does that, one operation per rung",
-      `+${pct(EFFECT_PER_LEVEL)} to recon accuracy and to your chance of intercepting incoming spies, per level`,
+      `Cuts the rangers a scouting party NEEDS by ${pct(SCOUT_MISSION.PATHFINDING_RELIEF)} per level — a mission is priced by the size of the realm you are reading, and this is what buys it down`,
+      `+${pct(EFFECT_PER_LEVEL)} to your chance of intercepting incoming spies, per level`,
       "Your rangers stand watch whatever this reads — a realm at Pathfinding 0 is still defended, only less well",
-      "Scouts are the ONLY defence against spies — this is your counter-espionage",
+      "Scouts are the ONLY defence against spies — this is your counter-espionage, and it also shortens the unrest a spy manages to plant",
       "Unranked",
     ],
   },
@@ -302,14 +304,14 @@ export const RESEARCH_INFO: Record<ResearchField, { title: string; tip: string; 
   },
   medicine: {
     title: "Medicine",
-    tip: "A surgeon's tent behind your own lines. The sellswords who fall defending you are carried off alive, so the screen in front of your regulars lasts longer.",
+    tip: "Surgeons who go where the army goes. The critically wounded are carried off the field alive — your own people and the hired alike, attacking or defending.",
     bullets: [
       `${pct(MEDICINE.RECOVER_PER_LEVEL)} of your fallen recovered per level — ${pct(MEDICINE.RECOVER_PER_LEVEL * MAX_FIELD_LEVEL)} at mastery. Attacking or defending, and your own dead and the hired counted separately, so a dying screen never buys back your levy`,
       `Never fewer than ${MEDICINE.MIN_PER_LEVEL} head per level, so it still shows in a small skirmish`,
       `Costs ${MEDICINE.FOOD_PER_RECOVERY} food a head from your stores — a granary that covers three of five saves three`,
-      "DEFENCE only: it is a hospital, not a baggage train. Marching abroad heals nobody",
-      "Sellswords only. Your own dead are gone for good — that is what makes killing regulars the worst wound an enemy can deal, and a hospital that undid it would take the teeth out of every attack",
-      "It saves no regular directly. It keeps the hired screen standing in front of them, which is what saves them",
+      "BOTH ARMIES, each at its own level. An army that marches carries its surgeons with it",
+      "Your own dead and the hired are counted SEPARATELY, so a screen dying in bulk never buys your levy back — pooling them meant a big enough sellsword massacre recovered every regular who fell",
+      "Regulars are treated first when the granary runs short. They are population, and they cannot be re-bought at any price",
       "Counts toward your ranking score",
     ],
   },
