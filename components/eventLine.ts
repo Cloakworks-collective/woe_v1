@@ -141,8 +141,6 @@ const OP_ICON: Record<string, string> = {
   map_army: "army",
   map_siege: "siege",
   map_research: "research",
-  quell_unrest: "advisor",
-  quell_doubt: "idea",
   // Spies — what was done.
   torch_stores: "fire",
   steal_resources: "caravan",

@@ -242,22 +242,55 @@ describe("effects scale with who got through", () => {
   });
 });
 
-describe("counter-operations", () => {
-  it("scouts quell unrest in their own streets", () => {
-    const p = spymaster();
-    p.army.scouts = 10;
+// Quelling used to be two SCOUT OPS you sent at your own streets. It is passive
+// now: rangers standing watch shorten what lands, and a heavy enough watch stops
+// it landing at all. Nobody is dispatched, and nothing is spent.
+describe("rangers standing watch", () => {
+  /** A defender whose watch plainly outweighs the knives sent at it. */
+  const watched = () => {
+    const p = newEmpire({ id: "v", name: "Watched", race: "human" });
+    p.buildings.rangers_lodge = 6;
+    p.army.scouts = 600;
     p.research.levels.pathfinding = 5;
-    p.unrestUntilTick = 2000;
-    const r = runCovertOp(p, p, "quell_unrest", 5, 1000, seededRng(11));
-    expect(r.attacker.unrestUntilTick).toBeUndefined();
+    return p;
+  };
+  /** …and one with nobody on the walls at all. */
+  const blind = () => {
+    const p = newEmpire({ id: "v", name: "Blind", race: "human" });
+    p.army.scouts = 0;
+    return p;
+  };
+
+  it("turn back an operation outright when they outweigh it", () => {
+    const r = runCovertOp(spymaster(40), watched(), "incite_unrest", 20, 1000, seededRng(3));
+    expect(r.defender.unrestUntilTick).toBeUndefined();
+    expect(r.intercepted).toBeGreaterThan(0);
+    expect(r.detail).toMatch(/took hold/);
   });
 
-  it("and root out research doubt — the reason a scholar keeps rangers", () => {
-    const p = spymaster();
-    p.army.scouts = 10;
-    p.research.levels.pathfinding = 5;
-    p.researchDoubtUntilTick = 2000;
-    const r = runCovertOp(p, p, "quell_doubt", 5, 1000, seededRng(12));
-    expect(r.attacker.researchDoubtUntilTick).toBeUndefined();
+  it("shorten what does land, against a watch too thin to stop it", () => {
+    const thin = blind();
+    thin.buildings.rangers_lodge = 2;
+    thin.army.scouts = 12;
+    const guarded = runCovertOp(spymaster(300), thin, "incite_unrest", 120, 1000, seededRng(5));
+    const naked = runCovertOp(spymaster(300), blind(), "incite_unrest", 120, 1000, seededRng(5));
+    const span = (p: Player) => (p.unrestUntilTick ?? 1000) - 1000;
+    expect(span(guarded.defender)).toBeGreaterThan(0);
+    expect(span(guarded.defender)).toBeLessThan(span(naked.defender));
+  });
+
+  it("a blind realm takes the whole day, and never learns who did it", () => {
+    const r = runCovertOp(spymaster(300), blind(), "incite_unrest", 120, 1000, seededRng(5));
+    expect((r.defender.unrestUntilTick ?? 0) - 1000).toBe(TURNS_PER_DAY);
+    expect(r.intercepted).toBe(0);
+    expect(r.exposed).toBe(false);
+  });
+
+  it("never cut an effect below the floor — a near-miss is still an event", () => {
+    // One survivor is the smallest infiltration there is; the duration floor is
+    // what stops it reading as nothing at all.
+    const r = runCovertOp(spymaster(300), blind(), "incite_unrest", 1, 1000, seededRng(9));
+    const span = (r.defender.unrestUntilTick ?? 1000) - 1000;
+    expect(span).toBeGreaterThanOrEqual(Math.round(TURNS_PER_DAY * 0.1));
   });
 });

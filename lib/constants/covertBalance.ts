@@ -23,8 +23,9 @@
 // stand against it — which costs a scout mission first. The two arms feed and
 // starve each other.
 //
-// THE LOOP: spies Incite Unrest → scouts Quell it. Spies Assassinate Scouts →
-// which strips the defence that stops spies. Neither arm is optional.
+// THE LOOP: spies Incite Unrest → a standing watch cuts it short, or turns it
+// back entirely. Spies Assassinate Scouts → which strips the very watch that
+// was doing the cutting. Neither arm is optional.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import type { Band } from "./battleBalance";
@@ -84,8 +85,6 @@ export const COVERT_OPS = {
   map_army: { arm: "scout", turnsPerAgent: 0.15, detection: 0, field: "pathfinding", level: 2, name: "Map the Army", desc: "Army composition by arm and tier, mercenaries, stamina" },
   map_siege: { arm: "scout", turnsPerAgent: 0.15, detection: 0, field: "pathfinding", level: 3, name: "Map the Siege Train", desc: "Their offensive engines — the one thing the ladder never shows" },
   map_research: { arm: "scout", turnsPerAgent: 0.25, detection: 0, field: "pathfinding", level: 4, name: "Map the Collegium", desc: "Every research field and level they hold" },
-  quell_unrest: { arm: "scout", turnsPerAgent: 0.3, detection: 0, field: "pathfinding", level: 3, name: "Quell the Unrest", desc: "Put down agitators in your own streets — ends Incite Unrest early" },
-  quell_doubt: { arm: "scout", turnsPerAgent: 0.3, detection: 0, field: "pathfinding", level: 5, name: "Quell the Doubt", desc: "Root out the whisperers slowing your scholars — ends Sow Doubt early" },
 
   // ── SPY operations — covert, interceptable, named if caught ───────────────
   torch_stores: { arm: "spy", turnsPerAgent: 0.4, detection: 1.0, field: "tradecraft", level: 1, name: "Torch the Stores", desc: "Burn what sits outside their storehouses" },
@@ -112,9 +111,22 @@ export const AGENT_POWER = {
 export const GUILD_BONUS_PER_LEVEL = 0.1; // frac/level — Shadow Guild, spies
 export const LODGE_BONUS_PER_LEVEL = 0.1; // frac/level — Rangers Lodge, scouts
 
-/** Delivery: ±this on covert resolution, rolled per mission. Twice the battle
- *  swing — the shadow war is a chancier business than a shield wall. */
-export const COVERT_LUCK_SWING = 0.2; // frac
+/**
+ * Delivery: ±this on covert resolution, rolled independently for each side of
+ * every mission. THREE TIMES the battle swing (0.10), because the shadow war is
+ * a far chancier business than a shield wall — and because it has to be.
+ *
+ * Both arms are capped at the same share of population, so worth is roughly
+ * `population × (research + buildings)` and two comparable empires sit at
+ * PARITY BY CONSTRUCTION. With a narrow swing that made the shield below a
+ * deterministic wall between equals: spying would only ever work downhill.
+ *
+ * At ±30% the rolled ratio at nominal parity lands anywhere in 0.54 … 1.86, so
+ * you need to outweigh the other side by about 1.86x before ANY roll is certain
+ * — either to be immune or to be sure of landing. Everything between is a
+ * gamble, which is where most of the game lives.
+ */
+export const COVERT_LUCK_SWING = 0.3; // frac
 
 // ─── 3 · INTERCEPTION ───────────────────────────────────────────────────────
 // Scouts do not hunt. They stand watch, and what they catch is decided by
@@ -182,14 +194,32 @@ export const COVERT_EFFECTS = {
   /** Research theft COPIES a level — the victim keeps theirs and loses only
    *  the secret. Capped per era so it can never replace doing the work. */
   STEAL_RESEARCH_LEVELS_PER_ERA: 5,
+  /**
+   * Surviving spies that buy the FULL duration of a lingering effect — unrest
+   * or doubt. Below it the effect is proportionally shorter.
+   *
+   * It used to be flat: one spy through the wall and a hundred bought exactly
+   * the same day of ruin, which made sizing an infiltration pointless.
+   */
+  INFILTRATION_SCALE: 50, // survivors
+  /**
+   * …and the shortest an effect can run once it HAS landed, as a fraction of
+   * its base. Without a floor a defender who is only just outmatched takes
+   * fourteen minutes of unrest — an alarm in the inbox and nothing wrong by the
+   * time they look, which reads as a bug rather than a near-miss. With one
+   * there are only two outcomes and both are legible: it bounced, or you felt
+   * it.
+   */
+  MIN_DURATION_FRACTION: 0.1, // frac of base — 24h base gives ~2.4h
 };
 
-/** Incite Unrest — taxes, production and growth all suffer until it lapses or
- *  a scout quells it. */
+/** Incite Unrest — taxes, production and growth all suffer until it lapses.
+ *  HOURS is the ceiling, not the answer: how long it actually runs is decided
+ *  by how many knives got through and how heavy the watch was (lingerTicks). */
 export const UNREST = { HOURS: 24, TAX_PENALTY: 0.25, PRODUCTION_PENALTY: 0.25 };
 
-/** Sow Research Doubt — the scholars lose their thread. Quellable by scouts,
- *  which is the only reason a research empire keeps rangers at all. */
+/** Sow Research Doubt — the scholars lose their thread. Same ceiling-not-answer
+ *  rule as UNREST above, and rangers are why a research empire keeps a watch. */
 export const RESEARCH_DOUBT = { HOURS: 24, RESEARCH_PENALTY: 0.5 };
 
 /** Scout recon is fuzzy at first; Pathfinding sharpens it toward the truth. */

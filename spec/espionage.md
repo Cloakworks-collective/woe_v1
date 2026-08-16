@@ -26,9 +26,9 @@ it — which costs a scout mission first. The two arms feed and starve each othe
 
 ### The loop
 
-Spies **Incite Unrest** → scouts **Quell** it.
-Spies **Sow Research Doubt** → scouts **Quell** it.
-Spies **Assassinate Scouts** → which strips the defence that stops spies.
+Spies **Incite Unrest** → a standing watch cuts it short, or turns it back.
+Spies **Sow Research Doubt** → the same watch, the same answer.
+Spies **Assassinate Scouts** → which strips the very watch doing the cutting.
 
 Neither arm is optional.
 
@@ -79,8 +79,12 @@ effect      = f(survivors)        ← damage scales with who got THROUGH
 
 The additive pool is race, research (Tradecraft for spies,
 Pathfinding for scouts) and the relevant building — Shadow Guild or Rangers
-Lodge, +10%/level. Delivery is a ±20% roll: twice the battle swing, because the
-shadow war is a chancier business than a shield wall.
+Lodge, +10%/level. Delivery is a **±30%** roll — three times the battle swing,
+and it has to be: both arms are capped at the same share of population, so two
+comparable empires sit at parity by construction. A narrow swing would make the
+shield below a deterministic wall and spying would only ever work downhill. At
+±30% the rolled ratio at parity lands anywhere in 0.54–1.86, so you must
+outweigh the other side by ~1.86× before any roll is certain either way.
 
 **Interception IS the catch.** There is no separate roll. And it is graduated —
 some die, some come home, replacing the old all-or-nothing massacre.
@@ -88,6 +92,28 @@ some die, some come home, replacing the old all-or-nothing massacre.
 - **A clean run stays anonymous.** That is the whole prize.
 - **Any interception at all names you** and opens the revenge window.
 - **No rangers means no defence.** A realm without a watch is robbed at will.
+
+**A watch that outweighs the knives turns them back outright.** Every spy
+operation, not just the lingering ones: agents get over the wall, find every
+door watched, and come home with nothing. Some are caught on the way. This is
+not a wall between equals — the ±30% swing above is what keeps it a gamble.
+
+### What lingers, and for how long
+
+Unrest and Doubt are the two operations that do not finish when the spy leaves,
+and they are the two the watch answers twice:
+
+```
+ticks = a day × (survivors ÷ INFILTRATION_SCALE) × (1 − watch ÷ knives)
+        floored at MIN_DURATION_FRACTION of a day
+```
+
+Both halves used to be missing — the duration was a flat day whether one spy
+came over the wall or a hundred, and a realm full of rangers suffered it exactly
+as long as a realm with none. **Rangers are now paid twice for the same men:**
+once in knives caught, once in hours cut. The floor exists so a near-miss reads
+as an event rather than a phantom — fourteen minutes of unrest is an alarm with
+nothing behind it by the time anyone looks.
 
 Scouts never hunt. They stand watch, and defence costs nothing — you should not
 be robbed because you were asleep with an empty budget.
@@ -108,8 +134,6 @@ Overt, safe, never intercepted. Gated by **Pathfinding**.
 | 2 | Map the Army | 0.15 | Composition by arm and tier, sellswords, stamina, sortie orders |
 | 3 | **Map the Siege Train** | 0.15 | **Their engines — the one thing the ladder never shows** |
 | 4 | Map the Collegium | 0.25 | Every research field and level |
-| 3 | Quell the Unrest | 0.30 | Ends Incite Unrest early, in your own streets |
-| 5 | Quell the Doubt | 0.30 | Ends Sow Doubt early |
 
 **Map the Siege Train earns its place.** Ranking counts engineers and defensive
 works but never the siege train, so a rival's offensive engines exist nowhere
@@ -179,5 +203,5 @@ it would be a strange ladder that advertised how deep your spy service runs.
 ## Open / TBD
 
 - [ ] Tune interception against real play — `AT_PARITY` (0.4) is a first guess.
-- [ ] Consider whether Quell ops should cost fewer turns; counter-play that is
-      dearer than the attack it answers tends not to get used.
+- [ ] Tune `INFILTRATION_SCALE` (50) and `MIN_DURATION_FRACTION` (0.1) against
+      real play — both are first guesses.

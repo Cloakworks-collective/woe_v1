@@ -101,6 +101,35 @@ const agentPower = (
   return count * base * pool * luck(rng, COVERT_LUCK_SWING);
 };
 
+/**
+ * How long a lingering effect — unrest, doubt — actually runs.
+ *
+ *     ticks = a day × (how many got through) × (what the watch could NOT soak)
+ *
+ * Both halves used to be missing. The duration was a flat day whether one spy
+ * came over the wall or a hundred, and a realm full of rangers suffered it
+ * exactly as long as a realm with none. Now the size of the infiltration and
+ * the weight of the watch each move it, which is what makes keeping scouts
+ * worth the population they cost — they are paid twice for the same men, once
+ * in knives caught and once in hours cut.
+ *
+ * Floored at MIN_DURATION_FRACTION so a near-miss still reads as an event
+ * rather than a phantom.
+ */
+function lingerTicks(survivors: number, absorb: number, warX: number): number {
+  const bite = Math.min(1, survivors / COVERT_EFFECTS.INFILTRATION_SCALE);
+  const raw = TURNS_PER_DAY * bite * (1 - absorb);
+  const floor = TURNS_PER_DAY * COVERT_EFFECTS.MIN_DURATION_FRACTION;
+  return Math.max(1, Math.round(Math.max(floor, raw) * warX));
+}
+
+/** Ticks as prose. A game day is TURNS_PER_DAY ticks and 24 hours. */
+function hoursOf(ticks: number): string {
+  const hours = Math.max(1, Math.round((ticks / TURNS_PER_DAY) * 24));
+  if (hours >= 48) return `${Math.round(hours / 24)} days`;
+  return hours === 1 ? "an hour" : `${hours} hours`;
+}
+
 export function runCovertOp(
   attackerIn: Player,
   defenderIn: Player,
@@ -141,12 +170,22 @@ export function runCovertOp(
   // Scouts do not hunt. They stand watch, and what they stop is decided by
   // weight of numbers on both sides. A realm with NO rangers is robbed at will.
   let intercepted = 0;
+  /** How much of the blow the watch soaked, 0-1. Read by the lingering ops to
+   *  decide how long they last; 0 when there are no rangers at all. */
+  let absorb = 0;
+  /** The watch outweighed the knives outright — nothing takes hold. */
+  let bounced = false;
   if (arm === "spy") {
     const spyPwr = agentPower(attacker, "spy", agentsSent, rng);
     const watch = defender.army.scouts + defender.army.mercenaries.scouts;
     const scoutPwr = watch > 0 ? agentPower(defender, "scout", watch, rng) : 0;
     if (scoutPwr > 0 && spyPwr > 0) {
       const ratio = scoutPwr / spyPwr;
+      absorb = Math.min(1, ratio);
+      // EVERY spy operation is stopped outright by a watch that outweighs it.
+      // Both worths carry an independent COVERT_LUCK_SWING roll, so at nominal
+      // parity this is a coin-flip rather than a wall — see the note there.
+      bounced = scoutPwr >= spyPwr;
       const rate = Math.min(
         INTERCEPTION.MAX,
         INTERCEPTION.AT_PARITY * ratio * op.detection,
@@ -175,6 +214,20 @@ export function runCovertOp(
     detail = `Disaster — all ${agentsSent} were taken at the wall. ${defender.name} knows the hand behind it.`;
     victimDetail = `Rangers took ${intercepted} of ${attacker.name}'s agents attempting "${op.name}". The revenge window is open.`;
     settleMercenaries(attacker);
+    return { attacker, defender, op, sent: agentsSent, intercepted, exposed, detail, facts, victimDetail, turnsSpent: cost };
+  }
+
+  // Some got over the wall and none of it mattered: the watch was simply
+  // heavier than the knives. They keep their lives and lose the night.
+  if (bounced) {
+    detail = intercepted > 0
+      ? `The rangers were waiting. ${intercepted} of ours were taken and the rest found every door watched — nothing of "${op.name}" took hold.`
+      : `Every door watched, every yard walked. The rangers are too many; nothing of "${op.name}" took hold.`;
+    victimDetail = intercepted > 0
+      ? `Your rangers took ${intercepted} of ${attacker.name}'s agents and turned back the rest. Nothing was touched.`
+      : `Your rangers turned strangers away in the night. Nothing was touched, and no one was caught to name.`;
+    settleMercenaries(attacker);
+    settleMercenaries(defender);
     return { attacker, defender, op, sent: agentsSent, intercepted, exposed, detail, facts, victimDetail, turnsSpent: cost };
   }
 
@@ -256,22 +309,6 @@ export function runCovertOp(
       detail = `Their Collegium read end to end — ${total} levels across ${RESEARCH_FIELDS.length} fields.`;
       break;
     }
-    case "quell_unrest": {
-      const had = (attacker.unrestUntilTick ?? 0) > currentTick;
-      attacker.unrestUntilTick = undefined;
-      detail = had
-        ? "The agitators are found and the streets go quiet. Taxes and production recover at once."
-        : "No unrest to put down — your streets were already calm.";
-      break;
-    }
-    case "quell_doubt": {
-      const had = (attacker.researchDoubtUntilTick ?? 0) > currentTick;
-      attacker.researchDoubtUntilTick = undefined;
-      detail = had
-        ? "The whisperers are rooted out of the Collegium. Your scholars find their thread again."
-        : "No doubt to dispel — the Collegium was working well.";
-      break;
-    }
 
     // ── SPY: destruction and theft ────────────────────────────────────────
     case "torch_stores": {
@@ -334,15 +371,17 @@ export function runCovertOp(
       break;
     }
     case "incite_unrest": {
-      defender.unrestUntilTick = currentTick + TURNS_PER_DAY * warX;
-      detail = `Agitators planted: ${defender.name} loses a quarter of taxes and production for a day, and no settlers will come.`;
-      victimDetail = "Unrest in the streets! Taxes and production fall and settlers turn away. Your rangers can put this down.";
+      const ticks = lingerTicks(survivors, absorb, warX);
+      defender.unrestUntilTick = currentTick + ticks;
+      detail = `Agitators planted: ${defender.name} loses a quarter of taxes and production for ${hoursOf(ticks)}, and no settlers will come.`;
+      victimDetail = `Unrest in the streets! Taxes and production fall and settlers turn away for ${hoursOf(ticks)}.`;
       break;
     }
     case "sow_doubt": {
-      defender.researchDoubtUntilTick = currentTick + TURNS_PER_DAY * warX;
-      detail = `Whisperers among their scholars — ${defender.name}'s research crawls for a day.`;
-      victimDetail = "Doubt spreads through the Collegium and the work slows to a crawl. Rangers can root them out.";
+      const ticks = lingerTicks(survivors, absorb, warX);
+      defender.researchDoubtUntilTick = currentTick + ticks;
+      detail = `Whisperers among their scholars — ${defender.name}'s research crawls for ${hoursOf(ticks)}.`;
+      victimDetail = `Doubt spreads through the Collegium and the work slows to a crawl for ${hoursOf(ticks)}.`;
       break;
     }
     case "assassinate_scouts": {
