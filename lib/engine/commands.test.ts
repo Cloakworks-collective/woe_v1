@@ -4,6 +4,8 @@ import {
   bankGold,
   bankResource,
   build,
+  buySiegeCounter,
+  buySiegeGear,
   dischargeTroops,
   dismissMercenaries,
   hireMercenaries,
@@ -11,6 +13,9 @@ import {
   restTroops,
   setResearch,
   setTax,
+  trainScouts,
+  trainSiegeEngineers,
+  trainSpies,
   trainTroops,
 } from "./commands";
 import { CIVILIAN_LEVELLED_IDS, COLLEGIUM_COST, GUILD_COST, LODGE_COST, FOUNDRY_COST, MARKET_COST, PRODUCER_COST, WARWORKS_COST, RESEARCH_FIELDS, STORAGE_COST, TURNS_PER_DAY, WALLS_COST, goldShelterAtLevel, maxLevel, shelterAtLevel, workerOutputAtLevel } from "../constants";
@@ -593,5 +598,56 @@ describe("training costs", () => {
     for (const arm of ["footman", "archer", "cavalry"] as const)
       for (const t of ["light", "medium", "heavy"] as const)
         expect(trainingCost(p, arm, t).stone, `${arm} ${t}`).toBe(0);
+  });
+});
+
+describe("specialists are raised behind an army", () => {
+  const realm = (regulars: number, engineers = 0) => {
+    const p = newEmpire({ id: "c", name: "Caps", race: "human" });
+    p.army.footmen = { light: regulars, medium: 0, heavy: 0 };
+    p.army.siegeEngineers = engineers;
+    p.idlePeasants = 5_000;
+    p.gold = 50_000_000;
+    p.bankedGold = 0;
+    p.resources = { food: 9e6, wood: 9e6, stone: 9e6, ore: 9e6 };
+    p.buildings = {
+      ...p.buildings,
+      shadow_guild: 5, rangers_lodge: 5, war_foundry: 10, muster_hall: 900,
+    };
+    return p;
+  };
+
+  it("caps spies and scouts at a share of the REGULAR LINE, not the population", () => {
+    // 5,000 idle peasants and only 100 soldiers: a populous realm that never
+    // mustered keeps almost no shadow service.
+    const p = realm(100);
+    expect(() => trainSpies(p, 6)).toThrow(/only carry/i);
+    expect(trainSpies(p, 5).player.army.spies).toBe(5);
+  });
+
+  it("…and the ceiling rises only as the army does", () => {
+    expect(trainScouts(realm(2_000), 100).player.army.scouts).toBe(100);
+    expect(() => trainScouts(realm(200), 100)).toThrow(/only carry/i);
+  });
+
+  it("gives engine crews twice the room — a siege park is the larger undertaking", () => {
+    const p = realm(1_000);
+    expect(trainSiegeEngineers(p, 100).player.army.siegeEngineers).toBe(100);
+    expect(() => trainSiegeEngineers(p, 101)).toThrow(/only carry/i);
+  });
+
+  it("refuses engines nobody could crew — the yard is not a bank", () => {
+    // Ten engineers crew two trebuchets (5 apiece), so the yard holds four.
+    const p = realm(1_000, 10);
+    expect(buySiegeGear(p, "trebuchets", 4).player.army.siegeGear.trebuchets).toBe(4);
+    expect(() => buySiegeGear(p, "trebuchets", 5)).toThrow(/can only keep/i);
+  });
+
+  it("counts the battery apart from the train, so neither stables the other's surplus", () => {
+    const p = realm(1_000, 10);
+    // The offensive yard being full says nothing about the defensive one.
+    const withGear = buySiegeGear(p, "trebuchets", 4).player;
+    expect(buySiegeCounter(withGear, "counter_engine", 4).player.army.siegeCounters.counter_engine).toBe(4);
+    expect(() => buySiegeCounter(withGear, "counter_engine", 5)).toThrow(/can only keep/i);
   });
 });

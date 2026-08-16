@@ -225,12 +225,49 @@ export const INTERCEPTION = {
 
 // ─── 4 · RECRUITMENT CAPS ───────────────────────────────────────────────────
 
+/**
+ * SPECIALISTS ARE RAISED BEHIND AN ARMY, NOT BESIDE A POPULATION.
+ *
+ * Measured against your REGULAR TROOPS — footmen, archers and cavalry — not
+ * against how many people live in your realm. A ruler who farms and never
+ * musters cannot field a shadow service at all, and the ceiling on knives,
+ * rangers and engine crews rises only as the army does.
+ *
+ * That is the difference between a realm holding six hundred rangers because it
+ * is populous and holding them because it is genuinely enormous under arms. If
+ * someone does field six hundred, they earned them behind twelve thousand
+ * soldiers, and they deserve to be very hard to touch.
+ *
+ * These used to read against total population and, worse, were never enforced
+ * anywhere: `covertCap` was written, exported, and called by nothing.
+ */
 export const COVERT_CAPS = {
-  /** Each arm may not exceed this share of total population… */
-  PER_ARM: 0.05, // frac
+  /** Each arm may not exceed this share of your regular troops… */
+  PER_ARM: 0.05, // frac of regulars
   /** …and together they may not exceed this. */
-  COMBINED: 0.1, // frac
+  COMBINED: 0.1, // frac of regulars
 };
+
+/** Engine crews, on the same rule and twice the room — a siege park is a
+ *  larger undertaking than a shadow service. */
+export const ENGINEER_CAP = 0.1; // frac of regulars
+
+/**
+ * ENGINES YOU CANNOT CREW ARE ENGINES YOU MAY NOT KEEP.
+ *
+ * You may hold this multiple of what your engineers can actually man, counted
+ * SEPARATELY for the offensive train and the defensive battery — the two are
+ * built and crewed apart, and pooling the allowance would let a besieger stable
+ * his surplus in the counter-yard.
+ *
+ * Without it siege gear is a bank. Engines are bought with resources and sold
+ * on the black market, so a realm at a punishing tax rate could pour income
+ * into trebuchets it never intended to crew and break them out again later — a
+ * treasury that neither the tax man nor a raider can reach. The cap says the
+ * yard is for engines you mean to use, and leaves a spare's worth of slack for
+ * repairs and losses.
+ */
+export const SIEGE_STOCK_RATIO = 2; // × what your crews can man
 
 // ─── 5 · MISSION EFFECTS ────────────────────────────────────────────────────
 // All scale with the AGENTS WHO GOT THROUGH, never with the number sent.

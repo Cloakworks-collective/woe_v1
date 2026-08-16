@@ -206,11 +206,27 @@ same cascade the army runs (`combat.md`).
 
 ## Recruitment
 
+Measured against your **regular troops** — footmen, archers and cavalry — never
+against how many people live in your realm. A shadow service is raised *behind
+an army*: a ruler who farms and never musters keeps no knives at all, and the
+ceiling rises only as the muster does.
+
 | | |
 |---|---|
-| Spies | ≤ **5%** of total population |
-| Scouts | ≤ **5%** of total population |
+| Spies | ≤ **5%** of regulars |
+| Scouts | ≤ **5%** of regulars |
 | Combined | ≤ **10%** |
+| Engine crews | ≤ **10%** of regulars |
+
+So six hundred rangers is not something a populous realm has — it is something a
+realm of twelve thousand soldiers has, and it deserves to be near untouchable.
+
+**Engines you cannot crew are engines you may not keep.** A realm may hold
+`SIEGE_STOCK_RATIO` × what its engineers could man, counted separately for the
+offensive train and the defensive battery. Without it the yard is a bank:
+engines are bought with resources and sold on the black market, so income could
+be poured into trebuchets nobody meant to crew and broken out again later,
+beyond the reach of tax or raid.
 
 Both arms can also be **hired**, capped at a third of your own of that arm.
 Hired knives need a Shadow Guild; hired rangers a Rangers Lodge. They are taken

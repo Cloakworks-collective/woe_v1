@@ -36,6 +36,7 @@ import {
   RESEARCH_FIELDS,
   COVERT_LOG_DAYS,
   SIEGE_COUNTERS,
+  SIEGE_GEAR,
   TURNS_PER_DAY,
   covertOp,
   type CovertOpMeta,
@@ -50,6 +51,7 @@ import {
   level,
   mercTroops,
   researchLevel,
+  regularTroops,
   totalPopulation,
   troopTotal,
   veterancyBonus,
@@ -619,14 +621,21 @@ const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");
 
 /** How many agents of one arm this realm may keep. */
 export function covertCap(p: Player, arm: "spy" | "scout"): number {
-  const pop = totalPopulation(p);
-  const perArm = Math.floor(pop * COVERT_CAPS_PER_ARM);
-  const combined = Math.floor(pop * COVERT_CAPS_COMBINED);
+  // Against the ARMY, not the population — see COVERT_CAPS. A realm that farms
+  // and never musters keeps no shadow service.
+  const line = regularTroops(p);
+  const perArm = Math.floor(line * COVERT_CAPS_PER_ARM);
+  const combined = Math.floor(line * COVERT_CAPS_COMBINED);
   const other = arm === "spy" ? p.army.scouts : p.army.spies;
   return Math.max(0, Math.min(perArm, combined - other));
 }
 
-import { COVERT_CAPS } from "../constants";
+/** Engine crews you may keep — the same rule, twice the room. */
+export function engineerCap(p: Player): number {
+  return Math.floor(regularTroops(p) * ENGINEER_CAP);
+}
+
+import { COVERT_CAPS, ENGINEER_CAP, SIEGE_STOCK_RATIO } from "../constants";
 const COVERT_CAPS_PER_ARM = COVERT_CAPS.PER_ARM;
 const COVERT_CAPS_COMBINED = COVERT_CAPS.COMBINED;
 
@@ -657,4 +666,25 @@ export function recordCovert(
 export function covertHistory(p: Player, currentTick: number): CovertRecord[] {
   const oldest = currentTick - COVERT_LOG_DAYS * TURNS_PER_DAY;
   return (p.covertLog ?? []).filter((r) => r.tick >= oldest);
+}
+
+/**
+ * How many of each engine a realm may KEEP, offensive and defensive counted
+ * apart. See SIEGE_STOCK_RATIO for why the yard is not allowed to be a bank.
+ *
+ * "Manned" is what your engineers could crew if they turned their hands to that
+ * one type and nothing else — so the allowance is generous per weapon and tight
+ * across a whole park, which is the shape a stockpile runs into and a working
+ * train does not.
+ */
+export function siegeStockRoom(p: Player, which: "gear"): Record<SiegeGearType, number>;
+export function siegeStockRoom(p: Player, which: "counters"): Record<CounterType, number>;
+export function siegeStockRoom(p: Player, which: "gear" | "counters"): Record<string, number> {
+  const crews = p.army.siegeEngineers + p.army.mercenaries.engineers;
+  const table: Record<string, { crew: number }> = which === "gear" ? SIEGE_GEAR : SIEGE_COUNTERS;
+  const out: Record<string, number> = {};
+  for (const [type, spec] of Object.entries(table)) {
+    out[type] = Math.floor((crews / spec.crew) * SIEGE_STOCK_RATIO);
+  }
+  return out;
 }

@@ -2,6 +2,7 @@
 // capacity rules in spec/empire.md). All instant — pacing is cost, never timers.
 
 import { decayExperience, lineRegulars, settleMercenaries } from "./combat/model";
+import { covertCap, engineerCap, siegeStockRoom } from "./espionageOps";
 import type { MercArm, SiegeGearType } from "./types";
 import {
   ACTION_TURNS,
@@ -292,9 +293,12 @@ export function trainSpies(input: Player, count: number): EngineResult {
   const p = structuredClone(input);
   if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
   if (p.idlePeasants < count) throw new EngineError("peasants", "Not enough idle peasants");
-  // Spies are uncapped — you need a Shadow Guild, whose level makes each spy more
-  // effective (not more slots; espionage.md).
   if (level(p, "shadow_guild") === 0) throw new EngineError("building", "Build the Shadow Guild first");
+  // A shadow service is raised BEHIND AN ARMY — the ceiling is a share of your
+  // regular troops, never of your people (COVERT_CAPS).
+  if (p.army.spies + count > covertCap(p, "spy")) {
+    throw new EngineError("cap", `Your regulars will only carry ${covertCap(p, "spy")} spies. Muster more troops first.`);
+  }
   pay(p, scale(TRAINING_COSTS.spy, count));
   p.idlePeasants -= count;
   p.army.spies += count;
@@ -305,9 +309,10 @@ export function trainScouts(input: Player, count: number): EngineResult {
   const p = structuredClone(input);
   if (!Number.isInteger(count) || count <= 0) throw new EngineError("count", "Invalid count");
   if (p.idlePeasants < count) throw new EngineError("peasants", "Not enough idle peasants");
-  // Scouts are uncapped — you need a Ranger's Lodge, whose level makes each scout
-  // sharper at recon and catching enemy spies (not more slots; espionage.md).
   if (level(p, "rangers_lodge") === 0) throw new EngineError("building", "Build the Ranger's Lodge first");
+  if (p.army.scouts + count > covertCap(p, "scout")) {
+    throw new EngineError("cap", `Your regulars will only carry ${covertCap(p, "scout")} scouts. Muster more troops first.`);
+  }
   pay(p, scale(TRAINING_COSTS.scout, count));
   p.idlePeasants -= count;
   p.army.scouts += count;
@@ -320,6 +325,11 @@ export function trainSiegeEngineers(input: Player, count: number): EngineResult 
   if (p.idlePeasants < count) throw new EngineError("peasants", "Not enough idle peasants");
   if (level(p, "war_foundry") < 1) throw new EngineError("foundry", "Engine Yard required");
   if (musterVacancy(p) < count) throw new EngineError("muster", "No free Muster Hall slots");
+  // Crews are raised behind an army too, with twice the room a shadow service
+  // gets — a siege park is the larger undertaking (ENGINEER_CAP).
+  if (p.army.siegeEngineers + count > engineerCap(p)) {
+    throw new EngineError("cap", `Your regulars will only carry ${engineerCap(p)} engineers. Muster more troops first.`);
+  }
   pay(p, scale(TRAINING_COSTS.siegeEngineer, count));
   p.idlePeasants -= count;
   p.army.siegeEngineers += count;
@@ -715,6 +725,17 @@ export function buySiegeGear(
     stone: 0, // engines take no stone — that went into the walls it will break
     ore: Math.round(g.ore * m),
   });
+  // ENGINES YOU CANNOT CREW ARE ENGINES YOU MAY NOT KEEP. Without this the yard
+  // is a bank: engines are bought with resources and sold on the black market,
+  // so income could be poured into trebuchets nobody meant to man and broken
+  // out again later, beyond the reach of tax or raid (SIEGE_STOCK_RATIO).
+  const room = siegeStockRoom(p, "gear");
+  if (p.army.siegeGear[type] + count > room[type]) {
+    throw new EngineError(
+      "crew",
+      `Your engineers can only keep ${room[type]} ${type.replace("_", " ")}. Raise more crews, or man what you have.`,
+    );
+  }
   p.army.siegeGear[type] += count;
   return { player: p, events: [] };
 }
@@ -741,6 +762,13 @@ export function buySiegeCounter(
     stone: 0,
     ore: Math.round(c.ore * m),
   });
+  const room = siegeStockRoom(p, "counters");
+  if (p.army.siegeCounters[type] + count > room[type]) {
+    throw new EngineError(
+      "crew",
+      `Your engineers can only keep ${room[type]} ${type.replace("_", " ")}. Raise more crews, or man what you have.`,
+    );
+  }
   p.army.siegeCounters[type] += count;
   return { player: p, events: [] };
 }

@@ -86,6 +86,10 @@ describe("purchases can reach the vault", () => {
     const p = fresh();
     p.bankedGold = 1_000_000;
     p.buildings.shadow_guild = 1;
+    // Specialists are capped against the REGULAR LINE now, so the muster has to
+    // exist before the shadow service can. This case is about the purse
+    // reaching the vault; the cap is not what it is testing.
+    p.army.footmen.light = 200;
     const out = trainSpies(p, 2).player;
     expect(out.army.spies).toBe(2);
     expect(out.bankedGold).toBeLessThan(1_000_000);
