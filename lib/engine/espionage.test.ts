@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { covertHistory, covertTurnCost, recordCovert, runCovertOp } from "./espionageOps";
 import { covertOp } from "../constants";
 import { newEmpire } from "./newEmpire";
-import { COVERT_LOG_DAYS, TURNS_PER_DAY } from "../constants";
+import { COVERT_LOG_DAYS, MERCENARIES, TURNS_PER_DAY } from "../constants";
 import { seededRng } from "./rng";
 import { emptySiegeGear, type Player } from "./types";
 
@@ -230,14 +230,16 @@ describe("effects scale with who got through", () => {
   it("assassination kills rangers and cascades their hired ones out of service", () => {
     const v = victim(0, 0);
     v.army.scouts = 90;
-    v.army.mercenaries.scouts = 30; // exactly at the 1:3 cap
+    v.army.mercenaries.scouts = Math.floor(90 * MERCENARIES.CAP_RATIO); // exactly at the cap
     v.army.scoutExperience = 80;
     // Enough knives that some get through the watch they are there to kill.
     const r = runCovertOp(spymaster(300), v, "assassinate_scouts", 250, 1000, seededRng(10));
     expect(r.defender.army.scouts).toBeLessThan(90);
     // The cascade: fewer regulars means fewer sellswords can be commanded.
+    // Read from the constant: CAP_RATIO governs the covert corps as well as the
+    // battle line, so it moved when the screen was widened to 30% of a host.
     expect(r.defender.army.mercenaries.scouts).toBeLessThanOrEqual(
-      Math.floor(r.defender.army.scouts / 3),
+      Math.floor(r.defender.army.scouts * MERCENARIES.CAP_RATIO),
     );
     expect(r.defender.army.scoutExperience).toBeLessThan(80);
   });

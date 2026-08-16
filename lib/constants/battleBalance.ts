@@ -468,6 +468,36 @@ export const CASUALTY_SPLIT = {
   MERC_SHARE: 0.7, // frac of a phase's damage onto the merc pool
 };
 
+/**
+ * The share of a blow that actually tells. Everything else is turned, ducked or
+ * taken on a shield.
+ *
+ * Drilled soldiers turn a blow that would land square on a hireling — so this
+ * is skill, not armour, and deliberately NOT extra health. The distinction
+ * matters: health feeds `totalHealth`, which feeds the worth that decides when
+ * a defender lays down arms. Making regulars tougher by giving them health
+ * would raise the surrender threshold in step with their toughness, so they
+ * would survive longer per strike and still capitulate having lost the same
+ * fraction — duration bought, survival not. Mitigating the damage instead
+ * leaves the yield line exactly where it was and lets the toughness show up
+ * where it was meant to: in living soldiers.
+ */
+export const DAMAGE_TAKEN: Record<"footman" | "archer" | "cavalry", number> = {
+  // Footmen live behind a shield and are drilled to use it: four blows in five
+  // turned. Cavalry are moving targets but committed to a line once they
+  // charge. Archers are the worst of the three — hands full of bow, no shield,
+  // and standing still to shoot.
+  footman: 0.2, // dodges 80%
+  cavalry: 0.3, // dodges 70%
+  archer: 0.4, // dodges 60%
+};
+
+/**
+ * Kept as an alias so nothing outside combat has to know the table was renamed
+ * when it stopped being regulars-only.
+ */
+export const REGULAR_DAMAGE_TAKEN = DAMAGE_TAKEN;
+
 /** Within regulars and within mercs alike, the cheap ranks fall first — so a
  *  layer of light troops beneath your heavies is a genuine shock absorber. */
 export const CASUALTY_TIER_ORDER = ["light", "medium", "heavy"] as const;
@@ -533,7 +563,7 @@ export const SIEGE_STANCE = {
  * one strike should cost, and how many strikes should break an empire, is a
  * question for `pnpm sim` and the person reading it. Sweep it; don't trust it.
  */
-export const COMBAT_TEMPO = 0.15; // frac
+export const COMBAT_TEMPO = 0.10; // frac
 
 /** Fog of war: ±this, rolled fresh per side per round. Delivery, not a bonus. */
 export const LUCK_SWING = 0.1; // frac
@@ -544,10 +574,6 @@ export const STAMINA = {
   MAX: 100,
   PASSIVE_RECOVERY_PER_TURN: 1,
   PASSIVE_FOOD_PER_TROOP: 0.02,
-  /** Drain scales with damage DEALT against what it would have taken to wipe
-   *  the enemy out. Swinging hard tires an army; holding a line does not. */
-  MAX_DRAIN_ATTACKER: 80,
-  MAX_DRAIN_DEFENDER: 50,
   /**
    * Resting is bought by the POINT, and it is bought with food alone.
    *
@@ -564,12 +590,57 @@ export const STAMINA = {
    * Sellswords eat at their employer's expense.
    */
   REST_FOOD_PER_POINT_PER_TROOP: 10,
-  /** Delivery gate: staminaMod = MOD_BASE + MOD_PER_POINT × stamina, so a
-   *  spent army brings half its power no matter how well researched. */
-  MOD_BASE: 0.5,
-  MOD_PER_POINT: 0.005,
-  /** At or below this a defender yields to anything but revenge. */
-  MERCY_FLOOR: 25,
+
+  /**
+   * THE STAMINA DIAL, per ARM. How tiring a battle is, as a multiplier on the
+   * work each part of the host actually did.
+   *
+   * Drain is "what fraction of the enemy did I get through", read onto the
+   * stamina scale — cut through the whole host and you are spent. This weights
+   * that by WHO did the cutting, so an army's tiring rate follows its shape:
+   *
+   *   archers  1.5  loose from a standing line and never close
+   *   cavalry  2.0  one committed charge, then a fight on horseback
+   *   footmen  2.5  the melee, where the work is hardest and longest
+   *
+   * Engine fire is NOT in this table and contributes nothing. A windlass being
+   * cranked does not tire the men standing in the line, and stamina measures
+   * how hard your soldiers swung.
+   *
+   * ONE stamina pool still — the weights are averaged by damage contribution,
+   * NOT by headcount. Archers deal roughly double a footman's damage per head,
+   * so a host that is a third bowmen by bodies can be two thirds bowmen by
+   * drain, and its tiring rate drifts toward its footmen as the archers fall.
+   *
+   * Deliberately separate from COMBAT_TEMPO. Drain used to be nothing but
+   * `MAX × damage ÷ enemy health`, which made it a hostage of the tempo:
+   * lowering the tempo to make battles less decisive also made every battle
+   * less tiring, so a long grind could never grind anyone down.
+   */
+  DRAIN_RATE: {
+    archer: 1.5,
+    cavalry: 2.0,
+    footman: 2.5,
+  } as Record<"archer" | "cavalry" | "footman", number>,
+  /**
+   * Delivery gate: staminaMod = MOD_BASE + MOD_PER_POINT × stamina.
+   *
+   * STRAIGHT PROPORTION. Stamina now IS the intensity — 100% fights at 100%,
+   * 70% fights at 70%, and an army on its knees brings nothing.
+   *
+   * It used to read 0.5 + 0.005×s, a floor of half your power no matter how
+   * spent you were: at 70 stamina you still swung at 85%, and even at zero you
+   * hit for half. That floor made resting nearly pointless and made grinding a
+   * tired defender almost as good as fighting a fresh one, because the thing
+   * you had ground down still fought at half strength forever.
+   */
+  MOD_BASE: 0,
+  MOD_PER_POINT: 0.01,
+  /** At or below this a defender yields to anything but revenge. Raised from
+   *  25: with stamina now driving intensity in a straight line, an army at 30
+   *  is already fighting at less than a third and the extra five points of
+   *  grinding bought the attacker nothing but corpses. */
+  MERCY_FLOOR: 30,
 
   // Where the troops START LOOKING tired (components/TiredArt.tsx). Art only —
   // no engine code reads these, and moving them changes no arithmetic.
@@ -585,9 +656,22 @@ export const STAMINA = {
 // ─── 12 · THE BATTLEFIELD YIELD ─────────────────────────────────────────────
 
 export const YIELD = {
-  /** Lay down arms when defensive power falls below this share of the
-   *  attacker's. Walls count only on castle attacks — a raid is open field. */
-  STRENGTH_RATIO: 0.6,
+  /**
+   * Lay down arms once the attacker outweighs the defender by this much on
+   * POWER + HEALTH together — the whole worth of a host, not half of it.
+   *
+   * Both halves, because either one alone rates an army by an accident of its
+   * composition. Against POWER only, a tanky host is judged on a number it was
+   * never built to maximise; against HEALTH only, a glass-cannon host is judged
+   * on the one it deliberately gave up. Summed, a heavy archer (55 + 40) and a
+   * heavy footman (30 + 65) come out identical at 95, which is the honest
+   * answer — they cost the same and they are worth the same, they simply spend
+   * it differently.
+   *
+   * Same quantity on both sides, so the constant finally means what it says: an
+   * attacker needs half again the host, whatever either side is made of.
+   */
+  WORTH_ADVANTAGE: 1.4,
   /** The sellswords cover the retreat. That is what sellswords are for. */
   MERC_LOSS_FRACTION: 0.25,
 };
@@ -868,7 +952,17 @@ export const MERCENARIES = {
   /** Sellswords may not exceed this share of the REGULARS of the same
    *  category — footmen gate merc footmen, scouts gate merc scouts, and so on.
    *  0.33 means a 75/25 army at full strength. */
-  CAP_RATIO: 1 / 3,
+  /**
+   * Hired blades per REGULAR of the same arm — so 3/7 here is 30% of the HOST,
+   * which is the figure the cap is actually chosen against:
+   *
+   *     merc / (reg + merc)  =  (3/7) / (10/7)  =  0.30
+   *
+   * Worth stating because the two readings differ by a lot and the constant is
+   * the less intuitive of the pair: at 1/3 (the old value) only a QUARTER of a
+   * host was hired.
+   */
+  CAP_RATIO: 3 / 7,
   /** Enforced continuously, not just at hire. When regulars die — in battle,
    *  to an assassin, to starvation, to a discharge — the sellswords they can
    *  no longer command are paid off and leave. This is what makes killing

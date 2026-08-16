@@ -390,7 +390,7 @@ export function AdvisorAlerts({ player: p }: { player: Player }) {
           )}
           , so those blows land on your <b>own people</b>. Regular dead are the one loss you never
           get back: they cost population, they drag your ranking down for days, and your veterancy
-          dies with them. A hired blade costs only gold, and they may not outnumber a third of the
+          dies with them. A hired blade costs only gold, and they are capped against the
           regulars of their own arm, so hire to that line — at the rank where the gap is — before
           the next raid.
         </>

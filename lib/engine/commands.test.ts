@@ -16,10 +16,10 @@ import {
 import { CIVILIAN_LEVELLED_IDS, COLLEGIUM_COST, GUILD_COST, LODGE_COST, FOUNDRY_COST, MARKET_COST, PRODUCER_COST, WARWORKS_COST, RESEARCH_FIELDS, STORAGE_COST, TURNS_PER_DAY, WALLS_COST, goldShelterAtLevel, maxLevel, shelterAtLevel, workerOutputAtLevel } from "../constants";
 import { buildingCost } from "./costs";
 import { newEmpire } from "./newEmpire";
-import { level, mercTotal, normalizePlayer, shelterCapacity, type Player, type TroopType } from "./types";
+import { level, mercTotal, normalizePlayer, shelterCapacity, troopTotal, type Player, type TroopType } from "./types";
 import { musterVacancy } from "./commands";
 import { trainingCost } from "./commands";
-import { MERC_PRICE_BY_ARM, STAMINA, UNIT_STATS } from "../constants";
+import { MERCENARIES, MERC_PRICE_BY_ARM, STAMINA, UNIT_STATS } from "../constants";
 import { researchSwitchLoss } from "./commands";
 import { processTurnTick } from "./tick";
 import { RESEARCH_SWITCH_LOSS } from "../constants";
@@ -294,7 +294,7 @@ describe("training & army", () => {
     expect(player.idlePeasants).toBe(90); // straight back to civilian life
   });
 
-  it("mercenaries are typed, building-gated, and cap at a third of their own arm", () => {
+  it("mercenaries are typed, building-gated, and capped against their own arm", () => {
     const p = fresh();
     p.gold = 100000;
     p.buildings = { ...p.buildings, drill_yard: 1, forge: 1 };
@@ -302,13 +302,16 @@ describe("training & army", () => {
     // training time, not quartering.
     expect(() => hireMercenaries(p, "footman", "light", 1)).toThrowError(/barracks/i);
     p.buildings.muster_hall = 5; // 50 beds against 20 regulars
-    // 20 regular footmen → at most 6 hired footmen (a third of that arm)
-    expect(() => hireMercenaries(p, "footman", "light", 7)).toThrowError(/capped|third/i);
-    const { player } = hireMercenaries(p, "footman", "light", 6);
-    expect(player.army.mercenaries.footmen.light).toBe(6);
+    // Derived, never written by hand: CAP_RATIO has already moved once (a third
+    // of the regulars, then 30% of the whole host), and a literal here failed
+    // for a reason that had nothing to do with hiring.
+    const cap = Math.floor(troopTotal(p.army.footmen) * MERCENARIES.CAP_RATIO);
+    expect(() => hireMercenaries(p, "footman", "light", cap + 1)).toThrowError(/capped|third/i);
+    const { player } = hireMercenaries(p, "footman", "light", cap);
+    expect(player.army.mercenaries.footmen.light).toBe(cap);
     // Read from the constant, not written by hand — this figure moved once
     // already when the line troops were repriced and the mercs were not.
-    expect(player.gold).toBe(100000 - 6 * MERC_PRICE_BY_ARM.footman);
+    expect(player.gold).toBe(100000 - cap * MERC_PRICE_BY_ARM.footman);
   });
 
   it("hiring a merc tier needs the matching trainer + Forge", () => {

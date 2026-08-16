@@ -13,8 +13,12 @@ import {
   CLAN_MUTE_DAYS,
   GOLD_PER_CIVILIAN_AT_FULL_TAX,
   REVENGE_WINDOW_HOURS,
+  CASUALTY_SPLIT,
+  DAMAGE_TAKEN,
   SIEGE_SALVAGE_VALUE,
+  STAMINA,
   STEWARD_QUEUE_CAP,
+  YIELD,
   TURNS_PER_DAY,
   WORK_QUEUE_CAP,
   workerOutputAtLevel,
@@ -395,6 +399,40 @@ export default function GuidePage() {
           Not who is left standing, not who did more damage in absolute terms — the proportion. A
           tie goes to the defender, and a defender wiped out loses whatever the arithmetic says.
           Every battle carries <b>±10% luck</b> on each side.
+        </p>
+        <h4>When a defender lays down arms</h4>
+        <p>
+          Before a blow is struck, a garrison decides whether the fight is worth having. It{" "}
+          <b>yields</b> if either is true:
+        </p>
+        <ul>
+          <li>
+            The attacker outweighs them by <b>{YIELD.WORTH_ADVANTAGE}×</b> on{" "}
+            <b>power plus health together</b> — the whole worth of a host, so a glass-cannon army
+            and a wall of shields are judged by the same measure.
+          </li>
+          <li>
+            Or they are <b>spent</b>: stamina below <b>{STAMINA.MERCY_FLOOR}</b>. Slow, stubborn
+            armies tend to break this way — they win the arithmetic long after they have run out of
+            legs.
+          </li>
+        </ul>
+        <p>
+          A yield <b>saves the soldiers and surrenders the stores</b>: the garrison loses nobody,
+          and the attacker takes what was outside the vault. <b>Revenge ignores it entirely</b> —
+          it is the one blow that always draws blood, and therefore the only answer to a rival who
+          turtles behind repeated surrenders.
+        </p>
+        <h4>Who dies, and who dodges</h4>
+        <p>
+          Damage walks <b>light → medium → heavy</b>, and at each rank the hired take{" "}
+          <b>{Math.round(CASUALTY_SPLIT.MERC_SHARE * 100)}%</b> of what lands there. Then skill
+          decides how many of those blows tell: a <b>footman turns{" "}
+          {Math.round((1 - DAMAGE_TAKEN.footman) * 100)}%</b> of them behind his shield,{" "}
+          <b>cavalry {Math.round((1 - DAMAGE_TAKEN.cavalry) * 100)}%</b>, and an{" "}
+          <b>archer only {Math.round((1 - DAMAGE_TAKEN.archer) * 100)}%</b> — hands full of bow, no
+          shield, standing still to shoot. A hired blade dodges exactly as well as your own: an
+          archer is an archer whoever is paying.
         </p>
         <p className="guide-tip">
           💡 Winning is binary and it is not the point. You win to take the loot; you attack{" "}

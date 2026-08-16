@@ -251,7 +251,7 @@ export default async function TrainPage({
       <div id="shadows" />
       <Panel
         title="The Muster — spies &amp; rangers"
-        info="Your whole covert corps in one place: raise your own, or hire sellswords of the same arm. Neither costs population or a barracks bed — agents live in town — and hired ones are capped at a third of your own and are taken first when a mission is intercepted."
+        info="Your whole covert corps in one place: raise your own, or hire sellswords of the same arm. Neither costs population or a barracks bed — agents live in town — and hired ones are capped against your own — three for every seven of your own (so a third of the whole host) — and are taken first when a mission is intercepted."
         guide="/guide#shadows"
       >
         <div className="card-grid">
@@ -289,7 +289,7 @@ export default async function TrainPage({
 
                   {/* Sellswords of the same arm, on the same card. They cost no
                       population and no barracks bed — covert agents live in
-                      town — but they are capped at a third of your OWN, and they
+                      town — but they are capped against your OWN, and they
                       are the ones taken first when a mission is intercepted. */}
                   <div className="covert-hire">
                     <span className="covert-hire-head">

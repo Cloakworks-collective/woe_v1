@@ -10756,3 +10756,41 @@ html.dark .br-log {
 }
 .br-beat-reg { font-size: 12.5px; }
 .br-phase + .br-phase { margin-top: 11px; }
+
+/* The muster roll — who marched, before any of the dead are counted. */
+.br-forces { font-size: 14px; }
+.br-forces td .br-ico { vertical-align: -4px; }
+.br-forces td.num { text-align: right; }
+.br-forces-spread,
+.br-forces-merc {
+  display: block;
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+.br-forces-merc { font-style: italic; }
+/* Engine lists are a LIST, not a figure — left-aligned, one per line. */
+.br-forces td.br-forces-list {
+  text-align: left;
+  font-weight: 400;
+  vertical-align: top;
+}
+.br-engines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.br-engines > li {
+  white-space: nowrap;
+}
+.br-engines b {
+  display: inline-block;
+  min-width: 2.4em;
+  text-align: right;
+  margin-right: 5px;
+  color: var(--heading);
+  font-variant-numeric: tabular-nums;
+}

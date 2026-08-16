@@ -492,6 +492,36 @@ export interface BattleLogEntry {
   tone?: "good" | "bad" | "neutral";
 }
 
+/**
+ * What one side BROUGHT — the muster roll, recorded before a blow was struck.
+ *
+ * A report that lists only the dead cannot be read: 853 fallen is a rout or a
+ * scratch depending on whether five thousand marched or nine hundred, and the
+ * reader has no way to tell which. Snapshotted rather than derived from the
+ * survivors, because the survivors are what is left AFTER, which is the one
+ * thing the losses already tell you.
+ *
+ * `gear` and `counters` are the CREWED counts — engines nobody is manning are
+ * lumber and were never in the battle.
+ */
+export interface BattleForces {
+  footmen: TroopCounts;
+  archers: TroopCounts;
+  cavalry: TroopCounts;
+  /** Hired blades, by arm — the screen in front of each rank above. */
+  mercFootmen: TroopCounts;
+  mercArchers: TroopCounts;
+  mercCavalry: TroopCounts;
+  engineers: number;
+  gear: Partial<Record<SiegeGearType, number>>;
+  counters: Partial<Record<CounterType, number>>;
+  wallLevel: number;
+  wallIntegrity: number;
+  stamina: number;
+  /** The veterancy multiplier as a fraction — 0.6 is +60%. */
+  veterancy: number;
+}
+
 export interface BattleReport {
   id: string;
   tick: number;
@@ -524,6 +554,8 @@ export interface BattleReport {
    * than announcing a winner and leaving the reader to take it on faith.
    */
   healthLostShare?: { attacker: number; defender: number };
+  /** Who marched, on both sides, before a blow was struck. See BattleForces. */
+  forces?: { attacker: BattleForces; defender: BattleForces };
   /** Buildings cracked open beyond the walls (integrity lost each). */
   buildingDamage?: { building: BuildingId; integrityLost: number }[];
   /** Engines wrecked outright, both ways — the counter duel bites both sides. */
@@ -550,8 +582,11 @@ export interface BattleReport {
   staminaLoss: { attacker: number; defender: number };
   experienceChange: { attacker: number; defender: number };
   siegeExperienceChange?: { attacker: number; defender: number };
-  /** MEDICINE: hired blades the defender's surgeons pulled off the field alive. */
-  mercsRecovered?: number;
+  /** MEDICINE: men the defender's surgeons pulled off the field alive —
+   *  REGULARS as well as hired, since the field hospital stopped being a
+   *  sellsword-only perk. Named for what it counts, which is why it is no
+   *  longer `mercsRecovered`. */
+  woundedRecovered?: number;
   log: BattleLogEntry[];
 }
 
@@ -594,10 +629,10 @@ export type GameEvent =
   | { type: "buildComplete"; building: BuildingId; level: number }
   | { type: "attacked"; byId: string; byName: string; mode: AttackMode; battleId: string }
   | { type: "battleResult"; battleId: string; victor: string; mode: AttackMode }
-  | { type: "spyReport"; op: string; targetName: string; caught: boolean; detail: string; reportId?: string }
+  | { type: "spyReport"; op: string; targetName: string; caught: boolean; detail: string; reportId?: string; opId?: string }
   | { type: "spiesCaught"; attackerName: string; executed: number; op: string }
   | { type: "sabotaged"; detail: string } // anonymous — victim sees damage, not the hand
-  | { type: "scoutReport"; targetName: string; detail: string; reportId?: string }
+  | { type: "scoutReport"; targetName: string; detail: string; reportId?: string; opId?: string }
   | { type: "marketSale"; resource: Resource; amount: number; goldNet: number }
   | { type: "clanEvent"; detail: string }
   /** A victory hold-clock started or stopped for you (Grand Overlord) or your

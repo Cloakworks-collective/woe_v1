@@ -28,7 +28,10 @@ import { evalCurve } from "../../constants/curves";
 import { luck, rollBand, rollCount, type Rng } from "../rng";
 import {
   buildingIntegrity,
+  emptySiegeGear,
   level,
+  veterancyBonus,
+  type BattleForces,
   type BattleLogEntry,
   type BattleReport,
   type Clan,
@@ -83,6 +86,36 @@ function pickTarget(defender: Player, rng: Rng): BuildingId | null {
   return eligible[eligible.length - 1].id as BuildingId;
 }
 
+/** Empty counter tally — an attacker brings no battery of their own. */
+function crewCountersEmptyLocal(): Record<CounterType, number> {
+  return { billhooks: 0, forkpoles: 0, fire_pots: 0, boiling_oil: 0, hoardings: 0, counter_engine: 0 };
+}
+
+/**
+ * What one side brought to an artillery exchange. Shares its shape with the
+ * battle version so one panel can render both, but the arms stay at zero: a
+ * bombard has no soldiers in it and printing a host that never left home would
+ * be the single most misleading thing on the page.
+ */
+function musterRoll(
+  p: Player,
+  crewedGear: Record<SiegeGearType, number>,
+  crewedCounters: Record<CounterType, number>,
+): BattleForces {
+  const none = { light: 0, medium: 0, heavy: 0 };
+  return {
+    footmen: none, archers: none, cavalry: none,
+    mercFootmen: none, mercArchers: none, mercCavalry: none,
+    engineers: p.army.siegeEngineers + p.army.mercenaries.engineers,
+    gear: { ...crewedGear },
+    counters: { ...crewedCounters },
+    wallLevel: level(p, "walls"),
+    wallIntegrity: p.wallIntegrity,
+    stamina: p.army.stamina,
+    veterancy: veterancyBonus(p.army.siegeExperiencePoints),
+  };
+}
+
 export function resolveBombard(
   attackerIn: Player,
   defenderIn: Player,
@@ -110,7 +143,17 @@ export function resolveBombard(
   );
   const defenderEdge = rollDefenderEdge(rng);
 
+  /**
+   * The pair that actually fights, counted BEFORE a stone flies.
+   *
+   * `atkPark.crewed` is decremented by `damagePark` as engines are wrecked, so
+   * reading it at report time gives the survivors — which is the one thing the
+   * losses already say. And a bombard is trebuchets against Counter-Engines:
+   * listing rams and grapple teams on a muster roll would name gear that never
+   * left the camp.
+   */
   const openingTrebs = atkPark.crewed.trebuchets;
+  const openingCounterEngines = defPark.crewed.counter_engine;
   const openingBattery = batteryStrength(defPark);
   const stance = attacker.army.siegeStance ?? "general";
   // A battery beaten into silence is not a target and not a threat: the guns
@@ -198,6 +241,8 @@ export function resolveBombard(
       attacker, defender, atkPark, defPark, war, rng, defenderEdge,
       intensity: BOMBARD_INTENSITY,
       returnShare: counterShare,
+      // Trebuchets and the Counter-Engines only. Nothing else is at the wall.
+      only: ["trebuchets"],
     });
     for (const note of duel.notes) log.push({ round: 1, phase: "counter-duel", text: note });
     if (focused) {
@@ -362,6 +407,26 @@ export function resolveBombard(
     regularsKilled: { attacker: engineerLossesDef, defender: engineerLossesAtk },
     civiliansDisplaced: displaced,
     wallIntegrityDamage: wallHp > 0 ? wallDamage / wallHp : 0,
+    /**
+     * The muster roll — and for a bombard it is deliberately thin.
+     *
+     * No line troops: nobody marched, so the arms are left empty rather than
+     * listing an army that stayed at home. What was actually present is the
+     * engineers, the trebuchets they crewed, the battery answering, and the
+     * wall being shot at. The panel reads `full: false` off the mode and prints
+     * only these rows.
+     */
+    forces: {
+      attacker: musterRoll(
+        attackerIn,
+        { ...emptySiegeGear(), trebuchets: openingTrebs },
+        crewCountersEmptyLocal(),
+      ),
+      defender: musterRoll(defenderIn, emptySiegeGear(), {
+        ...crewCountersEmptyLocal(),
+        counter_engine: openingCounterEngines,
+      }),
+    },
     buildingDamage: buildingDamage.length ? buildingDamage : undefined,
     siegeGearLost: atkPark.destroyed,
     siegeCountersLost: defPark.destroyed,

@@ -166,6 +166,16 @@ export interface DuelContext {
    * has anything else to shoot at.
    */
   returnShare?: number;
+  /**
+   * Restrict the duel to these engine types. Omitted, every paired type
+   * resolves — an assault brings the whole park to the wall.
+   *
+   * A BOMBARD passes `["trebuchets"]`: it is an artillery exchange with no
+   * soldiers in it, so the rams are still in camp and the escalade tackle is
+   * still on the carts. Neither should be taking fire, and neither should be
+   * returning it.
+   */
+  only?: SiegeGearType[];
 }
 
 /**
@@ -188,6 +198,13 @@ export function runDuelRound(ctx: DuelContext): DuelRound {
   for (const gear of GEAR_TYPES) {
     const ct = COUNTER_FOR[gear];
     if (!ct) continue;
+    // A BOMBARD is trebuchets against the battery and nothing else — see
+    // `only`. Without this the whole park duelled: boiling oil scalded rams and
+    // bill-hooks cut grapple lines in an engagement where no soldier was
+    // present and nothing was being climbed. The attacker lost escalade tackle
+    // that never left the camp, and the defender's oil and hooks were worn down
+    // answering an assault that was not happening.
+    if (ctx.only && !ctx.only.includes(gear)) continue;
 
     // A counter ground to wreckage stands down and STAYS down until mended:
     // it does not fire, and nothing fires at it. That is what stops a defender
@@ -217,7 +234,7 @@ export function runDuelRound(ctx: DuelContext): DuelRound {
     if (counterPwr > 0 && atkPark.crewed[gear] > 0) {
       const lost = damagePark(atkPark, gear, counterPwr, SIEGE_GEAR[gear].health);
       if (lost > 0) {
-        out.notes.push(`${SIEGE_COUNTERS[ct].name} smash ${lost} ${label(gear)}.`);
+        out.notes.push(COUNTER_VERB[ct](lost, label(gear)));
       }
     }
 
@@ -233,7 +250,17 @@ export function runDuelRound(ctx: DuelContext): DuelRound {
     if (returnFire > 0 && defPark.crewed[ct] > 0) {
       const lost = damagePark(defPark, ct, returnFire, SIEGE_COUNTERS[ct].health);
       if (lost > 0) {
-        out.notes.push(`Our fire wrecks ${lost} ${SIEGE_COUNTERS[ct].name}.`);
+        // What the ATTACKER's engines manage in return. Named as a counted
+        // noun (see COUNTER_PLURAL) and split by what is actually being hit:
+        // knocking a gallery off a wall is not the same act as burning out a
+        // cauldron crew.
+        out.notes.push(
+          ct === "hoardings"
+            ? `Our engines tear ${lost} ${COUNTER_PLURAL[ct]} off the parapet.`
+            : ct === "boiling_oil"
+              ? `Our fire scatters ${lost} ${COUNTER_PLURAL[ct]} and the oil runs cold.`
+              : `Our fire wrecks ${lost} ${COUNTER_PLURAL[ct]}.`,
+        );
       }
     }
 
@@ -252,7 +279,7 @@ export function runDuelRound(ctx: DuelContext): DuelRound {
       if (killed > 0) {
         out.attackerEngineerKills += killed;
         out.notes.push(
-          `${SIEGE_COUNTERS[ct].name} overwhelm our ${label(gear)} entirely — ${killed} engineers cut down at their posts.`,
+          `Their ${COUNTER_PLURAL[ct]} overwhelm our ${label(gear)} entirely — ${killed} engineers cut down at their posts.`,
         );
       }
     }
@@ -324,6 +351,47 @@ export const batteryThreatens = (defStrength: number, atkStrength: number): bool
 export function rollDefenderEdge(rng: Rng): number {
   return rollBand(rng, COUNTER_DUEL.DEFENDER_EDGE);
 }
+
+/**
+ * What each counter DOES to the thing it answers, in its own words.
+ *
+ * Every one of these read "X smash N Y" — one verb for six entirely different
+ * mechanisms. A bill-hook is a hooked polearm that cuts a grapple line; a fork
+ * pole shoves a ladder off the wall; fire pots set a timber tower alight;
+ * boiling oil is poured on the beams; hoardings are a covered gallery that
+ * takes the bolts meant for your people. Only the Counter-Engine, which is an
+ * engine throwing stones back at an engine, actually smashes anything.
+ *
+ * `(n, what)` so each line can put the count where its own sentence wants it.
+ */
+const COUNTER_VERB: Record<CounterType, (n: number, what: string) => string> = {
+  billhooks: (n, what) =>
+    `Their bill-hooks reach over the parapet and cut ${n} of our ${what} away from the stone.`,
+  forkpoles: (n, what) =>
+    `Their fork poles catch ${n} of our ${what} at the top and shove them off the wall.`,
+  fire_pots: (n, what) => `Fire pots burst against ${n} of our ${what} and the timber goes up.`,
+  boiling_oil: (n, what) =>
+    `Boiling oil comes down the wall and chars ${n} of our ${what} at the gate.`,
+  // The gallery does not attack. It stands over the DEFENDERS and eats the
+  // bolts meant for them — our engines spend themselves against the timber.
+  hoardings: (n, what) =>
+    `The hoardings take our volleys — their people shelter under the timber while ${n} of our ${what} spend themselves against it.`,
+  counter_engine: (n, what) => `Their Counter-Engines answer stone for stone and smash ${n} of our ${what}.`,
+};
+
+/**
+ * Counter names as a COUNTED noun. `SIEGE_COUNTERS[ct].name` is the shop label,
+ * and half of it does not take a number — "our fire wrecks 15 Counter-Engine"
+ * and "3 Boiling Oil" both read as typos.
+ */
+const COUNTER_PLURAL: Record<CounterType, string> = {
+  billhooks: "bill-hook parties",
+  forkpoles: "fork-pole crews",
+  fire_pots: "fire-pot stands",
+  boiling_oil: "cauldrons",
+  hoardings: "spans of hoarding",
+  counter_engine: "Counter-Engines",
+};
 
 const LABELS: Record<SiegeGearType, string> = {
   ropes: "grapple teams",

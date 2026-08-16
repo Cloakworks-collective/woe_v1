@@ -114,3 +114,78 @@ export function eventTone(e: GameEvent): EventTone {
       return "info";
   }
 }
+
+/**
+ * Which plate a tiding wears in the chronicle.
+ *
+ * The feed used to paint every event with its TONE glyph, so a raid, a castle
+ * assault, a bombardment and a revenge were one identical war icon, and every
+ * covert op — arson, theft, a survey of the coffers, a stolen research level —
+ * was one identical shadow icon. Tone is the right thing for colour and the
+ * wrong thing for a picture: it says how to feel about the entry, not what
+ * happened in it.
+ *
+ * Returns a name in /art/ui/icons, or undefined to fall back to the tone glyph.
+ */
+const MODE_ICON: Record<string, string> = {
+  raid: "horse",
+  siege: "castle",
+  bombard: "blast",
+  revenge: "skull",
+};
+
+const OP_ICON: Record<string, string> = {
+  // Scouts — what was looked at.
+  survey_coffers: "coin",
+  map_walls: "brick",
+  map_army: "army",
+  map_siege: "siege",
+  map_research: "research",
+  quell_unrest: "advisor",
+  quell_doubt: "idea",
+  // Spies — what was done.
+  torch_stores: "fire",
+  steal_resources: "caravan",
+  sabotage_siege: "siege",
+  sabotage_walls: "brick",
+  incite_unrest: "warning",
+  sow_doubt: "idea",
+  assassinate_scouts: "skull",
+  steal_research: "research",
+};
+
+export function eventIcon(e: GameEvent): string | undefined {
+  switch (e.type) {
+    case "attacked":
+    case "battleResult":
+      return MODE_ICON[e.mode];
+    case "scoutReport":
+      return (e.opId && OP_ICON[e.opId]) ?? "spyglass";
+    case "spyReport":
+      // A mission that was undone is a different event from one that landed,
+      // whatever it was trying to do.
+      return e.caught ? "lock" : ((e.opId && OP_ICON[e.opId]) ?? "skull");
+    case "spiesCaught":
+      return "target";
+    case "sabotaged":
+      return "fire";
+    case "researchComplete":
+      return "research";
+    case "buildComplete":
+      return "build";
+    case "dailyRecruitment":
+      return "houses";
+    case "scattering":
+      return "warning";
+    case "starvation":
+      return "skull";
+    case "marketSale":
+      return "market";
+    case "clanEvent":
+      return "clan";
+    case "crownClock":
+      return "crown";
+    default:
+      return undefined;
+  }
+}

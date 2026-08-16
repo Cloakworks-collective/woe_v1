@@ -169,7 +169,7 @@ export default async function TroopsPage({
   // so a single light-priced check greyed the button out on the wrong number.
   const canTrainOne = (type: TroopType, tier: Tier = "light") =>
     p.idlePeasants >= 1 && musterFree >= 1 && canAfford(trainAsk(type, tier), 1);
-  // The sellsword cap is PER ARM — a third of the regulars of that same arm.
+  // The sellsword cap is PER ARM — a share of the regulars of that same arm.
   // Hired archers cannot shield your cavalry, so a single global figure (which
   // is what this page used to print) was the wrong number in both directions.
   const mercRoom = (arm: MercArm) =>
@@ -305,7 +305,7 @@ export default async function TroopsPage({
         </div>
 
         <p className="host-note">
-          Sellswords are capped at <b>a third of the regulars of their own arm</b>, need a Muster
+          Sellswords are capped at <b>{Math.round(MERCENARIES.CAP_RATIO * 100)}% of the regulars of their own arm</b>, need a Muster
           Hall bed like anyone else, and are paid off the moment too few of your own remain to
           command them. Beyond the battle line you also hold{" "}
           <b>{fmt(p.army.siegeEngineers)} engineers</b> ({fmt(p.army.mercenaries.engineers)} of them
@@ -442,12 +442,12 @@ export default async function TroopsPage({
                           { icon: <span className="costtip-ico">🗡</span>, label: "Room under the cap", need: 1, have: mercRoom(type) },
                           BED_ROW(1, musterFree),
                         ]}
-                        note={`Per blade — × the number you enter. Capped at a third of your own ${label.toLowerCase()}, so raising regulars is what lifts the ceiling.`}
+                        note={`Per blade — × the number you enter. Capped at ${Math.round(MERCENARIES.CAP_RATIO * 100)}% of your own ${label.toLowerCase()}, so raising regulars is what lifts the ceiling.`}
                         disabledReason={
                           canHireOne(type, t)
                             ? undefined
                             : mercRoom(type) < 1
-                              ? `Cap reached — sellswords may not outnumber a third of your own ${label.toLowerCase()}.`
+                              ? `Cap reached — sellswords are capped against your own ${label.toLowerCase()}.`
                               : musterFree < 1
                                 ? "No free Muster Hall bed — hired blades need quartering too."
                                 : `Not enough gold to hire even one ${t}.`
@@ -607,12 +607,12 @@ export default async function TroopsPage({
                         { icon: <span className="costtip-ico">🗡</span>, label: "Room under the cap", need: 1, have: room },
                         BED_ROW(1, musterFree),
                       ]}
-                      note="Capped at a third of your OWN engineers, so raising crews is what lifts the ceiling."
+                      note="Capped against your OWN engineers, so raising crews is what lifts the ceiling."
                       disabledReason={
                         canHire
                           ? undefined
                           : room < 1
-                            ? "Cap reached — hired crews may not outnumber a third of your own engineers."
+                            ? "Cap reached — hired crews are capped against your own engineers."
                             : musterFree < 1
                               ? "No free Muster Hall bed."
                               : "Not enough gold to hire even one."
@@ -699,14 +699,21 @@ export default async function TroopsPage({
             />
             <ul className="condition-why">
               <li>
-                Drain scales with the damage you <b>dealt</b>, not time in the field — swinging hard
-                tires an army, holding a line does not.
+                The cost IS the work: cut through the whole enemy host and you are{" "}
+                <b>fully spent</b>; cut through a fifth and you spend a fifth. Swinging hard tires
+                an army — holding a line does not.
               </li>
               <li>
-                A wipe-out costs an attacker up to <b>{STAMINA.MAX_DRAIN_ATTACKER}</b>, a defender
-                up to <b>{STAMINA.MAX_DRAIN_DEFENDER}</b>. A glancing raid, a fraction of that.
+                And it depends on <b>who did the swinging</b>: footmen tire{" "}
+                <b>×{STAMINA.DRAIN_RATE.footman}</b> for the same work, cavalry{" "}
+                <b>×{STAMINA.DRAIN_RATE.cavalry}</b>, archers{" "}
+                <b>×{STAMINA.DRAIN_RATE.archer}</b>. The melee is the hardest labour on the field.
+                Engines tire nobody — a crew cranks a windlass.
               </li>
-              <li>Tired troops swing weaker and guard worse.</li>
+              <li>
+                Stamina <b>is</b> your intensity, in a straight line: at 70 you fight at 70%, at 30
+                at 30%. There is no floor under it.
+              </li>
               <li>
                 Below <b>{STAMINA.MERCY_FLOOR}</b> you lay down arms to anything but a revenge.
               </li>

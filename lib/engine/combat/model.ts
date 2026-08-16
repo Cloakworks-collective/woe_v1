@@ -11,6 +11,7 @@
 // Pure — no I/O, no clock, RNG injected by the caller.
 
 import {
+  DAMAGE_TAKEN,
   CASUALTY_SPLIT,
   CASUALTY_TIER_ORDER,
   EFFECTIVENESS,
@@ -78,12 +79,30 @@ export interface SideLosses {
  *  `SideLosses.mercenaries` is one flat total, which is all a report needs but
  *  not enough to put anybody back: the field hospital has to know whether it is
  *  reviving a light footman or a heavy horseman. Recorded as they die. */
+/**
+ * The dead, by arm and rank, kept for the field hospital.
+ *
+ * Both ledgers, because MEDICINE treats the critically wounded alike: a
+ * surgeon pulling a man off the field does not first ask who was paying him.
+ * They stay APART rather than summed because putting a man back costs
+ * different things — a sellsword needs room under the hire cap, a regular is
+ * population and needs a Muster Hall bed.
+ */
 export interface MercFallen {
   line: Partial<Record<Arm, Record<Tier, number>>>;
   engineers: number;
+  /** Regulars who fell, by arm and rank. */
+  regularLine: Partial<Record<Arm, Record<Tier, number>>>;
+  /** Engineers of your own, as opposed to hired crews. */
+  regularEngineers: number;
 }
 
-export const noMercFallen = (): MercFallen => ({ line: {}, engineers: 0 });
+export const noMercFallen = (): MercFallen => ({
+  line: {},
+  engineers: 0,
+  regularLine: {},
+  regularEngineers: 0,
+});
 
 export interface Side {
   player: Player;
@@ -402,8 +421,9 @@ function kill(side: Side, g: Group, n: number) {
   const k = Math.max(0, Math.min(g.count, Math.floor(n)));
   g.count -= k;
   side.losses[g.isMerc ? "mercenaries" : LOSS_KEY[g.arm]] += k;
-  if (g.isMerc && k > 0) {
-    const byArm = (side.mercFallen.line[g.arm] ??= { light: 0, medium: 0, heavy: 0 });
+  if (k > 0) {
+    const ledger = g.isMerc ? side.mercFallen.line : side.mercFallen.regularLine;
+    const byArm = (ledger[g.arm] ??= { light: 0, medium: 0, heavy: 0 });
     byArm[g.tier] += k;
   }
 }
@@ -438,14 +458,21 @@ function applyToArm(side: Side, arm: Arm, damage: number): number {
     if (left <= 0) break;
     const merc = side.groups.find((g) => g.arm === arm && g.tier === tier && g.isMerc && g.count > 0);
     const reg = side.groups.find((g) => g.arm === arm && g.tier === tier && !g.isMerc && g.count > 0);
-    const mercHealth = merc ? merc.count * merc.health : 0;
-    const regHealth = reg ? reg.count * reg.health : 0;
-    if (mercHealth + regHealth <= 0) continue;
+    // What it COSTS to wipe each pool out, which is more than its health: only
+    // a share of a blow tells against a man who can turn one, so finishing
+    // either group takes proportionally more damage than the pool suggests.
+    // A regular dodges four blows in five, a hireling two in five.
+    // ONE dodge for the arm, whoever is holding the weapon. A hired archer is
+    // still an archer: hands full of bow, no shield, standing still to shoot.
+    const dodge = DAMAGE_TAKEN[arm];
+    const mercCapacity = merc ? (merc.count * merc.health) / dodge : 0;
+    const regCapacity = reg ? (reg.count * reg.health) / dodge : 0;
+    if (mercCapacity + regCapacity <= 0) continue;
 
-    const toMerc = Math.min(left * CASUALTY_SPLIT.MERC_SHARE, mercHealth);
-    const toReg = Math.min(left - toMerc, regHealth);
-    if (merc && toMerc > 0) kill(side, merc, toMerc / merc.health);
-    if (reg && toReg > 0) kill(side, reg, toReg / reg.health);
+    const toMerc = Math.min(left * CASUALTY_SPLIT.MERC_SHARE, mercCapacity);
+    const toReg = Math.min(left - toMerc, regCapacity);
+    if (merc && toMerc > 0) kill(side, merc, (toMerc * dodge) / merc.health);
+    if (reg && toReg > 0) kill(side, reg, (toReg * dodge) / reg.health);
     left -= toMerc + toReg;
   }
   return damage - left;
@@ -573,22 +600,31 @@ export function fieldHospital(
   if (level <= 0) return { recovered: 0, foodSpent: 0 };
 
   const tiers: Tier[] = ["heavy", "medium", "light"];
-  // Heaviest first: they are the dearest contracts and the ones a player would
-  // choose to save. The cheap ranks died first (see drainPool), so this is also
-  // the reverse of the order they fell in — the surgeons reach the back line.
-  const queue: { arm: Arm; tier: Tier }[] = [];
+  const ARMS: Arm[] = ["cavalry", "footman", "archer"];
+  // Heaviest first: they are the dearest to replace and the ones a player would
+  // choose to save. The cheap ranks died first, so this is also the reverse of
+  // the order they fell in — the surgeons reach the back line.
+  //
+  // REGULARS BEFORE HIRED at every rank. They are population: they cannot be
+  // re-bought at any price, they carry the veterancy, and they are what the
+  // whole war is actually being fought over.
+  const queue: { arm: Arm; tier: Tier; merc: boolean }[] = [];
   for (const tier of tiers) {
-    for (const arm of ["cavalry", "footman", "archer"] as Arm[]) {
-      const n = fallen.line[arm]?.[tier] ?? 0;
-      for (let i = 0; i < n; i++) queue.push({ arm, tier });
+    for (const arm of ARMS) {
+      for (let i = 0; i < (fallen.regularLine[arm]?.[tier] ?? 0); i++) {
+        queue.push({ arm, tier, merc: false });
+      }
+      for (let i = 0; i < (fallen.line[arm]?.[tier] ?? 0); i++) {
+        queue.push({ arm, tier, merc: true });
+      }
     }
   }
-  const totalFallen = queue.length + fallen.engineers;
+  const totalFallen = queue.length + fallen.engineers + fallen.regularEngineers;
   if (totalFallen === 0) return { recovered: 0, foodSpent: 0 };
 
-  // 4% a level of the dead, but never fewer than one head a level — a share of
-  // a small skirmish rounds to nothing, and a field that visibly does nothing
-  // in the fights a new player actually has is a field nobody takes.
+  // A share a level of the dead, but never fewer than one head a level — a
+  // share of a small skirmish rounds to nothing, and a field that visibly does
+  // nothing in the fights a new player actually has is a field nobody takes.
   const byShare = Math.round(totalFallen * MEDICINE.RECOVER_PER_LEVEL * level);
   const wanted = Math.min(totalFallen, Math.max(MEDICINE.MIN_PER_LEVEL * level, byShare));
 
@@ -600,18 +636,33 @@ export function fieldHospital(
   const m = p.army.mercenaries;
   const ARM_KEY = { footman: "footmen", archer: "archers", cavalry: "cavalry" } as const;
 
-  // Engine crews first — they are untiered and the cheapest bookkeeping.
+  // Engine crews first — untiered, and the cheapest bookkeeping. Your own
+  // before the hired, on the same rule as the line.
+  const ownCrews = Math.min(fallen.regularEngineers, wanted, affordable);
+  if (ownCrews > 0) {
+    p.army.siegeEngineers += ownCrews;
+    recovered += ownCrews;
+  }
   const engineerRoom = mercRoom(p, "engineer");
-  const engineers = Math.min(fallen.engineers, wanted, affordable, engineerRoom);
+  const engineers = Math.min(fallen.engineers, wanted - recovered, affordable - recovered, engineerRoom);
   if (engineers > 0) {
     m.engineers += engineers;
     recovered += engineers;
   }
 
-  for (const { arm, tier } of queue) {
+  for (const { arm, tier, merc } of queue) {
     if (recovered >= wanted || recovered >= affordable) break;
-    if (mercRoom(p, arm) <= 0) continue; // no regulars left to command them
-    m[ARM_KEY[arm]][tier] += 1;
+    if (merc) {
+      if (mercRoom(p, arm) <= 0) continue; // no regulars left to command them
+      m[ARM_KEY[arm]][tier] += 1;
+    } else {
+      // NO bed check. A revived regular is going back into the bunk they
+      // vacated ten minutes ago — they died out of it, so putting them back
+      // cannot overfill the hall. Gating on free beds meant an army at its
+      // muster cap, which is the ordinary state of a well-run empire, could
+      // never have a single soldier saved.
+      p.army[ARM_KEY[arm]][tier] += 1;
+    }
     recovered += 1;
   }
 

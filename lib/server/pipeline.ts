@@ -572,7 +572,7 @@ function dispatch(
         world,
         player.id,
         r.op.arm === "scout"
-          ? { type: "scoutReport", targetName: target.name, detail: r.detail, reportId }
+          ? { type: "scoutReport", targetName: target.name, detail: r.detail, reportId, opId: r.op.id }
           : {
               type: "spyReport",
               op: r.op.name,
@@ -580,6 +580,7 @@ function dispatch(
               caught: r.exposed,
               detail: r.detail,
               reportId,
+              opId: r.op.id,
             },
       );
       if (r.exposed) {

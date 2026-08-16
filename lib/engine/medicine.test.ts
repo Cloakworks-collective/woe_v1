@@ -4,7 +4,7 @@
 // pin: defender only, sellswords only, never past the cap, and paid for in food.
 
 import { describe, expect, it } from "vitest";
-import { MAX_FIELD_LEVEL, MEDICINE } from "../constants";
+import { MAX_FIELD_LEVEL, MEDICINE, MERCENARIES } from "../constants";
 import { fieldHospital, noMercFallen, type MercFallen } from "./combat/model";
 import { newEmpire } from "./newEmpire";
 import { resolveBattle } from "./combat/battle";
@@ -24,7 +24,23 @@ function host(): Player {
   return p;
 }
 
-const fell = (line: MercFallen["line"], engineers = 0): MercFallen => ({ line, engineers });
+// The HIRED dead. `regularLine` is the other half of the ledger — MEDICINE
+// now treats a critically wounded regular the same way, so these cases pin the
+// sellsword path specifically and `fellOwn` below covers the new one.
+const fell = (line: MercFallen["line"], engineers = 0): MercFallen => ({
+  line,
+  engineers,
+  regularLine: {},
+  regularEngineers: 0,
+});
+
+/** The same, for regulars of your own. */
+const fellOwn = (regularLine: MercFallen["line"], regularEngineers = 0): MercFallen => ({
+  line: {},
+  engineers: 0,
+  regularLine,
+  regularEngineers,
+});
 
 describe("fieldHospital — how many come back", () => {
   it("does nothing at level 0", () => {
@@ -118,11 +134,16 @@ describe("fieldHospital — the cap still rules", () => {
   it("fills only the room the cap leaves", () => {
     const p = fresh();
     p.resources.food = 1_000_000;
-    p.army.footmen.light = 30; // cap = 10
-    p.army.mercenaries.footmen.light = 8; // room for 2
+    p.army.footmen.light = 30;
+    // Derived from the constant, not written by hand — CAP_RATIO has moved once
+    // already (a third of the regulars, then 30% of the host) and a literal
+    // here made this case fail for a reason that had nothing to do with
+    // surgeons.
+    const cap = Math.floor(30 * MERCENARIES.CAP_RATIO);
+    p.army.mercenaries.footmen.light = cap - 4; // room for exactly four
     const r = fieldHospital(p, fell({ footman: { light: 100, medium: 0, heavy: 0 } }), 5);
-    expect(r.recovered).toBe(2);
-    expect(p.army.mercenaries.footmen.light).toBe(10);
+    expect(r.recovered).toBe(4);
+    expect(p.army.mercenaries.footmen.light).toBe(cap);
   });
 });
 
@@ -147,15 +168,24 @@ describe("in a real battle", () => {
     return { a, d };
   }
 
-  it("gives the DEFENDER back sellswords, and reports it", () => {
+  it("gives the DEFENDER back the fallen, and reports it", () => {
     const { a, d } = pair();
     d.research.levels.medicine = MAX_FIELD_LEVEL;
-    const plain = resolveBattle(a, { ...structuredClone(d), research: { ...d.research, levels: {} } }, "raid", { ...opts, rng: seededRng(7) });
-    const healed = resolveBattle(a, d, "raid", { ...opts, rng: seededRng(7) });
-    expect(healed.report.mercsRecovered ?? 0).toBeGreaterThan(0);
-    expect(mercTotal(healed.defender.army.mercenaries)).toBeGreaterThan(
-      mercTotal(plain.defender.army.mercenaries),
+    const plain = resolveBattle(
+      a,
+      { ...structuredClone(d), research: { ...d.research, levels: {} } },
+      "raid",
+      { ...opts, rng: seededRng(7) },
     );
+    const healed = resolveBattle(a, d, "raid", { ...opts, rng: seededRng(7) });
+    expect(healed.report.woundedRecovered ?? 0).toBeGreaterThan(0);
+    // Count the WHOLE host, regulars and hired: the surgeons take REGULARS
+    // first now, so a case that only watched the sellsword tally saw nothing
+    // in a fight where no sellsword happened to fall.
+    const host = (p: Player) =>
+      troopTotal(p.army.footmen) + troopTotal(p.army.archers) + troopTotal(p.army.cavalry) +
+      mercTotal(p.army.mercenaries);
+    expect(host(healed.defender)).toBeGreaterThan(host(plain.defender));
   });
 
   it("does NOT help the attacker — it is a hospital, not a baggage train", () => {
@@ -164,10 +194,14 @@ describe("in a real battle", () => {
     a.research.levels.medicine = MAX_FIELD_LEVEL;
     a.resources.food = 1_000_000;
     const out = resolveBattle(a, d, "raid", { ...opts, rng: seededRng(11) });
-    expect(out.report.mercsRecovered ?? 0).toBe(0);
+    expect(out.report.woundedRecovered ?? 0).toBe(0);
   });
 
-  it("never touches the defender's own regular dead", () => {
+  // The old rule was the opposite: the hospital was a sellsword-only perk and
+  // this case asserted that a regular who fell stayed fallen. It saves the
+  // critically wounded now, whoever was paying them — and REGULARS FIRST,
+  // because they are population and cannot be re-bought at any price.
+  it("saves the defender's own regulars, ahead of the hired", () => {
     const { a, d } = pair();
     // Count the WHOLE arm, not one tier: newEmpire seeds a light levy on top of
     // whatever the test sets, and casualties drain light before heavy.
@@ -176,8 +210,9 @@ describe("in a real battle", () => {
     const out = resolveBattle(a, d, "raid", { ...opts, rng: seededRng(7) });
     const lost = out.report.defenderLosses;
     expect(lost.footmen + lost.archers + lost.cavalry).toBeGreaterThan(0);
-    expect(out.report.mercsRecovered ?? 0).toBeGreaterThan(0);
-    // Regulars on the books = start − reported losses, with nothing added back.
-    expect(troopTotal(out.defender.army.footmen)).toBe(startFoot - lost.footmen);
+    expect(out.report.woundedRecovered ?? 0).toBeGreaterThan(0);
+    // MORE regulars on the books than "start − losses": the difference is
+    // exactly the men the surgeons carried off.
+    expect(troopTotal(out.defender.army.footmen)).toBeGreaterThan(startFoot - lost.footmen);
   });
 });

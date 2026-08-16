@@ -3,7 +3,7 @@ import { LearnLink } from "@/components/LearnLink";
 import { Pager } from "@/components/Pager";
 import { Panel } from "@/components/Panel";
 import { ToneGlyph } from "@/components/ToneGlyph";
-import { eventHref, eventLine, eventLinkLabel, eventTone } from "@/components/eventLine";
+import { eventHref, eventIcon, eventLine, eventLinkLabel, eventTone } from "@/components/eventLine";
 import { timeAgo } from "@/components/timeAgo";
 import { paginate } from "@/lib/paginate";
 import { getGame } from "@/lib/server/session";
@@ -53,7 +53,7 @@ export default async function ChroniclePage({
                 const href = eventHref(item.event);
                 return (
                   <li key={tidings.start + i} className={`chron-row tone-${eventTone(item.event)}`}>
-                    <ToneGlyph tone={eventTone(item.event)} />
+                    <ToneGlyph tone={eventTone(item.event)} icon={eventIcon(item.event)} />
                     <span className="chron-line">
                       {glyphs(eventLine(item.event))}
                       {href && (

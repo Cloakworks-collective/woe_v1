@@ -38,7 +38,9 @@ import {
   level,
   researchLevel,
   troopTotal,
+  veterancyBonus,
   type AttackMode,
+  type BattleForces,
   type BattleLogEntry,
   type BattleReport,
   type Player,
@@ -195,6 +197,36 @@ export function resolveBattle(
   const defOffPark = makePark<SiegeGearType>(defCrew.offensive, defender.army.siegeGearIntegrity);
   const defenderEdge = walls ? rollDefenderEdge(rng) : 0;
 
+  /**
+   * The muster roll, taken before a blow is struck.
+   *
+   * From the INPUT players, not the working copies, and before any phase runs —
+   * this is what marched, and everything else in the report is measured against
+   * it. A report listing only the dead cannot be read: 853 fallen is a rout or
+   * a scratch depending on whether five thousand came or nine hundred.
+   */
+  const musterRoll = (p: Player, crewedGear: Record<SiegeGearType, number>, crewedCounters: Record<CounterType, number>): BattleForces => ({
+    footmen: { ...p.army.footmen },
+    archers: { ...p.army.archers },
+    cavalry: { ...p.army.cavalry },
+    mercFootmen: { ...p.army.mercenaries.footmen },
+    mercArchers: { ...p.army.mercenaries.archers },
+    mercCavalry: { ...p.army.mercenaries.cavalry },
+    engineers: p.army.siegeEngineers + p.army.mercenaries.engineers,
+    gear: { ...crewedGear },
+    counters: { ...crewedCounters },
+    wallLevel: level(p, "walls"),
+    wallIntegrity: p.wallIntegrity,
+    stamina: p.army.stamina,
+    veterancy: veterancyBonus(p.army.experiencePoints),
+  });
+  const forces = {
+    // The attacker brings a train and no wall of their own to speak of; the
+    // defender brings a battery and the masonry.
+    attacker: musterRoll(attackerIn, atkCrewed, crewCountersEmpty()),
+    defender: musterRoll(defenderIn, defCrew.offensive, defCrew.counters),
+  };
+
   // Ram crews are committed before a shot is fired.
   const ramCrew = walls ? assignRamCrew(attacker, atkCrewed.rams) : { committed: {}, total: 0, effectiveness: 1 };
 
@@ -226,7 +258,10 @@ export function resolveBattle(
   // A defender who plainly cannot make a fight of it lays down arms. Revenge
   // offers no such mercy — it is the one attack that always draws blood, and
   // therefore the only answer to a player who turtles behind repeated yields.
-  const outmatched = totalHealth(def) < YIELD.STRENGTH_RATIO * totalPower(atk);
+  // The whole worth of a host — what it can deal AND what it can take. Either
+  // half alone rates an army by an accident of its build; see WORTH_ADVANTAGE.
+  const worth = (s: Side) => totalPower(s) + totalHealth(s);
+  const outmatched = worth(atk) > YIELD.WORTH_ADVANTAGE * worth(def);
   const beatenDown = defender.army.stamina < STAMINA.MERCY_FLOOR;
   const yielded = mode !== "revenge" && (outmatched || beatenDown);
 
@@ -238,6 +273,10 @@ export function resolveBattle(
   let rounds = 0;
   let aDealt = 0;
   let dDealt = 0;
+  // The same damage, weighted by WHICH ARM did it — see STAMINA.DRAIN_RATE.
+  // Only the drain reads these; `aDealt` stays the honest raw total.
+  let aTiring = 0;
+  let dTiring = 0;
   const atkToughness = totalHealth(atk);
   const defToughness = totalHealth(def);
   // What each side brought, priced as it stood at the muster — the two numbers
@@ -276,6 +315,8 @@ export function resolveBattle(
       if (!g.isMerc || g.count === 0) continue;
       const n = Math.floor(g.count * YIELD.MERC_LOSS_FRACTION);
       aDealt += n * g.health;
+      // A retreat covered by the sellswords: nobody's arm did this work.
+      aTiring += n * g.health;
       g.count -= n;
       def.losses.mercenaries += n;
       // Recorded for the field hospital like any other death. This path writes
@@ -421,6 +462,8 @@ export function resolveBattle(
     const dArrow = armPower(def, "archer") * dLuck;
     aDealt += aArrow;
     dDealt += dArrow;
+    aTiring += aArrow * STAMINA.DRAIN_RATE.archer;
+    dTiring += dArrow * STAMINA.DRAIN_RATE.archer;
     const preArrowA = { ...atk.losses };
     const preArrowD = { ...def.losses };
     spreadDamage(def, aArrow);
@@ -442,6 +485,8 @@ export function resolveBattle(
     const dCav = armPower(def, "cavalry") * dLuck;
     aDealt += aCav;
     dDealt += dCav;
+    aTiring += aCav * STAMINA.DRAIN_RATE.cavalry;
+    dTiring += dCav * STAMINA.DRAIN_RATE.cavalry;
     const preCavA = { ...atk.losses };
     const preCavD = { ...def.losses };
     aimDamage(def, aCav, ["cavalry", "footman", "archer"]);
@@ -465,6 +510,8 @@ export function resolveBattle(
     const dFoot = armPower(def, "footman") * dLuck;
     aDealt += aFoot;
     dDealt += dFoot;
+    aTiring += aFoot * STAMINA.DRAIN_RATE.footman;
+    dTiring += dFoot * STAMINA.DRAIN_RATE.footman;
     const preFootA = { ...atk.losses };
     const preFootD = { ...def.losses };
     aimDamage(def, aFoot, ["footman", "archer", "cavalry"]);
@@ -580,10 +627,14 @@ export function resolveBattle(
 
   // Stamina scales with damage DEALT — swinging hard tires an army, standing
   // in a shield wall absorbing blows does not.
-  const drain = (dealt: number, toughness: number, max: number) =>
-    toughness <= 0 ? 0 : Math.round(Math.min(max, max * (dealt / toughness)));
-  const aDrain = drain(aDealt, defToughness, STAMINA.MAX_DRAIN_ATTACKER);
-  const dDrain = drain(dDealt, atkToughness, STAMINA.MAX_DRAIN_DEFENDER);
+  // Drain IS the fraction of the enemy you got through, on the stamina scale,
+  // scaled by the one rate that governs how tiring a war is. No separate
+  // ceiling per side — the work done is the cost. See STAMINA.DRAIN_RATE.
+  // `tiring` is the damage already weighted per arm, so the rate is baked in.
+  const drain = (tiring: number, toughness: number) =>
+    toughness <= 0 ? 0 : Math.round(Math.min(STAMINA.MAX, STAMINA.MAX * (tiring / toughness)));
+  const aDrain = drain(aTiring, defToughness);
+  const dDrain = drain(dTiring, atkToughness);
   attacker.army.stamina = Math.max(0, attacker.army.stamina - aDrain);
   defender.army.stamina = Math.max(0, defender.army.stamina - dDrain);
 
@@ -732,6 +783,7 @@ export function resolveBattle(
     // way to check it — you were told who won but not by how much, and the rule
     // ("whoever gave up the smaller SHARE of what they brought") was invisible.
     healthLostShare: lostShare,
+    forces,
     siegeGearLost: gearLost,
     siegeCountersLost: defPark.destroyed,
     siegeGearWorn: atkPark.worn,
@@ -747,7 +799,7 @@ export function resolveBattle(
       attacker: Math.round(attacker.army.experiencePoints - aXpBefore),
       defender: Math.round(defender.army.experiencePoints - dXpBefore),
     },
-    mercsRecovered: hospital.recovered,
+    woundedRecovered: hospital.recovered,
     siegeExperienceChange: {
       attacker: Math.round(attacker.army.siegeExperiencePoints - aSiegeBefore),
       defender: Math.round(defender.army.siegeExperiencePoints - dSiegeBefore),

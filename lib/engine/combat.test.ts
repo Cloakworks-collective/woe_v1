@@ -54,17 +54,33 @@ describe("battle resolution — the spec's worked example", () => {
     return { attacker, defender };
   }
 
-  it("without Fork Poles the wall is half-escaladed and the attacker wins", () => {
+  // The spec's example was "100 light footmen + 2 ladder teams beat 60 behind a
+  // Curtain Wall". They no longer do, and that is the balance pass working as
+  // intended: defenders behind stone dodge four blows in five and keep the
+  // wall's edge on top of it, so 100 against 60 is not the odds it looks.
+  //
+  // Worth knowing what sits either side of this: at 100 the defence holds
+  // outright; by 150 the attacker is 1.4x their worth and the garrison YIELDS
+  // without a fight. There is no force in between that produces a real
+  // engagement — see the case below, which pins that gap deliberately.
+  it("without Fork Poles a 100-strong assault is thrown back", () => {
     const { attacker, defender } = setup(false);
     const { report } = resolveBattle(attacker, defender, "siege", { ...OPTS, rng: seededRng(7) });
-    expect(report.victor).toBe("attacker");
+    expect(report.victor).toBe("defender");
     // One exchange, always — a battle is no longer a sequence of rounds.
     expect(report.rounds).toBe(1);
-    // Blood is drawn, but a single strike does not empty a garrison. Both
-    // assertions were once `> 40` of 60, which encoded a ten-round grind that
-    // ran until one side had lost two thirds of itself.
-    expect(report.defenderLosses.footmen).toBeGreaterThan(0);
-    expect(report.defenderLosses.footmen).toBeLessThan(60);
+  });
+
+  it("and by 150 the garrison lays down arms rather than fight", () => {
+    const { attacker, defender } = setup(false);
+    attacker.army.footmen.light = 150;
+    attacker.buildings.muster_hall = 60;
+    const { report } = resolveBattle(attacker, defender, "siege", { ...OPTS, rng: seededRng(7) });
+    expect(report.yielded).toBe(true);
+    expect(report.victor).toBe("attacker");
+    // A yield spares the soldiers and takes the stores: nobody in the garrison
+    // dies, which is the whole point of the mercy rule.
+    expect(report.defenderLosses.footmen).toBe(0);
   });
 
   it("with Fork Poles the ladders are countered and the defence holds harder", () => {
@@ -208,8 +224,12 @@ describe("stripping the dead", () => {
   };
 
   it("the victor strips BOTH sides' fallen, and the loser gets nothing", () => {
+    // Deliberately CLOSE. At 400 against 150 the defender is outweighed past
+    // YIELD.WORTH_ADVANTAGE and lays down arms, so nobody falls and there is
+    // nothing on the field to strip — which is what this case used to measure
+    // and silently stopped measuring.
     const a0 = empire("A", host(400));
-    const d0 = empire("D", host(150));
+    const d0 = empire("D", host(340));
     const { report, attacker, defender } = resolveBattle(a0, d0, "raid", {
       ...OPTS,
       rng: seededRng(5),
@@ -564,8 +584,10 @@ describe("stamina drain scales with damage dealt", () => {
       p.shieldUntilTick = 0;
     });
     const { report } = resolveBattle(a, d, "revenge", { ...OPTS, rng: seededRng(8) });
-    expect(report.staminaLoss.attacker).toBeLessThanOrEqual(STAMINA.MAX_DRAIN_ATTACKER);
-    expect(report.staminaLoss.defender).toBeLessThanOrEqual(STAMINA.MAX_DRAIN_DEFENDER);
+    // The per-side ceilings are gone: drain is simply the fraction of the enemy
+    // you got through, on the stamina scale, so the only bound is MAX.
+    expect(report.staminaLoss.attacker).toBeLessThanOrEqual(STAMINA.MAX);
+    expect(report.staminaLoss.defender).toBeLessThanOrEqual(STAMINA.MAX);
   });
 
   it("bombard drains no stamina from either side", () => {
@@ -764,5 +786,110 @@ describe("no friendly fire", () => {
     const d = empire("D", (p) => void (p.shieldUntilTick = 0));
     expect(a.clanId).toBeUndefined();
     expect(validateAttack(a, d, "raid", CTX)).toBeNull();
+  });
+});
+
+describe("the report TELLS the battle, phase by phase", () => {
+  // The three melee phases used to resolve in silence: they account for most of
+  // the dead in any battle and the log jumped from the wall to the aftermath,
+  // so the losses table gave totals with no account of where they came from.
+  it("archers, cavalry and the footman clash each speak when they kill", () => {
+    const arm = (p: Player) => {
+      p.army.footmen = { light: 200, medium: 120, heavy: 60 };
+      p.army.archers = { light: 160, medium: 100, heavy: 50 };
+      p.army.cavalry = { light: 90, medium: 60, heavy: 30 };
+      p.buildings.muster_hall = 200;
+    };
+    const { report } = resolveBattle(empire("A", arm), empire("D", arm), "raid", {
+      ...OPTS,
+      rng: seededRng(9),
+    });
+    const phases = new Set(report.log.map((l) => l.phase));
+    for (const phase of ["archers", "cavalry", "footmen"] as const) {
+      expect(phases.has(phase), `nothing logged for the ${phase} phase`).toBe(true);
+    }
+    // Each line carries its own regular dead — what the panel bolds beside it.
+    const melee = report.log.filter((l) => ["archers", "cavalry", "footmen"].includes(l.phase));
+    expect(melee.some((l) => (l.attackerRegulars ?? 0) > 0 || (l.defenderRegulars ?? 0) > 0)).toBe(true);
+  });
+});
+
+describe("a bombard is an ARTILLERY duel and nothing else", () => {
+  // The whole park used to duel in a bombard: boiling oil scalded rams and
+  // bill-hooks cut grapple lines in an engagement with no soldiers in it. The
+  // attacker lost escalade tackle that never left camp, and the defender's oil
+  // and hooks wore down answering an assault that was not happening.
+  it("leaves rams and escalade tackle out of it entirely", () => {
+    const a = empire("Attacker", (p) => {
+      p.army.siegeGear = { ...p.army.siegeGear, trebuchets: 20, rams: 12, ropes: 12, ladders: 12 };
+      p.army.siegeEngineers = 400;
+      p.buildings.war_foundry = 10;
+      p.buildings.muster_hall = 200;
+    });
+    const d = empire("Defender", (p) => {
+      p.buildings.walls = 5;
+      p.buildings.war_foundry = 10;
+      p.army.siegeEngineers = 400;
+      p.buildings.muster_hall = 200;
+      p.army.siegeCounters = {
+        ...p.army.siegeCounters,
+        counter_engine: 14,
+        boiling_oil: 14,
+        billhooks: 14,
+        forkpoles: 14,
+      };
+    });
+    const { report } = resolveBombard(a, d, { ...OPTS, rng: seededRng(31) });
+
+    // Only the pair that belongs in an artillery exchange may lose anything.
+    expect(report.siegeGearLost.rams ?? 0).toBe(0);
+    expect(report.siegeGearLost.ropes ?? 0).toBe(0);
+    expect(report.siegeGearLost.ladders ?? 0).toBe(0);
+    expect(report.siegeCountersLost?.boiling_oil ?? 0).toBe(0);
+    expect(report.siegeCountersLost?.billhooks ?? 0).toBe(0);
+    expect(report.siegeCountersLost?.forkpoles ?? 0).toBe(0);
+
+    // …and the duel that DID happen is named for what it was.
+    const duel = report.log.filter((l) => l.phase === "counter-duel").map((l) => l.text).join(" ");
+    expect(duel).not.toMatch(/grapple|ladder|ram|oil/i);
+  });
+});
+
+describe("each counter is described by what it actually does", () => {
+  // One verb — "smash" — covered six different mechanisms. A bill-hook cuts a
+  // grapple line, a fork pole shoves a ladder off the wall, hoardings are a
+  // covered gallery that takes the bolts meant for your people.
+  it("never says a hoarding, bill-hook or fork pole smashed anything", () => {
+    const a = empire("Attacker", (p) => {
+      p.army.siegeGear = { ...p.army.siegeGear, ropes: 20, ladders: 20, ballistae: 20, rams: 12 };
+      p.army.siegeEngineers = 400;
+      p.buildings.war_foundry = 10;
+      p.buildings.muster_hall = 200;
+      p.army.footmen.light = 400;
+    });
+    const d = empire("Defender", (p) => {
+      p.buildings.walls = 5;
+      p.buildings.war_foundry = 10;
+      p.army.siegeEngineers = 400;
+      p.buildings.muster_hall = 200;
+      p.army.footmen.light = 400;
+      p.army.siegeCounters = {
+        ...p.army.siegeCounters,
+        billhooks: 20,
+        forkpoles: 20,
+        hoardings: 20,
+        boiling_oil: 20,
+      };
+    });
+    const { report } = resolveBattle(a, d, "siege", { ...OPTS, rng: seededRng(17) });
+    const duel = report.log.filter((l) => l.phase === "counter-duel").map((l) => l.text);
+    expect(duel.length).toBeGreaterThan(0);
+    for (const line of duel) {
+      if (/hoarding|Bill-hook|Fork pole/i.test(line)) {
+        expect(line, `wrong verb: ${line}`).not.toMatch(/smash/i);
+      }
+    }
+    // And nothing is counted with a name that cannot take a number.
+    expect(duel.join(" ")).not.toMatch(/\d+ Counter-Engine\b(?!s)/);
   });
 });

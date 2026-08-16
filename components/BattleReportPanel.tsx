@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Panel } from "@/components/Panel";
-import type { BattleReport, UnitLosses } from "@/lib/engine";
+import { BOMBARD_INTENSITY } from "@/lib/constants";
+import type { BattleForces, BattleReport, TroopCounts, UnitLosses } from "@/lib/engine";
 
 const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");
 const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
@@ -108,6 +109,176 @@ function Tile({
   );
 }
 
+/**
+ * Who marched — the muster roll, before any of the dead are counted.
+ *
+ * Without this the losses are unreadable: 853 fallen is a rout or a scratch
+ * depending on whether five thousand came or nine hundred, and the report gave
+ * the reader no way to tell which.
+ *
+ * `full` is a raid or an assault, where the whole host turns out. A BOMBARD
+ * passes false: no soldier is present, so listing footmen and cavalry would be
+ * describing an army that stayed at home.
+ */
+function ForcesTable({
+  a,
+  d,
+  aName,
+  dName,
+  full,
+  siege,
+}: {
+  a: BattleForces;
+  d: BattleForces;
+  aName: string;
+  dName: string;
+  full: boolean;
+  /** Is masonry in play at all? A RAID is open field — no wall, no engines, no
+   *  emplaced works — so those rows are not "none", they are not applicable,
+   *  and printing them as empty invites the reader to wonder what went wrong. */
+  siege: boolean;
+}) {
+  const tiers = (t: TroopCounts) => t.light + t.medium + t.heavy;
+  const spread = (t: TroopCounts) => `${t.light} / ${t.medium} / ${t.heavy}`;
+  // Raw ids read badly on a muster roll — "22 counter engine", "14 fire pots"
+  // for a thing that is a stand of them.
+  const ENGINE_NAME: Record<string, string> = {
+    counter_engine: "Counter-Engines",
+    billhooks: "bill-hook parties",
+    forkpoles: "fork-pole crews",
+    fire_pots: "fire-pot stands",
+    boiling_oil: "cauldrons of oil",
+    hoardings: "spans of hoarding",
+    siege_towers: "siege towers",
+    ropes: "grapple teams",
+    ladders: "ladder parties",
+    rams: "battering rams",
+  };
+  /**
+   * Engines as a LIST, one per line.
+   *
+   * Joined with commas this was "30 battering rams, 40 grapple teams, 30 ladder
+   * parties, 24 ballistae, 40 trebuchets, 18 siege towers" — a wall of text in
+   * a table cell, wrapping mid-phrase, with no way to compare one side's train
+   * against the other's without reading both end to end.
+   */
+  const engineList = (g: BattleForces["gear"] | BattleForces["counters"]) => {
+    const rows = Object.entries(g).filter(([, n]) => (n ?? 0) > 0);
+    if (rows.length === 0) return <span className="br-none">none</span>;
+    return (
+      <ul className="br-engines">
+        {rows.map(([k, n]) => (
+          <li key={k}>
+            <b>{fmt(n ?? 0)}</b> {ENGINE_NAME[k] ?? pretty(k)}
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
+  const ARMS = [
+    { label: "Footmen", icon: "army", reg: "footmen", merc: "mercFootmen" },
+    { label: "Archers", icon: "target", reg: "archers", merc: "mercArchers" },
+    { label: "Cavalry", icon: "horse", reg: "cavalry", merc: "mercCavalry" },
+  ] as const;
+
+  return (
+    <div className="tbl-scroll">
+      <table className="tbl br-forces">
+        <thead>
+          <tr>
+            <th>Who marched</th>
+            <th className="num">{aName}</th>
+            <th className="num">{dName}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {full &&
+            ARMS.map((arm) => (
+              <tr key={arm.reg}>
+                <td>
+                  <Ico name={arm.icon} size={18} />
+                  {arm.label}
+                  <span className="br-sub"> — light / medium / heavy</span>
+                </td>
+                {[a, d].map((side, i) => (
+                  <td className="num" key={i}>
+                    <b>{fmt(tiers(side[arm.reg]))}</b>
+                    <span className="br-forces-spread">{spread(side[arm.reg])}</span>
+                    {tiers(side[arm.merc]) > 0 && (
+                      <span className="br-forces-merc">
+                        +{fmt(tiers(side[arm.merc]))} hired ({spread(side[arm.merc])})
+                      </span>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          {siege && (
+          <tr>
+            <td>
+              <Ico name="wrench" size={18} />
+              Engineers
+            </td>
+            <td className="num">{fmt(a.engineers)}</td>
+            <td className="num">{fmt(d.engineers)}</td>
+          </tr>
+          )}
+          {/* Two rows, not one cell with both crammed in. The train you bring
+              and the works you have emplaced are different kinds of thing, and
+              the defender fields both. */}
+          {siege && (
+          <>
+          <tr>
+            <td>
+              <Ico name="siege" size={18} />
+              Siege train
+              <span className="br-sub"> — crewed and in the field</span>
+            </td>
+            <td className="br-forces-list">{engineList(a.gear)}</td>
+            <td className="br-forces-list">{engineList(d.gear)}</td>
+          </tr>
+          <tr>
+            <td>
+              <Ico name="clan" size={18} />
+              Defensive works
+              <span className="br-sub"> — emplaced on the wall</span>
+            </td>
+            <td className="br-forces-list">{engineList(a.counters)}</td>
+            <td className="br-forces-list">{engineList(d.counters)}</td>
+          </tr>
+          <tr>
+            <td>
+              <Ico name="brick" size={18} />
+              Wall
+            </td>
+            <td className="num">
+              {a.wallLevel > 0 ? `Level ${a.wallLevel} · ${Math.round(a.wallIntegrity * 100)}%` : "—"}
+            </td>
+            <td className="num">
+              {d.wallLevel > 0 ? `Level ${d.wallLevel} · ${Math.round(d.wallIntegrity * 100)}%` : "none"}
+            </td>
+          </tr>
+          </>
+          )}
+          <tr>
+            <td>
+              <Ico name="fire" size={18} />
+              Stamina &amp; veterancy
+            </td>
+            <td className="num">
+              {a.stamina}% · +{(a.veterancy * 100).toFixed(1)}%
+            </td>
+            <td className="num">
+              {d.stamina}% · +{(d.veterancy * 100).toFixed(1)}%
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /** One side of the verdict bar. */
 function LossBar({ name, share, won }: { name: string; share: number; won: boolean }) {
   return (
@@ -174,6 +345,18 @@ export function BattleReportPanel({ report }: { report: BattleReport }) {
     report.wallIntegrityDamage === 0 &&
     buildings.length === 0;
 
+  /**
+   * What this MODE actually involves. The four attacks are different events and
+   * a report that shows every section for all of them is three-quarters
+   * padding: a bombard has no soldiers, so a butcher's bill of footmen and a
+   * "nothing came home" spoils note are both describing things that were never
+   * on the table.
+   */
+  const isBombard = report.mode === "bombard";
+  const hasTroops = !isBombard;
+  const hasWalls = report.mode !== "raid";
+  const canLoot = report.mode === "raid" || report.mode === "siege";
+
   const byPhase = PHASE_ORDER.map((p) => ({
     key: p,
     meta: PHASE[p],
@@ -226,47 +409,125 @@ export function BattleReportPanel({ report }: { report: BattleReport }) {
         )}
       </div>
 
-      {/* ── 2 · The figures at a glance ──────────────────────────────────── */}
+      {/* ── 2 · Who marched ──────────────────────────────────────────────── */}
+      {report.forces && (
+        <>
+          <H icon="banner">The muster roll</H>
+          <p className="br-note">
+            What each side brought to the field, before a blow was struck.
+            {hasTroops &&
+              " Sellswords are listed beside the rank they screen — the shield only covers its own arm and its own tier."}
+            {!hasWalls && " A raid is open field: no walls, no engines, no emplaced works."}
+          </p>
+          <ForcesTable
+            a={report.forces.attacker}
+            d={report.forces.defender}
+            aName={A}
+            dName={D}
+            full={hasTroops}
+            siege={hasWalls}
+          />
+        </>
+      )}
+
+      {/* ── 3 · The figures at a glance ──────────────────────────────────── */}
       {/* Four numbers before any prose. Without this the reader has to mine
           three paragraphs for "did I lose people, and did I get paid". */}
       <div className="br-tiles">
-        <Tile
-          icon="skull"
-          label="Your regulars lost"
-          value={fmt(regularsLost(report.attackerLosses))}
-          sub="real population, gone for good"
-          tone={regularsLost(report.attackerLosses) > 0 ? "bad" : undefined}
-        />
-        <Tile
-          icon="target"
-          label="Theirs cut down"
-          value={fmt(regularsLost(report.defenderLosses))}
-          sub={`plus ${fmt(report.defenderLosses.mercenaries)} hired`}
-          tone={regularsLost(report.defenderLosses) > 0 ? "good" : undefined}
-        />
-        <Tile
-          icon="coin"
-          label="Carried home"
-          value={fmt(hauled)}
-          sub={salvageTotal > 0 ? `${fmt(salvageTotal)} of it off the dead` : "loot and salvage"}
-          tone={hauled > 0 ? "good" : undefined}
-        />
-        <Tile
-          icon="brick"
-          label="Their wall"
-          value={report.wallIntegrityDamage > 0 ? `−${pct(report.wallIntegrityDamage)}` : "untouched"}
-          sub={report.batterySilenced ? "their battery is silenced" : "integrity lost"}
-          tone={report.wallIntegrityDamage > 0 ? "good" : undefined}
-        />
+        {isBombard ? (
+          <>
+            {/* An artillery exchange is measured in stone and crews, not in
+                regulars — there are none present to lose. */}
+            <Tile
+              icon="brick"
+              label="Their wall"
+              value={report.wallIntegrityDamage > 0 ? `−${pct(report.wallIntegrityDamage)}` : "untouched"}
+              sub="integrity lost this barrage"
+              tone={report.wallIntegrityDamage > 0 ? "good" : undefined}
+            />
+            <Tile
+              icon="siege"
+              label="Engines you lost"
+              value={fmt(Object.values(report.siegeGearLost).reduce((n, v) => n + (v ?? 0), 0))}
+              sub="wrecked outright, not repairable"
+              tone={Object.values(report.siegeGearLost).some((v) => (v ?? 0) > 0) ? "bad" : undefined}
+            />
+            <Tile
+              icon="target"
+              label="Their battery broken"
+              value={fmt(Object.values(report.siegeCountersLost ?? {}).reduce((n, v) => n + (v ?? 0), 0))}
+              sub={report.batterySilenced ? "and the rest fell silent" : "Counter-Engines wrecked"}
+              tone={report.batterySilenced ? "good" : undefined}
+            />
+            <Tile
+              icon="wrench"
+              label="Engineers lost"
+              value={`${fmt(report.attackerLosses.engineers)} / ${fmt(report.defenderLosses.engineers)}`}
+              sub="yours / theirs, cut down at their posts"
+              tone={report.attackerLosses.engineers > 0 ? "bad" : undefined}
+            />
+          </>
+        ) : (
+          <>
+            <Tile
+              icon="skull"
+              label="Your regulars lost"
+              value={fmt(regularsLost(report.attackerLosses))}
+              sub="real population, gone for good"
+              tone={regularsLost(report.attackerLosses) > 0 ? "bad" : undefined}
+            />
+            <Tile
+              icon="target"
+              label="Theirs cut down"
+              value={fmt(regularsLost(report.defenderLosses))}
+              sub={`plus ${fmt(report.defenderLosses.mercenaries)} hired`}
+              tone={regularsLost(report.defenderLosses) > 0 ? "good" : undefined}
+            />
+            <Tile
+              icon="coin"
+              label="Carried home"
+              value={fmt(hauled)}
+              sub={salvageTotal > 0 ? `${fmt(salvageTotal)} of it off the dead` : "loot and salvage"}
+              tone={hauled > 0 ? "good" : undefined}
+            />
+            {hasWalls ? (
+              <Tile
+                icon="brick"
+                label="Their wall"
+                value={report.wallIntegrityDamage > 0 ? `−${pct(report.wallIntegrityDamage)}` : "untouched"}
+                sub={report.batterySilenced ? "their battery is silenced" : "integrity lost"}
+                tone={report.wallIntegrityDamage > 0 ? "good" : undefined}
+              />
+            ) : (
+              <Tile
+                icon="fire"
+                label="Stamina spent"
+                value={`−${report.staminaLoss.attacker}`}
+                sub={`they spent −${report.staminaLoss.defender}`}
+              />
+            )}
+          </>
+        )}
       </div>
 
-      {/* ── 3 · What it cost ─────────────────────────────────────────────── */}
-      <H icon="skull">The butcher&rsquo;s bill</H>
+      {/* ── 4 · What it cost ─────────────────────────────────────────────── */}
+      <H icon="skull">{isBombard ? "What the barrage cost" : "The butcher\u2019s bill"}</H>
       <p className="br-note">
-        <b>Regulars are population.</b> They carry your veterancy, count toward your score, and
-        cannot be re-bought. Sellswords die first — at their own arm <i>and</i> their own rank — and
-        cost only gold.
+        {isBombard ? (
+          <>
+            No soldier was within a mile of this. The only people who can die in an artillery
+            exchange are the <b>engineers at the machines</b> — and they die only once a battery has
+            three times the guns of what it is shooting at.
+          </>
+        ) : (
+          <>
+            <b>Regulars are population.</b> They carry your veterancy, count toward your score, and
+            cannot be re-bought. Sellswords die first — at their own arm <i>and</i> their own rank —
+            and cost only gold.
+          </>
+        )}
       </p>
+      {hasTroops && (
       <div className="tbl-scroll">
         <table className="tbl br-losses">
           <thead>
@@ -309,11 +570,21 @@ export function BattleReportPanel({ report }: { report: BattleReport }) {
           </tfoot>
         </table>
       </div>
+      )}
       <ul className="br-facts">
-        {(report.mercsRecovered ?? 0) > 0 && (
+        {isBombard && (
+          <Fact icon="wrench">
+            Engineers cut down at their posts: <b>{fmt(report.attackerLosses.engineers)}</b> ({A}) ·{" "}
+            <b>{fmt(report.defenderLosses.engineers)}</b> ({D}).
+            {report.attackerLosses.engineers + report.defenderLosses.engineers === 0 &&
+              " Neither battery ever had the three-to-one advantage that puts crews at risk."}
+          </Fact>
+        )}
+        {(report.woundedRecovered ?? 0) > 0 && (
           <Fact icon="heart">
-            <b>{fmt(report.mercsRecovered ?? 0)} sellswords</b> were carried off the field alive by{" "}
-            {D}&rsquo;s surgeons. They fell — the field hospital is what happened next.
+            <b>{fmt(report.woundedRecovered ?? 0)} of the fallen</b> were carried off the field
+            alive by {D}&rsquo;s surgeons — their own soldiers first, then the hired. They fell; the
+            field hospital is what happened next.
           </Fact>
         )}
         {report.civiliansDisplaced > 0 && (
@@ -346,16 +617,20 @@ export function BattleReportPanel({ report }: { report: BattleReport }) {
         )}
       </ul>
 
-      {/* ── 4 · What was taken ───────────────────────────────────────────── */}
+      {/* ── 5 · What was taken ───────────────────────────────────────────── */}
+      {/* A bombard has no spoils section at all — it is not a mode that can
+          take anything, so "nothing came home" would be answering a question
+          nobody asked. Revenge keeps its section, because it DOES strip the
+          fallen even though it carries no loot. */}
+      {!isBombard && (
+        <>
       <H icon="coin">The spoils</H>
       {hauled === 0 ? (
         <p className="br-note">
           Nothing came home.{" "}
-          {report.mode === "revenge"
-            ? "A revenge carries no loot by design — its payment is dead regulars."
-            : report.mode === "bombard"
-              ? "A bombard takes nothing: the two sides never meet."
-              : "The field was lost, and the loser hauls nothing."}
+          {canLoot
+            ? "The field was lost, and the loser hauls nothing."
+            : "A revenge carries no loot by design — its payment is dead regulars, and what it strips off them."}
         </p>
       ) : (
         <ul className="br-facts">
@@ -382,8 +657,10 @@ export function BattleReportPanel({ report }: { report: BattleReport }) {
           )}
         </ul>
       )}
+        </>
+      )}
 
-      {/* ── 5 · What was broken ──────────────────────────────────────────── */}
+      {/* ── 6 · What was broken ──────────────────────────────────────────── */}
       <H icon="blast">What was broken</H>
       {nothingBroken ? (
         <p className="br-note">No stone cracked and no engine wrecked.</p>
@@ -428,7 +705,7 @@ export function BattleReportPanel({ report }: { report: BattleReport }) {
         </ul>
       )}
 
-      {/* ── 6 · How the assault was shaped ───────────────────────────────── */}
+      {/* ── 7 · How the assault was shaped ───────────────────────────────── */}
       {(escTotal > 0 || report.sortied) && (
         <>
           <H icon="castle">Shape of the assault</H>
@@ -457,10 +734,12 @@ export function BattleReportPanel({ report }: { report: BattleReport }) {
         </>
       )}
 
-      {/* ── 7 · The telling ──────────────────────────────────────────────── */}
+      {/* ── 8 · The telling ──────────────────────────────────────────────── */}
       <H icon="scroll">How it went, beat by beat</H>
       <p className="br-note">
-        One exchange, down a fixed order of battle. There are no rounds — you come back tomorrow.
+        {isBombard
+          ? `One barrage, landing with ${BOMBARD_INTENSITY}× the weight of a single throw. Trebuchets against the Counter-Engines and the masonry, and nothing else — no soldier is present to fight.`
+          : "One exchange, down a fixed order of battle. There are no rounds — you come back tomorrow."}
       </p>
       <div className="br-log">
         {byPhase.map((g) => (
