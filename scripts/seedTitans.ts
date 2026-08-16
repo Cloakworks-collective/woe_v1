@@ -102,8 +102,6 @@ function titan(id: string, name: string, race: Race, siegeHeavy: boolean): Playe
     // a rounding error — and enough that the ledger has something to LOSE.
     experiencePoints: 3_000_000, // +60%
     siegeExperiencePoints: 2_500_000, // +50%
-    spyExperience: 40,
-    scoutExperience: 40,
     sortieEnabled: !siegeHeavy, // the holder rides out; the besieger holds
     siegeStance: siegeHeavy ? "general" : "counter",
   };

@@ -200,12 +200,3 @@ export const RECON_FUZZ = 0.2; // frac
 // earned by working, lost with the REGULARS who die or are dismissed. Hired
 // agents neither earn it nor cost it.
 
-export const COVERT_XP = {
-  MAX: 100,
-  /** Per successful mission, scaled by how much of the op was accomplished. */
-  GAIN_PER_MISSION: 4,
-  /** Standing watch teaches too — awarded when scouts intercept anyone. */
-  GAIN_PER_INTERCEPTION: 3,
-  LOSS_ON_DEATH: 1.0, // ×
-  LOSS_ON_DISCHARGE: 0.5, // ×
-};

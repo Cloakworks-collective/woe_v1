@@ -93,8 +93,6 @@ export interface ArmyState {
    * the wall; `veterancyBonus()` turns it into the multiplier.
    */
   siegeExperiencePoints: number;
-  spyExperience: number;
-  scoutExperience: number;
   /** Standing order: ride out at the besieger, or hold the wall? Cavalry are
    *  wasted behind stone and murderous in the open, so this is a real choice
    *  and not merely a toggle. */
@@ -792,8 +790,6 @@ export function normalizePlayer(p: Player): Player {
   // quantity from a points ledger, and there is no honest conversion.
   delete (a as { siegeExperience?: number }).siegeExperience;
   a.siegeExperiencePoints ??= 0;
-  a.spyExperience ??= 0;
-  a.scoutExperience ??= 0;
   p.spyTurnsAvailable ??= 0;
   p.onVacation ??= false;
   p.vacationTicksUsed ??= 0;

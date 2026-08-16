@@ -180,7 +180,6 @@ describe("interception", () => {
   it("rangers stop agents, and any capture names the hand behind it", () => {
     const v = victim(10, 400);
     v.research.levels.pathfinding = 5;
-    v.army.scoutExperience = 100;
     const r = runCovertOp(spymaster(), v, "assassinate_scouts", 20, 1000, seededRng(7));
     expect(r.intercepted).toBeGreaterThan(0);
     expect(r.exposed).toBe(true);
@@ -231,7 +230,6 @@ describe("effects scale with who got through", () => {
     const v = victim(0, 0);
     v.army.scouts = 90;
     v.army.mercenaries.scouts = Math.floor(90 * MERCENARIES.CAP_RATIO); // exactly at the cap
-    v.army.scoutExperience = 80;
     // Enough knives that some get through the watch they are there to kill.
     const r = runCovertOp(spymaster(300), v, "assassinate_scouts", 250, 1000, seededRng(10));
     expect(r.defender.army.scouts).toBeLessThan(90);
@@ -241,7 +239,6 @@ describe("effects scale with who got through", () => {
     expect(r.defender.army.mercenaries.scouts).toBeLessThanOrEqual(
       Math.floor(r.defender.army.scouts * MERCENARIES.CAP_RATIO),
     );
-    expect(r.defender.army.scoutExperience).toBeLessThan(80);
   });
 });
 

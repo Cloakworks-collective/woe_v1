@@ -21,7 +21,6 @@ import {
   COVERT_EFFECTS,
   COVERT_WAR_MULTIPLIER,
   COVERT_LUCK_SWING,
-  COVERT_XP,
   EFFECT_PER_LEVEL,
   GUILD_BONUS_PER_LEVEL,
   INTERCEPTION,
@@ -94,9 +93,11 @@ const agentPower = (
     ? GUILD_BONUS_PER_LEVEL * level(p, "shadow_guild")
     : LODGE_BONUS_PER_LEVEL * level(p, "rangers_lodge");
   const field = arm === "spy" ? "tradecraft" : "pathfinding";
-  const xp = arm === "spy" ? p.army.spyExperience : p.army.scoutExperience;
-  // Additive pool, exactly as in battle: race, veterancy, research, buildings.
-  const pool = 1 + (race - 1) + xp / 100 + researchLevel(p, field) * EFFECT_PER_LEVEL + building;
+  // Additive pool, exactly as in battle — but with NO veterancy term. The
+  // shadow war does not keep a service record: what an agent is worth is what
+  // you have paid for them in research and stone, not what they have lived
+  // through. One fewer number to reason about on both sides of every roll.
+  const pool = 1 + (race - 1) + researchLevel(p, field) * EFFECT_PER_LEVEL + building;
   return count * base * pool * luck(rng, COVERT_LUCK_SWING);
 };
 
@@ -155,11 +156,6 @@ export function runCovertOp(
     if (intercepted > 0) {
       losePersonnel(attacker, "spy", intercepted);
       defender.recentAttackers.push({ playerId: attacker.id, tick: currentTick });
-      // Standing watch teaches.
-      defender.army.scoutExperience = Math.min(
-        COVERT_XP.MAX,
-        defender.army.scoutExperience + COVERT_XP.GAIN_PER_INTERCEPTION,
-      );
     }
   }
 
@@ -350,17 +346,24 @@ export function runCovertOp(
       break;
     }
     case "assassinate_scouts": {
-      const killed = Math.min(defender.army.scouts, Math.floor(survivors * COVERT_EFFECTS.ASSASSINATE_PER_SPY));
-      defender.army.scouts -= killed;
-      // Veterancy dies with the veterans, and the sellsword rangers who can no
-      // longer be commanded are paid off — the cascade, same as the army.
-      if (killed > 0) {
-        const before = defenderIn.army.scouts;
-        defender.army.scoutExperience = Math.max(
-          0,
-          defender.army.scoutExperience * (1 - Math.min(1, killed / Math.max(1, before))),
-        );
-      }
+      // HALF AND HALF, and the knives do not ask who is paying. This is the one
+      // op aimed at the thing that is hardest to touch — regular rangers, who
+      // are population — so it does not hide entirely behind the hired the way
+      // a blow in the field does. Either pool absorbing the other's share when
+      // it runs short, so a garrison of pure sellswords still bleeds.
+      const want = Math.floor(survivors * COVERT_EFFECTS.ASSASSINATE_PER_SPY);
+      const half = Math.floor(want / 2);
+      const ownDead = Math.min(defender.army.scouts, half);
+      const hiredDead = Math.min(defender.army.mercenaries.scouts, want - ownDead);
+      // Whatever one pool could not absorb falls to the other.
+      const spill = want - ownDead - hiredDead;
+      const extraOwn = Math.min(defender.army.scouts - ownDead, spill);
+      const extraHired = Math.min(defender.army.mercenaries.scouts - hiredDead, spill - extraOwn);
+      defender.army.scouts -= ownDead + extraOwn;
+      defender.army.mercenaries.scouts -= hiredDead + extraHired;
+      const killed = ownDead + extraOwn + hiredDead + extraHired;
+      // The sellsword rangers who can no longer be commanded are paid off — the
+      // cascade, same as the army.
       const disbanded = settleMercenaries(defender);
       detail = killed > 0
         ? `${killed} of their rangers are dead in the dark${disbanded > 0 ? `, and ${disbanded} hired scouts ride off for want of anyone to serve` : ""}. They are that much blinder now.`
@@ -397,16 +400,6 @@ export function runCovertOp(
     }
   }
 
-  // ── Veterancy ─────────────────────────────────────────────────────────────
-  const xpKey = arm === "spy" ? "spyExperience" : "scoutExperience";
-  const before = arm === "spy" ? attackerIn.army.spies : attackerIn.army.scouts;
-  if (intercepted > 0) {
-    attacker.army[xpKey] = Math.max(
-      0,
-      attacker.army[xpKey] * (1 - Math.min(1, intercepted / Math.max(1, before))),
-    );
-  }
-  attacker.army[xpKey] = Math.min(COVERT_XP.MAX, attacker.army[xpKey] + COVERT_XP.GAIN_PER_MISSION);
   settleMercenaries(attacker);
   settleMercenaries(defender);
 

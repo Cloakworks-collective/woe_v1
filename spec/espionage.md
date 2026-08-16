@@ -77,7 +77,7 @@ survivors   = sent − intercepted
 effect      = f(survivors)        ← damage scales with who got THROUGH
 ```
 
-The additive pool is race, veterancy, research (Tradecraft for spies,
+The additive pool is race, research (Tradecraft for spies,
 Pathfinding for scouts) and the relevant building — Shadow Guild or Rangers
 Lodge, +10%/level. Delivery is a ±20% roll: twice the battle swing, because the
 shadow war is a chancier business than a shield wall.
@@ -141,9 +141,12 @@ artillery duel — would be pointless. It is a nuisance, not a siege.
 secret. Capped at **5 levels per era**, so theft can supplement doing the work
 but never replace it.
 
-**Assassination cascades.** Killing regular rangers costs the victim scout
-veterancy proportionally, *and* the hired rangers who can no longer be commanded
-are paid off and ride away — the same cascade the army runs (`combat.md`).
+**Assassination cascades.** The knives take **half from the regulars and half
+from the hired**, each pool absorbing the other's share when it runs short — the
+one operation aimed squarely at the thing that is hardest to touch, so it does
+not hide entirely behind the screen the way a blow in the field does. Then the
+hired rangers who can no longer be commanded are paid off and ride away, the
+same cascade the army runs (`combat.md`).
 
 ---
 
@@ -156,24 +159,12 @@ are paid off and ride away — the same cascade the army runs (`combat.md`).
 | Combined | ≤ **10%** |
 
 Both arms can also be **hired**, capped at a third of your own of that arm.
-Hired knives need a Shadow Guild; hired rangers a Rangers Lodge. They earn no
-veterancy, cost none when they die, and are taken first when a mission is
-intercepted — which is precisely what keeps your veterans alive.
+Hired knives need a Shadow Guild; hired rangers a Rangers Lodge. They are taken
+first when a mission is intercepted, which is precisely what keeps your own
+people alive.
 
 Covert agents are civilians: they pay tax, they eat, and unlike engine crews they
 need no barracks bed.
-
----
-
-## Veterancy
-
-Spies and scouts each keep their own stat, 0–100, on the same terms as troops:
-
-- **+4** per successful mission.
-- **+3** to the defender whenever their watch intercepts anyone — standing guard
-  teaches too.
-- Lost proportionally with the **regulars** who die or are dismissed. Hired
-  agents neither earn it nor cost it.
 
 ---
 

@@ -45,8 +45,6 @@ export function newEmpire(opts: {
       stamina: START.STAMINA,
       experiencePoints: 0,
       siegeExperiencePoints: 0,
-      spyExperience: 0,
-      scoutExperience: 0,
     },
 
     gold: START.GOLD,
