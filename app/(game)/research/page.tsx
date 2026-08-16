@@ -108,10 +108,14 @@ export default async function ResearchPage({
   const activeBanked = active ? (p.research.banked[active] ?? 0) : 0;
   const activeEtaTurns = active && rate > 0 && !activeMaxed ? Math.ceil((nextCost - activeBanked) / rate) : 0;
   // What moving the scholars off `active` would ACTUALLY cost. Zero when nothing
-  // is banked there yet, and zero once Scholarship is mastered — in both cases
-  // the field cards must not offer a "Switch" with a forfeit warning attached,
-  // because no forfeit is charged. See setResearch: the penalty is a share of
-  // the banked points, so with none banked there is nothing to take.
+  // is banked there yet, and zero once Scholarship is mastered — see
+  // setResearch: the penalty is a share of the banked points, so with none
+  // banked there is nothing to take.
+  //
+  // This governs the WARNING, never the verb. Moving scholars off a field is a
+  // switch at any price, including free, and a card that said "Study this"
+  // while the Collegium was plainly at work on something else read as though
+  // nothing were running at all.
   const switchLoss = researchSwitchLoss(p);
   const forfeit = Math.floor(activeBanked * switchLoss);
   const status: ResearchStatus =
@@ -287,33 +291,35 @@ export default async function ResearchPage({
                           ) : (
                             <CmdForm name="setResearch" path="/research">
                               <input type="hidden" name="field" value={fid} />
-                              {forfeit > 0 && active && active !== fid ? (
+                              {/* The LABEL names the action; the tooltip prices it.
+                                  Those are two different questions and this used to
+                                  answer both with the label: a free move said "Study
+                                  this", as though no scholars were at work anywhere.
+                                  Moving them off a field is a SWITCH whether or not
+                                  it costs you anything. */}
+                              {active && active !== fid ? (
                                 <ReqTip
                                   heading={`Switch scholars from ${META[active].name}`}
-                                  body={`Redirect your scholars here. Points already banked toward ${f.name} are kept — but ${fmt(forfeit)} of ${META[active].name}'s ${fmt(activeBanked)} banked points are abandoned (${Math.round(switchLoss * 100)}%).`}
+                                  body={
+                                    forfeit > 0
+                                      ? `Redirect your scholars here. Points already banked toward ${f.name} are kept — but ${fmt(forfeit)} of ${META[active].name}'s ${fmt(activeBanked)} banked points are abandoned (${Math.round(switchLoss * 100)}%).`
+                                      : `Redirect your scholars here. Nothing is lost — ${
+                                          activeBanked > 0
+                                            ? "Scholarship has bought the switching penalty away entirely."
+                                            : `there are no points banked toward ${META[active].name} to abandon.`
+                                        }`
+                                  }
                                   note={
-                                    researchLevel(p, "scholarship") >= MAX_FIELD_LEVEL
-                                      ? "Scholarship mastered — you may move the scholars freely."
-                                      : `Switching back later costs the same again. Scholarship buys this down ${Math.round(SCHOLARSHIP.SWITCH_LOSS_PER_LEVEL * 100)}% a level, to nothing at mastery.`
+                                    forfeit > 0
+                                      ? researchLevel(p, "scholarship") >= MAX_FIELD_LEVEL
+                                        ? "Scholarship mastered — you may move the scholars freely."
+                                        : `Switching back later costs the same again. Scholarship buys this down ${Math.round(SCHOLARSHIP.SWITCH_LOSS_PER_LEVEL * 100)}% a level, to nothing at mastery.`
+                                      : undefined
                                   }
                                 >
-                                  <Btn className="btn">Switch here</Btn>
-                                </ReqTip>
-                              ) : active && active !== fid ? (
-                                // The scholars are elsewhere, but moving them costs
-                                // NOTHING — either that field has no banked points to
-                                // abandon, or Scholarship has bought the penalty away.
-                                // Calling it a "switch" and warning about forfeit
-                                // would be inventing a price that is not charged.
-                                <ReqTip
-                                  heading={`Set the scholars on ${f.name}`}
-                                  body={`Move them here from ${META[active].name}. Nothing is lost — ${
-                                    activeBanked > 0
-                                      ? "Scholarship has bought the switching penalty away entirely."
-                                      : `there are no points banked toward ${META[active].name} to abandon.`
-                                  }`}
-                                >
-                                  <Btn className="btn">Study this</Btn>
+                                  <Btn className="btn">
+                                    {forfeit > 0 ? "Switch here" : "Switch here — free"}
+                                  </Btn>
                                 </ReqTip>
                               ) : (
                                 <ReqTip
