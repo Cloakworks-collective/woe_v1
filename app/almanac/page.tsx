@@ -17,6 +17,31 @@ export const metadata = {
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
+/**
+ * A figure and the words that make it mean something.
+ *
+ * The unit is not decoration on a percentage: "5%" and "5% OF POPULATION" are
+ * different claims, and this page used to print the first while the catalog
+ * said the second — fourteen dials read as bare percentages of nothing. But the
+ * unit cannot simply be appended either, because a handful of them are written
+ * for a different shape ("× damage", "± %") and would read as nonsense.
+ *
+ * So: a "%" unit contributes whatever follows the sign, a "±" unit moves its
+ * sign in front of the number, and anything else is left off exactly as before.
+ */
+function reading(s: { value: number; pct?: boolean; unit: string }): { value: string; unit: string } {
+  if (!s.pct) return { value: s.value.toLocaleString("en-US"), unit: s.unit };
+  let rest = s.unit.trim();
+  let sign = "";
+  if (rest.startsWith("±")) {
+    sign = "±";
+    rest = rest.slice(1).trim();
+  }
+  if (rest.startsWith("%")) rest = rest.slice(1).trim();
+  else if (!sign) rest = ""; // a unit written for some other shape — leave it off
+  return { value: sign + pct(s.value), unit: rest };
+}
+
 export default async function AlmanacPage({ searchParams }: { searchParams: Promise<{ c?: string }> }) {
   const { c } = await searchParams;
   const active = CATEGORIES.find((cat) => cat.key === c) ?? CATEGORIES[0];
@@ -88,8 +113,10 @@ export default async function AlmanacPage({ searchParams }: { searchParams: Prom
                       <div className="scalar-row-top">
                         <span className="scalar-row-label">{s.label}</span>
                         <span className="scalar-row-value">
-                          <b>{s.pct ? pct(s.value) : s.value.toLocaleString("en-US")}</b>
-                          {!s.pct && <span className="scalar-row-unit"> {s.unit}</span>}
+                          <b>{reading(s).value}</b>
+                          {reading(s).unit && (
+                            <span className="scalar-row-unit"> {reading(s).unit}</span>
+                          )}
                         </span>
                       </div>
                       <p className="scalar-row-desc">{s.desc}</p>

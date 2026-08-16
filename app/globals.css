@@ -3661,6 +3661,18 @@ a.repair-hint:hover {
   font-style: italic;
 }
 
+/* The race before anyone can win it. Reads as dormant rather than broken —
+   quieter than a live tracker, but still plainly a section that exists, which
+   is the point of showing it at all instead of hiding it. */
+.vt-dormant > h3 {
+  opacity: 0.75;
+}
+
+.vt-dormant .vt-rule {
+  margin-bottom: 0;
+  color: var(--ink-soft);
+}
+
 .vt-clocks {
   display: grid;
   grid-template-columns: auto 1fr;
