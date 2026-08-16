@@ -132,8 +132,8 @@ console.log(
   `COVERT OPERATIONS · a realm of ${totalPopulation(a0).toLocaleString("en-US")} souls at the spy ceiling\n` +
     `  ${a0.army.spies} of its own + ${a0.army.mercenaries.spies} hired · Shadow Guild 6 · Tradecraft 5 · ${SPY_TURNS.CAP} turns banked\n` +
     `  against a watch of ${WATCH} rangers (Lodge 5, Pathfinding 3)\n\n` +
-    `one of your own is worth ${REGULAR_SPY_POWER} hired · hired go FIRST · grabbed agents slip free ` +
-    `(${SLIP_THROUGH.MERC * 100}% hired, ${SLIP_THROUGH.REGULAR * 100}% your own)\n` +
+    `one of your own is worth ${REGULAR_SPY_POWER} hired · hired go FIRST · ` +
+    `${SLIP_THROUGH * 100}% of everyone grabbed slips free, whoever was paying\n` +
     `the guild refuses any night the watch would lay hands on more than ${REFUSAL_RATE * 100}%\n`,
 );
 

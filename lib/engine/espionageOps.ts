@@ -264,7 +264,7 @@ export function runCovertOp(
         INTERCEPTION.AT_PARITY * (nominalWatch / nominalSpy) * op.detection,
       );
       // Judged on how many the watch would lay HANDS on. Most of the grabbed
-      // wriggle free (SLIP_THROUGH), so actual losses top out near 45% and a
+      // Half the grabbed wriggle free (SLIP_THROUGH), so losses top out near 45% and a
       // threshold above that could never fire — but a night where three in five
       // of your people are seized is a disaster whoever walks away from it, and
       // that is what a guild master refuses.
@@ -309,15 +309,15 @@ export function runCovertOp(
         INTERCEPTION.MAX,
         INTERCEPTION.AT_PARITY * ratio * op.detection,
       );
-      // BEING GRABBED IS NOT BEING TAKEN. The watch lays hands on this many,
-      // and then most of them wriggle free — your own far better than the
-      // hired, who know neither the ground nor anywhere to run to.
+      // BEING GRABBED IS NOT BEING TAKEN. The watch lays hands on this many and
+      // half of them wriggle free, whoever was paying: a hand closing on a
+      // shoulder in the dark does not ask.
       const grabbed = rollCount(rng, agentsSent, rate);
       // Hands fall on the hired first, as they do everywhere else in the game.
       const mercsGrabbed = Math.min(mercsGone, grabbed);
       const regularsGrabbed = Math.min(regularsGone, grabbed - mercsGrabbed);
-      mercsTaken = rollCount(rng, mercsGrabbed, 1 - SLIP_THROUGH.MERC);
-      regularsTaken = rollCount(rng, regularsGrabbed, 1 - SLIP_THROUGH.REGULAR);
+      mercsTaken = rollCount(rng, mercsGrabbed, 1 - SLIP_THROUGH);
+      regularsTaken = rollCount(rng, regularsGrabbed, 1 - SLIP_THROUGH);
       intercepted = mercsTaken + regularsTaken;
     }
     if (intercepted > 0) {

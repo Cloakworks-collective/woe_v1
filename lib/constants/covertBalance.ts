@@ -87,14 +87,14 @@ export const COVERT_OPS = {
   map_research: { arm: "scout", turnsPerAgent: 0.25, scouts: 16, detection: 0, field: "pathfinding", level: 4, name: "Map the Collegium", desc: "Every research field and level they hold" },
 
   // ── SPY operations — covert, interceptable, named if caught ───────────────
-  torch_stores: { arm: "spy", turnsPerAgent: 0.4, detection: 1.0, field: "tradecraft", level: 1, name: "Torch the Stores", desc: "Burn what sits outside their storehouses" },
-  steal_resources: { arm: "spy", turnsPerAgent: 0.4, detection: 1.0, field: "tradecraft", level: 2, name: "Steal the Stores", desc: "Carry off what sits outside — less than fire destroys, but it is yours" },
-  sabotage_siege: { arm: "spy", turnsPerAgent: 0.5, detection: 1.2, field: "tradecraft", level: 2, name: "Sabotage the Engines", desc: "Wreck siege engines in the yard, offensive and defensive alike" },
-  sabotage_walls: { arm: "spy", turnsPerAgent: 0.5, detection: 1.2, field: "tradecraft", level: 3, name: "Undermine the Walls", desc: "Weaken the masonry — a scratch beside a bombard, but it costs no engines" },
-  incite_unrest: { arm: "spy", turnsPerAgent: 0.6, detection: 1.4, field: "tradecraft", level: 3, name: "Incite Unrest", desc: "Agitators in the streets: taxes, production and growth all suffer" },
-  sow_doubt: { arm: "spy", turnsPerAgent: 0.6, detection: 1.4, field: "tradecraft", level: 4, name: "Sow Research Doubt", desc: "Whisperers among the scholars — research slows to a crawl" },
-  assassinate_scouts: { arm: "spy", turnsPerAgent: 0.8, detection: 1.8, field: "tradecraft", level: 5, name: "Assassinate the Scouts", desc: "Kill their rangers and blind them to everything. Highly risky" },
-  steal_research: { arm: "spy", turnsPerAgent: 1.0, detection: 2.0, field: "tradecraft", level: 5, name: "Steal the Learning", desc: "Copy a research level for yourself — they lose nothing but the secret" },
+  torch_stores: { arm: "spy", turnsPerAgent: 0.28, detection: 1.0, field: "tradecraft", level: 1, name: "Torch the Stores", desc: "Burn what sits outside their storehouses" },
+  steal_resources: { arm: "spy", turnsPerAgent: 0.28, detection: 1.0, field: "tradecraft", level: 2, name: "Steal the Stores", desc: "Carry off what sits outside — less than fire destroys, but it is yours" },
+  sabotage_siege: { arm: "spy", turnsPerAgent: 0.35, detection: 1.2, field: "tradecraft", level: 2, name: "Sabotage the Engines", desc: "Wreck siege engines in the yard, offensive and defensive alike" },
+  sabotage_walls: { arm: "spy", turnsPerAgent: 0.35, detection: 1.2, field: "tradecraft", level: 3, name: "Undermine the Walls", desc: "Weaken the masonry — a scratch beside a bombard, but it costs no engines" },
+  incite_unrest: { arm: "spy", turnsPerAgent: 0.42, detection: 1.4, field: "tradecraft", level: 3, name: "Incite Unrest", desc: "Agitators in the streets: taxes, production and growth all suffer" },
+  sow_doubt: { arm: "spy", turnsPerAgent: 0.42, detection: 1.4, field: "tradecraft", level: 4, name: "Sow Research Doubt", desc: "Whisperers among the scholars — research slows to a crawl" },
+  assassinate_scouts: { arm: "spy", turnsPerAgent: 0.56, detection: 1.8, field: "tradecraft", level: 5, name: "Assassinate the Scouts", desc: "Kill their rangers and blind them to everything. Highly risky" },
+  steal_research: { arm: "spy", turnsPerAgent: 0.7, detection: 2.0, field: "tradecraft", level: 5, name: "Steal the Learning", desc: "Copy a research level for yourself — they lose nothing but the secret" },
 } as const;
 
 export type CovertOpId = keyof typeof COVERT_OPS;
@@ -108,7 +108,7 @@ export const AGENT_POWER = {
 };
 
 /**
- * What one of YOUR OWN spies is worth against a hired knife — four of them.
+ * What one of YOUR OWN spies is worth against a hired knife — two of them.
  *
  * Note which way round this is written. The sellsword is the baseline and your
  * own people are the multiplier: this RAISES what a regular achieves rather
@@ -121,10 +121,10 @@ export const AGENT_POWER = {
  * it means sending enough to exhaust the hire pool, which is also exactly how
  * you put them at risk. The reward and the danger arrive together.
  *
- * Applies against the watch AND at the work — "four times as effective" has to
- * mean both. Spies only: rangers stand watch at home, on ground they all know.
+ * Applies against the watch AND at the work — being better has to mean both.
+ * Spies only: rangers stand watch at home, on ground they all know.
  */
-export const REGULAR_SPY_POWER = 4; // × a hired knife's
+export const REGULAR_SPY_POWER = 2; // × a hired knife's
 
 /** Building levels feed the additive pool, like research does. */
 export const GUILD_BONUS_PER_LEVEL = 0.1; // frac/level — Shadow Guild, spies
@@ -193,21 +193,18 @@ export const REFUSAL_RATE = 0.6; // frac of the party the watch would lay hands 
 /**
  * SLIPPING THROUGH — being laid hands on is not the same as being taken.
  *
- * The watch grabs at whoever it finds; most of them wriggle free. Your OWN
- * people are far better at it than the hired: they know the ground, they were
- * raised on it, and they have somewhere to run to. A sellsword has a contract
- * and an unfamiliar city.
+ * The watch grabs at whoever it finds and half of them wriggle free. ONE NUMBER
+ * FOR EVERYONE: a hand closing on a shoulder in the dark does not first ask who
+ * was paying. Your own people are better spies than bought ones — that is what
+ * REGULAR_SPY_POWER says — but being better at the work is not the same as
+ * being harder to hold once caught, and splitting it gave regulars two separate
+ * advantages for one decision.
  *
  * This is the covert twin of DAMAGE_TAKEN, and it is the single largest thing
- * standing between a spy corps and annihilation — without it a heavy watch
+ * standing between a spy corps and annihilation: without it a heavy watch
  * simply deleted an infiltration.
  */
-export const SLIP_THROUGH = {
-  /** Share of grabbed HIRED knives who get away. */
-  MERC: 0.5, // frac
-  /** …and of your own, who are better at it. */
-  REGULAR: 0.8, // frac
-};
+export const SLIP_THROUGH = 0.5; // frac, hired and raised alike
 
 export const INTERCEPTION = {
   /** Fraction intercepted at parity of power, before the op's detection

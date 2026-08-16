@@ -148,7 +148,7 @@ describe("intel comes back in COLUMNS, not a paragraph", () => {
 describe("the spy turn economy", () => {
   it("cost is derived from the agents sent — you cannot under-fund a mission", () => {
     const op = covertOp("steal_research")!;
-    expect(covertTurnCost(op, 100)).toBe(100); // 1.0 turns/agent, the dearest op
+    expect(covertTurnCost(op, 100)).toBe(70); // 0.70 turns/agent, the dearest op
     // Rangers are a flat rate whatever they are looking at — the deeper look
     // costs more because it needs more PEOPLE, not because they charge more.
     expect(covertTurnCost(covertOp("survey_coffers")!, 100)).toBe(200);
@@ -279,7 +279,7 @@ describe("rangers standing watch", () => {
     for (let i = 0; i < 40; i++) {
       // Your own are worth four hired apiece now, so it takes far fewer of
       // them to be worth sending — and far fewer before the watch outweighs.
-      const r = runCovertOp(spymaster(300), watched(), "torch_stores", 60, 1000, seededRng(i));
+      const r = runCovertOp(spymaster(300), watched(), "torch_stores", 120, 1000, seededRng(i));
       if (/took hold/.test(r.detail)) bounced++;
     }
     expect(bounced).toBeGreaterThan(20);
@@ -407,17 +407,19 @@ describe("a spy corps is your own people, padded with bought ones", () => {
     expect(r.attacker.army.mercenaries.spies).toBe(25);
   });
 
-  it("your own burn four times what a bought party would", () => {
+  it("your own burn twice what a bought party would", () => {
     // Kept well under TORCH_CAP, or both parties simply max it out and the
     // difference the weighting makes is invisible.
     const hired = runCovertOp(guild(500, 200), mark(0), "torch_stores", 5, 1000, seededRng(2));
     const own = runCovertOp(guild(500, 0), mark(0), "torch_stores", 5, 1000, seededRng(2));
     expect(hired.resourcesDestroyed).toBeGreaterThan(0);
-    expect(own.resourcesDestroyed).toBeGreaterThan(hired.resourcesDestroyed! * 2);
+    expect(own.resourcesDestroyed).toBeGreaterThanOrEqual(hired.resourcesDestroyed! * 2);
   });
 
-  it("and your own people slip the watch four times in five", () => {
-    // Same raid, same watch, same dice — one party bought, one raised.
+  it("and a raised party loses fewer, being worth more against the same watch", () => {
+    // NOT because they are harder to hold — everyone slips at the same rate
+    // now. They are simply worth more, so the watch grabs at a smaller share of
+    // them in the first place. Same raid, same watch, same dice.
     let hiredLost = 0, ownLost = 0;
     for (let i = 0; i < 60; i++) {
       const a = guild(500, 300);
