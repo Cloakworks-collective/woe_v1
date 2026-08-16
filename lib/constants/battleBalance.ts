@@ -96,9 +96,12 @@ export const UNIT_STATS = {
   },
 } as const;
 
-/** Engineers are untiered — they never attack, they crew engines and they die. */
+/** Engineers are untiered. They never march out to attack — they crew engines,
+ *  and they die. The power below is what they manage when a sortie reaches the
+ *  siege lines and they pick up whatever is to hand: it is read ONLY by the
+ *  rear-guard clash, never by the archer, cavalry or footman phases. */
 export const UNIT_POWER = {
-  engineer: { power: 0, health: 10 },
+  engineer: { power: 10, health: 10 },
 };
 
 // ─── 3 · THE EFFECTIVENESS MATRIX ───────────────────────────────────────────
@@ -417,19 +420,86 @@ export const ARTILLERY_DUEL = {
 // the point: a cavalry-heavy defender rides out; a footman-heavy one holds.
 // The defender chooses whether to sortie at all (a standing order).
 
+// A sortie is not a formula, it is THREE battles fought in sequence, and the
+// charge is drawn off a piece at a time as it goes:
+//
+//   1 FOOT vs HORSE      the attacker's footmen draw off and occupy
+//                        FOOTMEN_HOLD riders EACH.
+//   2 HORSE vs HORSE     the attacker's own cavalry counter-charge and occupy
+//                        CAVALRY_HOLD riders each.
+//   3 REAR GUARD         only what neither could draw off reaches the archers
+//                        and engineers standing at the engines. Half of what
+//                        the riders land there goes into the park, half into
+//                        the men holding it.
+//
+// Every stage is a real exchange — both sides take losses at each — and the
+// gates only open at all if the garrison clears TRIGGER_RATIO.
+//
+// The holds are counted in MEN, and the charge is split by the share of riders
+// each stage drew off. Power then decides who WINS each clash — never who is
+// in it. That separation is the point: a screen protects the siege train by
+// being NUMEROUS, so cheap troops out front are a real answer to a sortie and
+// not merely a worse version of expensive ones.
+//
+// Only ONE multiplier survives in the whole phase, and it belongs to the
+// garrison: horse coming out of a gate at speed are worth half again. The
+// besieger's footmen and cavalry fight at flat power in clashes 1 and 2.
+
 export const SORTIE = {
   /** Only worth attempting when the defender's field arm outweighs the
    *  attacker's screen by this much. */
   TRIGGER_RATIO: 1.5, // ×
+  /**
+   * A garrison will not open its gates below this much stamina. Tired men do
+   * not counter-attack — they hold the wall and wait.
+   *
+   * Note how far ABOVE `STAMINA.MERCY_FLOOR` (30) this sits. Between the two a
+   * defender is well enough to fight but not well enough to sally, which is the
+   * band the whole clause exists to create: sorties are a FIRST answer, not a
+   * last one. A garrison being ground down stops riding out long before it
+   * stops fighting.
+   */
+  MIN_STAMINA: 70, // of STAMINA.MAX
+  /**
+   * …and not with a gutted screen. Measured against the hire cap in the arms
+   * that actually ride out — footmen and cavalry — because sellswords absorb
+   * CASUALTY_SPLIT.MERC_SHARE of every blow aimed at their rank, and riding out
+   * without them means the charge is paid for in your own population.
+   *
+   * Archer and engineer sellswords are deliberately not counted: they stay
+   * behind the wall and cannot cushion a charge they are nowhere near.
+   */
+  MIN_SCREEN: 0.7, // frac of the hire cap in footmen + cavalry
   /** Cavalry lead the charge and fight at their best in the open. */
   CAVALRY_BONUS: 0.5, // frac, additive
   /** Each cavalryman brings this many footmen along behind. */
   FOOTMEN_PER_CAVALRY: 3,
-  /** The attacker's screen holds off this multiple of its own strength before
-   *  anything reaches the engineers and the engines behind it. */
-  SCREEN_ABSORB: 5, // ×
-  /** …and it is dug in around the siege lines while it does. */
-  ENTRENCHED_BONUS: 0.2, // frac, additive
+  /** How many riders ONE of the attacker's FOOTMEN draws off and occupies.
+   *  COUNTED IN MEN, not power: a hundred footmen tie up two hundred riders
+   *  whoever those riders are and whatever anyone's research says. What a
+   *  shield wall does is occupy people, and every rider it occupies is a rider
+   *  not reaching the archers, the crews and the engines. */
+  FOOTMEN_HOLD: 2, // riders per footman
+  /** …and how many one of the attacker's own CAVALRY draw off, counter-
+   *  charging. More than footmen manage: horse answer horse better than
+   *  anything else does. Also counted in men. */
+  CAVALRY_HOLD: 3, // riders per horseman
+  /**
+   * UNUSED as of the three-clash sortie. The besieger's arms fight at flat
+   * power in every stage — the garrison's CAVALRY_BONUS is the only multiplier
+   * left in the phase. Kept rather than deleted because the `bonusPool` branch
+   * that would read it (ctx.entrenched) is still wired; nothing sets that flag.
+   */
+  ENTRENCHED_BONUS: 0.2, // frac, additive — not currently read
+  /** What an archer manages with horse already inside the lines. A bow is a
+   *  poor weapon at knife range, but the man holding it is still a soldier —
+   *  half power, which is still near three times an engineer. Read ONLY by the
+   *  rear-guard clash: archers shoot at full power from a parapet. */
+  ARCHER_MELEE: 0.5, // frac of power
+  /** Of what the breakthrough lands, this share goes into the siege park and
+   *  the rest into the archers and engineers defending it. Riders come for the
+   *  engines — but they have to go through people to reach them. */
+  ENGINE_SHARE: 0.5, // frac
 };
 
 // ─── 9 · UNIT ROLES ─────────────────────────────────────────────────────────
@@ -443,7 +513,18 @@ export const SORTIE = {
  *  breached (WALL_BREACH_PIVOT), and boiling oil can kill them where they
  *  stand. */
 export const RAM_CREW = {
-  TROOPS_PER_RAM: 20,
+  /**
+   * Hands on the beams per ram — and therefore hands OUT of the battle line
+   * until the gate gives.
+   *
+   * Was 20, which quietly decided sieges. Thirty rams committed 600 men drawn
+   * FOOTMEN FIRST, so a besieger who brought a proper battering train had no
+   * screen left standing when the defender rode out: the sortie met archers
+   * and engineers directly however many footmen were mustered. At 6 the same
+   * thirty rams cost 180 hands, the screen survives to hold the siege lines,
+   * and the SORTIE hold multipliers mean what they say they mean.
+   */
+  TROOPS_PER_RAM: 6,
   /**
    * The ram's wall damage, multiplied. A ram reads 100% against masonry and is
    * described as THE wall-breaker, but at 300 power ten of them took 67 attacks
@@ -482,7 +563,7 @@ export const CASUALTY_SPLIT = {
  * leaves the yield line exactly where it was and lets the toughness show up
  * where it was meant to: in living soldiers.
  */
-export const DAMAGE_TAKEN: Record<"footman" | "archer" | "cavalry", number> = {
+export const DAMAGE_TAKEN: Record<"footman" | "archer" | "cavalry" | "engineer", number> = {
   // Footmen live behind a shield and are drilled to use it: four blows in five
   // turned. Cavalry are moving targets but committed to a line once they
   // charge. Archers are the worst of the three — hands full of bow, no shield,
@@ -490,6 +571,14 @@ export const DAMAGE_TAKEN: Record<"footman" | "archer" | "cavalry", number> = {
   footman: 0.2, // dodges 80%
   cavalry: 0.3, // dodges 70%
   archer: 0.4, // dodges 60%
+  // Engineers do not dodge anything — they run, and read this as flight rather
+  // than skill: they scatter into the lines the moment horse are among the
+  // engines, and a rider chasing one is a rider not burning a trebuchet.
+  // Without some relief here a single breakthrough would end a siege by killing
+  // every crew on the field. But they are the ones caught in the open with
+  // tools instead of weapons, so they get less of it than a drilled footman
+  // does — running is worse than a shield, better than standing to shoot.
+  engineer: 0.3, // 70% get away
 };
 
 /**
@@ -983,6 +1072,26 @@ export const SIEGE_GEAR_LOSS_ON_DEFEAT = 0.5; // frac
 
 export const REVENGE_WINDOW_HOURS = 18;
 export const ATTACK_HISTORY_HOURS = 72;
+
+/**
+ * BLOODLUST — what an avenging host hits for above its ordinary weight.
+ *
+ * Men who have come to answer a blow struck against them fight harder than the
+ * same men marching out for plunder. It is the only damage bonus in the game
+ * that is bought with nothing: no research, no building, no gold. You earn it
+ * by being hit.
+ *
+ * Additive into the bonus pool like every other modifier, so it contributes
+ * exactly what it says and never multiplies the whole stack — see the note at
+ * the top of `bonusPool`. It is applied to the ATTACKING side only, and only
+ * when the mode is a revenge.
+ *
+ * It matters more than 20% sounds. A revenge is the one attack that cannot be
+ * answered with a yield and the one that takes no loot: the payment IS dead
+ * regulars. This is the dial that decides whether that payment is ever
+ * actually collected.
+ */
+export const REVENGE_BLOODLUST = 0.2; // frac, additive
 
 /**
  * Once the walls are breached, stray bombard fire lands on a random building,

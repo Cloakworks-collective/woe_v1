@@ -9,7 +9,7 @@ import {
 } from "./combat";
 import { newEmpire } from "./newEmpire";
 import { seededRng } from "./rng";
-import { STAMINA, storageShelterAtLevel } from "../constants";
+import { MERCENARIES, SORTIE, STAMINA, storageShelterAtLevel } from "../constants";
 import { buildingIntegrity, type Player } from "./types";
 import { bonusPool } from "./combat/model";
 import { WAR, WALL_EDGE, SCORE } from "../constants";
@@ -97,22 +97,29 @@ describe("battle resolution — the spec's worked example", () => {
   });
 
   it("the log narrates each phase with real casualties", () => {
+    // Sized so the scald is CERTAIN rather than a coin flip. It is rolled as
+    // a fraction of the men on the beams (OIL_SCALD_PER_CAULDRON per cauldron,
+    // capped at OIL_SCALD_CAP), so it needs enough of both to clear 1.0: ten
+    // rams put 60 hands on the beams and six cauldrons reach the 6% cap, for
+    // 3.6 expected. With one ram and one cauldron it was 0.06 of a man — a 6%
+    // chance that happened to land on this seed, so the test passed by luck
+    // and broke the moment ram crews changed size.
     const attacker = empire("Attacker", (p) => {
-      p.army.footmen.light = 80;
+      p.army.footmen.light = 140; // 60 go to the beams, 80 stay in the line
       p.army.archers.light = 30;
       p.army.cavalry.light = 20;
       p.army.siegeGear.trebuchets = 2;
-      p.army.siegeGear.rams = 1;
-      p.army.siegeEngineers = 12;
-      p.buildings.muster_hall = 20;
+      p.army.siegeGear.rams = 10;
+      p.army.siegeEngineers = 30; // 2 per ram + 5 per trebuchet
+      p.buildings.muster_hall = 40;
     });
     const defender = empire("Defender", (p) => {
       p.army.footmen.light = 60;
       p.army.archers.light = 20;
       p.buildings.walls = 5;
       p.buildings.war_foundry = 6;
-      p.army.siegeCounters.boiling_oil = 1; // crewed Boiling Oil cancels a ram
-      p.army.siegeEngineers = 2; // crew of 2 for the Boiling Oil
+      p.army.siegeCounters.boiling_oil = 6; // crewed Boiling Oil scalds the beams
+      p.army.siegeEngineers = 12; // crew of 2 apiece
       p.buildings.muster_hall = 10;
     });
     const { report } = resolveBattle(attacker, defender, "siege", { ...OPTS, rng: seededRng(11) });
@@ -891,5 +898,164 @@ describe("each counter is described by what it actually does", () => {
     }
     // And nothing is counted with a name that cannot take a number.
     expect(duel.join(" ")).not.toMatch(/\d+ Counter-Engine\b(?!s)/);
+  });
+});
+
+describe("the sortie is two battles, not a demolition", () => {
+  /** A besieger: a screen out front, archers and engineers at the engines. */
+  const besieger = (screen: number) => (p: Player) => {
+    p.buildings.muster_hall = 900;
+    p.buildings.war_foundry = 10;
+    p.army.footmen.heavy = screen;
+    p.army.mercenaries.footmen.heavy = Math.floor(screen / 3);
+    p.army.archers.heavy = 400;
+    p.army.mercenaries.archers.heavy = 130;
+    p.army.siegeEngineers = 300;
+    p.army.mercenaries.engineers = 90;
+    p.army.siegeGear = { ...p.army.siegeGear, trebuchets: 40, ballistae: 24, rams: 30, siege_towers: 18 };
+    p.army.sortieEnabled = false;
+    p.shieldUntilTick = 0;
+  };
+
+  /** A garrison that rides out, with no counters so only the sortie can touch
+   *  the attacker's park. */
+  const holder = (riders: number) => (p: Player) => {
+    p.buildings.muster_hall = 900;
+    p.buildings.walls = 9;
+    p.wallIntegrity = 1;
+    p.army.cavalry.heavy = riders;
+    p.army.mercenaries.cavalry.heavy = Math.floor(riders / 3);
+    p.army.siegeCounters = {
+      billhooks: 0, forkpoles: 0, fire_pots: 0,
+      boiling_oil: 0, hoardings: 0, counter_engine: 0,
+    };
+    p.army.sortieEnabled = true;
+    p.shieldUntilTick = 0;
+  };
+
+  const ride = (screen: number, riders: number, seed = 7) =>
+    resolveBattle(empire("A", besieger(screen)), empire("D", holder(riders)), "siege", {
+      ...OPTS,
+      rng: seededRng(seed),
+    });
+
+  it("does not fire when the garrison cannot outweigh the screen", () => {
+    // Well under TRIGGER_RATIO — the gates stay shut and the phase is silent.
+    const { report } = ride(600, 40);
+    expect(report.log.some((l) => l.phase === "sortie")).toBe(false);
+  });
+
+  it("costs the garrison riders — a sortie is no longer free", () => {
+    // The whole point of E: before this, the defender could ride out and lose
+    // nothing whatever the outcome, which made the standing order a pure win.
+    const { report } = ride(120, 500);
+    expect(report.log.some((l) => l.phase === "sortie")).toBe(true);
+    expect(report.defenderLosses.mercenaries + report.defenderLosses.cavalry).toBeGreaterThan(0);
+  });
+
+  it("wears the siege train rather than firing it outright", () => {
+    const { attacker, report } = ride(120, 500);
+    const line = report.log.find((l) => l.phase === "sortie");
+    expect(line).toBeDefined();
+    // Engines are damaged...
+    expect(attacker.army.siegeGearIntegrity.trebuchets).toBeLessThan(1);
+    // ...but the sortie itself smashes none of them: integrity never fell past
+    // SIEGE_DESTROYED_BELOW. Asserted against the sortie's OWN report rather
+    // than the surviving park, because a besieger who loses the field forfeits
+    // gear (SIEGE_GEAR_LOSS_ON_DEFEAT) and that forfeit would read as sortie
+    // damage — which is exactly the confound this phase used to have.
+    expect(line!.text).not.toMatch(/smashed past repair/);
+  });
+
+  it("spends itself on the tall engines first", () => {
+    const { attacker } = ride(120, 500);
+    // Trebuchets are what the sally was for; rams sit at the back of the queue.
+    expect(attacker.army.siegeGearIntegrity.trebuchets).toBeLessThan(
+      attacker.army.siegeGearIntegrity.rams,
+    );
+  });
+
+  it("kills hired crews before regular engineers", () => {
+    const { attacker, report } = ride(120, 500);
+    expect(report.log.some((l) => l.phase === "sortie")).toBe(true);
+    const regularsDead = 300 - attacker.army.siegeEngineers;
+    const hiredDead = 90 - attacker.army.mercenaries.engineers;
+    expect(hiredDead).toBeGreaterThan(0);
+    expect(hiredDead).toBeGreaterThan(regularsDead);
+  });
+
+  it("leaves most engineers alive — they run rather than fight", () => {
+    // DAMAGE_TAKEN.engineer is the lowest in the table and this is why: a
+    // breakthrough used to kill crews by a flat surplus/200 with no defence at
+    // all. The crews must survive to crew anything afterwards.
+    const { attacker } = ride(120, 500);
+    expect(attacker.army.siegeEngineers).toBeGreaterThan(300 * 0.8);
+  });
+});
+
+describe("a garrison in no condition to sally stays behind the wall", () => {
+  /** A garrison that comfortably clears the strength trigger, so the ONLY
+   *  thing under test is the condition of the host itself. */
+  const garrison = (mods: (p: Player) => void) => (p: Player) => {
+    p.buildings.muster_hall = 900;
+    p.buildings.walls = 9;
+    p.wallIntegrity = 1;
+    // newEmpire seeds START.LIGHT_FOOTMEN into every empire, and those count
+    // toward the hire cap the screen gate is measured against. Cleared so the
+    // arithmetic below is exactly 3/7 of the cavalry and nothing else.
+    p.army.footmen = { light: 0, medium: 0, heavy: 0 };
+    p.army.cavalry.heavy = 600;
+    p.army.mercenaries.cavalry.heavy = Math.floor(600 * MERCENARIES.CAP_RATIO);
+    p.army.stamina = 100;
+    p.army.sortieEnabled = true;
+    p.shieldUntilTick = 0;
+    mods(p);
+  };
+  const besieger = (p: Player) => {
+    p.buildings.muster_hall = 900;
+    p.buildings.war_foundry = 10;
+    p.army.footmen = { light: 0, medium: 0, heavy: 40 }; // token screen; trigger is clear
+    p.army.archers.heavy = 200;
+    p.army.siegeEngineers = 200;
+    p.army.siegeGear = { ...p.army.siegeGear, trebuchets: 20 };
+    p.army.sortieEnabled = false;
+    p.shieldUntilTick = 0;
+  };
+  const sallied = (mods: (p: Player) => void) =>
+    resolveBattle(empire("A", besieger), empire("D", garrison(mods)), "siege", {
+      ...OPTS,
+      rng: seededRng(5),
+    }).report.log.some((l) => l.phase === "sortie");
+
+  it("rides out when rested and screened", () => {
+    expect(sallied(() => {})).toBe(true);
+  });
+
+  it("will not open the gates below SORTIE.MIN_STAMINA", () => {
+    // Still well above the mercy floor — able to fight, unwilling to sally.
+    expect(SORTIE.MIN_STAMINA).toBeGreaterThan(STAMINA.MERCY_FLOOR);
+    expect(sallied((p) => { p.army.stamina = SORTIE.MIN_STAMINA - 1; })).toBe(false);
+    expect(sallied((p) => { p.army.stamina = SORTIE.MIN_STAMINA; })).toBe(true);
+  });
+
+  it("will not ride out on a gutted screen", () => {
+    const cap = 600 * MERCENARIES.CAP_RATIO; // cavalry only — footmen are cleared
+    expect(sallied((p) => {
+      p.army.mercenaries.cavalry.heavy = Math.floor(cap * SORTIE.MIN_SCREEN) - 1;
+    })).toBe(false);
+    expect(sallied((p) => {
+      p.army.mercenaries.cavalry.heavy = Math.ceil(cap * SORTIE.MIN_SCREEN) + 1;
+    })).toBe(true);
+  });
+
+  it("counts only the arms that ride out — archer sellswords do not qualify", () => {
+    // A garrison flush with hired bowmen but with no riders to spare is exactly
+    // the case the screen gate exists to stop: the bowmen stay on the parapet
+    // and cushion nothing.
+    expect(sallied((p) => {
+      p.army.mercenaries.cavalry.heavy = 0;
+      p.army.archers.heavy = 600;
+      p.army.mercenaries.archers.heavy = Math.floor(600 * MERCENARIES.CAP_RATIO);
+    })).toBe(false);
   });
 });

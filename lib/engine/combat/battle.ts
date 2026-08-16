@@ -7,7 +7,7 @@
 //   2 archers        spread fire; attackers shoot badly at an intact parapet
 //   3 cavalry        aimed: cavalry → footmen → archers
 //   4 footmen        aimed: footmen → archers → cavalry; ram crews join a breach
-//   5 sortie         the defender rides out, if they chose to
+//   5 sortie         the defender rides out, if they chose to (never on a revenge)
 //
 // A RAID is phases 2–4 only: no walls, no engines, and no engineers on the
 // field at all. Castle attacks and revenge run the lot.
@@ -36,6 +36,8 @@ import {
   civilians,
   emptySiegeGear,
   level,
+  mercsOfArm,
+  regularsOfArm,
   researchLevel,
   troopTotal,
   veterancyBonus,
@@ -50,16 +52,22 @@ import {
 } from "../types";
 import {
   aimDamage,
+  applyToArm,
   buildSide,
   decayExperience,
   effectiveness,
   fieldHospital,
+  armHeads,
+  fieldHeads,
   fieldPower,
   headcount,
   healthLostShare,
+  damageEngineers,
   killEngineers,
   lineRegulars,
   muster,
+  rearGuardArcherShare,
+  rearGuardPower,
   regularsLost,
   settleMercenaries,
   setWallEdge,
@@ -77,6 +85,7 @@ import {
   batteryThreatens,
   batteryStrength,
   crewGear,
+  damagePark,
   defenderCrews,
   makePark,
   parkStrength,
@@ -185,9 +194,21 @@ export function resolveBattle(
   ) => log.push({ round, phase, text, ...extra });
 
   // ── Crews and engine parks ────────────────────────────────────────────────
-  const atkEngineers = walls ? attacker.army.siegeEngineers + attacker.army.mercenaries.engineers : 0;
+  //
+  // NOBODY DRAGS A SIEGE TRAIN TO A BREACH. If the masonry is already rubble
+  // there is nothing for a ram to break and nothing for a ladder to climb, so
+  // the attacker leaves the whole park at home and marches the host straight
+  // in. That is not a small saving: with no rams there are no ram crews, so the
+  // footmen who would have been on the beams — SELLSWORDS FIRST, taking the
+  // screen's cushion with them — stand in the line instead.
+  //
+  // A raid never brings engines at all; this is the second case where they stay
+  // behind, and it applies to castle attacks and revenge alike.
+  const wallStanding = hasWall && defender.wallIntegrity > 0;
+  const bringSiege = walls && wallStanding;
+  const atkEngineers = bringSiege ? attacker.army.siegeEngineers + attacker.army.mercenaries.engineers : 0;
   const defEngineers = walls ? defender.army.siegeEngineers + defender.army.mercenaries.engineers : 0;
-  const atkCrewed = walls ? crewGear(attacker.army.siegeGear, atkEngineers) : emptySiegeGear();
+  const atkCrewed = bringSiege ? crewGear(attacker.army.siegeGear, atkEngineers) : emptySiegeGear();
   const defCrew = walls
     ? defenderCrews(defender, defEngineers)
     : { counters: crewCountersEmpty(), offensive: emptySiegeGear() };
@@ -228,7 +249,7 @@ export function resolveBattle(
   };
 
   // Ram crews are committed before a shot is fired.
-  const ramCrew = walls ? assignRamCrew(attacker, atkCrewed.rams) : { committed: {}, total: 0, effectiveness: 1 };
+  const ramCrew = bringSiege ? assignRamCrew(attacker, atkCrewed.rams) : { committed: {}, total: 0, effectiveness: 1 };
 
   // ── Sides ─────────────────────────────────────────────────────────────────
   const atk = buildSide(attacker, {
@@ -237,6 +258,9 @@ export function resolveBattle(
     war,
     engineersPresent: walls,
     ramCrew: ramCrew.committed,
+    // BLOODLUST — the avenging side only. The defender never gets it, however
+    // aggrieved they feel: it is bought by having been struck first.
+    revenge: mode === "revenge",
   });
   const def = buildSide(defender, { home: true, wallEdge: 0, war, engineersPresent: walls });
 
@@ -522,28 +546,103 @@ export function resolveBattle(
       return `${walls ? `The lines meet ${where}` : "The lines meet"} — ${dFell} of theirs cut down, ${aFell} of ours.`;
     });
 
-    // Phase 5 — the sortie.
-    if (walls && defender.army.sortieEnabled && !sortied) {
+    // Phase 5 — the sortie. Three battles, not a formula: the charge against
+    // the footmen, then against the besieger's own horse, then whatever neither
+    // could draw off against the archers and engineers at the engines.
+    // Never in a REVENGE. An answering strike comes with everything the
+    // avenger has and expects the gates to stay shut — a garrison that has
+    // already provoked one does not then ride out to meet it.
+    if (walls && mode !== "revenge" && defender.army.sortieEnabled && !sortied && willSally(defender)) {
       const screen = fieldPower(atk);
       const riders = fieldPower(def);
-      if (riders >= SORTIE.TRIGGER_RATIO * screen) {
+      if (riders > 0 && riders >= SORTIE.TRIGGER_RATIO * screen) {
         sortied = true;
-        // The screen holds off a multiple of its own weight, dug in around the
-        // siege lines. Only the surplus reaches the engineers and the engines.
-        const capacity = screen * SORTIE.SCREEN_ABSORB * (1 + SORTIE.ENTRENCHED_BONUS);
-        const surplus = Math.max(0, riders - capacity);
-        if (surplus > 0) {
-          const killed = killSiege(atkPark, surplus);
-          const crewLost = Math.min(atk.engineers + atk.mercEngineers, Math.floor(surplus / 200));
-          killEngineers(atk, crewLost);
-          say(round, "sortie",
-            `The gates swing open — their cavalry ride out at our siege lines. ${killed} engines are fired and ${crewLost} engineers cut down.`,
-            { attackerRegulars: crewLost, tone: "bad" });
-        } else {
-          say(round, "sortie", `Their cavalry sally out and our screen turns them back at the ditch.`, {
-            tone: "good",
-          });
+        const preSortieA = { ...atk.losses };
+        const preSortieD = { ...def.losses };
+        const enginesBefore = totalEngines(atkPark);
+
+        // ── How the charge divides · BY HEAD, not by power ──────────────────
+        //
+        // What a shield wall does is OCCUPY PEOPLE. A hundred footmen tie up
+        // two hundred riders whoever those riders are and whatever anyone's
+        // research says, and every rider they tie up is a rider not reaching
+        // the archers, the crews and the engines. So the holds are counted in
+        // men and the charge is split by the share of riders each stage drew
+        // off — power decides who WINS each clash, never who is in it.
+        //
+        // Settled once, up front, before a blow lands: this is the line the
+        // charge meets, not a running tally of who is left.
+        const riderHeads = fieldHeads(def);
+        const heldByFoot = Math.min(riderHeads, SORTIE.FOOTMEN_HOLD * armHeads(atk, "footman"));
+        const heldByCav = Math.min(
+          riderHeads - heldByFoot,
+          SORTIE.CAVALRY_HOLD * armHeads(atk, "cavalry"),
+        );
+        const throughHeads = riderHeads - heldByFoot - heldByCav;
+
+        // The weight behind those heads. Horse are worth half again coming out
+        // of a gate at speed — the ONE multiplier left in the sortie, and a
+        // bonus that sat unreachable in `bonusPool` until now, because nothing
+        // ever set the flag. The besieger's own arms fight at flat power.
+        const charge = chargePower(def) * dLuck;
+        const atFoot = charge * (heldByFoot / riderHeads);
+        const atCav = charge * (heldByCav / riderHeads);
+        const atRear = charge * (throughHeads / riderHeads);
+
+        // ── Clash 1 · foot against horse ────────────────────────────────────
+        if (heldByFoot > 0) {
+          const footDeal = armPower(atk, "footman") * aLuck;
+          aTiring += footDeal * STAMINA.DRAIN_RATE.footman;
+          dTiring += atFoot * STAMINA.DRAIN_RATE.cavalry;
+          aimDamage(def, footDeal, ["cavalry", "footman", "archer"]);
+          aimDamage(atk, atFoot, ["footman", "cavalry", "archer"]);
         }
+
+        // ── Clash 2 · horse against horse ───────────────────────────────────
+        if (heldByCav > 0) {
+          const cavDeal = armPower(atk, "cavalry") * aLuck;
+          aTiring += cavDeal * STAMINA.DRAIN_RATE.cavalry;
+          dTiring += atCav * STAMINA.DRAIN_RATE.cavalry;
+          aimDamage(def, cavDeal, ["cavalry", "footman", "archer"]);
+          aimDamage(atk, atCav, ["cavalry", "footman", "archer"]);
+        }
+
+        // ── Clash 3 · the rear guard ────────────────────────────────────────
+        let wrecked = 0;
+        let crewLost = 0;
+        const broke = throughHeads > 0;
+        if (broke) {
+          const guard = rearGuardPower(atk) * aLuck;
+          const archerShare = rearGuardArcherShare(atk);
+          aTiring += guard * STAMINA.DRAIN_RATE.archer;
+          dTiring += atRear * STAMINA.DRAIN_RATE.cavalry;
+
+          // Bows at knife range and engineers with whatever is to hand. They
+          // are not going to win, but they are not free to ride down either.
+          aimDamage(def, guard, ["cavalry", "footman", "archer"]);
+
+          // Half into the park — worn, not fired: engines are only lost once
+          // they are battered past SIEGE_DESTROYED_BELOW. Half into the men.
+          wrecked = wreckPark(atkPark, atRear * SORTIE.ENGINE_SHARE);
+          const atMen = atRear * (1 - SORTIE.ENGINE_SHARE);
+          applyToArm(atk, "archer", atMen * archerShare);
+          crewLost = damageEngineers(atk, atMen * (1 - archerShare));
+        }
+
+        const aFell = totalCasualties(atk.losses) - totalCasualties(preSortieA);
+        const dFell = totalCasualties(def.losses) - totalCasualties(preSortieD);
+        const engines = enginesBefore - totalEngines(atkPark);
+        say(
+          round,
+          "sortie",
+          sortieTale({ broke, heldByHorse: !broke && heldByCav > 0, aFell, dFell, engines, crewLost, wrecked }),
+          {
+            attackerRegulars: lineLosses(atk.losses) - lineLosses(preSortieA) +
+              (atk.losses.engineers - preSortieA.engineers),
+            defenderRegulars: lineLosses(def.losses) - lineLosses(preSortieD),
+            tone: broke ? "bad" : "good",
+          },
+        );
       }
     }
 
@@ -744,15 +843,40 @@ export function resolveBattle(
     def.losses.mercenariesDisbanded = settleMercenaries(defender);
   }
 
-  // MEDICINE — the field hospital. Defender only, sellswords only, and AFTER the
-  // cascade above so the surgeons never spend grain on a man who has nobody left
-  // to command him. See the MEDICINE block in balance.ts.
-  const hospital = fieldHospital(defender, def.mercFallen, researchLevel(defender, "medicine"));
-  if (hospital.recovered > 0) {
+  // MEDICINE — the field hospital, and BOTH sides get one at their own research
+  // level. It used to be the defender's alone, on the reasoning that a hospital
+  // works where your surgeons and stores are; but an army that marches carries
+  // its surgeons with it, and a field nobody can use on the attack is half a
+  // field. Run AFTER the cascade above so the surgeons never spend grain on a
+  // man who has nobody left to command him. See the MEDICINE block in
+  // balance.ts for the two-budget rule.
+  const surgeons = (p: Player, side: Side) => {
+    const h = fieldHospital(p, side.mercFallen, researchLevel(p, "medicine"));
+    // The ledger must show who is STILL DEAD, not who fell. Anyone the surgeons
+    // carried off is standing in the muster again, and a report that counted
+    // them as casualties would tell both empires a battle cost more than it
+    // did — the losses and the surviving army would simply disagree.
+    const LOSS_LINE = { footman: "footmen", archer: "archers", cavalry: "cavalry" } as const;
+    for (const arm of ["footman", "archer", "cavalry"] as const) {
+      side.losses[LOSS_LINE[arm]] = Math.max(0, side.losses[LOSS_LINE[arm]] - h.regularsByArm[arm]);
+    }
+    side.losses.engineers = Math.max(0, side.losses.engineers - h.regularEngineers);
+    side.losses.mercenaries = Math.max(0, side.losses.mercenaries - h.hired);
+    return h;
+  };
+  const atkHospital = surgeons(attacker, atk);
+  const defHospital = surgeons(defender, def);
+  const tale = (who: string, h: ReturnType<typeof surgeons>, tone: "good" | "bad") => {
+    if (h.recovered <= 0) return;
+    const bits: string[] = [];
+    if (h.regulars > 0) bits.push(`${h.regulars} of ${who === "Our" ? "our own" : "their own"}`);
+    if (h.hired > 0) bits.push(`${h.hired} sellsword${h.hired === 1 ? "" : "s"}`);
     say(rounds, "aftermath",
-      `The surgeons work through the night — ${hospital.recovered} sellsword${hospital.recovered === 1 ? "" : "s"} carried off the field alive for ${hospital.foodSpent.toLocaleString("en-US")} food.`,
-      { tone: "good" });
-  }
+      `${who === "Our" ? "Our" : "Their"} surgeons work through the night — ${bits.join(" and ")} carried off the field alive for ${h.foodSpent.toLocaleString("en-US")} food.`,
+      { tone });
+  };
+  tale("Our", atkHospital, "good");
+  tale("Their", defHospital, "bad");
 
   if (victor === "attacker") {
     attacker.battlesWon += 1;
@@ -799,7 +923,8 @@ export function resolveBattle(
       attacker: Math.round(attacker.army.experiencePoints - aXpBefore),
       defender: Math.round(defender.army.experiencePoints - dXpBefore),
     },
-    woundedRecovered: hospital.recovered,
+    // The DEFENDER's recoveries, which is what this field has always meant.
+    woundedRecovered: defHospital.recovered,
     siegeExperienceChange: {
       attacker: Math.round(attacker.army.siegeExperiencePoints - aSiegeBefore),
       defender: Math.round(defender.army.siegeExperiencePoints - dSiegeBefore),
@@ -920,19 +1045,96 @@ function returnRamCrew(side: Side, crew: RamCrew) {
   crew.committed = {};
 }
 
-/** A sortie that gets past the screen fires whatever it reaches. */
-function killSiege(park: Park<SiegeGearType>, surplus: number): number {
-  let budget = surplus;
-  let killed = 0;
-  for (const t of ["trebuchets", "ballistae", "siege_towers", "rams"] as SiegeGearType[]) {
-    while (park.crewed[t] > 0 && budget >= SIEGE_GEAR[t].health) {
-      park.crewed[t] -= 1;
-      park.destroyed[t] = ((park.destroyed[t] as number) ?? 0) + 1;
-      budget -= SIEGE_GEAR[t].health;
-      killed += 1;
-    }
+/**
+ * Whether the garrison is in any condition to open the gates at all — checked
+ * BEFORE the strength trigger, because this is about the state of the host
+ * rather than the odds in front of it.
+ *
+ * Two conditions, and the standing order is not one of them (the caller tests
+ * that): the men must be rested, and the screen must be worth riding behind.
+ *
+ *   RESTED    at or above SORTIE.MIN_STAMINA. Tired men hold the wall.
+ *   SCREENED  hired footmen and cavalry at SORTIE.MIN_SCREEN of what the cap
+ *             allows. Sellswords take CASUALTY_SPLIT.MERC_SHARE of every blow
+ *             aimed at their rank, so charging without them means paying for
+ *             the charge in your own population — and no sensible captain does
+ *             that while there is a wall to stand on instead.
+ *
+ * Read off the PLAYER as they mustered, not the working Side: this is a
+ * decision taken when the gates are opened, and the whole battle is a single
+ * exchange, so the muster is the only state there is.
+ *
+ * Archer and engineer sellswords are excluded deliberately. They stay behind
+ * the wall and cannot cushion a charge they are nowhere near.
+ */
+function willSally(p: Player): boolean {
+  if (p.army.stamina < SORTIE.MIN_STAMINA) return false;
+  const cap =
+    MERCENARIES.CAP_RATIO * (regularsOfArm(p, "footman") + regularsOfArm(p, "cavalry"));
+  // No regulars in the field arms means no cap and nothing to protect — there
+  // is no screen to be missing, so this gate has nothing to say.
+  if (cap <= 0) return true;
+  return mercsOfArm(p, "footman") + mercsOfArm(p, "cavalry") >= SORTIE.MIN_SCREEN * cap;
+}
+
+/** The weight of a charge that has ridden out of the gate. Cavalry are worth
+ *  half again in the open — that is the whole reason the order exists — and the
+ *  footmen who came out behind them fight as footmen. */
+const chargePower = (s: Side): number =>
+  armPower(s, "cavalry") * (1 + SORTIE.CAVALRY_BONUS) + armPower(s, "footman");
+
+const SIEGE_ORDER = ["trebuchets", "ballistae", "siege_towers", "rams"] as const;
+
+const totalEngines = (park: Park<SiegeGearType>): number =>
+  SIEGE_ORDER.reduce((sum, t) => sum + park.crewed[t], 0);
+
+/**
+ * A sortie that gets past the screen goes at the engines — the tall ones first,
+ * because a trebuchet is what the whole sally was for.
+ *
+ * It WEARS them rather than firing them outright. This is the same rule the
+ * counter-duel uses: damage comes off integrity, and an engine is only lost
+ * once it is battered below SIEGE_DESTROYED_BELOW. A breakthrough that used to
+ * end a siege now mostly leaves a park that needs repairing.
+ */
+function wreckPark(park: Park<SiegeGearType>, damage: number): number {
+  let budget = damage;
+  let lost = 0;
+  for (const t of SIEGE_ORDER) {
+    if (budget <= 0) break;
+    const pool = park.crewed[t] * SIEGE_GEAR[t].health * park.integrity[t];
+    if (pool <= 0) continue;
+    const spend = Math.min(budget, pool);
+    lost += damagePark(park, t, spend, SIEGE_GEAR[t].health);
+    budget -= spend;
   }
-  return killed;
+  return lost;
+}
+
+/** What the sortie looked like from the siege lines. */
+function sortieTale(o: {
+  broke: boolean;
+  /** Held, but only after the attacker's own horse had to counter-charge. */
+  heldByHorse: boolean;
+  aFell: number;
+  dFell: number;
+  engines: number;
+  crewLost: number;
+  wrecked: number;
+}): string {
+  const { broke, heldByHorse, aFell, dFell, engines, crewLost, wrecked } = o;
+  if (!broke) {
+    const how = heldByHorse
+      ? `our line takes the shock and our own horse ride out to meet what spills past it`
+      : `our footmen are dug in behind the stakes and hold them at the ditch`;
+    return `The gates swing open and their horse come out at our siege lines — ${how}. Not one of them reaches the engines. ${dFell} riders are left in front of us for ${aFell} of ours.`;
+  }
+  const damage: string[] = [];
+  if (engines > 0) damage.push(`${engines} engine${engines === 1 ? " is" : "s are"} smashed past repair`);
+  else if (wrecked > 0) damage.push(`the engines are badly knocked about`);
+  if (crewLost > 0) damage.push(`${crewLost} engineer${crewLost === 1 ? "" : "s"} cut down among them`);
+  const toll = damage.length ? ` ${damage.join(" and ")}.` : ` Our crews scatter and the engines are mauled.`;
+  return `The gates swing open — their horse ride through our screen and in among the siege park. Our bowmen and engineers turn on them where they stand.${toll} ${aFell} of ours fall to it, and ${dFell} of theirs never ride back.`;
 }
 
 function writeBackPark<T extends string>(

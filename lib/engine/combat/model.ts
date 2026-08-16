@@ -11,6 +11,7 @@
 // Pure — no I/O, no clock, RNG injected by the caller.
 
 import {
+  COMBAT_TEMPO,
   DAMAGE_TAKEN,
   CASUALTY_SPLIT,
   CASUALTY_TIER_ORDER,
@@ -20,9 +21,12 @@ import {
   MEDICINE,
   MERCENARIES,
   RACES,
+  REVENGE_BLOODLUST,
   SIEGE_ACCURACY,
   MAX_FIELD_LEVEL,
+  SORTIE,
   STAMINA,
+  UNIT_POWER,
   UNIT_STATS,
   WAR,
   WARWORKS_BONUS_PER_LEVEL,
@@ -144,6 +148,8 @@ export interface BonusContext {
   entrenched?: boolean;
   /** Clan war doubles the blood. */
   war?: boolean;
+  /** Answering a blow already struck against you — the avenging side only. */
+  revenge?: boolean;
   /** Sellswords carry your EQUIPMENT and DOCTRINE — the Forge, the Armoury,
    *  the Art of War — but none of your race or veterancy. Bought steel and
    *  bought drill; not bought blood, not bought scars. */
@@ -173,6 +179,11 @@ export function bonusPool(p: Player, ctx: BonusContext): number {
   if (ctx.sortie && ctx.arm === "cavalry") sum += SORTIE_CAVALRY_BONUS();
   if (ctx.entrenched) sum += ENTRENCHED();
   if (ctx.war) sum += WAR.DAMAGE_BONUS;
+  // Bloodlust. Reaches the HIRED as well, on the same rule as a clan war: it is
+  // the host's fury, and a sellsword marching in an avenging column marches in
+  // the same column. Flip this above the `isMerc` return if it should be your
+  // own people only.
+  if (ctx.revenge) sum += REVENGE_BLOODLUST;
 
   // Hired blades stop here. No race, no veterancy — and no wall ROLE bonus,
   // which is a drilled position rather than a place to stand.
@@ -192,7 +203,6 @@ export function bonusPool(p: Player, ctx: BonusContext): number {
 }
 
 // Imported lazily to keep the constant list at the top readable.
-import { SORTIE } from "../../constants";
 const SORTIE_CAVALRY_BONUS = () => SORTIE.CAVALRY_BONUS;
 const ENTRENCHED = () => SORTIE.ENTRENCHED_BONUS;
 
@@ -286,6 +296,8 @@ export interface SideOptions {
   war: boolean;
   /** Raids are open-field: engineers stay home and take no part at all. */
   engineersPresent: boolean;
+  /** Set on the AVENGING side of a revenge — REVENGE_BLOODLUST. */
+  revenge?: boolean;
   /** Footmen (then cavalry, then archers) committed to pushing rams — they are
    *  not in the battle line until the wall is breached. */
   ramCrew?: Partial<Record<Arm, { merc: Record<Tier, number>; regular: Record<Tier, number> }>>;
@@ -304,7 +316,7 @@ export function buildSide(p: Player, opts: SideOptions): Side {
   const push = (arm: Arm, tier: Tier, count: number, isMerc: boolean) => {
     if (count <= 0) return;
     const stats = UNIT_STATS[arm][tier];
-    const atkCtx: BonusContext = { kind: "attack", arm, war: opts.war, isMerc };
+    const atkCtx: BonusContext = { kind: "attack", arm, war: opts.war, isMerc, revenge: opts.revenge };
     // Everything EXCEPT the wall, which moves during the battle.
     const defCtx: BonusContext = {
       kind: "defence",
@@ -402,6 +414,16 @@ export const totalHealth = (s: Side): number =>
 
 export const headcount = (s: Side): number => s.groups.reduce((sum, g) => sum + g.count, 0);
 
+/** Heads in one arm, hired and raised alike. The SORTIE holds are counted in
+ *  men rather than power: a hundred footmen distract two hundred riders whoever
+ *  those riders are, because what a shield wall does is occupy people. */
+export const armHeads = (s: Side, arm: Arm): number =>
+  s.groups.reduce((n, g) => (g.arm === arm ? n + g.count : n), 0);
+
+/** …and the whole line that can hold ground or ride out. Archers are not in it,
+ *  for the same reason they are not in `fieldPower`. */
+export const fieldHeads = (s: Side): number => armHeads(s, "footman") + armHeads(s, "cavalry");
+
 /** Power of the arms that can hold a line — what a sortie must get through and
  *  what the screen is measured in. Archers and engines don't count. */
 export const fieldPower = (s: Side): number =>
@@ -452,7 +474,7 @@ function kill(side: Side, g: Group, n: number) {
  * which meant the 30% found your heavy regulars from the first exchange no
  * matter what stood in front of them — the cushion could not cushion.
  */
-function applyToArm(side: Side, arm: Arm, damage: number): number {
+export function applyToArm(side: Side, arm: Arm, damage: number): number {
   let left = damage;
   for (const tier of CASUALTY_TIER_ORDER) {
     if (left <= 0) break;
@@ -502,8 +524,9 @@ export function aimDamage(target: Side, damage: number, order: Arm[]) {
   }
 }
 
-/** Engineer casualties. They never fall to a charge — only to the duel, or to
- *  a sortie that got past the screen. Sellsword crews go first. */
+/** Engineer casualties by the head — the duel kills this way, because a counter
+ *  that overwhelms an engine kills the men standing at it and there is no
+ *  fight to be had. Sellsword crews go first. */
 export function killEngineers(side: Side, n: number) {
   let left = Math.max(0, Math.floor(n));
   const fromMerc = Math.min(side.mercEngineers, left);
@@ -514,7 +537,70 @@ export function killEngineers(side: Side, n: number) {
   const fromReg = Math.min(side.engineers, left);
   side.engineers -= fromReg;
   side.losses.engineers += fromReg;
+  side.mercFallen.regularEngineers += fromReg;
 }
+
+/** Engineer casualties by DAMAGE — the rear-guard clash kills this way, because
+ *  there the engineers are fighting back and a blow aimed at one may not land.
+ *
+ *  Same rule as every other arm: the sellsword crews take CASUALTY_SPLIT.
+ *  MERC_SHARE of it, what they cannot absorb falls through to your own, and
+ *  DAMAGE_TAKEN.engineer decides how much of a blow tells at all. Engineers
+ *  carry the lowest number in that table — they are not turning blows, they
+ *  are running, and most of them get away. */
+export function damageEngineers(side: Side, damage: number): number {
+  if (damage <= 0) return 0;
+  const dodge = DAMAGE_TAKEN.engineer;
+  const hp = UNIT_POWER.engineer.health;
+  const mercCapacity = (side.mercEngineers * hp) / dodge;
+  const regCapacity = (side.engineers * hp) / dodge;
+  if (mercCapacity + regCapacity <= 0) return 0;
+
+  const toMerc = Math.min(damage * CASUALTY_SPLIT.MERC_SHARE, mercCapacity);
+  const toReg = Math.min(damage - toMerc, regCapacity);
+  const mercDead = Math.min(side.mercEngineers, Math.floor((toMerc * dodge) / hp));
+  const regDead = Math.min(side.engineers, Math.floor((toReg * dodge) / hp));
+
+  side.mercEngineers -= mercDead;
+  side.losses.mercenaries += mercDead;
+  side.mercFallen.engineers += mercDead;
+  side.engineers -= regDead;
+  side.losses.engineers += regDead;
+  side.mercFallen.regularEngineers += regDead;
+  return mercDead + regDead;
+}
+
+/** The two things standing between a breakthrough and the engines, kept apart
+ *  because a blow aimed at the rear guard has to divide between them. Both on
+ *  the RAW power scale — `rearGuardPower` applies the tempo, and the share is a
+ *  ratio, where the tempo would only cancel. */
+const rearGuardParts = (s: Side) => {
+  // Archers fight at a fraction of their power with horse already inside the
+  // lines, and carry every bonus they normally would. Engineers carry NONE:
+  // UNIT_POWER.engineer.power is a flat 10 a head, no research, no race, no
+  // veterancy — they are not soldiers, they are crews with tools.
+  const archers =
+    s.groups.filter((g) => g.arm === "archer").reduce((sum, g) => sum + g.count * g.power, 0) *
+    SORTIE.ARCHER_MELEE;
+  const engineers = (s.engineers + s.mercEngineers) * UNIT_POWER.engineer.power;
+  return { archers, engineers, total: archers + engineers };
+};
+
+/** What the rear guard brings to the third clash. This is the ONLY place either
+ *  archers or engineers are read as a fighting force — `fieldPower` still counts
+ *  footmen and cavalry alone. */
+export const rearGuardPower = (s: Side): number =>
+  // COMBAT_TEMPO, exactly as `armPower` applies it. Without it this sum sits on
+  // the RAW power scale while every other blow in the sortie is tempo'd, and
+  // the rear guard fights the breakthrough at ten times its true weight.
+  rearGuardParts(s).total * COMBAT_TEMPO;
+
+/** …and how that power divides between the two, which is how a blow aimed at
+ *  the rear guard divides between them: the ones swinging hardest draw it. */
+export const rearGuardArcherShare = (s: Side): number => {
+  const { archers, total } = rearGuardParts(s);
+  return total > 0 ? archers / total : 0;
+};
 
 export const regularsLost = (l: SideLosses): number =>
   l.footmen + l.archers + l.cavalry + l.engineers;
@@ -596,76 +682,109 @@ export function fieldHospital(
   p: Player,
   fallen: MercFallen,
   level: number,
-): { recovered: number; foodSpent: number } {
-  if (level <= 0) return { recovered: 0, foodSpent: 0 };
+): {
+  recovered: number;
+  regulars: number;
+  hired: number;
+  foodSpent: number;
+  /** Saved regulars BY ARM, plus the crews — so the caller can take them back
+   *  off the right line of the losses ledger. Crediting a saved horseman to the
+   *  footmen would leave the report and the surviving army disagreeing, which is
+   *  the exact fault this whole rework is fixing. */
+  regularsByArm: Record<Arm, number>;
+  regularEngineers: number;
+} {
+  const noArms = (): Record<Arm, number> => ({ footman: 0, archer: 0, cavalry: 0 });
+  const none = {
+    recovered: 0, regulars: 0, hired: 0, foodSpent: 0,
+    regularsByArm: noArms(), regularEngineers: 0,
+  };
+  if (level <= 0) return none;
 
   const tiers: Tier[] = ["heavy", "medium", "light"];
   const ARMS: Arm[] = ["cavalry", "footman", "archer"];
   // Heaviest first: they are the dearest to replace and the ones a player would
   // choose to save. The cheap ranks died first, so this is also the reverse of
   // the order they fell in — the surgeons reach the back line.
-  //
-  // REGULARS BEFORE HIRED at every rank. They are population: they cannot be
-  // re-bought at any price, they carry the veterancy, and they are what the
-  // whole war is actually being fought over.
-  const queue: { arm: Arm; tier: Tier; merc: boolean }[] = [];
-  for (const tier of tiers) {
-    for (const arm of ARMS) {
-      for (let i = 0; i < (fallen.regularLine[arm]?.[tier] ?? 0); i++) {
-        queue.push({ arm, tier, merc: false });
-      }
-      for (let i = 0; i < (fallen.line[arm]?.[tier] ?? 0); i++) {
-        queue.push({ arm, tier, merc: true });
+  const line = (ledger: MercFallen["line"]) => {
+    const q: { arm: Arm; tier: Tier }[] = [];
+    for (const tier of tiers) {
+      for (const arm of ARMS) {
+        for (let i = 0; i < (ledger[arm]?.[tier] ?? 0); i++) q.push({ arm, tier });
       }
     }
-  }
-  const totalFallen = queue.length + fallen.engineers + fallen.regularEngineers;
-  if (totalFallen === 0) return { recovered: 0, foodSpent: 0 };
+    return q;
+  };
+  const regQueue = line(fallen.regularLine);
+  const mercQueue = line(fallen.line);
+  const regFallen = regQueue.length + fallen.regularEngineers;
+  const mercFallen = mercQueue.length + fallen.engineers;
+  if (regFallen + mercFallen === 0) return none;
 
-  // A share a level of the dead, but never fewer than one head a level — a
-  // share of a small skirmish rounds to nothing, and a field that visibly does
-  // nothing in the fights a new player actually has is a field nobody takes.
-  const byShare = Math.round(totalFallen * MEDICINE.RECOVER_PER_LEVEL * level);
-  const wanted = Math.min(totalFallen, Math.max(MEDICINE.MIN_PER_LEVEL * level, byShare));
+  /**
+   * TWO BUDGETS, NOT ONE — and this is the whole point of the rule.
+   *
+   * The share is worked out for your own dead and the hired dead SEPARATELY.
+   * Pooling them meant a screen dying in bulk bought a recovery budget far
+   * larger than the regular casualties it was spent on, so with regulars drawn
+   * first from a single queue, a big enough sellsword massacre recovered EVERY
+   * regular who fell. Your own people were being saved by other men dying,
+   * which is precisely backwards.
+   *
+   * The floor applies per pool for the same reason it exists at all: a share of
+   * a small skirmish rounds to nothing, and that is as true of five dead
+   * regulars as of five dead sellswords.
+   */
+  const budget = (n: number) =>
+    n <= 0
+      ? 0
+      : Math.min(n, Math.max(MEDICINE.MIN_PER_LEVEL * level, Math.round(n * MEDICINE.RECOVER_PER_LEVEL * level)));
+  const wantReg = budget(regFallen);
+  const wantMerc = budget(mercFallen);
 
   // The surgeons may open the vault; a hospital that let men die beside a full
-  // granary would be a strange hospital.
+  // granary would be a strange hospital. ONE granary feeds both pools, so food
+  // is the one thing they still compete for — and your own are treated first.
   const vault = { ...bankedRes(p) };
   const affordable = Math.floor((p.resources.food + vault.food) / MEDICINE.FOOD_PER_RECOVERY);
-  let recovered = 0;
+  let regulars = 0;
+  let hired = 0;
+  const regularsByArm = noArms();
+  const spent = () => regulars + hired;
   const m = p.army.mercenaries;
   const ARM_KEY = { footman: "footmen", archer: "archers", cavalry: "cavalry" } as const;
 
-  // Engine crews first — untiered, and the cheapest bookkeeping. Your own
-  // before the hired, on the same rule as the line.
-  const ownCrews = Math.min(fallen.regularEngineers, wanted, affordable);
+  // ── Your own ──────────────────────────────────────────────────────────────
+  const ownCrews = Math.min(fallen.regularEngineers, wantReg, affordable);
   if (ownCrews > 0) {
     p.army.siegeEngineers += ownCrews;
-    recovered += ownCrews;
+    regulars += ownCrews;
   }
+  for (const { arm, tier } of regQueue) {
+    if (regulars >= wantReg || spent() >= affordable) break;
+    // NO bed check. A revived regular is going back into the bunk they vacated
+    // ten minutes ago — they died out of it, so putting them back cannot
+    // overfill the hall.
+    p.army[ARM_KEY[arm]][tier] += 1;
+    regularsByArm[arm] += 1;
+    regulars += 1;
+  }
+
+  // ── The hired ─────────────────────────────────────────────────────────────
   const engineerRoom = mercRoom(p, "engineer");
-  const engineers = Math.min(fallen.engineers, wanted - recovered, affordable - recovered, engineerRoom);
+  const engineers = Math.min(fallen.engineers, wantMerc, affordable - spent(), engineerRoom);
   if (engineers > 0) {
     m.engineers += engineers;
-    recovered += engineers;
+    hired += engineers;
+  }
+  for (const { arm, tier } of mercQueue) {
+    if (hired >= wantMerc || spent() >= affordable) break;
+    if (mercRoom(p, arm) <= 0) continue; // no regulars left to command them
+    m[ARM_KEY[arm]][tier] += 1;
+    hired += 1;
   }
 
-  for (const { arm, tier, merc } of queue) {
-    if (recovered >= wanted || recovered >= affordable) break;
-    if (merc) {
-      if (mercRoom(p, arm) <= 0) continue; // no regulars left to command them
-      m[ARM_KEY[arm]][tier] += 1;
-    } else {
-      // NO bed check. A revived regular is going back into the bunk they
-      // vacated ten minutes ago — they died out of it, so putting them back
-      // cannot overfill the hall. Gating on free beds meant an army at its
-      // muster cap, which is the ordinary state of a well-run empire, could
-      // never have a single soldier saved.
-      p.army[ARM_KEY[arm]][tier] += 1;
-    }
-    recovered += 1;
-  }
-
+  const recovered = spent();
   const foodSpent = recovered * MEDICINE.FOOD_PER_RECOVERY;
   const fromLoose = Math.min(p.resources.food, foodSpent);
   p.resources.food -= fromLoose;
@@ -673,7 +792,7 @@ export function fieldHospital(
     vault.food -= foodSpent - fromLoose;
     p.bankedResources = vault;
   }
-  return { recovered, foodSpent };
+  return { recovered, regulars, hired, foodSpent, regularsByArm, regularEngineers: ownCrews };
 }
 
 /** How many more sellswords of this arm the CAP_RATIO leaves room for. */

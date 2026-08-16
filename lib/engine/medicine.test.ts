@@ -188,13 +188,28 @@ describe("in a real battle", () => {
     expect(host(healed.defender)).toBeGreaterThan(host(plain.defender));
   });
 
-  it("does NOT help the attacker — it is a hospital, not a baggage train", () => {
-    const { a, d } = pair();
-    a.army.mercenaries.footmen.heavy = 100;
-    a.research.levels.medicine = MAX_FIELD_LEVEL;
-    a.resources.food = 1_000_000;
-    const out = resolveBattle(a, d, "raid", { ...opts, rng: seededRng(11) });
-    expect(out.report.woundedRecovered ?? 0).toBe(0);
+  // The rule used to be "defence only — a hospital, not a baggage train". It is
+  // both sides now, each at its OWN research level: an army that marches takes
+  // its surgeons with it, and a field nobody can use on the attack is half a
+  // field. `woundedRecovered` still reports the DEFENDER's tally, which is what
+  // it has always meant, so this has to be read off the army instead.
+  it("helps the ATTACKER too, at their own research level", () => {
+    const mk = (medicine: number) => {
+      const { a, d } = pair();
+      a.army.mercenaries.footmen.heavy = 100;
+      a.research.levels.medicine = medicine;
+      a.resources.food = 1_000_000;
+      return { a, d };
+    };
+    const without = mk(0);
+    const w0 = resolveBattle(without.a, without.d, "raid", { ...opts, rng: seededRng(11) });
+    const with_ = mk(MAX_FIELD_LEVEL);
+    const w1 = resolveBattle(with_.a, with_.d, "raid", { ...opts, rng: seededRng(11) });
+    // Same dice, same fight — the surgeons are the only difference, so the
+    // avenging host comes home larger.
+    const host = (p: Player) =>
+      troopTotal(p.army.footmen) + troopTotal(p.army.cavalry) + troopTotal(p.army.mercenaries.footmen);
+    expect(host(w1.attacker)).toBeGreaterThan(host(w0.attacker));
   });
 
   // The old rule was the opposite: the hospital was a sellsword-only perk and
@@ -211,8 +226,11 @@ describe("in a real battle", () => {
     const lost = out.report.defenderLosses;
     expect(lost.footmen + lost.archers + lost.cavalry).toBeGreaterThan(0);
     expect(out.report.woundedRecovered ?? 0).toBeGreaterThan(0);
-    // MORE regulars on the books than "start − losses": the difference is
-    // exactly the men the surgeons carried off.
-    expect(troopTotal(out.defender.army.footmen)).toBeGreaterThan(startFoot - lost.footmen);
+    // The LEDGER AND THE ARMY MUST AGREE. `losses` reports who is still dead,
+    // not who fell — anyone the surgeons carried off is standing in the muster
+    // again, and booking them as casualties too would tell both empires the
+    // battle cost more than it did. This used to assert the opposite (army >
+    // start − losses), which was the bug: the report double-counted the saved.
+    expect(troopTotal(out.defender.army.footmen)).toBe(startFoot - lost.footmen);
   });
 });

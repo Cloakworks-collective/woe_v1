@@ -107,7 +107,7 @@ const counterPower = (t: CounterType, park: Park<CounterType>) =>
 /** Apply damage to one engine type. Health is a shared pool across the type;
  *  when it drains past the wreck threshold, engines are lost outright and the
  *  remainder carries over. Returns how many were destroyed. */
-function damagePark<T extends string>(
+export function damagePark<T extends string>(
   park: Park<T>,
   t: T,
   damage: number,

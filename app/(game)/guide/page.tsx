@@ -374,7 +374,15 @@ export default function GuidePage() {
           <li>
             <b>The sortie</b> — whether your defenders ride out to meet an attacker or hold the
             wall. Cavalry gain nothing behind stone and everything in the open, so a cavalry-heavy
-            defence wants it and a footman-heavy one almost certainly does not.
+            defence wants it and a footman-heavy one almost certainly does not. Riding out is{" "}
+            <b>not free</b>, and your captains will refuse it outright if the host is under{" "}
+            <b>70 stamina</b> or your hired horse and foot have fallen below <b>70% of the hire
+            cap</b> — tired men with no screen hold the wall instead. Past that, the gates only
+            open if your horse outweigh their screen half again,
+            and the screen is dug in and fights back. Get through it and you are among the engines
+            — where their bowmen and engineers turn on you, and half of what you land goes into
+            the siege train and half into the men holding it. Engines are <b>battered, not burned</b>
+            : it takes several sorties to put a trebuchet past repair.
           </li>
         </ul>
         <h4>How a battle resolves — one exchange, not a war</h4>

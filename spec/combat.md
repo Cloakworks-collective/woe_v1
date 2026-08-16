@@ -113,9 +113,14 @@ Light tier; medium ×1.8 and heavy ×3 on **both** power and health.
 | Footman | 10 | 20 |
 | Archer | 12 | 12 |
 | Cavalry | 15 | 16 |
-| Siege engineer | 0 | 10 |
+| Siege engineer | 10 | 10 |
 
-Engineers never attack. They crew engines and they die.
+Engineers never **attack** — they crew engines and they die. The 10 power is
+read in exactly one place: the rear-guard clash of a sortie, where horse are
+already among the engines and the crews pick up whatever is to hand. They also
+take `DAMAGE_TAKEN` 0.30 — level with cavalry, worse than a drilled footman —
+and that is flight rather than skill: they scatter, and a rider chasing one is
+a rider not burning a trebuchet.
 
 ---
 
@@ -376,7 +381,7 @@ sortie that got past the screen, and nowhere else.
 
 ### Ram crews
 
-Twenty pairs of hands per ram, drawn **footmen → cavalry → archers**, with
+Six pairs of hands per ram, drawn **footmen → cavalry → archers**, with
 effectiveness ×1.20 / ×1.10 / ×1.00 by who is pushing. They are *not* in the
 battle line — pushing a ram against a gate is not holding a shield wall — and
 Boiling Oil can scald them where they stand. At a breach (wall ≤50%) they drop
@@ -384,13 +389,45 @@ the beams and join the assault.
 
 ### The sortie
 
-A standing order the defender sets out of combat. Cavalry lead, each bringing
-three footmen behind, and cavalry fight at **+50%** in the open. It triggers
-only when the defender's field arm outweighs the attacker's screen by 1.5×.
+A standing order the defender sets out of combat. It is **two battles fought
+back to back**, not a formula — the forces present fight, and both sides bleed
+in both stages. Defenders keep the wall's protection throughout.
 
-The attacker's footmen and cavalry form a **screen** that holds off 5× its own
-strength, entrenched at +20%. Only the surplus reaches the engineers and the
-engines. Defenders keep the wall's protection either way.
+**The gates open** only when three things are true. Below any of them they stay
+shut and the phase is silent.
+
+1. The defender's field arm (footmen and cavalry — archers never count)
+   outweighs the attacker's screen by **1.5×**.
+2. The garrison is at **70 stamina or better**. Tired men hold the wall.
+3. Their hired footmen and cavalry are at **70% of the hire cap**. Sellswords
+   absorb the merc share of every blow, so riding out without them means paying
+   for the charge in your own population. Hired archers and engineers are not
+   counted — they stay behind the wall and cushion nothing.
+
+Note where (2) sits relative to `STAMINA.MERCY_FLOOR` (30). Between the two a
+garrison is well enough to FIGHT but not well enough to SALLY, and that band is
+deliberate: **a sortie is a first answer, not a last one.** A defender being
+ground down through a morning stops riding out long before they stop resisting,
+so an attacker cannot be counter-charged forever by a host they have already
+worn to nothing.
+
+**Stage 1 · the screen clash.** The riders against the attacker's footmen and
+cavalry. Cavalry fight at **+50%** on open ground; the screen is **+20%** for
+being dug in around the siege lines. Casualties follow the ordinary rule —
+sellswords first at each rank, each arm at its own dodge.
+
+**Stage 2 · the rear-guard clash.** The riders push on only if what survives of
+the charge still outweighs what survives of the screen, and only that surplus
+share of them arrives. Waiting are the **archers**, fighting at **50% power**
+(a bow is a poor weapon at knife range), and the **engineers**, who fight at
+10 power and take only **15%** of any blow — the lowest number in the game,
+and it is flight rather than skill. What the riders land is split **half into
+the siege park, half into the men holding it**.
+
+Engines are **worn, not fired**: damage comes off integrity tallest-engine
+first (trebuchets → ballistae → towers → rams) and an engine is only lost once
+it is battered below the wreck line. A breakthrough that used to end a siege
+now costs the besieger a repair bill and three or four sorties' patience.
 
 ---
 

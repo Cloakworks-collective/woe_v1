@@ -1185,11 +1185,32 @@ export const CLAN_MUTE_DAYS = [1, 3] as const;
  * THE FLOOR MATTERS AS MUCH AS THE RATE. 4% of a small skirmish rounds to
  * nothing, and a research that visibly does nothing in the fights a new player
  * actually has is a research nobody takes. So each level guarantees one head.
+ *
+ * TWO BUDGETS, AND BOTH ARMIES.
+ *
+ * The share is worked out for YOUR OWN dead and the HIRED dead separately, each
+ * with its own floor. Pooling them was a real fault rather than a rounding one:
+ * a screen dying in bulk bought a budget far larger than the regular casualties
+ * it was spent on, and since regulars are treated first, a big enough sellsword
+ * massacre recovered every single regular who fell. Your own people were being
+ * saved by other men dying, which is exactly backwards.
+ *
+ * And it runs for BOTH sides now, each at its own research level. It used to be
+ * the defender's alone — "a hospital, not a baggage train" — but an army that
+ * marches carries its surgeons with it, and a field nobody can use on the
+ * attack is half a field.
+ *
+ * One granary feeds both pools, so food is the only thing they compete for, and
+ * your own are treated first when it runs short.
  */
 export const MEDICINE = {
-  /** Share of fallen sellswords recovered, per level — 20% at mastery. */
+  /** Share of the fallen recovered per level — 20% at mastery. Applied to
+   *  your own dead and the hired dead SEPARATELY, never to the two pooled. */
   RECOVER_PER_LEVEL: 0.04, // frac
-  /** …but never fewer than this many heads per level, if that many fell. */
+  /** …but never fewer than this many heads per level, if that many fell.
+   *  Per pool, for the same reason the floor exists at all: a share of a small
+   *  skirmish rounds to nothing, and that is as true of five dead regulars as
+   *  of five dead sellswords. */
   MIN_PER_LEVEL: 1,
   /** Food per head the surgeons spend. Partial treatment is allowed: a granary
    *  that covers three of five saves three. Food because a hospital runs on

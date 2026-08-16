@@ -304,7 +304,7 @@ export const RESEARCH_INFO: Record<ResearchField, { title: string; tip: string; 
     title: "Medicine",
     tip: "A surgeon's tent behind your own lines. The sellswords who fall defending you are carried off alive, so the screen in front of your regulars lasts longer.",
     bullets: [
-      `${pct(MEDICINE.RECOVER_PER_LEVEL)} of the sellswords who die DEFENDING you are recovered, per level — ${pct(MEDICINE.RECOVER_PER_LEVEL * MAX_FIELD_LEVEL)} at mastery`,
+      `${pct(MEDICINE.RECOVER_PER_LEVEL)} of your fallen recovered per level — ${pct(MEDICINE.RECOVER_PER_LEVEL * MAX_FIELD_LEVEL)} at mastery. Attacking or defending, and your own dead and the hired counted separately, so a dying screen never buys back your levy`,
       `Never fewer than ${MEDICINE.MIN_PER_LEVEL} head per level, so it still shows in a small skirmish`,
       `Costs ${MEDICINE.FOOD_PER_RECOVERY} food a head from your stores — a granary that covers three of five saves three`,
       "DEFENCE only: it is a hospital, not a baggage train. Marching abroad heals nobody",
