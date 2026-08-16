@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { covertHistory, covertTurnCost, recordCovert, runCovertOp } from "./espionageOps";
+import { covertHistory, covertTurnCost, recordCovert, runCovertOp, scoutsNeeded } from "./espionageOps";
 import { covertOp } from "../constants";
 import { newEmpire } from "./newEmpire";
 import { COVERT_LOG_DAYS, MERCENARIES, TURNS_PER_DAY } from "../constants";
@@ -149,7 +149,10 @@ describe("the spy turn economy", () => {
   it("cost is derived from the agents sent — you cannot under-fund a mission", () => {
     const op = covertOp("steal_research")!;
     expect(covertTurnCost(op, 100)).toBe(100); // 1.0 turns/agent, the dearest op
-    expect(covertTurnCost(covertOp("survey_coffers")!, 100)).toBe(10);
+    // Rangers are a flat rate whatever they are looking at — the deeper look
+    // costs more because it needs more PEOPLE, not because they charge more.
+    expect(covertTurnCost(covertOp("survey_coffers")!, 100)).toBe(200);
+    expect(covertTurnCost(covertOp("map_research")!, 100)).toBe(200);
   });
 
   it("refuses a mission the covert budget cannot pay for", () => {
@@ -292,5 +295,72 @@ describe("rangers standing watch", () => {
     const r = runCovertOp(spymaster(300), blind(), "incite_unrest", 1, 1000, seededRng(9));
     const span = (r.defender.unrestUntilTick ?? 1000) - 1000;
     expect(span).toBeGreaterThanOrEqual(Math.round(TURNS_PER_DAY * 0.1));
+  });
+});
+
+describe("scouting is priced by the realm you are looking at", () => {
+  /** A scouting power with rangers to spare and no research to sharpen them. */
+  const ranger = (scouts = 500) => {
+    const p = newEmpire({ id: "r", name: "Ranger", race: "human" });
+    p.buildings.rangers_lodge = 6;
+    p.army.scouts = scouts;
+    p.spyTurnsAvailable = 200;
+    return p;
+  };
+  /** Targets differ only in how many people live there. */
+  const realm = (peasants: number) => {
+    const p = newEmpire({ id: "t", name: "Target", race: "human" });
+    p.idlePeasants = peasants;
+    p.gold = 1_000_000;
+    return p;
+  };
+
+  it("a giant takes more rangers to read than a neighbour", () => {
+    const op = covertOp("map_army")!;
+    const small = scoutsNeeded(op, realm(500), ranger());
+    const large = scoutsNeeded(op, realm(20_000), ranger());
+    expect(large).toBeGreaterThan(small);
+  });
+
+  it("and a deeper look takes more than a shallow one", () => {
+    const target = realm(5_000);
+    expect(scoutsNeeded(covertOp("map_research")!, target, ranger()))
+      .toBeGreaterThan(scoutsNeeded(covertOp("survey_coffers")!, target, ranger()));
+  });
+
+  it("Pathfinding buys the requirement down — the field's job on offence", () => {
+    const op = covertOp("map_army")!;
+    const target = realm(10_000);
+    const green = ranger();
+    const trained = ranger();
+    trained.research.levels.pathfinding = 5;
+    expect(scoutsNeeded(op, target, trained)).toBeLessThan(scoutsNeeded(op, target, green));
+  });
+
+  it("a full party reports figures; a short one reports ranges", () => {
+    const op = covertOp("survey_coffers")!;
+    const target = realm(3_000);
+    const need = scoutsNeeded(op, target, ranger());
+    const full = runCovertOp(ranger(), target, "survey_coffers", need, 1000, seededRng(2));
+    const half = runCovertOp(ranger(), target, "survey_coffers", Math.ceil(need * 0.6), 1000, seededRng(2));
+    expect(full.facts!.some((f) => f.value.includes("–"))).toBe(false);
+    expect(half.facts!.some((f) => f.value.includes("–"))).toBe(true);
+    expect(half.detail).toMatch(/estimates/);
+  });
+
+  it("too few rangers cannot finish at all — and the turns are still gone", () => {
+    const op = covertOp("map_research")!;
+    const target = realm(20_000);
+    const need = scoutsNeeded(op, target, ranger());
+    const r = runCovertOp(ranger(), target, "map_research", Math.max(1, Math.floor(need * 0.1)), 1000, seededRng(3));
+    expect(r.facts).toBeUndefined();
+    expect(r.detail).toMatch(/could not finish/i);
+    expect(r.turnsSpent).toBeGreaterThan(0);
+  });
+
+  it("never catches anybody — rangers work in the open", () => {
+    const r = runCovertOp(ranger(), realm(10_000), "map_walls", 20, 1000, seededRng(4));
+    expect(r.intercepted).toBe(0);
+    expect(r.exposed).toBe(false);
   });
 });

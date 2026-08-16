@@ -24,6 +24,8 @@ import {
   EFFECT_PER_LEVEL,
   GUILD_BONUS_PER_LEVEL,
   INTERCEPTION,
+  RECON_FUZZ,
+  SCOUT_MISSION,
   LODGE_BONUS_PER_LEVEL,
   MAX_FIELD_LEVEL,
   RACES,
@@ -74,11 +76,59 @@ export interface CovertResult {
   turnsSpent: number;
 }
 
-/** turnCost = agents × turnsPerAgent. Derived, never chosen — you cannot
- *  under-fund an infiltration, you can only send fewer people. The interesting
- *  decision is how many to commit against the rangers you believe are waiting. */
+/** Derived, never chosen — you cannot under-fund an operation, you can only
+ *  send fewer people. Rangers cost a flat SCOUT_MISSION.TURNS_PER_SCOUT apiece
+ *  whatever they are looking at; knives are priced by how deep the op goes. */
 export function covertTurnCost(op: CovertOpMeta, agents: number): number {
+  if (op.arm === "scout") return agents * SCOUT_MISSION.TURNS_PER_SCOUT;
   return Math.ceil(agents * op.turnsPerAgent);
+}
+
+/**
+ * Rangers a mission needs, before deciding how many you actually sent.
+ *
+ * Scales with the SIZE OF THE REALM you are looking at — counting a giant's
+ * granaries is an expedition, counting a neighbour's is an afternoon — and
+ * Pathfinding buys the whole thing down.
+ */
+export function scoutsNeeded(op: CovertOpMeta, target: Player, scout: Player): number {
+  const base = op.scouts ?? 1;
+  const size = 1 + totalPopulation(target) / SCOUT_MISSION.POP_SCALE;
+  const relief = 1 - Math.min(0.9, researchLevel(scout, "pathfinding") * SCOUT_MISSION.PATHFINDING_RELIEF);
+  return Math.max(1, Math.ceil(base * size * relief));
+}
+
+/**
+ * A figure as a scouting party actually reports it.
+ *
+ * At full strength the truth, plainly. Short-handed, a range whose width is
+ * RECON_FUZZ scaled by how far short you fell — and the truth sits at an
+ * UNKNOWABLE POSITION INSIDE IT, never the midpoint. A centred range would hand
+ * anyone perfect intelligence for half the rangers, which is the whole thing
+ * this exists to stop.
+ */
+function reported(value: number, fill: number, rng: Rng): string {
+  if (fill >= 1) return Math.round(value).toLocaleString("en-US");
+  const width = RECON_FUZZ * (1 - fill);
+  const below = rng() * width; // how far the low end sits under the truth
+  const lo = Math.round(value * (1 - below));
+  const hi = Math.round(value * (1 + (width - below)));
+  if (hi <= lo) return lo.toLocaleString("en-US");
+  return `${lo.toLocaleString("en-US")}–${hi.toLocaleString("en-US")}`;
+}
+
+/** Every number in a filed report, blurred to what the party could actually
+ *  establish. Anything that is not a plain number — a wall's name, a race — is
+ *  left exactly as it was: you either saw the Citadel or you did not. */
+function blur(facts: CovertFact[] | undefined, fill: number, rng: Rng): CovertFact[] | undefined {
+  if (!facts || fill >= 1) return facts;
+  const one = (text: string) =>
+    text.replace(/\d[\d,]*/g, (m) => reported(Number(m.replace(/,/g, "")), fill, rng));
+  return facts.map((f) => ({
+    label: f.label,
+    value: one(f.value),
+    note: f.note ? one(f.note) : undefined,
+  }));
 }
 
 const agentPower = (
@@ -175,10 +225,11 @@ export function runCovertOp(
   let absorb = 0;
   /** The watch outweighed the knives outright — nothing takes hold. */
   let bounced = false;
+  /** Rangers on the walls when the knives came — read by the clean-run notice. */
+  const watching = defender.army.scouts + defender.army.mercenaries.scouts;
   if (arm === "spy") {
     const spyPwr = agentPower(attacker, "spy", agentsSent, rng);
-    const watch = defender.army.scouts + defender.army.mercenaries.scouts;
-    const scoutPwr = watch > 0 ? agentPower(defender, "scout", watch, rng) : 0;
+    const scoutPwr = watching > 0 ? agentPower(defender, "scout", watching, rng) : 0;
     if (scoutPwr > 0 && spyPwr > 0) {
       const ratio = scoutPwr / spyPwr;
       absorb = Math.min(1, ratio);
@@ -213,6 +264,17 @@ export function runCovertOp(
   if (survivors <= 0) {
     detail = `Disaster — all ${agentsSent} were taken at the wall. ${defender.name} knows the hand behind it.`;
     victimDetail = `Rangers took ${intercepted} of ${attacker.name}'s agents attempting "${op.name}". The revenge window is open.`;
+    settleMercenaries(attacker);
+    return { attacker, defender, op, sent: agentsSent, intercepted, exposed, detail, facts, victimDetail, turnsSpent: cost };
+  }
+
+  // ── How well the party was funded ─────────────────────────────────────────
+  // Scouts alone. Nobody is caught and nobody dies; coming up short costs you
+  // certainty, and coming up far short costs you the night.
+  const needed = arm === "scout" ? scoutsNeeded(op, defender, attacker) : 0;
+  const fill = arm === "scout" ? Math.min(1, agentsSent / needed) : 1;
+  if (arm === "scout" && fill < SCOUT_MISSION.MIN_FILL) {
+    detail = `We could not finish the mission — ${agentsSent} rangers is too few for a realm that size. It would take ${needed}.`;
     settleMercenaries(attacker);
     return { attacker, defender, op, sent: agentsSent, intercepted, exposed, detail, facts, victimDetail, turnsSpent: cost };
   }
@@ -437,6 +499,21 @@ export function runCovertOp(
       detail = `Copied ${name} to level ${to}. They keep theirs and never miss it. (${used + 1}/${cap} secrets taken this age.)`;
       break;
     }
+  }
+
+  // A short-handed party establishes ranges rather than figures. Applied last,
+  // over whatever the mission gathered, so no individual case has to know.
+  if (arm === "scout" && fill < 1) {
+    facts = blur(facts, fill, rng);
+    detail = `${detail} With ${agentsSent} of the ${needed} rangers such a realm wants, the numbers are estimates.`;
+  }
+
+  // A CLEAN RUN IS NO LONGER INVISIBLE. If the watch caught nobody but somebody
+  // was plainly about, the rangers still say so — no name, no revenge window.
+  // Keeping scouts should tell you something even on the nights it fails.
+  if (arm === "spy" && watching > 0 && intercepted === 0) {
+    const seen = "Your rangers marked strangers about the walls in the night — no one was taken, and there is no name to put to it.";
+    victimDetail = victimDetail ? `${victimDetail} ${seen}` : seen;
   }
 
   settleMercenaries(attacker);

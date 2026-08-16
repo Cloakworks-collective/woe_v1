@@ -125,15 +125,45 @@ Within the caught, **hired agents are taken first**: one of your own is lost onl
 
 ## Scout operations
 
-Overt, safe, never intercepted. Gated by **Pathfinding**.
+Overt, safe, **never intercepted**. Nobody is caught and nobody dies: coming up
+short costs certainty, never lives. Gated by the **Ranger's Lodge**.
 
-| L | Op | Turns/agent | What it tells you |
+```
+needed = op.scouts × (1 + their population ÷ POP_SCALE) ÷ Pathfinding
+cost   = rangers sent × TURNS_PER_SCOUT        (a flat 2 apiece)
+fill   = rangers sent ÷ needed
+```
+
+| Lodge | Op | Base | What it tells you |
 |---|---|---|---|
-| 1 | Survey the Coffers | 0.10 | Exact gold and goods, and what sits exposed |
-| 1 | Map the Walls | 0.15 | Wall level, health standing, every crewed counter |
-| 2 | Map the Army | 0.15 | Composition by arm and tier, sellswords, stamina, sortie orders |
-| 3 | **Map the Siege Train** | 0.15 | **Their engines — the one thing the ladder never shows** |
-| 4 | Map the Collegium | 0.25 | Every research field and level |
+| 1 | Survey the Coffers | 4 | Gold and goods, and what sits exposed |
+| 1 | Map the Walls | 6 | Wall level, health standing, every crewed counter |
+| 2 | Map the Army | 8 | Composition by arm and tier, sellswords, stamina, sortie orders |
+| 3 | **Map the Siege Train** | 10 | **Their engines — the one thing the ladder never shows** |
+| 4 | Map the Collegium | 16 | Every research field and level |
+
+**The realm decides the price.** Counting a giant's granaries is an expedition;
+counting a neighbour's is an afternoon. Against 20,000 souls the Collegium wants
+85 rangers and 170 of your 200 banked turns — so reading a great power's
+research means sabotaging nobody that day. Pathfinding at mastery halves it.
+
+**What you get back depends on how well you funded it.**
+
+| fill | report |
+|---|---|
+| 1.0 | the figures, plainly |
+| 0.8 | tight ranges — *1,482–1,642 footmen* |
+| 0.6 | loose ranges — *1,444–1,764* |
+| 0.4 | vague — *1,415–1,855* |
+| below `MIN_FILL` | *"We could not finish the mission."* The turns are still gone. |
+
+The truth sits at an **unknowable position inside** each range, never the
+midpoint — a centred range would hand anyone perfect intelligence for half the
+rangers, which is the whole thing this exists to stop.
+
+Scouting used to be flat: one ranger returned the identical exact report five
+hundred would, so sending more was strictly worse and there was no such thing as
+sending too few.
 
 **Map the Siege Train earns its place.** Ranking counts engineers and defensive
 works but never the siege train, so a rival's offensive engines exist nowhere

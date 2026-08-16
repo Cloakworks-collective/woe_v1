@@ -17,6 +17,9 @@ export interface CovertOpMeta {
   level: number;
   turnsPerAgent: number;
   detection: number;
+  /** SCOUT ops only — the base head-count before the target's size scales it.
+   *  See SCOUT_MISSION for the arithmetic. */
+  scouts?: number;
 }
 
 const ALL = Object.entries(COVERT_OPS).map(([id, o]) => ({ id, ...o })) as unknown as CovertOpMeta[];

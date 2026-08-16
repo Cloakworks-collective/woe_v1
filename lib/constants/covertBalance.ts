@@ -80,11 +80,11 @@ export const SPY_TURNS = {
  */
 export const COVERT_OPS = {
   // ── SCOUT operations — overt, never intercepted, no risk of loss ──────────
-  survey_coffers: { arm: "scout", turnsPerAgent: 0.1, detection: 0, field: "pathfinding", level: 1, name: "Survey the Coffers", desc: "Exact gold and resources, and what sits outside the storehouses" },
-  map_walls: { arm: "scout", turnsPerAgent: 0.15, detection: 0, field: "pathfinding", level: 1, name: "Map the Walls", desc: "Wall level, integrity, and every defensive counter they have crewed" },
-  map_army: { arm: "scout", turnsPerAgent: 0.15, detection: 0, field: "pathfinding", level: 2, name: "Map the Army", desc: "Army composition by arm and tier, mercenaries, stamina" },
-  map_siege: { arm: "scout", turnsPerAgent: 0.15, detection: 0, field: "pathfinding", level: 3, name: "Map the Siege Train", desc: "Their offensive engines — the one thing the ladder never shows" },
-  map_research: { arm: "scout", turnsPerAgent: 0.25, detection: 0, field: "pathfinding", level: 4, name: "Map the Collegium", desc: "Every research field and level they hold" },
+  survey_coffers: { arm: "scout", turnsPerAgent: 0.1, scouts: 4, detection: 0, field: "pathfinding", level: 1, name: "Survey the Coffers", desc: "Exact gold and resources, and what sits outside the storehouses" },
+  map_walls: { arm: "scout", turnsPerAgent: 0.15, scouts: 6, detection: 0, field: "pathfinding", level: 1, name: "Map the Walls", desc: "Wall level, integrity, and every defensive counter they have crewed" },
+  map_army: { arm: "scout", turnsPerAgent: 0.15, scouts: 8, detection: 0, field: "pathfinding", level: 2, name: "Map the Army", desc: "Army composition by arm and tier, mercenaries, stamina" },
+  map_siege: { arm: "scout", turnsPerAgent: 0.15, scouts: 10, detection: 0, field: "pathfinding", level: 3, name: "Map the Siege Train", desc: "Their offensive engines — the one thing the ladder never shows" },
+  map_research: { arm: "scout", turnsPerAgent: 0.25, scouts: 16, detection: 0, field: "pathfinding", level: 4, name: "Map the Collegium", desc: "Every research field and level they hold" },
 
   // ── SPY operations — covert, interceptable, named if caught ───────────────
   torch_stores: { arm: "spy", turnsPerAgent: 0.4, detection: 1.0, field: "tradecraft", level: 1, name: "Torch the Stores", desc: "Burn what sits outside their storehouses" },
@@ -222,8 +222,47 @@ export const UNREST = { HOURS: 24, TAX_PENALTY: 0.25, PRODUCTION_PENALTY: 0.25 }
  *  rule as UNREST above, and rangers are why a research empire keeps a watch. */
 export const RESEARCH_DOUBT = { HOURS: 24, RESEARCH_PENALTY: 0.5 };
 
-/** Scout recon is fuzzy at first; Pathfinding sharpens it toward the truth. */
-export const RECON_FUZZ = 0.2; // frac
+/**
+ * SCOUT MISSIONS — how many rangers a look actually takes.
+ *
+ *     needed = op.scouts × (1 + their population ÷ POP_SCALE) ÷ Pathfinding
+ *     cost   = rangers sent × TURNS_PER_SCOUT
+ *     fill   = rangers sent ÷ needed
+ *
+ * Scouting used to be flat: one ranger returned the identical exact report that
+ * five hundred would, so sending more was strictly worse and there was no such
+ * thing as sending too few. Now the size of the realm you are looking at
+ * decides the price — mapping a giant is a real expedition, mapping a neighbour
+ * is an afternoon — and how well you fund it decides how sharp the answer is.
+ *
+ * NOBODY IS EVER CAUGHT. Rangers work in the open; the cost of coming up short
+ * is a vaguer answer, never a funeral. Below MIN_FILL they simply cannot finish
+ * and come home with nothing but the bill.
+ */
+export const SCOUT_MISSION = {
+  /** Turns each ranger costs, whatever the mission. The "extra turns" a deeper
+   *  look demands come from needing more people, not a second rate. */
+  TURNS_PER_SCOUT: 2,
+  /** Population that doubles a mission's requirement. */
+  POP_SCALE: 5000,
+  /** Pathfinding cuts the requirement by this much per level — the one thing
+   *  that makes the field honest on offence as well as defence. */
+  PATHFINDING_RELIEF: 0.1, // frac/level
+  /** Below this share of the requirement the mission cannot be completed. */
+  MIN_FILL: 0.25, // frac
+};
+
+/**
+ * How wide a range gets when a mission is barely manned — the half-width at
+ * fill 0, as a fraction of the true figure. Every number narrows toward the
+ * truth as `fill` climbs, and reads exactly at fill 1.
+ *
+ * The range is NOT centred on the truth. A centred range would let anyone read
+ * the midpoint and have perfect intelligence for half the rangers, which is the
+ * whole thing this is meant to stop; the true figure sits somewhere inside at a
+ * position you cannot know.
+ */
+export const RECON_FUZZ = 0.5; // frac
 
 // ─── 6 · COVERT EXPERIENCE ──────────────────────────────────────────────────
 // Spies and scouts each keep their own veterancy, on the same terms as troops:
