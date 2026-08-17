@@ -5,6 +5,7 @@
 // absent, none of this is used and the app keeps the in-process store (§14.1).
 
 import type { World } from "./store";
+import { applyDelta, type WorldDelta } from "./worldDelta";
 import type { CommandResult } from "./pipeline";
 
 /** The world service base URL (trailing slash trimmed), or undefined when the
@@ -27,7 +28,30 @@ function secretHeader(): Record<string, string> {
 
 // A tiny read cache so a single render's several getWorld() calls collapse to
 // one fetch — mirrors the store's cache window. Invalidated after any command.
-const g = globalThis as unknown as { __woeSvcWorld?: World; __woeSvcAt?: number; __woeSvcRev?: string };
+const g = globalThis as unknown as {
+  __woeSvcWorld?: World;
+  __woeSvcAt?: number;
+  __woeSvcRev?: string;
+  /** The numeric revision the cached world sits at — what ?since= sends. */
+  __woeSvcRevN?: number;
+};
+
+const revNumber = (etag: string | null | undefined): number | undefined => {
+  const m = /^"rev-(\d+)"$/.exec(etag ?? "");
+  return m ? Number(m[1]) : undefined;
+};
+
+/** Graft a delta onto the cached world and make the result the new cache.
+ *  applyDelta returns a NEW object (a page may hold the old one mid-render),
+ *  which also means the normalize-once WeakSet treats it as fresh. */
+function acceptDelta(delta: WorldDelta): World {
+  const merged = applyDelta(g.__woeSvcWorld!, delta);
+  g.__woeSvcWorld = merged;
+  g.__woeSvcAt = Date.now();
+  g.__woeSvcRev = `"rev-${delta.rev}"`;
+  g.__woeSvcRevN = delta.rev;
+  return merged;
+}
 // Matches the store's CACHE_TTL_MS on purpose — the two layers used to hold
 // different opinions (2s here, 10s there) about how stale a world may be,
 // which made latency depend on which layer a request happened to hit. Safe at
@@ -37,6 +61,7 @@ const READ_TTL_MS = 10_000;
 
 export function invalidateServiceWorldCache(): void {
   g.__woeSvcRev = undefined;
+  g.__woeSvcRevN = undefined;
   g.__woeSvcWorld = undefined;
   g.__woeSvcAt = undefined;
 }
@@ -50,12 +75,21 @@ export async function forwardCommand(
 ): Promise<CommandResult> {
   const res = await fetch(`${worldServiceUrl()}/command`, {
     method: "POST",
-    headers: { "content-type": "application/json", ...secretHeader() },
-    body: JSON.stringify({ playerId, name, args }),
+    headers: { "content-type": "application/json", "accept-encoding": "gzip", ...secretHeader() },
+    // Telling the service which rev we hold turns its reply from the whole
+    // world into the post-command DELTA — a click's worth of bytes.
+    body: JSON.stringify({ playerId, name, args, since: g.__woeSvcWorld ? g.__woeSvcRevN : undefined }),
     cache: "no-store",
   });
   if (!res.ok) throw new Error(`world service command failed: HTTP ${res.status}`);
-  const body = (await res.json()) as CommandResult | { result: CommandResult; world: World; rev?: number };
+  const body = (await res.json()) as
+    | CommandResult
+    | { result: CommandResult; world: World; rev?: number }
+    | { result: CommandResult; delta: WorldDelta };
+  if (body && typeof body === "object" && "result" in body && "delta" in body && g.__woeSvcWorld) {
+    acceptDelta(body.delta);
+    return body.result;
+  }
   // New services ship the post-command world with the result; it becomes the
   // read cache, so the page render that follows every command costs no second
   // fetch and no second whole-world serialization. An old service that sends
@@ -63,7 +97,10 @@ export async function forwardCommand(
   if (body && typeof body === "object" && "result" in body && "world" in body) {
     g.__woeSvcWorld = body.world;
     g.__woeSvcAt = Date.now();
-    if (typeof body.rev === "number") g.__woeSvcRev = `"rev-${body.rev}"`;
+    if (typeof body.rev === "number") {
+      g.__woeSvcRev = `"rev-${body.rev}"`;
+      g.__woeSvcRevN = body.rev;
+    }
     return body.result;
   }
   invalidateServiceWorldCache();
@@ -87,15 +124,23 @@ export async function fetchServiceWorld(opts: { forceReload?: boolean } = {}): P
     "accept-encoding": "gzip",
   };
   if (g.__woeSvcRev && g.__woeSvcWorld) headers["if-none-match"] = g.__woeSvcRev;
-  const res = await fetch(`${worldServiceUrl()}/world`, { headers, cache: "no-store" });
+  const since = g.__woeSvcWorld && g.__woeSvcRevN !== undefined ? `?since=${g.__woeSvcRevN}` : "";
+  const res = await fetch(`${worldServiceUrl()}/world${since}`, { headers, cache: "no-store" });
   if (res.status === 304 && g.__woeSvcWorld) {
     g.__woeSvcAt = Date.now();
     return g.__woeSvcWorld;
   }
   if (!res.ok) throw new Error(`world service read failed: HTTP ${res.status}`);
+  // Three shapes come back: a DELTA (x-woe-delta, the usual case — only the
+  // sections that moved since our rev), or the FULL world (first read, or so
+  // stale that the delta would not be smaller). 304 was handled above.
+  if (res.headers.get("x-woe-delta") === "1" && g.__woeSvcWorld) {
+    return acceptDelta((await res.json()) as WorldDelta);
+  }
   const world = (await res.json()) as World;
   g.__woeSvcWorld = world;
   g.__woeSvcAt = Date.now();
   g.__woeSvcRev = res.headers.get("etag") ?? undefined;
+  g.__woeSvcRevN = revNumber(g.__woeSvcRev);
   return world;
 }

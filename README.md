@@ -161,27 +161,35 @@ Both kinds are written outside the single-writer discipline on purpose:
 battle docs are immutable once filed, and forum rows are compare-and-swapped
 per thread.
 
-### The wire — how a 5MB world costs almost nothing to read
+### The wire — the world travels as change, not as the book
 
-In service mode the world travels Service → Next per read, and three layers
-keep that cheap at hundreds of players:
+In service mode the world crosses Service → Next per read. Pages still say
+"give me the world" and read it from local memory — what changed is what the
+WIRE carries (`lib/server/worldDelta.ts`):
 
-1. **Revision tags (ETag/304).** The world only changes on a command or a
-   tick; every snapshot carries its revision, and a reader holding rev N gets
-   an empty `304` back. Between changes, reads cost a round trip and zero
-   bytes.
-2. **gzip** on the transfers that do carry the world — this JSON compresses
-   ~10×, so the 5MB book travels as ~500KB.
-3. **Command responses carry the fresh world**, so the page render after
-   every click is a cache hit — one serialization per state change, total,
-   however many instances read.
+1. **Delta sync.** The world is cut into sections — one per player, one per
+   player's inbox, one per other top-level key — each tagged with the
+   revision it last changed at. A reader says `?since=N` and receives only
+   the sections newer than N, plus tombstones for anything deleted. A
+   command's delta is one or two players' worth of bytes against a
+   multi-megabyte world; command responses carry the post-command delta
+   beside their result, so the render after a click transfers a click's
+   worth. Sections compare by their serialized string — work the service
+   already paid — so a missed change is structurally impossible, and the
+   suite proves merge ≡ truth byte-for-byte.
+2. **Revision tags (ETag/304).** A reader already at the current rev gets an
+   empty `304` — between changes, reads cost a round trip and zero bytes.
+3. **gzip** on whatever does travel (~10× on this JSON), and a full-world
+   fallback whenever a delta would not actually be smaller (a fresh
+   instance, or a reader stale past a tick that touched everyone).
 
-Measured baseline: 451KB world at 19 players (~5MB projected at 500).
-Napkin at 500 players / ~50k page views/day: raw would be ~100GB/day of
-transfer; with 304s + gzip it's a few GB. The eventual step beyond this —
-per-page **projection endpoints** ("my empire + the ladder", ~30KB) instead
-of the whole world — is the one open scale item, needed somewhere past ~150
-concurrent actives.
+Measured live: a one-player change travels as a **2KB delta against a 17KB
+world** on the dev seed; the ratio grows with the world, since a click still
+touches one or two players at 500 of them. Old client ↔ new service and new
+client ↔ old service both degrade to the full-world behaviour. Per-page
+projection endpoints (pages asking questions instead of holding a copy at
+all) remain possible beyond this, but the wire no longer needs them at any
+population the single-writer design itself can carry.
 
 ### Where it runs — localhost first, a host later
 

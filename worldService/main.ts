@@ -26,6 +26,7 @@ import path from "node:path";
 import { applyOneCommand, type CommandResult } from "../lib/server/pipeline";
 import { normalizeMeta, runDueTicks, seedWorld } from "../lib/server/world";
 import { flushBattleDocs } from "../lib/server/store";
+import { deltaBody, deltaSize, diffSections, type Section } from "../lib/server/worldDelta";
 import { writeSpectatorSnapshot } from "../lib/server/analytics";
 import { normalizePlayer } from "../lib/engine";
 import type { World } from "../lib/server/store";
@@ -53,6 +54,29 @@ let dirtySinceSnapshot = false;
 // cannot key a cache because ticks move the world without moving it.
 let stateRev = 0;
 let worldJson: { rev: number; body: string } | null = null;
+// ── Delta sync (lib/server/worldDelta.ts) ──────────────────────────────────
+// The world in sections, each tagged with the rev it last changed at, plus
+// tombstones for what vanished. A reader at rev N gets only what moved since —
+// a command's delta is a few KB against a multi-megabyte world. Rebuilt lazily
+// on the first read after each change; the serialization work replaces (not
+// adds to) the whole-world stringify those reads paid before.
+const sections = new Map<string, Section>();
+const tombstones = new Map<string, number>();
+let sectionsRev = -1;
+
+function ensureSections(): void {
+  if (sectionsRev === stateRev) return;
+  diffSections(sections, tombstones, world, stateRev);
+  sectionsRev = stateRev;
+}
+
+/** A delta for a reader at `since` — or null when the full world is the
+ *  smaller answer (a very stale reader after a tick that touched everyone). */
+function deltaFor(since: number): string | null {
+  ensureSections();
+  if (deltaSize(sections, since) >= serializedWorld().length * 0.8) return null;
+  return deltaBody(sections, tombstones, stateRev, since);
+}
 
 /** The serialized world, computed once per state change however many reads ask.
  *  Every page view of every player hits /world; stringifying a multi-megabyte
@@ -154,11 +178,12 @@ function send(
   res: http.ServerResponse,
   status: number,
   body: unknown,
-  opts: { gzip?: boolean; etag?: string } = {},
+  opts: { gzip?: boolean; etag?: string; delta?: boolean } = {},
 ): void {
   const json = typeof body === "string" ? body : JSON.stringify(body);
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (opts.etag) headers.etag = opts.etag;
+  if (opts.delta) headers["x-woe-delta"] = "1";
   // The world is megabytes of very repetitive JSON — names, keys, zeroes — and
   // compresses roughly tenfold. At hundreds of players the raw transfer is the
   // service's whole bandwidth bill, so this is not polish; it is most of the
@@ -188,22 +213,31 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === "GET" && url === "/world") {
-    // CHANGE DETECTION FIRST: the world only moves on a command or a tick, and
-    // stateRev counts both — so a reader that already holds rev N gets an empty
-    // 304 instead of megabytes it already has. Between changes, reads cost
-    // nothing at all. Serialized through the queue either way, so no read ever
-    // observes a world mid-command.
+    // Three answers, cheapest first. UNCHANGED → an empty 304. CHANGED A
+    // LITTLE (the usual case — a reader that saw rev N asks with ?since=N) →
+    // a delta of just the sections that moved, a few KB against a
+    // multi-megabyte world. CHANGED A LOT, or a reader with no copy → the
+    // full world. All three through the queue, so no read observes a world
+    // mid-command.
+    // Number(null) is 0 — so a bare /world with no ?since= must NOT fall into
+    // the delta branch, or every old client gets a delta it never asked for.
+    const sinceRaw = new URL(req.url || "", "http://x").searchParams.get("since");
+    const since = sinceRaw === null ? NaN : Number(sinceRaw);
     enqueue(() => {
       const etag = `"rev-${stateRev}"`;
-      if (req.headers["if-none-match"] === etag) return { etag, body: null as string | null };
-      return { etag, body: serializedWorld() };
-    }).then(({ etag, body }) => {
+      if (req.headers["if-none-match"] === etag) return { etag, body: null as string | null, delta: false };
+      if (Number.isFinite(since) && since >= 0 && since < stateRev) {
+        const d = deltaFor(since);
+        if (d !== null) return { etag, body: d, delta: true };
+      }
+      return { etag, body: serializedWorld(), delta: false };
+    }).then(({ etag, body, delta }) => {
       if (body === null) {
         res.writeHead(304, { etag });
         res.end();
         return;
       }
-      send(res, 200, body, { gzip: wantsGzip(req), etag });
+      send(res, 200, body, { gzip: wantsGzip(req), etag, delta });
     });
     return;
   }
@@ -211,10 +245,11 @@ const server = http.createServer((req, res) => {
   if (req.method === "POST" && url === "/command") {
     readBody(req)
       .then((raw) => {
-        const { playerId, name, args } = JSON.parse(raw || "{}") as {
+        const { playerId, name, args, since } = JSON.parse(raw || "{}") as {
           playerId?: string;
           name?: string;
           args?: Record<string, unknown>;
+          since?: number;
         };
         if (!playerId || !name) throw new Error("playerId and name are required");
         // The fresh world rides back WITH the result. The commanding request
@@ -228,9 +263,14 @@ const server = http.createServer((req, res) => {
         // state change), and the reads that follow pay none.
         return enqueue(() => {
           const result = handleCommand(playerId, name, args ?? {});
-          return {
-            body: `{"result":${JSON.stringify(result)},"world":${serializedWorld()},"rev":${stateRev}}`,
-          };
+          // A client that told us the rev it holds gets the post-command DELTA
+          // beside its result — the ordinary case is one or two players'
+          // worth of bytes. Anyone else gets the full world, as before.
+          const d = typeof since === "number" && since >= 0 && since <= stateRev ? deltaFor(since) : null;
+          const body = d !== null
+            ? `{"result":${JSON.stringify(result)},"delta":${d}}`
+            : `{"result":${JSON.stringify(result)},"world":${serializedWorld()},"rev":${stateRev}}`;
+          return { body };
         });
       })
       // Battle docs BEFORE the response goes out: an attack command's redirect
@@ -283,4 +323,9 @@ for (const sig of ["SIGTERM", "SIGINT"] as const) {
 }
 
 boot();
+// Baseline the delta sections at the BOOT revision. Built lazily they would
+// first materialize after a change, stamping every section as "new at rev 1" —
+// and the first reader's delta would be the whole world wearing a delta's hat.
+ensureSections();
+
 server.listen(PORT, () => log(`listening on :${PORT} · data ${DATA_DIR} · secret ${SECRET ? "on" : "OFF"}`));
