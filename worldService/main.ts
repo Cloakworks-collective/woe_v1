@@ -20,10 +20,12 @@
 // NOTE: do NOT set WORLD_SERVICE_URL in this process — that flag is for the app.
 
 import http from "node:http";
+import zlib from "node:zlib";
 import fs from "node:fs";
 import path from "node:path";
 import { applyOneCommand, type CommandResult } from "../lib/server/pipeline";
 import { normalizeMeta, runDueTicks, seedWorld } from "../lib/server/world";
+import { flushBattleDocs } from "../lib/server/store";
 import { writeSpectatorSnapshot } from "../lib/server/analytics";
 import { normalizePlayer } from "../lib/engine";
 import type { World } from "../lib/server/store";
@@ -148,11 +150,31 @@ function readBody(req: http.IncomingMessage): Promise<string> {
   });
 }
 
-function send(res: http.ServerResponse, status: number, body: unknown): void {
+function send(
+  res: http.ServerResponse,
+  status: number,
+  body: unknown,
+  opts: { gzip?: boolean; etag?: string } = {},
+): void {
   const json = typeof body === "string" ? body : JSON.stringify(body);
-  res.writeHead(status, { "content-type": "application/json" });
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (opts.etag) headers.etag = opts.etag;
+  // The world is megabytes of very repetitive JSON — names, keys, zeroes — and
+  // compresses roughly tenfold. At hundreds of players the raw transfer is the
+  // service's whole bandwidth bill, so this is not polish; it is most of the
+  // scale headroom. Node's fetch on the other side decompresses transparently.
+  if (opts.gzip && json.length > 1024) {
+    headers["content-encoding"] = "gzip";
+    res.writeHead(status, headers);
+    res.end(zlib.gzipSync(json));
+    return;
+  }
+  res.writeHead(status, headers);
   res.end(json);
 }
+
+const wantsGzip = (req: http.IncomingMessage): boolean =>
+  /\bgzip\b/.test(String(req.headers["accept-encoding"] ?? ""));
 
 const server = http.createServer((req, res) => {
   const url = (req.url || "").split("?")[0];
@@ -166,8 +188,23 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === "GET" && url === "/world") {
-    // Serialize the read through the queue for a consistent (never mid-command) snapshot.
-    enqueue(() => serializedWorld()).then((body) => send(res, 200, body));
+    // CHANGE DETECTION FIRST: the world only moves on a command or a tick, and
+    // stateRev counts both — so a reader that already holds rev N gets an empty
+    // 304 instead of megabytes it already has. Between changes, reads cost
+    // nothing at all. Serialized through the queue either way, so no read ever
+    // observes a world mid-command.
+    enqueue(() => {
+      const etag = `"rev-${stateRev}"`;
+      if (req.headers["if-none-match"] === etag) return { etag, body: null as string | null };
+      return { etag, body: serializedWorld() };
+    }).then(({ etag, body }) => {
+      if (body === null) {
+        res.writeHead(304, { etag });
+        res.end();
+        return;
+      }
+      send(res, 200, body, { gzip: wantsGzip(req), etag });
+    });
     return;
   }
 
@@ -191,10 +228,19 @@ const server = http.createServer((req, res) => {
         // state change), and the reads that follow pay none.
         return enqueue(() => {
           const result = handleCommand(playerId, name, args ?? {});
-          return `{"result":${JSON.stringify(result)},"world":${serializedWorld()}}`;
+          return {
+            body: `{"result":${JSON.stringify(result)},"world":${serializedWorld()},"rev":${stateRev}}`,
+          };
         });
       })
-      .then((body) => send(res, 200, body))
+      // Battle docs BEFORE the response goes out: an attack command's redirect
+      // lands on the battle page milliseconds later, and the full report must
+      // already be in its side store by then. The service never calls
+      // saveWorld (it snapshots to disk), so this is the only flush it has.
+      .then(async ({ body }) => {
+        await flushBattleDocs();
+        send(res, 200, body, { gzip: wantsGzip(req) });
+      })
       .catch((err) => send(res, 500, { ok: false, message: String(err?.message ?? err) }));
     return;
   }

@@ -378,17 +378,61 @@ export function pushBattle(world: World, report: BattleReport): void {
 }
 
 const BATTLES_DIR = path.join(DATA_DIR, "battles");
+/**
+ * How long a battle's FULL report outlives the battle. The world doc's index
+ * keeps only the newest 300 battles and the chronicle's inbox keeps 60 events,
+ * so nothing in the game can still link a report this old — but the side rows
+ * themselves accumulated FOREVER, roughly a third of a gigabyte per month of
+ * real war, unbounded across eras. Pruned opportunistically from the same
+ * flush that files new reports, at most once a day.
+ */
+const BATTLE_DOC_RETENTION_DAYS = 45;
+let lastBattlePruneMs = 0;
+
+async function pruneBattleDocs(): Promise<void> {
+  const now = Date.now();
+  if (now - lastBattlePruneMs < 24 * 60 * 60 * 1000) return;
+  lastBattlePruneMs = now;
+  const cutoff = new Date(now - BATTLE_DOC_RETENTION_DAYS * 86_400_000).toISOString();
+  const sb = supabase();
+  if (sb) {
+    const { error } = await sb
+      .from("world_docs")
+      .delete()
+      .like("id", "battle:%")
+      .lt("updated_at", cutoff);
+    if (error) console.error(`battle doc prune failed: ${error.message}`);
+    return;
+  }
+  try {
+    for (const f of fs.readdirSync(BATTLES_DIR)) {
+      const full = path.join(BATTLES_DIR, f);
+      if (fs.statSync(full).mtimeMs < now - BATTLE_DOC_RETENTION_DAYS * 86_400_000) fs.unlinkSync(full);
+    }
+  } catch {
+    // No battles directory yet — nothing to prune.
+  }
+}
 /** Row-id namespace inside world_docs — reusing the table costs no migration. */
 const battleRowId = (id: string) => `battle:${id}`;
 /** Battle ids are UUIDs from our own randomUUID — anything else is refused
  *  before it can reach a filename or a row id. */
 const SAFE_BATTLE_ID = /^[a-zA-Z0-9-]{1,64}$/;
 
-/** Write queued battle docs out. Called from saveWorld, so the flush rides the
- *  same request that filed the battle. A failure loses the DETAIL of a report,
- *  never the battle itself — the world doc carries the metadata regardless —
- *  so it logs and moves on rather than failing the save. */
-async function flushBattleDocs(): Promise<void> {
+/** Write queued battle docs out — and sweep the expired ones while here.
+ *
+ *  Two callers, one per deployment mode, and BOTH are load-bearing:
+ *    · saveWorld — the direct path, so the flush rides the same request that
+ *      filed the battle.
+ *    · the world service's /command handler — the service persists by file
+ *      snapshot and never calls saveWorld, so without its own flush call every
+ *      report filed in service mode would sit in the queue forever and every
+ *      battle page would render an empty log.
+ *
+ *  A failure loses the DETAIL of a report, never the battle itself — the world
+ *  doc carries the metadata regardless — so it logs and moves on. */
+export async function flushBattleDocs(): Promise<void> {
+  await pruneBattleDocs();
   const queue = g.__woePendingBattles;
   if (!queue?.length) return;
   const batch = queue.splice(0);

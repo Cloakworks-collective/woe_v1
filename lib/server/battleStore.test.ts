@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { pushBattle, loadBattle } from "./store";
+import fs from "node:fs";
+import path from "node:path";
+import { flushBattleDocs, loadBattle, pushBattle } from "./store";
 import { seedWorld } from "./world";
 import type { BattleReport } from "../engine";
 
@@ -69,5 +71,25 @@ describe("battle reports ride outside the world doc", () => {
     // only from the doc for those.
     const found = await loadBattle(world, "../../etc/passwd");
     expect(found).toBeUndefined();
+  });
+});
+
+describe("the flush actually lands the docs (file mode)", () => {
+  it("drains the queue to disk, and loadBattle serves the FULL report", async () => {
+    const world = seedWorld();
+    const id = "33333333-3333-4333-8333-333333333333";
+    pushBattle(world, report(id));
+    await flushBattleDocs();
+    // The queue is drained…
+    const g = globalThis as unknown as { __woePendingBattles?: BattleReport[] };
+    expect(g.__woePendingBattles ?? []).toHaveLength(0);
+    // …and the side store now beats the slim index entry: the doc's copy has
+    // no log, the loaded one has the whole thing. This is the path the world
+    // service exercises after every command — it never calls saveWorld, so a
+    // missing flush there rendered every new report with an empty log.
+    const loaded = await loadBattle(world, id);
+    expect(loaded?.log).toHaveLength(2);
+    expect(world.battles[0].log).toEqual([]);
+    fs.rmSync(path.join(process.cwd(), "data", "battles", `${id}.json`), { force: true });
   });
 });

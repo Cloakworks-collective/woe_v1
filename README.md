@@ -143,6 +143,69 @@ revert a battle. All five parts of the plan are now built:
    which reads one indexed snapshot row — every viewer shares it, none recompute
    the ladder.
 
+### Side stores — big or busy data rides outside the world doc
+
+The world doc stays small by keeping only what every page actually reads.
+Anything heavy or append-only lives in **prefixed rows of the same
+`world_docs` table** — no migrations, no second schema:
+
+- **`battle:<id>`** — a battle's full report (prose log + muster roll,
+  kilobytes each). The doc keeps a 300-entry metadata index; only the report
+  page pays for the detail. Rows are pruned after 45 days — beyond anything
+  the index or the chronicle can still link to.
+- **`forum:t:<id>` / `forum:read:<account>`** — the forum's reactions, edit
+  stamps, reply links, tags and per-reader progress. The forum's own tables
+  are fixed columns; this is where a forum feature lands without DDL.
+
+Both kinds are written outside the single-writer discipline on purpose:
+battle docs are immutable once filed, and forum rows are compare-and-swapped
+per thread.
+
+### The wire — how a 5MB world costs almost nothing to read
+
+In service mode the world travels Service → Next per read, and three layers
+keep that cheap at hundreds of players:
+
+1. **Revision tags (ETag/304).** The world only changes on a command or a
+   tick; every snapshot carries its revision, and a reader holding rev N gets
+   an empty `304` back. Between changes, reads cost a round trip and zero
+   bytes.
+2. **gzip** on the transfers that do carry the world — this JSON compresses
+   ~10×, so the 5MB book travels as ~500KB.
+3. **Command responses carry the fresh world**, so the page render after
+   every click is a cache hit — one serialization per state change, total,
+   however many instances read.
+
+Measured baseline: 451KB world at 19 players (~5MB projected at 500).
+Napkin at 500 players / ~50k page views/day: raw would be ~100GB/day of
+transfer; with 304s + gzip it's a few GB. The eventual step beyond this —
+per-page **projection endpoints** ("my empire + the ladder", ~30KB) instead
+of the whole world — is the one open scale item, needed somewhere past ~150
+concurrent actives.
+
+### Where it runs — localhost first, a host later
+
+The service is a plain Node process; **Fly is an address, not a dependency**:
+
+```bash
+pnpm world-service                              # terminal 1 · owns the world, :4000
+WORLD_SERVICE_URL=http://localhost:4000 pnpm dev  # terminal 2 · the game, forwarding
+```
+
+Unset the env var and you're back on the in-process store — one variable,
+fully reversible. In production the same process runs on any always-on box
+(the repo ships a Dockerfile + fly.toml for Fly). **Durability note:** in
+service mode the world's source of truth is the service's disk snapshot —
+back up *that* volume; Supabase holds accounts, the forum, battle reports
+and the spectator snapshots.
+
+**Supabase sizing** (measured + extrapolated): at 500 players the service
+keeps the world off Supabase entirely; what remains is accounts + forum
+(tens of MB), battle docs (~360MB/month, pruned at 45 days), snapshots.
+**Free tier dies on battle docs; Pro is ample.** Without the service,
+direct-to-Supabase mode caps near ~50 truly active players — every command
+rewrites the whole doc, and no tier fixes an architecture bill.
+
 **Deliberately no broker.** RabbitMQ/Redis pub-sub would transport commands
 to… the same single consumer, while turning request/response (a player needs
 their battle report back *in the same HTTP response*) into correlation IDs

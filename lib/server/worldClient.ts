@@ -27,7 +27,7 @@ function secretHeader(): Record<string, string> {
 
 // A tiny read cache so a single render's several getWorld() calls collapse to
 // one fetch — mirrors the store's cache window. Invalidated after any command.
-const g = globalThis as unknown as { __woeSvcWorld?: World; __woeSvcAt?: number };
+const g = globalThis as unknown as { __woeSvcWorld?: World; __woeSvcAt?: number; __woeSvcRev?: string };
 // Matches the store's CACHE_TTL_MS on purpose — the two layers used to hold
 // different opinions (2s here, 10s there) about how stale a world may be,
 // which made latency depend on which layer a request happened to hit. Safe at
@@ -36,6 +36,7 @@ const g = globalThis as unknown as { __woeSvcWorld?: World; __woeSvcAt?: number 
 const READ_TTL_MS = 10_000;
 
 export function invalidateServiceWorldCache(): void {
+  g.__woeSvcRev = undefined;
   g.__woeSvcWorld = undefined;
   g.__woeSvcAt = undefined;
 }
@@ -54,7 +55,7 @@ export async function forwardCommand(
     cache: "no-store",
   });
   if (!res.ok) throw new Error(`world service command failed: HTTP ${res.status}`);
-  const body = (await res.json()) as CommandResult | { result: CommandResult; world: World };
+  const body = (await res.json()) as CommandResult | { result: CommandResult; world: World; rev?: number };
   // New services ship the post-command world with the result; it becomes the
   // read cache, so the page render that follows every command costs no second
   // fetch and no second whole-world serialization. An old service that sends
@@ -62,6 +63,7 @@ export async function forwardCommand(
   if (body && typeof body === "object" && "result" in body && "world" in body) {
     g.__woeSvcWorld = body.world;
     g.__woeSvcAt = Date.now();
+    if (typeof body.rev === "number") g.__woeSvcRev = `"rev-${body.rev}"`;
     return body.result;
   }
   invalidateServiceWorldCache();
@@ -74,10 +76,26 @@ export async function fetchServiceWorld(opts: { forceReload?: boolean } = {}): P
   if (!opts.forceReload && g.__woeSvcWorld && Date.now() - (g.__woeSvcAt ?? 0) < READ_TTL_MS) {
     return g.__woeSvcWorld;
   }
-  const res = await fetch(`${worldServiceUrl()}/world`, { headers: secretHeader(), cache: "no-store" });
+  // Conditional fetch: the world moves only on a command or a tick, and the
+  // service tags every snapshot with its revision. Holding rev N and asking
+  // again returns an empty 304 instead of megabytes this process already has —
+  // between changes, a read costs a round trip and nothing else. gzip covers
+  // the transfers that DO carry the world (~10x on this JSON); Node's fetch
+  // decompresses transparently.
+  const headers: Record<string, string> = {
+    ...secretHeader(),
+    "accept-encoding": "gzip",
+  };
+  if (g.__woeSvcRev && g.__woeSvcWorld) headers["if-none-match"] = g.__woeSvcRev;
+  const res = await fetch(`${worldServiceUrl()}/world`, { headers, cache: "no-store" });
+  if (res.status === 304 && g.__woeSvcWorld) {
+    g.__woeSvcAt = Date.now();
+    return g.__woeSvcWorld;
+  }
   if (!res.ok) throw new Error(`world service read failed: HTTP ${res.status}`);
   const world = (await res.json()) as World;
   g.__woeSvcWorld = world;
   g.__woeSvcAt = Date.now();
+  g.__woeSvcRev = res.headers.get("etag") ?? undefined;
   return world;
 }
