@@ -1,4 +1,5 @@
 import Link from "next/link";
+import "./codex.css";
 import { CurvePanel } from "@/components/CurvePanel";
 import { RefTables } from "@/components/RefTables";
 import {

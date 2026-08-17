@@ -1,4 +1,5 @@
 import Link from "next/link";
+import "../almanac/codex.css";
 import { AdminTabs } from "@/components/AdminTabs";
 import { AdminLoginForm } from "@/components/AdminLoginForm";
 import { Panel } from "@/components/Panel";
