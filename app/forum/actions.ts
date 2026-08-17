@@ -13,10 +13,14 @@ import {
   deletePost,
   deleteThread,
   findAccountByHandle,
+  getPost,
   getThread,
   isSchemaMissing,
   setThreadFlags,
+  updatePostBody,
 } from "@/lib/server/accounts";
+import { mutateThreadExtra, toggleReaction } from "@/lib/server/forumExtra";
+import { CHANNEL_TAGS, FORUM_REACTIONS } from "@/lib/constants/forum";
 
 // Every action returns by redirecting with ?err= / ?ok= — the same convention
 // the game's server actions use, so a failure is always visible on the page it
@@ -132,6 +136,12 @@ export async function forumNewThread(form: FormData): Promise<void> {
 
   const thread = await createThread({ channel: channelId, title, authorId: viewer.account!.id });
   await createPost({ threadId: thread.id, authorId: viewer.account!.id, body });
+  // The tag is one of the CHANNEL's fixed few or nothing at all — free-form
+  // tags are how lean forums stop being lean.
+  const tag = str(form, "tag");
+  if (tag && (CHANNEL_TAGS[channelId] ?? []).includes(tag)) {
+    await mutateThreadExtra(thread.id, (x) => ({ ...x, tag }));
+  }
   revalidatePath(`/forum/c/${channelId}`);
   redirect(`/forum/t/${thread.id}`);
 }
@@ -151,10 +161,85 @@ export async function forumReply(form: FormData): Promise<void> {
   const body = cleanBody(str(form, "body").slice(0, FORUM_LIMITS.BODY_MAX));
   if (!body) back(to, "Write something first.");
 
-  await createPost({ threadId, authorId: viewer.account!.id, body });
+  const post = await createPost({ threadId, authorId: viewer.account!.id, body });
+  // "In reply to #4" — a LINK, not a nesting level. Flat with quotes is the
+  // whole reading order of a lean forum.
+  const replyToId = str(form, "replyTo");
+  const replyToN = Number(str(form, "replyToN"));
+  const replyToHandle = str(form, "replyToHandle").slice(0, 40);
+  if (replyToId && Number.isFinite(replyToN) && replyToN > 0) {
+    await mutateThreadExtra(threadId, (x) => {
+      (x.posts[post.id] ??= {}).replyTo = { postId: replyToId, n: replyToN, handle: replyToHandle };
+      return x;
+    });
+  }
   revalidatePath(to);
   redirect(to);
 }
+
+/** One tap on one emoji — toggled, one of each per reader per post. */
+export async function forumReact(form: FormData): Promise<void> {
+  const threadId = str(form, "threadId");
+  const postId = str(form, "postId");
+  const emoji = str(form, "emoji");
+  const to = `/forum/t/${threadId}#p${str(form, "n")}`;
+  const viewer = await getForumViewer();
+  if (!viewer.account) back(to, "Sign in to react.");
+  if (viewer.ban) back(to, banNotice(viewer.ban));
+  if (!(FORUM_REACTIONS as readonly string[]).includes(emoji)) back(to, "Not one of ours.");
+  await guard(to, () => toggleReaction(threadId, postId, emoji, viewer.account!.id));
+  revalidatePath(`/forum/t/${threadId}`);
+  redirect(to);
+}
+
+/**
+ * The author's own edit — with the stamp that keeps it honest. Anyone may
+ * rewrite their words; nobody may pretend they never said the old ones, so
+ * every edit marks the post "edited" where all can see.
+ */
+export async function forumEditPost(form: FormData): Promise<void> {
+  const threadId = str(form, "threadId");
+  const postId = str(form, "postId");
+  const to = `/forum/t/${threadId}`;
+  const viewer = await getForumViewer();
+  if (!viewer.account) back(to, "Sign in first.");
+  if (viewer.ban) back(to, banNotice(viewer.ban));
+
+  const post = await getPost(postId);
+  if (!post || post.threadId !== threadId) back(to, "That post is gone.");
+  if (post!.authorId !== viewer.account!.id && !viewer.isAdmin) back(to, "Not yours to edit.");
+  if (post!.deletedAt) back(to, "A removed post stays removed.");
+
+  const body = cleanBody(str(form, "body").slice(0, FORUM_LIMITS.BODY_MAX));
+  if (!body) back(to, "Write something first.");
+
+  await updatePostBody(postId, body);
+  await mutateThreadExtra(threadId, (x) => {
+    (x.posts[postId] ??= {}).editedAt = new Date().toISOString();
+    return x;
+  });
+  revalidatePath(to);
+  redirect(to);
+}
+
+/** The author's own removal — same soft delete the moderators use, so a
+ *  quoted reply keeps making sense. */
+export async function forumDeleteOwn(form: FormData): Promise<void> {
+  const threadId = str(form, "threadId");
+  const postId = str(form, "postId");
+  const to = `/forum/t/${threadId}`;
+  const viewer = await getForumViewer();
+  if (!viewer.account) back(to, "Sign in first.");
+
+  const post = await getPost(postId);
+  if (!post || post.threadId !== threadId) back(to, "That post is gone.");
+  if (post!.authorId !== viewer.account!.id) back(to, "Not yours to remove.");
+
+  await deletePost(postId, viewer.account!.id);
+  revalidatePath(to);
+  redirect(to);
+}
+
 
 // ── Moderation (admins only) ────────────────────────────────────────────────
 

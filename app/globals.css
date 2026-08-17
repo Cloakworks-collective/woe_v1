@@ -10161,3 +10161,133 @@ html.dark .br-log {
   white-space: nowrap;
   font-size: 0.72em;
 }
+
+/* ── Forum: the furniture of an inhabited board ────────────────────────────
+   Reactions, quote links, the identity hover card, unread markers, the emoji
+   strip and the bell. All of it rides the flat-* theme variables so dark mode
+   comes for free. */
+
+.freact-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--flat-line);
+}
+.freact {
+  border: 1px solid var(--flat-line);
+  background: transparent;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.freact:disabled { cursor: default; opacity: 0.6; }
+.freact.is-on {
+  border-color: var(--flat-accent, #8a6d3b);
+  background: color-mix(in srgb, var(--flat-accent, #8a6d3b) 14%, transparent);
+}
+.freact-n { margin-left: 4px; font-size: 12px; font-weight: 700; }
+.freact-quote { margin-left: auto; text-decoration: none; }
+
+/* The poster's life in the game, on hover or focus. */
+.fpop-wrap { position: relative; cursor: help; }
+.fpop-wrap:focus { outline: none; }
+.fpop {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  min-width: 200px;
+  padding: 8px 10px;
+  border: 1px solid var(--flat-line);
+  border-radius: 6px;
+  background: var(--flat-card);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  font-size: 13px;
+  font-weight: 400;
+}
+.fpop-wrap:hover .fpop,
+.fpop-wrap:focus-within .fpop,
+.fpop-wrap:focus .fpop { display: block; }
+.fpop b { display: block; margin-bottom: 2px; }
+.fpop-line { display: block; opacity: 0.85; }
+
+/* Unread: the bold row, the dot, and the "new since" rule on the post. */
+.frow-unread td:first-child { position: relative; }
+.fnew-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--flat-accent, #8a6d3b);
+  vertical-align: middle;
+}
+.fnew-line {
+  margin: 0 0 8px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--flat-accent, #8a6d3b);
+  border-left: 3px solid var(--flat-accent, #8a6d3b);
+}
+
+/* The emoji strip under the editor. */
+.femoji-row { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 6px; }
+.femoji {
+  border: none;
+  background: transparent;
+  font-size: 17px;
+  line-height: 1.4;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.femoji:hover { background: color-mix(in srgb, var(--flat-accent, #8a6d3b) 16%, transparent); }
+
+/* The bell — a no-JS <details> dropdown. */
+.fbell { position: relative; }
+.fbell summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 17px;
+  user-select: none;
+}
+.fbell summary::-webkit-details-marker { display: none; }
+.fbell-n {
+  font-size: 11px;
+  font-weight: 800;
+  background: var(--flat-accent, #8a6d3b);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0 5px;
+  margin-left: 2px;
+  vertical-align: super;
+}
+.fbell-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 50;
+  width: min(320px, 84vw);
+  padding: 10px 12px;
+  border: 1px solid var(--flat-line);
+  border-radius: 6px;
+  background: var(--flat-card);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+  font-size: 13.5px;
+}
+.fbell-pop a {
+  display: block;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--flat-line);
+  text-decoration: none;
+}
+.fbell-pop a:last-child { border-bottom: none; }

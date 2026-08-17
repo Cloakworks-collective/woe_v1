@@ -2,7 +2,7 @@
 
 import "quill/dist/quill.snow.css";
 import { useEffect, useRef, useState } from "react";
-import { FORUM_LIMITS } from "@/lib/constants/forum";
+import { FORUM_EMOJI, FORUM_LIMITS } from "@/lib/constants/forum";
 
 /**
  * The write box: a real <textarea> that Quill upgrades in place.
@@ -27,14 +27,20 @@ export function Editor({
   label,
   placeholder,
   minHeight = 180,
+  initialHtml,
 }: {
   name?: string;
   label: string;
   placeholder?: string;
   minHeight?: number;
+  /** Pre-seeded content — a quote of the post being answered, or the old body
+   *  of a post being edited. Sanitized HTML from our own store; the server's
+   *  sanitizer remains the boundary on the way back in regardless. */
+  initialHtml?: string;
 }) {
   const holder = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
+  const quillRef = useRef<import("quill").default | null>(null);
   const [live, setLive] = useState(false);
 
   useEffect(() => {
@@ -72,6 +78,11 @@ export function Editor({
         area.current.value = quill.getText().trim().length === 0 ? "" : html;
       };
       quill.on("text-change", sync);
+      if (initialHtml) {
+        quill.clipboard.dangerouslyPasteHTML(initialHtml);
+        quill.setSelection(quill.getLength(), 0);
+      }
+      quillRef.current = quill;
       sync();
       setLive(true);
     })();
@@ -80,7 +91,30 @@ export function Editor({
       cancelled = true;
       quill?.off("text-change");
     };
+    // initialHtml is deliberately absent from the deps: it seeds the editor
+    // ONCE. Re-running the effect on a prop change would wipe a draft.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placeholder]);
+
+  /** Drop an emoji at the caret — into Quill when it drives, into the plain
+   *  textarea when it does not. Buttons, not a picker library: two dozen of
+   *  the game's own are plenty, and nothing loads for them. */
+  const addEmoji = (e: string) => {
+    const q = quillRef.current;
+    if (q) {
+      const at = q.getSelection(true)?.index ?? q.getLength();
+      q.insertText(at, e);
+      q.setSelection(at + e.length, 0);
+      return;
+    }
+    if (area.current) {
+      const t = area.current;
+      const at = t.selectionStart ?? t.value.length;
+      t.value = t.value.slice(0, at) + e + t.value.slice(t.selectionEnd ?? at);
+      t.selectionStart = t.selectionEnd = at + e.length;
+      t.focus();
+    }
+  };
 
   return (
     <div className="flat-field">
@@ -90,6 +124,7 @@ export function Editor({
       <textarea
         ref={area}
         name={name}
+        defaultValue={initialHtml}
         rows={7}
         placeholder={placeholder}
         maxLength={FORUM_LIMITS.BODY_MAX}
@@ -99,6 +134,13 @@ export function Editor({
       />
       <div className="editor-shell" hidden={!live}>
         <div ref={holder} style={{ minHeight }} />
+      </div>
+      <div className="femoji-row" role="toolbar" aria-label="Insert an emoji">
+        {FORUM_EMOJI.map((e) => (
+          <button type="button" key={e} className="femoji" onClick={() => addEmoji(e)} title={`Insert ${e}`}>
+            {e}
+          </button>
+        ))}
       </div>
       <span className="flat-note">
         {live ? (

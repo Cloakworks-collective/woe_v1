@@ -545,6 +545,33 @@ export async function createPost(p: {
   return post;
 }
 
+export async function getPost(id: string): Promise<ForumPost | null> {
+  const sb = getSupabaseClient();
+  if (sb) {
+    const { data, error } = await sb.from("forum_posts").select("*").eq("id", id).maybeSingle();
+    if (error) fail(error.message);
+    return data ? postFromRow(data) : null;
+  }
+  return readFile().posts.find((p) => p.id === id) ?? null;
+}
+
+/** Rewrite a post's body — the author's edit. The body column has always
+ *  existed; only the "edited" stamp needs the side store (forumExtra). */
+export async function updatePostBody(id: string, body: string): Promise<void> {
+  const sb = getSupabaseClient();
+  if (sb) {
+    const { error } = await sb.from("forum_posts").update({ body }).eq("id", id);
+    if (error) fail(error.message);
+    return;
+  }
+  const f = readFile();
+  const p = f.posts.find((x) => x.id === id);
+  if (p) {
+    p.body = body;
+    writeFile(f);
+  }
+}
+
 /** Soft delete — replies that quoted it stay readable. */
 export async function deletePost(id: string, byAccountId: string): Promise<void> {
   const now = new Date().toISOString();

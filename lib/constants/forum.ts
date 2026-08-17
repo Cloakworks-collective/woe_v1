@@ -57,6 +57,38 @@ export const FORUM_BAN_DURATIONS = [
   { days: 0, label: "Permanent" },
 ] as const;
 
+/**
+ * The reaction set — FIXED, small, and the game's own. A free-form picker is
+ * the "too crazy" path: it needs moderation of its own and turns every post
+ * footer into a zoo. One tap toggles; one of each per reader per post.
+ */
+export const FORUM_REACTIONS = ["⚔️", "👍", "😂", "🏰", "💀"] as const;
+
+/**
+ * The emoji strip under the editor. Curated to the game's register — enough to
+ * speak, not enough to wallpaper.
+ */
+export const FORUM_EMOJI = [
+  "⚔️", "🛡", "🏰", "🐎", "🏹", "🔥", "💀", "👑", "🪓", "🗡",
+  "😂", "😅", "😈", "🤝", "👍", "👎", "❤️", "😱", "🤔", "🙏",
+  "🥖", "🪙", "🌾", "⛏",
+] as const;
+
+/**
+ * Thread tags, per channel — the LEAN version of sub-forums. True sub-channels
+ * fragment a small community; one optional tag from a fixed list gives the
+ * sub-topic feel, filters cleanly, and stays renameable without a migration —
+ * the same rule the channels themselves live by.
+ */
+export const CHANNEL_TAGS: Record<string, string[]> = {
+  changes: ["Patch", "Balance", "New feature"],
+  mechanics: ["Combat", "Siege", "Economy", "Covert", "Ranking"],
+  strategy: ["Opening", "Race pick", "Build", "Endgame"],
+  politics: ["Declaration", "Diplomacy", "After-action"],
+  bugs: ["Bug", "UI", "Fixed"],
+  anything: [],
+};
+
 export const FORUM_LIMITS = {
   HANDLE_MIN: 3,
   HANDLE_MAX: 20,
