@@ -13,8 +13,25 @@ export function TickCountdown({ lastTickAt, turnMinutes = 10 }: { lastTickAt: st
 
   useEffect(() => {
     setNow(Date.now()); // render nothing on the server / first paint — no hydration mismatch
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
+    // The 1s tick runs only while anyone can see it. A background tab used to
+    // keep re-rendering every second anyway — the one thing in the app that
+    // never let the tab go idle, for a number nobody was looking at.
+    let t: ReturnType<typeof setInterval> | undefined;
+    const start = () => {
+      setNow(Date.now()); // catch up the moment the tab returns
+      t ??= setInterval(() => setNow(Date.now()), 1000);
+    };
+    const stop = () => {
+      if (t) clearInterval(t);
+      t = undefined;
+    };
+    const onVisible = () => (document.hidden ? stop() : start());
+    document.addEventListener("visibilitychange", onVisible);
+    onVisible();
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   if (now === null) return null;

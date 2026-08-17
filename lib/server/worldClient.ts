@@ -28,7 +28,12 @@ function secretHeader(): Record<string, string> {
 // A tiny read cache so a single render's several getWorld() calls collapse to
 // one fetch — mirrors the store's cache window. Invalidated after any command.
 const g = globalThis as unknown as { __woeSvcWorld?: World; __woeSvcAt?: number };
-const READ_TTL_MS = 2000;
+// Matches the store's CACHE_TTL_MS on purpose — the two layers used to hold
+// different opinions (2s here, 10s there) about how stale a world may be,
+// which made latency depend on which layer a request happened to hit. Safe at
+// the store's window because every command now refreshes this cache with the
+// post-command world, so staleness only accrues while nobody acts.
+const READ_TTL_MS = 10_000;
 
 export function invalidateServiceWorldCache(): void {
   g.__woeSvcWorld = undefined;
@@ -49,8 +54,18 @@ export async function forwardCommand(
     cache: "no-store",
   });
   if (!res.ok) throw new Error(`world service command failed: HTTP ${res.status}`);
+  const body = (await res.json()) as CommandResult | { result: CommandResult; world: World };
+  // New services ship the post-command world with the result; it becomes the
+  // read cache, so the page render that follows every command costs no second
+  // fetch and no second whole-world serialization. An old service that sends
+  // a bare result still works — the cache is dropped and the next read pays.
+  if (body && typeof body === "object" && "result" in body && "world" in body) {
+    g.__woeSvcWorld = body.world;
+    g.__woeSvcAt = Date.now();
+    return body.result;
+  }
   invalidateServiceWorldCache();
-  return (await res.json()) as CommandResult;
+  return body as CommandResult;
 }
 
 /** Fetch the current authoritative world snapshot from the service (cached

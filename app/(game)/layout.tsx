@@ -87,13 +87,19 @@ export default async function GameLayout({ children }: { children: React.ReactNo
       {/* The tour ends by handing the regent their first order, so it needs to
           know which one is next — resolved here, where the player already is,
           rather than fetched by the client. */}
-      <TourGuide
-        active={isOnboardingActive(player) && !player.onboarding?.toured}
-        nextCharge={(() => {
-          const next = chargeStatuses(player).find((c) => !c.complete);
-          return next ? { title: next.title, href: next.href, cta: next.cta } : undefined;
-        })()}
-      />
+      {/* Mounted CONDITIONALLY, not merely inactive: an unrendered client
+          component's chunk is never fetched, so the tour's script rides only
+          with the brand-new players it exists for instead of with every page
+          of every veteran's session. */}
+      {isOnboardingActive(player) && !player.onboarding?.toured && (
+        <TourGuide
+          active
+          nextCharge={(() => {
+            const next = chargeStatuses(player).find((c) => !c.complete);
+            return next ? { title: next.title, href: next.href, cta: next.cta } : undefined;
+          })()}
+        />
+      )}
     </FlashProvider>
   );
 }

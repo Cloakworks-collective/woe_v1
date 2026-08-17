@@ -135,6 +135,8 @@ const g = globalThis as unknown as {
   __woeWorldLoadedAt?: number;
   __woeWorldVersions?: WeakMap<World, number>;
   __woeSb?: SupabaseClient;
+  /** Full battle reports awaiting their side-store write — see pushBattle. */
+  __woePendingBattles?: BattleReport[];
 };
 
 /**
@@ -283,6 +285,7 @@ export async function saveWorld(world: World): Promise<void> {
       "saveWorld() is disabled while WORLD_SERVICE_URL is set — route this mutation through runCommand (the single writer, §14.2).",
     );
   }
+  await flushBattleDocs();
   const sb = supabase();
   if (sb) {
     const expected = worldVersion(world); // version THIS world was loaded at
@@ -351,9 +354,83 @@ export function pushInbox(world: World, playerId: string, event: GameEvent): voi
   if (list.length > 60) list.length = 60;
 }
 
+/**
+ * File a battle: a LIGHT entry in the world doc, the FULL report in a side
+ * store of its own.
+ *
+ * The prose log and the forces snapshot are the two heavy limbs of a report —
+ * kilobytes each — and three hundred of them used to ride inside the world
+ * doc, which the whole game reads per page and rewrites per command. Nothing
+ * but the report page itself ever opened them: the chronicle, the empire
+ * ledger and the public API all read the metadata alone. So the doc keeps the
+ * metadata and the detail goes to `battle:<id>` rows (or files, in dev),
+ * written when the world is next saved — the same request that filed the
+ * battle, so the link in the tiding never points at a report that is not
+ * there yet.
+ *
+ * Battle docs are IMMUTABLE once written, which is why they may safely bypass
+ * the single-writer discipline the world doc lives under.
+ */
 export function pushBattle(world: World, report: BattleReport): void {
-  world.battles.unshift(report);
+  (g.__woePendingBattles ??= []).push(report);
+  world.battles.unshift({ ...report, log: [], forces: undefined });
   if (world.battles.length > 300) world.battles.length = 300;
+}
+
+const BATTLES_DIR = path.join(DATA_DIR, "battles");
+/** Row-id namespace inside world_docs — reusing the table costs no migration. */
+const battleRowId = (id: string) => `battle:${id}`;
+/** Battle ids are UUIDs from our own randomUUID — anything else is refused
+ *  before it can reach a filename or a row id. */
+const SAFE_BATTLE_ID = /^[a-zA-Z0-9-]{1,64}$/;
+
+/** Write queued battle docs out. Called from saveWorld, so the flush rides the
+ *  same request that filed the battle. A failure loses the DETAIL of a report,
+ *  never the battle itself — the world doc carries the metadata regardless —
+ *  so it logs and moves on rather than failing the save. */
+async function flushBattleDocs(): Promise<void> {
+  const queue = g.__woePendingBattles;
+  if (!queue?.length) return;
+  const batch = queue.splice(0);
+  const sb = supabase();
+  if (sb) {
+    const stamp = new Date().toISOString();
+    const rows = batch
+      .filter((r) => SAFE_BATTLE_ID.test(r.id))
+      .map((r) => ({ id: battleRowId(r.id), doc: r, version: 1, updated_at: stamp }));
+    const { error } = await sb.from("world_docs").upsert(rows, { onConflict: "id" });
+    if (error) console.error(`battle doc flush failed (${rows.length} reports): ${error.message}`);
+    return;
+  }
+  fs.mkdirSync(BATTLES_DIR, { recursive: true });
+  for (const r of batch) {
+    if (!SAFE_BATTLE_ID.test(r.id)) continue;
+    fs.writeFileSync(path.join(BATTLES_DIR, `${r.id}.json`), JSON.stringify(r));
+  }
+}
+
+/**
+ * The full report, side store first, world doc second.
+ *
+ * The fallback is what keeps old worlds whole: every report filed before the
+ * split still carries its log inside the doc, and the index entry IS the full
+ * report for them. New entries fall back too — to a report with an empty log —
+ * if a flush ever failed, which reads as a terse report rather than a 404.
+ */
+export async function loadBattle(world: World, id: string): Promise<BattleReport | undefined> {
+  const inDoc = world.battles.find((b) => b.id === id);
+  if (!SAFE_BATTLE_ID.test(id)) return inDoc;
+  const sb = supabase();
+  if (sb) {
+    const { data } = await sb.from("world_docs").select("doc").eq("id", battleRowId(id)).maybeSingle();
+    if (data?.doc) return data.doc as BattleReport;
+    return inDoc;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(path.join(BATTLES_DIR, `${id}.json`), "utf8")) as BattleReport;
+  } catch {
+    return inDoc;
+  }
 }
 
 /** Record a significant world event in the age's grand chronicle (the Annals). */

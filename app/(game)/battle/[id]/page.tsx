@@ -3,6 +3,7 @@ import { BattleReportPanel } from "@/components/BattleReportPanel";
 import { LearnLink } from "@/components/LearnLink";
 import { Panel } from "@/components/Panel";
 import { getGame } from "@/lib/server/session";
+import { loadBattle } from "@/lib/server/store";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,10 @@ export default async function BattleReportPage({
 }) {
   const { id } = await params;
   const { world, player: p } = await getGame();
-  const report = world.battles.find((b) => b.id === id);
+  // The doc carries only the metadata now; the log and the muster roll live in
+  // a side store the report page alone pays for. loadBattle falls back to the
+  // in-doc entry, so reports filed before the split still render whole.
+  const report = await loadBattle(world, id);
 
   if (!report) {
     return (

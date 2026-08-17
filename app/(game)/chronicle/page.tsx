@@ -23,6 +23,8 @@ export default async function ChroniclePage({
   const { world, player: p } = await getGame();
   const inbox = world.inbox[p.id] ?? [];
   const meta = world.meta;
+  // world.battles is the light index (no logs, no muster rolls) since the
+  // reports moved to their own store — this filter walks metadata only.
   const myBattles = world.battles.filter((b) => b.attackerId === p.id || b.defenderId === p.id);
 
   const tidings = paginate(inbox, tp, TIDINGS_PER_PAGE);

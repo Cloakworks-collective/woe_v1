@@ -73,6 +73,10 @@ export default async function RankingsPage({
   // Every empire, flattened to plain data the browser can filter on a keystroke.
   // The search is live, so the whole ladder has to be here — but rendered from
   // data, not markup, so only the visible page ever reaches the DOM.
+  // PAYLOAD WATCHLINE: every empire ships one slim row (~20 scalars) so the
+  // client can search and page without a server trip. Cheap at hundreds of
+  // empires; if an age ever holds thousands, this is the first serialization
+  // to move server-side — cap the rows and search via a route instead.
   const rows: LadderRow[] = ladder.map(({ p }, i) => {
     const clan = p.clanId ? world.clans[p.clanId] : undefined;
     const isMe = p.id === me.id;

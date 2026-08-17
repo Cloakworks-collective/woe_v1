@@ -165,9 +165,15 @@ const server = http.createServer((req, res) => {
           args?: Record<string, unknown>;
         };
         if (!playerId || !name) throw new Error("playerId and name are required");
-        return enqueue(() => handleCommand(playerId, name, args ?? {}));
+        // The fresh world rides back WITH the result. The commanding request
+        // was about to turn around and fetch /world anyway — every command is
+        // followed by a page render — so this halves the round trips and,
+        // more to the point, halves the number of times the whole world is
+        // serialized per click. Serialized inside the queue so no command can
+        // land between the apply and the snapshot.
+        return enqueue(() => JSON.stringify({ result: handleCommand(playerId, name, args ?? {}), world }));
       })
-      .then((result) => send(res, 200, result))
+      .then((body) => send(res, 200, body))
       .catch((err) => send(res, 500, { ok: false, message: String(err?.message ?? err) }));
     return;
   }

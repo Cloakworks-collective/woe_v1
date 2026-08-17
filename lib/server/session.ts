@@ -52,7 +52,11 @@ async function _getGame(): Promise<{ world: World; player: Player }> {
       now - (player.lastSeenAtMs ?? 0) > PRESENCE_STALE_MS;
     if (needsSync) {
       await runCommand(id, "syncPlayer", {});
-      const fresh = await getWorld({ forceReload: true });
+      // No forceReload: the command response itself carried the post-command
+      // world into the read cache, so this is a cache hit — the cold-start
+      // page went from three whole-world transfers to two, and every ordinary
+      // command-then-render cycle from two to one.
+      const fresh = await getWorld();
       const fp = fresh.players[id];
       if (fp) return { world: fresh, player: fp };
     }
