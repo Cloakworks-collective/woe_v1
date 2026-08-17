@@ -57,6 +57,9 @@ export const REVENGE_WINDOW_TICKS = 18 * TICKS_PER_HOUR;
 // ── Presence & public empire numbers (ladder display) ───────────────────────
 
 /** A ruler counts as Online within 15 minutes of their last page/command. */
+/** World objects already swept by normalizePlayer/normalizeClan — see getWorld. */
+const normalizedWorlds = new WeakSet<World>();
+
 export const ONLINE_WINDOW_MS = 15 * 60 * 1000;
 
 export function isOnline(p: Player, now = Date.now()): boolean {
@@ -263,9 +266,15 @@ export async function getWorld(opts: { forceReload?: boolean } = {}): Promise<Wo
   // writes go through it too (runCommand forwards), so this is read-only.
   if (worldServiceEnabled()) {
     const world = await fetchServiceWorld(opts);
-    for (const p of Object.values(world.players)) normalizePlayer(p);
-    for (const c of Object.values(world.clans)) normalizeClan(c);
-    normalizeMeta(world.meta);
+    // Once per world OBJECT, not once per read. The cached snapshot is handed
+    // back many times across a request window, and every hand-back used to
+    // re-normalize every player and clan — idempotent work, repeated.
+    if (!normalizedWorlds.has(world)) {
+      for (const p of Object.values(world.players)) normalizePlayer(p);
+      for (const c of Object.values(world.clans)) normalizeClan(c);
+      normalizeMeta(world.meta);
+      normalizedWorlds.add(world);
+    }
     return world;
   }
 
@@ -399,6 +408,9 @@ export function runOneTick(world: World, nowMs = Date.now()): void {
     const { player: next, events } = processTurnTick(p, {
       currentTick: tick,
       hallPenaltyFactor: hallPenaltyFactor(clan),
+      // p is replaced two lines down and never read again — see the waiver
+      // note in processTurnTick for why this one call site may skip the clone.
+      unsafeInPlace: true,
     });
     world.players[p.id] = next;
     for (const e of events) pushInbox(world, p.id, e);
@@ -547,7 +559,14 @@ export function ticksDue(world: World, now = new Date()): number {
   return Math.floor((now.getTime() - last) / (TURN_MINUTES * 60 * 1000));
 }
 
-export function runDueTicks(world: World, now = new Date()): number {
+/** What a PLAYER's request will catch up inline: an hour of missed ticks —
+ *  enough to absorb a cron hiccup invisibly. Anything deeper is the cron's
+ *  marathon (see runDueTicks), not a random page view's problem: whoever's
+ *  request lands first after downtime should not stand behind a replay of the
+ *  whole gap while their page hangs. */
+export const REQUEST_CATCH_UP_CAP = 6;
+
+export function runDueTicks(world: World, now = new Date(), cap?: number): number {
   if (world.meta.winner) return 0; // the age is over — the world does not move
   const last = new Date(world.meta.lastTickAt).getTime();
   const step = TURN_MINUTES * 60 * 1000;
@@ -557,7 +576,7 @@ export function runDueTicks(world: World, now = new Date()): number {
   // actually ran, so the lost time never comes back. It is recorded loudly
   // below rather than swallowed.
   const CATCH_UP_CAP = 2016;
-  const capped = Math.min(due, CATCH_UP_CAP);
+  const capped = Math.min(due, cap ?? CATCH_UP_CAP);
   if (capped <= 0) return 0; // nothing due — not worth a log line
 
   // Each caught-up tick is credited at its own scheduled wall-clock time so the
@@ -668,7 +687,13 @@ export function updateCrown(world: World, nowMs = Date.now()): void {
   if (players.length === 0) return;
 
   // ── Grand Overlord ──
-  const top = players.reduce((a, b) => (rankingScore(b) > rankingScore(a) ? b : a));
+  // Score every player ONCE. The reduce used to call rankingScore — which
+  // builds the whole breakdown — twice per comparison, so a 200-player world
+  // paid ~400 breakdown builds per tick and a two-week catch-up run paid
+  // eight hundred thousand. This runs every tick; it is the hottest line in
+  // the game's clock.
+  const scores = new Map(players.map((p) => [p.id, rankingScore(p)]));
+  const top = players.reduce((a, b) => ((scores.get(b.id) ?? 0) > (scores.get(a.id) ?? 0) ? b : a));
 
   // The crown is public — note it in the Annals whenever it changes hands.
   if (world.meta.crownHolderId !== top.id) {
@@ -721,7 +746,11 @@ export function updateCrown(world: World, nowMs = Date.now()): void {
   // ── Clan victory ──
   const clans = Object.values(world.clans);
   if (clans.length === 0) return;
-  const topClan = clans.reduce((a, b) => (clanScore(world, b) > clanScore(world, a) ? b : a));
+  // Same rule as the player reduce above: clanScore sums rankingScore over
+  // every member, so calling it inside the comparator was quadratic twice
+  // over. Once per clan, then compare numbers.
+  const clanScores = new Map(clans.map((c) => [c.id, clanScore(world, c)]));
+  const topClan = clans.reduce((a, b) => ((clanScores.get(b.id) ?? 0) > (clanScores.get(a.id) ?? 0) ? b : a));
   const clanRegulars = topClan.members.reduce(
     (sum, id) => sum + (world.players[id] ? regularTroops(world.players[id]) : 0),
     0,

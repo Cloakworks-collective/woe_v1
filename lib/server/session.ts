@@ -7,10 +7,19 @@ import { currentAccountId, playerIdForAccount } from "./auth";
 import { impersonatedPlayerId } from "./admin";
 import { runCommand } from "./pipeline";
 import { type World } from "./store";
-import { commitWithRetry, getWorld, runDueTicks } from "./world";
+import { REQUEST_CATCH_UP_CAP, commitWithRetry, getWorld, runDueTicks } from "./world";
 import { worldServiceEnabled } from "./worldClient";
 
-const PRESENCE_STALE_MS = 4 * 60 * 1000; // coarse Online granularity
+/**
+ * Presence granularity — matched to the 10-minute tick, and the width is the
+ * point: EVERY stamp marks the world dirty, and dirty means the whole doc is
+ * rewritten (or snapshotted). At 4 minutes, K browsing players cost K full-doc
+ * writes per 4-minute window plus the version conflicts they race each other
+ * into; at 10 they mostly ride commits that were happening anyway. Safe for
+ * the ladder because ONLINE_WINDOW_MS is 15 minutes — a 10-minute stamp can
+ * never let a present player flicker offline.
+ */
+const PRESENCE_STALE_MS = 10 * 60 * 1000;
 
 // Deduped per request: the game layout and the page both call getGame(), but
 // React's cache() ensures the load + tick + save runs exactly once per render,
@@ -67,7 +76,7 @@ async function _getGame(): Promise<{ world: World; player: Player }> {
   // concurrency (§14.1). A page load that changes nothing (dirty=false) skips
   // the save, keeping ordinary navigation off the network.
   const { world, player, banned } = await commitWithRetry((world) => {
-    const processed = runDueTicks(world);
+    const processed = runDueTicks(world, new Date(), REQUEST_CATCH_UP_CAP);
     const id =
       (worn && world.players[worn] ? worn : null) ??
       (accountId ? playerIdForAccount(world, accountId) : null);
@@ -82,7 +91,7 @@ async function _getGame(): Promise<{ world: World; player: Player }> {
     // on the public ladder and hand a real player a free night's roof grace.
     const now = Date.now();
     const seen =
-      !worn && player && now - (player.lastSeenAtMs ?? 0) > 4 * 60 * 1000
+      !worn && player && now - (player.lastSeenAtMs ?? 0) > PRESENCE_STALE_MS
         ? ((player.lastSeenAtMs = now), true)
         : false;
     // Unthrottled, unlike the presence stamp above: the regent is looking at

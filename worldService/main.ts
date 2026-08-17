@@ -47,6 +47,20 @@ interface LogEntry {
 let world: World;
 let seq = 0; // monotonic count of applied (dirty) commands — the log/snapshot cursor
 let dirtySinceSnapshot = false;
+// Monotonic count of ANY world change — dirty commands AND ticks. `seq` alone
+// cannot key a cache because ticks move the world without moving it.
+let stateRev = 0;
+let worldJson: { rev: number; body: string } | null = null;
+
+/** The serialized world, computed once per state change however many reads ask.
+ *  Every page view of every player hits /world; stringifying a multi-megabyte
+ *  doc per view was the service's whole CPU bill between commands. */
+function serializedWorld(): string {
+  if (!worldJson || worldJson.rev !== stateRev) {
+    worldJson = { rev: stateRev, body: JSON.stringify(world) };
+  }
+  return worldJson.body;
+}
 
 const log = (m: string) => console.log(`[world-service] ${m}`);
 
@@ -118,6 +132,7 @@ function handleCommand(playerId: string, name: string, args: Record<string, unkn
     seq += 1;
     appendLog({ seq, playerId, name, args, at: new Date().toISOString() });
     dirtySinceSnapshot = true;
+    stateRev += 1;
   }
   return result;
 }
@@ -152,7 +167,7 @@ const server = http.createServer((req, res) => {
 
   if (req.method === "GET" && url === "/world") {
     // Serialize the read through the queue for a consistent (never mid-command) snapshot.
-    enqueue(() => JSON.stringify(world)).then((body) => send(res, 200, body));
+    enqueue(() => serializedWorld()).then((body) => send(res, 200, body));
     return;
   }
 
@@ -171,7 +186,13 @@ const server = http.createServer((req, res) => {
         // more to the point, halves the number of times the whole world is
         // serialized per click. Serialized inside the queue so no command can
         // land between the apply and the snapshot.
-        return enqueue(() => JSON.stringify({ result: handleCommand(playerId, name, args ?? {}), world }));
+        // The result rides beside the CACHED world serialization — spliced by
+        // hand so a command pays for one world stringify at most (its own
+        // state change), and the reads that follow pay none.
+        return enqueue(() => {
+          const result = handleCommand(playerId, name, args ?? {});
+          return `{"result":${JSON.stringify(result)},"world":${serializedWorld()}}`;
+        });
       })
       .then((body) => send(res, 200, body))
       .catch((err) => send(res, 500, { ok: false, message: String(err?.message ?? err) }));
@@ -195,6 +216,7 @@ setInterval(() => {
     runDueTicks(world); // wall-clock driven — applies every due 10-min tick
     if (world.meta.tickNumber !== before) {
       dirtySinceSnapshot = true;
+      stateRev += 1;
       // §14.4: publish the durable spectator snapshot (no-op without Supabase).
       // Fire-and-forget — buildSpectatorSnapshot captures state synchronously
       // before any await, so it can't observe a later command's mutation.

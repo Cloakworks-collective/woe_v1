@@ -279,3 +279,21 @@ it("statecraft doubles the tax take at mastery, and nothing else", () => {
   expect(b.gold - 5000).toBeCloseTo((a.gold - 5000) * 2, 5);
   expect(b.resources.food).toBe(a.resources.food);
 });
+
+describe("the tick's purity waiver", () => {
+  it("stays pure by default — the input is untouched", () => {
+    const p = newEmpire({ id: "pure", name: "Pure", race: "human" });
+    p.workers.farmers = 50;
+    const before = JSON.stringify(p);
+    processTurnTick(p, { currentTick: 1 });
+    expect(JSON.stringify(p)).toBe(before);
+  });
+
+  it("unsafeInPlace mutates the input and returns the same object", () => {
+    // The waiver exists for exactly one caller — runOneTick, which replaces
+    // the player with the result in the same breath. Everyone else clones.
+    const p = newEmpire({ id: "mut", name: "Mut", race: "human" });
+    const { player } = processTurnTick(p, { currentTick: 1, unsafeInPlace: true });
+    expect(player).toBe(p);
+  });
+});

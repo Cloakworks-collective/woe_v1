@@ -120,14 +120,7 @@ import {
 import type { Race } from "../constants/races";
 import { EXAM_REWARD } from "@/lib/constants";
 import { dmChannel, pushBattle, pushChronicle, pushInbox, pushMessage, type World } from "./store";
-import {
-  ERA_PEACE_TICKS,
-  REVENGE_WINDOW_TICKS,
-  commitWithRetry,
-  revengePendingOn,
-  runDueTicks,
-  updateCrown,
-} from "./world";
+import { ERA_PEACE_TICKS, REQUEST_CATCH_UP_CAP, REVENGE_WINDOW_TICKS, commitWithRetry, revengePendingOn, runDueTicks, updateCrown } from "./world";
 import { forwardCommand, worldServiceEnabled } from "./worldClient";
 
 export interface CommandResult {
@@ -184,7 +177,11 @@ export function applyOneCommand(
   name: string,
   args: Record<string, unknown>,
 ): { result: CommandResult; dirty: boolean } {
-  runDueTicks(world); // the world moves before every command
+  // The world moves before every command — but a page view or a button press
+  // only absorbs a small hiccup inline (REQUEST_CATCH_UP_CAP). Deep catch-up
+  // after real downtime belongs to the cron and the service loop, which run
+  // uncapped; a random player's request should never stand behind a marathon.
+  runDueTicks(world, new Date(), REQUEST_CATCH_UP_CAP);
 
   if (name === "createEmpire") {
     try {
@@ -257,7 +254,19 @@ function clanWorksArg(v: unknown): ClanWorks {
   return w as ClanWorks;
 }
 
-const num = (v: unknown) => Math.floor(Number(v));
+/**
+ * EVERY numeric command argument comes through here, so this is where the NaN
+ * class of bug dies. Math.floor(Number(garbage)) is NaN, NaN sails through
+ * Math.max and every < comparison, and one unguarded engine path let it reach
+ * a stored ledger — after which that ledger was broken forever. Most engine
+ * functions guard with Number.isInteger; this makes the one that forgets
+ * harmless.
+ */
+const num = (v: unknown) => {
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n)) throw new EngineError("value", "A number is required.");
+  return n;
+};
 const str = (v: unknown) => String(v ?? "");
 
 /**

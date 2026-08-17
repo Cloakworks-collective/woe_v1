@@ -127,6 +127,9 @@ export function productionPerWorker(p: Player, building: BuildingId, hallPenalty
 }
 
 export interface TickOptions {
+  /** Mutate the input instead of cloning it. ONLY for a caller that discards
+   *  the input immediately — see the note in processTurnTick. */
+  unsafeInPlace?: boolean;
   hallPenaltyFactor?: number; // from the Clan Hall (clans.md)
   currentTick?: number; // for unrest expiry checks
 }
@@ -138,7 +141,15 @@ export function unrestActive(p: Player, currentTick: number): boolean {
 export function processTurnTick(input: Player, opts: TickOptions = {}): EngineResult {
   const hallPenaltyFactor = opts.hallPenaltyFactor ?? 1;
   const currentTick = opts.currentTick ?? 0;
-  const p = structuredClone(input);
+  // Pure by default — callers keep their input untouched, which is the
+  // engine's contract and what every test leans on. The ONE caller allowed to
+  // waive it is runOneTick, which replaces world.players[id] with the result
+  // in the same breath: cloning there protected an object nobody would ever
+  // read again, at N deep copies per tick and two thousand ticks per deep
+  // catch-up. The waiver buys nothing new in failure either way — a mid-tick
+  // throw leaves the WORLD torn (meta bumped, earlier players replaced)
+  // whether or not this one player was cloned, and no save happens on a throw.
+  const p = opts.unsafeInPlace ? input : structuredClone(input);
   const events: EngineResult["events"] = [];
   // Incite Unrest (espionage.md): tax and production −25% while it lasts.
   const unrestMult = unrestActive(p, currentTick) ? 0.75 : 1;
