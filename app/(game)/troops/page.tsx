@@ -52,6 +52,8 @@ import {
 } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
+export const metadata = { title: "The Army" };
+
 export const dynamic = "force-dynamic";
 
 const CORPS: { type: TroopType; key: "footmen" | "archers" | "cavalry"; label: string; trainer: string }[] = [
@@ -471,7 +473,12 @@ export default async function TroopsPage({
                     rows={[{ icon: <span className="costtip-ico">🛏</span>, label: "Empty Hearthstead beds", need: 1, have: Math.max(0, housingFree) }]}
                     note={`They only leave if a bed stands empty and the 30% guard line holds — ${safeDischarge} safe to discharge now.`}
                   >
-                    <Btn name="__cmd" value="dischargeTroops" className="btn btn-recall">
+                    <Btn
+                      name="__cmd"
+                      value="dischargeTroops"
+                      className="btn btn-recall"
+                      confirmText="Discharge these soldiers? Their gear is lost — retraining costs full price again."
+                    >
                       Discharge
                     </Btn>
                   </ReqTip>
@@ -500,6 +507,7 @@ export default async function TroopsPage({
                             value="dismissMercs"
                             className={held > 0 ? "btn btn-recall" : "btn btn-no"}
                             disabled={held < 1}
+                            confirmText="Tear up their contract? NO REFUND — hiring was a one-time price paid outright."
                           >
                             Dismiss
                           </Btn>

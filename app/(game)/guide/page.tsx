@@ -30,6 +30,8 @@ import {
 } from "@/lib/constants";
 import { RESEARCH_FIELDS } from "@/lib/constants/research";
 
+export const metadata = { title: "Field Manual" };
+
 export const dynamic = "force-dynamic";
 
 const fmt = (n: number) => n.toLocaleString("en-US");

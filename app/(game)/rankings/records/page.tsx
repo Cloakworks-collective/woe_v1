@@ -7,6 +7,8 @@ import { rankingScore } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 import { buildEraTables } from "@/lib/server/eraTables";
 
+export const metadata = { title: "Records" };
+
 export const dynamic = "force-dynamic";
 
 export default async function WarRecordsPage() {

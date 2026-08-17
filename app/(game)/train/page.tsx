@@ -26,6 +26,8 @@ import {
 import { COVERT_CAPS, MERCENARIES } from "@/lib/constants";
 import { getGame } from "@/lib/server/session";
 
+export const metadata = { title: "Workers & Levy" };
+
 export const dynamic = "force-dynamic";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
@@ -80,6 +82,7 @@ function CountForm({
   heading,
   goldEach,
   haveGold,
+  disabledReason,
 }: {
   name: string;
   path: string;
@@ -87,13 +90,19 @@ function CountForm({
   extra?: Record<string, string>;
   /** Can the empire afford at least one? false → dull-red, disabled button. */
   afford?: boolean;
+  /** Blocked for a reason beyond gold (a cap, a ceiling). Disables the button
+   *  and puts the reason on its tooltip — the control STAYS, greyed, the way
+   *  every other blocked button in the game behaves. A form that vanishes
+   *  reads as gone; a disabled one reads as blocked, which is the truth. */
+  disabledReason?: string;
   /** When set, the button carries a hover cost table (gold-per-one vs on hand). */
   heading?: string;
   goldEach?: number;
   haveGold?: number;
 }) {
+  const blocked = !afford || !!disabledReason;
   const btn = (
-    <Btn className={afford ? "btn" : "btn btn-no"} disabled={!afford}>
+    <Btn className={blocked ? "btn btn-no" : "btn"} disabled={blocked}>
       {label}
     </Btn>
   );
@@ -103,7 +112,7 @@ function CountForm({
         Object.entries(extra).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
       <CountInput
         ariaLabel={`${label} count`}
-        disabled={!afford}
+        disabled={blocked}
         max={goldEach != null && haveGold != null && goldEach > 0 ? Math.floor(haveGold / goldEach) : undefined}
       />
       {goldEach != null && haveGold != null ? (
@@ -113,7 +122,7 @@ function CountForm({
           cost={{ gold: goldEach, wood: 0, stone: 0, ore: 0 }}
           have={{ gold: haveGold, wood: 0, stone: 0, ore: 0 }}
           note="Gold shown is per one — × the number you enter."
-          disabledReason={afford ? undefined : "Not enough gold to train even one."}
+          disabledReason={disabledReason ?? (afford ? undefined : "Not enough gold to train even one.")}
         >
           {btn}
         </CostTip>
@@ -297,23 +306,27 @@ export default async function TrainPage({
                       <ResIcon kind="gold" size={20} /> {cost} each
                     </li>
                   </ul>
-                  {over >= 0 ? (
+                  {over >= 0 && (
                     <p className="covert-hire-why">
                       {over === 0
                         ? `At the ceiling — your people will carry ${ceiling} ${unit}s of your own. Grow the realm to raise more.${squeezed}`
                         : `${over} over what your people can carry (${ceiling}). Nobody is dismissed — losing population never costs you an agent — but none may be raised until the realm grows back.${squeezed}`}
                     </p>
-                  ) : (
-                    <CountForm
-                      name={cmd}
-                      path="/train"
-                      label="Train"
-                      afford={purseGold(p) >= cost}
-                      heading={`Train ${UNIT_INFO[unit].title}`}
-                      goldEach={cost}
-                      haveGold={purseGold(p)}
-                    />
                   )}
+                  <CountForm
+                    name={cmd}
+                    path="/train"
+                    label="Train"
+                    afford={purseGold(p) >= cost}
+                    heading={`Train ${UNIT_INFO[unit].title}`}
+                    goldEach={cost}
+                    haveGold={purseGold(p)}
+                    disabledReason={
+                      over >= 0
+                        ? `At the ceiling (${ceiling}) — the realm must grow before more may be raised.`
+                        : undefined
+                    }
+                  />
 
                   {/* Sellswords of the same arm, on the same card. They cost no
                       population and no barracks bed — covert agents live in
@@ -331,9 +344,9 @@ export default async function TrainPage({
                       </p>
                     ) : mercRoom === 0 ? (
                       <p className="covert-hire-why">
-                        No room: sellswords may not outnumber a{" "}
-                        {Math.round(1 / MERCENARIES.CAP_RATIO)}th of your own {unit}s. Train more of
-                        your own first.
+                        No room: hired {unit === "spy" ? "spies" : "scouts"} are capped at{" "}
+                        {Math.round(MERCENARIES.CAP_RATIO * 100)}% of your own. Train more of your
+                        own first.
                       </p>
                     ) : (
                       <CountForm

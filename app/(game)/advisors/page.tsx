@@ -7,6 +7,8 @@ import { advisorFor } from "@/lib/constants/advisors";
 import { advisorCounsel } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
+export const metadata = { title: "Advisors" };
+
 export const dynamic = "force-dynamic";
 
 export default async function AdvisorsPage() {

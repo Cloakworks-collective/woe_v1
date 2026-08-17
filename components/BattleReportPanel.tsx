@@ -305,6 +305,12 @@ function LossBar({ name, share, won }: { name: string; share: number; won: boole
 export function BattleReportPanel({ report }: { report: BattleReport }) {
   const won = report.victor === "attacker";
   const share = report.healthLostShare;
+  /** Did soldiers actually meet? Read off the CASUALTIES, never off optional
+   *  report fields — the verdict blurb must not lie about a battle it can see. */
+  const linesMet =
+    report.attackerLosses.footmen + report.attackerLosses.archers + report.attackerLosses.cavalry +
+    report.attackerLosses.mercenaries + report.defenderLosses.footmen + report.defenderLosses.archers +
+    report.defenderLosses.cavalry + report.defenderLosses.mercenaries > 0;
   const A = report.attackerName;
   const D = report.defenderName;
 
@@ -402,6 +408,12 @@ export function BattleReportPanel({ report }: { report: BattleReport }) {
               <LossBar name={D} share={share.defender} won={!won && report.victor !== "none"} />
             </div>
           </>
+        ) : linesMet ? (
+          // Troops fought but the worth ledger is missing (an older report, or
+          // a stripped index entry) — say nothing rather than the WRONG thing.
+          // This branch used to print "No lines met" above a butcher's bill
+          // full of dead footmen.
+          null
         ) : (
           <p className="br-why">
             No lines met: engines fired on stone and on each other, and no ground changed hands.

@@ -10,6 +10,8 @@ import { level, publicBattle, rankingScore, regularTroops, scoutsNeeded, settlem
 import { getGame } from "@/lib/server/session";
 import { REVENGE_WINDOW_TICKS } from "@/lib/server/world";
 
+export const metadata = { title: "Empire" };
+
 export const dynamic = "force-dynamic";
 
 const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");

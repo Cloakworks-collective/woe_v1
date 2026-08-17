@@ -16,14 +16,23 @@ export function eventLine(e: GameEvent): string {
     case "researchComplete": return `📚 The scholars unveil ${pretty(e.field)}, mastery reaching level ${e.level}.`;
     case "buildComplete": return `🏗 The ${pretty(e.building)} rises to level ${e.level}, stone upon stone.`;
     case "attacked": return `⚔ ${e.byName} fell upon us in ${e.mode}! We may answer with revenge for 18 hours.`;
-    case "battleResult": return `⚔ Our ${e.mode} is decided — ${e.victor} carried the day.`;
+    // This event goes to the ATTACKER alone (the defender gets "attacked"),
+    // so "we" is always right — the old line said "attacker carried the day"
+    // and left the reader to work out that the attacker was them.
+    case "battleResult":
+      return `⚔ Our ${e.mode}${e.targetName ? ` on ${e.targetName}` : ""} — ${
+        e.victor === "attacker" ? "we carried the day" : e.victor === "defender" ? "we were thrown back" : "no ground changed hands"
+      }.`;
     // A TIDING, not the report. These used to paste the whole finding into the
     // feed — a survey of the coffers is nine numbers and arrived as a
     // 200-character run of parenthesised asides, which buried every other
     // event around it and was unreadable anyway. The figures live on the
     // intelligence desk in columns; this says only that they arrived.
+    // The op is named and the outcome is plain — "the mission is undone" said
+    // neither which mission nor what undone meant, and three identical rows in
+    // a feed answered nothing without three clicks.
     case "spyReport":
-      return `🗡 ${e.caught ? `The mission against ${e.targetName} is undone` : `Shadows return from ${e.targetName}`}.`;
+      return `🗡 ${e.op} against ${e.targetName} — ${e.caught ? "our hand was seen, and they know us" : "done, and no one the wiser"}.`;
     case "spiesCaught": return `🗡 We seized ${e.executed} spies of ${e.attackerName} (${e.op}) — all put to the sword.`;
     case "sabotaged": return `🔥 ${e.detail}`;
     case "scoutReport": return `👁 Whispers return from ${e.targetName}.`;

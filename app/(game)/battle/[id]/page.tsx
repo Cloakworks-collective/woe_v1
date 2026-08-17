@@ -5,6 +5,8 @@ import { Panel } from "@/components/Panel";
 import { getGame } from "@/lib/server/session";
 import { loadBattle } from "@/lib/server/store";
 
+export const metadata = { title: "Battle report" };
+
 export const dynamic = "force-dynamic";
 
 /**

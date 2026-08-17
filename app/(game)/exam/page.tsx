@@ -10,6 +10,8 @@ import { EXAM, EXAM_PASS_MARK, EXAM_REWARD } from "@/lib/constants";
 import { currentQuestionIndex, examSealed, examState, sittingFinished } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
+export const metadata = { title: "The Exam" };
+
 export const dynamic = "force-dynamic";
 
 /**

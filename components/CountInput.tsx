@@ -14,7 +14,10 @@ import { useFormReset } from "@/components/CmdForm";
 export function CountInput({
   name = "count",
   ariaLabel,
-  placeholder = "#",
+  // "qty", not "#": a lone hash mark was never a label, and it is the only
+  // hint these boxes give — the aria-label serves screen readers but sighted
+  // players got a glyph to guess at.
+  placeholder = "qty",
   size = 4,
   max,
   form,

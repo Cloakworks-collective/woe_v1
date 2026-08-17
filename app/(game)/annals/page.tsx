@@ -6,6 +6,8 @@ import { Panel } from "@/components/Panel";
 import { getGame } from "@/lib/server/session";
 import { battleTables } from "@/lib/server/eraTables";
 
+export const metadata = { title: "The Annals" };
+
 export const dynamic = "force-dynamic";
 
 const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");

@@ -12,7 +12,10 @@ const cinzel = Cinzel({
 });
 
 export const metadata: Metadata = {
-  title: "War of Empires",
+  // A template, so each page contributes a short name and every tab, bookmark
+  // and history row stops reading identically. Pages without their own title
+  // fall back to the default.
+  title: { template: "%s · War of Empires", default: "War of Empires" },
   description: "A persistent, turn-based multiplayer strategy game.",
 };
 

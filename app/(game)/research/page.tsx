@@ -30,6 +30,8 @@ import {
 } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
+export const metadata = { title: "Research" };
+
 export const dynamic = "force-dynamic";
 
 const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");

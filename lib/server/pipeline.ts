@@ -1212,7 +1212,7 @@ function doAttack(
     defenderId: d.id,
     defenderClanName: dClan?.name,
   });
-  pushInbox(world, a.id, { type: "battleResult", battleId, victor: outcome.report.victor, mode });
+  pushInbox(world, a.id, { type: "battleResult", battleId, victor: outcome.report.victor, mode, targetName: d.name });
   pushInbox(world, d.id, { type: "attacked", byId: a.id, byName: a.name, mode, battleId });
 
   // A sacked castle is world news worth recording in the Annals.

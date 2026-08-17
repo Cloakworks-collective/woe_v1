@@ -13,6 +13,8 @@ import { RACE_NAMES } from "@/lib/constants";
 import { dmChannel, type ForumMessage } from "@/lib/server/store";
 import { getGame } from "@/lib/server/session";
 
+export const metadata = { title: "Letters" };
+
 export const dynamic = "force-dynamic";
 
 // LETTERS ONLY. World chat lives on its own page and clan talk has always lived

@@ -9,6 +9,8 @@ import { paginate } from "@/lib/paginate";
 import { getGame } from "@/lib/server/session";
 import { glyphs } from "@/components/Glyph";
 
+export const metadata = { title: "Chronicle" };
+
 export const dynamic = "force-dynamic";
 
 const TIDINGS_PER_PAGE = 25;

@@ -7,6 +7,8 @@ import { timeAgo } from "@/components/timeAgo";
 import { paginate } from "@/lib/paginate";
 import { getGame } from "@/lib/server/session";
 
+export const metadata = { title: "Battles" };
+
 export const dynamic = "force-dynamic";
 
 const ENTRIES_PER_PAGE = 30;

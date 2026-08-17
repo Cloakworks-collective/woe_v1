@@ -16,6 +16,8 @@ import {
 import { getGame } from "@/lib/server/session";
 import { MS_PER_HOUR, REVENGE_WINDOW_TICKS, overlordHold } from "@/lib/server/world";
 
+export const metadata = { title: "Empire Ranks" };
+
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 30;

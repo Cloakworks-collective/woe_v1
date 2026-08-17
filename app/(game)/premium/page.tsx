@@ -6,6 +6,8 @@ import { CHARTER_PRICE_CENTS, STEWARD_QUEUE_CAP, WORK_QUEUE_CAP } from "@/lib/co
 import { paymentMode, verifyCharterSession } from "@/lib/server/premium";
 import { getGame } from "@/lib/server/session";
 
+export const metadata = { title: "Royal Charter" };
+
 export const dynamic = "force-dynamic";
 
 const price = `$${(CHARTER_PRICE_CENTS / 100).toFixed(2)}`;

@@ -7703,9 +7703,22 @@ select option {
   padding: 6px 12px;
 }
 .mnav-drawer {
+  /* A real overlay, not a flow child. It used to render inline inside the
+     right-anchored .mnav and inherit its cramped column, so every label on a
+     phone clipped at the viewport edge — "Command" read "Comman…". Fixed to
+     the viewport with its own scroll, it can never be wider than the screen
+     that opens it. */
+  position: fixed;
+  top: 64px;
+  right: 8px;
+  left: auto;
+  width: min(320px, calc(100vw - 16px));
+  max-height: calc(100dvh - 76px);
+  overflow-y: auto;
+  z-index: 60;
   display: flex;
   flex-direction: column;
-  background: transparent;
+  background: var(--wood-dark, #3d2317);
   border-style: solid;
   border-width: 12px;
   border-image: url("/art/ui/wood-rail.png") 12 fill / 12px round;
@@ -10132,4 +10145,19 @@ html.dark .br-log {
   margin-right: 5px;
   color: var(--heading);
   font-variant-numeric: tabular-nums;
+}
+
+/* The crown-race header: title and its "how to win" link share a line where
+   there is room and wrap cleanly where there is not — they used to overlap at
+   phone widths, clipping the link into the title. */
+.vt h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.vt h3 .vt-learn {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 0.72em;
 }

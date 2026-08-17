@@ -35,6 +35,8 @@ import {
 } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
+export const metadata = { title: "Buildings" };
+
 export const dynamic = "force-dynamic";
 
 const fmt = (n: number) => n.toLocaleString("en-US");

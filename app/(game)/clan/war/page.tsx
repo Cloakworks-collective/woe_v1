@@ -12,6 +12,8 @@ import { Panel } from "@/components/Panel";
 import { ACTION_INFO, WAR } from "@/lib/constants";
 import { canDeclareWar, clanBadges, getClanView } from "@/lib/server/clanView";
 
+export const metadata = { title: "Clan war" };
+
 export const dynamic = "force-dynamic";
 
 // Both irreversible war actions live here — declaring (Leader/Vice only, and

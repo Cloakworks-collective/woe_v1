@@ -6,6 +6,8 @@ import { COVERT_LOG_DAYS } from "@/lib/constants";
 import { covertHistory } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
+export const metadata = { title: "Covert report" };
+
 export const dynamic = "force-dynamic";
 
 /**

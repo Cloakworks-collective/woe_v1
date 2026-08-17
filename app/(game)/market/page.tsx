@@ -11,6 +11,8 @@ import { BLACK_MARKET, MARKET_FEE, MARKET_PRICE_MAX, MARKET_PRICE_MIN, MARKET_RE
 import { caravanArrived, caravanCapacity, caravanDeliveryTurnsFor, freeMerchants, level, marketPrice, recallReturn, type Resource } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
+export const metadata = { title: "Market" };
+
 export const dynamic = "force-dynamic";
 
 const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");

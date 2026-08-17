@@ -629,7 +629,7 @@ export type GameEvent =
   | { type: "researchComplete"; field: ResearchField; level: number }
   | { type: "buildComplete"; building: BuildingId; level: number }
   | { type: "attacked"; byId: string; byName: string; mode: AttackMode; battleId: string }
-  | { type: "battleResult"; battleId: string; victor: string; mode: AttackMode }
+  | { type: "battleResult"; battleId: string; victor: string; mode: AttackMode; targetName?: string }
   | { type: "spyReport"; op: string; targetName: string; caught: boolean; detail: string; reportId?: string; opId?: string }
   | { type: "spiesCaught"; attackerName: string; executed: number; op: string }
   | { type: "sabotaged"; detail: string } // anonymous — victim sees damage, not the hand

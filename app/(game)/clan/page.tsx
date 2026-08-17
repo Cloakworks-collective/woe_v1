@@ -16,6 +16,8 @@ import { canAdmit, hasRequested, invitedTo, isRefused, memberCap, wonderDiscount
 import { clanBadges, getClanView, isClanLeadership } from "@/lib/server/clanView";
 import { clanScore } from "@/lib/server/world";
 
+export const metadata = { title: "Clan" };
+
 export const dynamic = "force-dynamic";
 
 const fmt = (n: number) => Math.floor(n).toLocaleString("en-US");

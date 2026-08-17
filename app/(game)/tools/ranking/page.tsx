@@ -2,6 +2,8 @@ import { LearnLink } from "@/components/LearnLink";
 import { RankingCalculator } from "@/components/RankingCalculator";
 import { ToolTabs } from "@/components/ToolTabs";
 
+export const metadata = { title: "Ranking calculator" };
+
 export const dynamic = "force-dynamic";
 
 export default function RankingCalculatorPage() {

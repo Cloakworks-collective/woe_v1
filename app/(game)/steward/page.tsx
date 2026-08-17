@@ -23,6 +23,8 @@ import {
 import { buildingCost } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
+export const metadata = { title: "Steward" };
+
 export const dynamic = "force-dynamic";
 
 const ALL_BUILDINGS: BuildingMeta[] = [

@@ -136,7 +136,7 @@ export function ResourceBar({ player, meta }: { player: Player; meta: WorldMeta 
           ]}
           note="The figure on the bar is everything you hold; purchases spend loose coin first and reach into the Counting House only for the remainder. Only the loose half is plundered when your castle is sacked."
         >
-          <div className={`res ${bulk(heldGold)}`} data-res="gold">
+          <div className={`res ${bulk(heldGold)}`} data-res="gold" title="Gold" aria-label="Gold">
             <ResIcon kind="gold" size={28} />
             {fmt(heldGold)}
           </div>
@@ -153,7 +153,7 @@ export function ResourceBar({ player, meta }: { player: Player; meta: WorldMeta 
           ]}
           note={foodNote}
         >
-          <div className={`res ${foodCls}`} data-res="food">
+          <div className={`res ${foodCls}`} data-res="food" title="Food" aria-label="Food">
             <ResIcon kind="food" size={28} />
             {fmt(held("food"))}
           </div>
@@ -173,7 +173,7 @@ export function ResourceBar({ player, meta }: { player: Player; meta: WorldMeta 
           ]}
           note={`Capped at ${ACTION_TURNS.CAP}. Spend them — capped turns are wasted turns. Spies and scouts run on their own, scarcer clock.`}
         >
-          <div className="res" data-res="turns">
+          <div className="res" data-res="turns" title="Action turns" aria-label="Action turns">
             <ResIcon kind="turns" size={28} />
             {player.turnsAvailable}
           </div>

@@ -35,6 +35,8 @@ import {
 } from "@/lib/engine";
 import { getGame } from "@/lib/server/session";
 
+export const metadata = { title: "Siege Works" };
+
 export const dynamic = "force-dynamic";
 
 const GEAR_ART: Record<string, string> = {
